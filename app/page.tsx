@@ -157,17 +157,9 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 md:gap-3 mb-4">
-                <Image
-  src="/images/barna-logo-icon.png"
-  alt="Barna Gestoría Logo"
-  width={24}
-  height={24}
-  className="object-contain rounded-full"
-  style={{ 
-    filter: 'brightness(0) invert(1)',
-    display: 'block'
-  }}
-/>
+                <div className="w-6 h-6 md:w-8 md:h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
+  <Shield className="w-4 h-4 text-emerald-800" />
+</div>
                 <span className="text-lg md:text-xl font-bold">
                   <span className="hidden sm:inline">Barna Gestoría</span>
                   <span className="sm:hidden">Barna</span>
