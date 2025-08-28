@@ -158,14 +158,13 @@ export default function HomePage() {
             <div>
               <div className="flex items-center gap-2 md:gap-3 mb-4">
                 <div className="w-6 h-6 md:w-8 md:h-8 bg-white rounded-full flex items-center justify-center shadow-sm">
-<div className="flex items-center gap-2 md:gap-3 mb-4">
-  {/* Usar el mismo logo que en el header */}
-  <ResponsiveLogo size="sm" />
-  <span className="text-lg md:text-xl font-bold">
-    <span className="hidden sm:inline">Barna Gestoría</span>
-    <span className="sm:hidden">Barna</span>
-  </span>
-</div>
+                  <Image
+                  src="/images/barna-logo-icon.png"
+                  alt="Barna Gestoría Logo"
+                  width={24}
+                  height={24}
+                  className="object-contain rounded-full brightness-0 invert contrast-200"
+                  />
                 <span className="text-lg md:text-xl font-bold">
                   <span className="hidden sm:inline">Barna Gestoría</span>
                   <span className="sm:hidden">Barna</span>
