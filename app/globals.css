@@ -1,0 +1,173 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 25% 95%; /* Beige Arena muy suave */
+    --foreground: 0 0% 17%; /* Gris Grafito */
+    --card: 0 0% 100%; /* Blanco puro para cards */
+    --card-foreground: 0 0% 17%; /* Gris Grafito */
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 17%;
+    --primary: 145 48% 20%; /* Verde Esmeralda Oscuro */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 42 25% 87%; /* Beige Arena Suave */
+    --secondary-foreground: 0 0% 17%;
+    --muted: 42 25% 95%;
+    --muted-foreground: 0 0% 42%;
+    --accent: 35 28% 62%; /* Dorado Suave */
+    --accent-foreground: 0 0% 17%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 42 25% 82%;
+    --input: 42 25% 82%;
+    --ring: 145 48% 20%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 145 65% 8%; /* Verde Pino muy oscuro */
+    --foreground: 42 25% 95%;
+    --card: 145 50% 12%;
+    --card-foreground: 42 25% 95%;
+    --popover: 145 50% 12%;
+    --popover-foreground: 42 25% 95%;
+    --primary: 145 48% 25%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 145 30% 15%;
+    --secondary-foreground: 42 25% 95%;
+    --muted: 145 30% 15%;
+    --muted-foreground: 42 15% 65%;
+    --accent: 35 28% 45%;
+    --accent-foreground: 42 25% 95%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 42 25% 95%;
+    --border: 145 30% 18%;
+    --input: 145 30% 18%;
+    --ring: 145 48% 25%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Animaciones personalizadas para la pantalla de carga */
+@keyframes logoGlow {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(15, 61, 46, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 40px rgba(20, 90, 50, 0.6);
+  }
+}
+
+.logo-glow {
+  animation: logoGlow 2s ease-in-out infinite;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+/* Mejoras para la experiencia de carga */
+.loading-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(194, 168, 120, 0.4), transparent);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Gradientes elegantes con la nueva paleta */
+.elegant-gradient {
+  background: linear-gradient(135deg, #eae3d2 0%, #f5f3f0 50%, #eae3d2 100%);
+}
+
+.pine-gradient {
+  background: linear-gradient(135deg, #0f3d2e 0%, #145a32 100%);
+}
+
+.gold-accent-gradient {
+  background: linear-gradient(135deg, #c2a878 0%, #b59a6a 100%);
+}
+
+/* Animaciones para el componente de proceso */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out forwards;
+}
+
+.animate-slide-in {
+  animation: slide-in 0.6s ease-out forwards;
+}
+
+.delay-200 {
+  animation-delay: 0.2s;
+}
+
+.delay-400 {
+  animation-delay: 0.4s;
+}
+
+.delay-500 {
+  animation-delay: 0.5s;
+}
+
+.delay-700 {
+  animation-delay: 0.7s;
+}
+
+.delay-1000 {
+  animation-delay: 1s;
+}
+
+.delay-1500 {
+  animation-delay: 1.5s;
+}
