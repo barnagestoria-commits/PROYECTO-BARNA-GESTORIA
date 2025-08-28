@@ -1,4 +1,5 @@
 import Link from "next/link"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FileText, Upload, Download, Shield } from "lucide-react"
@@ -156,7 +157,13 @@ export default function HomePage() {
           <div className="grid md:grid-cols-3 gap-8">
             <div>
               <div className="flex items-center gap-2 md:gap-3 mb-4">
-                <ResponsiveLogo size="sm" className="brightness-0 invert" />
+                <Image
+  src="/images/barna-logo-icon.png"
+  alt="Barna Gestoría Logo"
+  width={24}
+  height={24}
+  className="object-contain rounded-full brightness-0 invert contrast-200"
+/>
                 <span className="text-lg md:text-xl font-bold">
                   <span className="hidden sm:inline">Barna Gestoría</span>
                   <span className="sm:hidden">Barna</span>
