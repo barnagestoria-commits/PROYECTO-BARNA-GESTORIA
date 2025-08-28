@@ -162,7 +162,11 @@ export default function HomePage() {
   alt="Barna Gestoría Logo"
   width={24}
   height={24}
-  className="object-contain rounded-full brightness-0 invert contrast-200"
+  className="object-contain rounded-full"
+  style={{ 
+    filter: 'brightness(0) invert(1)',
+    display: 'block'
+  }}
 />
                 <span className="text-lg md:text-xl font-bold">
                   <span className="hidden sm:inline">Barna Gestoría</span>
