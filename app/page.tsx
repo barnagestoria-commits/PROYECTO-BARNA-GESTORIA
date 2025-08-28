@@ -68,7 +68,7 @@ export default function HomePage() {
                 className="bg-emerald-800 hover:bg-pine-900 text-white px-8 py-4 text-lg rounded-2xl shadow-lg transition-all hover:shadow-xl"
                 asChild
               >
-                <Link href="/register">Consultar</Link>
+                <Link href="/register">Obtener más información</Link>
               </Button>
               <Button
                 variant="outline"
