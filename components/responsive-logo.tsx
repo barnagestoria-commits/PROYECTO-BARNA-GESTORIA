@@ -35,7 +35,7 @@ export function ResponsiveLogo({ size = "md", showText = false, className, textC
           alt="Barna Gestoría Logo"
           width={size === "sm" ? 24 : size === "md" ? 32 : 40}
           height={size === "sm" ? 24 : size === "md" ? 32 : 40}
-          className={cn("object-contain rounded-full", sizeClasses[size], className)}
+          className={cn("object-contain", sizeClasses[size], className)}
           onError={() => setImageError(true)}
           priority
         />

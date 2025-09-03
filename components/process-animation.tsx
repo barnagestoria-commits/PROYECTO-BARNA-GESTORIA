@@ -30,6 +30,7 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
   const [currentStep, setCurrentStep] = useState<AnimationStep>("homepage")
   const [isPlaying, setIsPlaying] = useState(true)
   const [animationKey, setAnimationKey] = useState(0)
+  const [cycleCount, setCycleCount] = useState(0)
 
   const steps = [
     {
@@ -77,11 +78,24 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
 
     const timer = setTimeout(() => {
       const nextIndex = (currentStepIndex + 1) % steps.length
+      
+      // Si completamos un ciclo completo, cambiar de dispositivo
+      if (nextIndex === 0) {
+        setCycleCount(prev => prev + 1)
+        // Alternar entre desktop y móvil cada ciclo
+        if (cycleCount % 2 === 0) {
+          setCurrentDevice("mobile")
+        } else {
+          setCurrentDevice("desktop")
+        }
+        setAnimationKey(prev => prev + 1)
+      }
+      
       setCurrentStep(steps[nextIndex].id)
     }, currentStepData.duration)
 
     return () => clearTimeout(timer)
-  }, [currentStep, isPlaying])
+  }, [currentStep, isPlaying, cycleCount])
 
   const togglePlayPause = () => {
     setIsPlaying(!isPlaying)
@@ -89,6 +103,8 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
 
   const resetAnimation = () => {
     setCurrentStep("homepage")
+    setCurrentDevice("desktop")
+    setCycleCount(0)
     setAnimationKey((prev) => prev + 1)
     setIsPlaying(true)
   }
@@ -101,40 +117,50 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
   return (
     <div className={cn("relative w-full max-w-4xl mx-auto", className)}>
       {/* Controls */}
-      <div className="flex items-center justify-center gap-4 mb-8">
-        <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
-          <Button
-            variant={currentDevice === "desktop" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => switchDevice("desktop")}
-            className={cn("rounded-full", currentDevice === "desktop" && "bg-emerald-600 hover:bg-emerald-700")}
-          >
-            <Monitor className="h-4 w-4 mr-2" />
-            Desktop
-          </Button>
-          <Button
-            variant={currentDevice === "mobile" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => switchDevice("mobile")}
-            className={cn("rounded-full", currentDevice === "mobile" && "bg-emerald-600 hover:bg-emerald-700")}
-          >
-            <Smartphone className="h-4 w-4 mr-2" />
-            Móvil
-          </Button>
-        </div>
+      <div className="flex flex-col items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
+            <div
+              className={cn(
+                "flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full transition-all",
+                currentDevice === "desktop" && "bg-emerald-600 text-white shadow-md",
+                currentDevice === "mobile" && "text-graphite-600"
+              )}
+            >
+              <Monitor className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Desktop</span>
+            </div>
+            <div
+              className={cn(
+                "flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full transition-all",
+                currentDevice === "mobile" && "bg-emerald-600 text-white shadow-md",
+                currentDevice === "desktop" && "text-graphite-600"
+              )}
+            >
+              <Smartphone className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="text-xs sm:text-sm font-medium">Móvil</span>
+            </div>
+          </div>
 
-        <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
-          <Button variant="ghost" size="sm" onClick={togglePlayPause} className="rounded-full">
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={resetAnimation} className="rounded-full">
-            <RotateCcw className="h-4 w-4" />
-          </Button>
+          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
+            <Button variant="ghost" size="sm" onClick={togglePlayPause} className="rounded-full">
+              {isPlaying ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={resetAnimation} className="rounded-full">
+              <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" />
+            </Button>
+          </div>
+        </div>
+        
+        <div className="text-center">
+          <p className="text-xs text-graphite-600 bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm">
+            ✨ Cambia automáticamente entre Desktop y Móvil
+          </p>
         </div>
       </div>
 
       {/* Animation Container */}
-      <div className="relative bg-gradient-to-br from-white/90 to-sand-100/90 backdrop-blur-sm rounded-3xl p-8 shadow-2xl border border-sand-200">
+      <div className="relative bg-gradient-to-br from-white/90 to-sand-100/90 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl border border-sand-200">
         {/* Device Frame */}
         <div className="flex items-center justify-center">
           {currentDevice === "desktop" ? (
@@ -145,7 +171,7 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
         </div>
 
         {/* Step Indicators */}
-        <div className="flex items-center justify-center gap-2 mt-8 flex-wrap">
+        <div className="flex items-center justify-center gap-1 sm:gap-2 mt-6 sm:mt-8 flex-wrap">
           {steps.map((step, index) => {
             const StepIcon = step.icon
             const isActive = step.id === currentStep
@@ -155,20 +181,20 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
               <div
                 key={step.id}
                 className={cn(
-                  "flex flex-col items-center gap-2 p-2 rounded-xl transition-all duration-500",
+                  "flex flex-col items-center gap-1 sm:gap-2 p-1 sm:p-2 rounded-lg sm:rounded-xl transition-all duration-500",
                   isActive && "bg-emerald-100 scale-110",
                   isCompleted && "bg-green-50",
                 )}
               >
                 <div
                   className={cn(
-                    "w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500",
+                    "w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center transition-all duration-500",
                     isActive && "bg-emerald-600 text-white shadow-lg",
                     isCompleted && "bg-green-500 text-white",
                     !isActive && !isCompleted && "bg-sand-200 text-graphite-600",
                   )}
                 >
-                  <StepIcon className="h-4 w-4" />
+                  <StepIcon className="h-3 w-3 sm:h-4 sm:w-4" />
                 </div>
                 <div className="text-center">
                   <p
@@ -196,16 +222,16 @@ function DesktopFrame({ currentStep, animationKey }: { currentStep: AnimationSte
   return (
     <div className="relative">
       {/* Monitor Frame */}
-      <div className="w-[500px] h-80 bg-graphite-800 rounded-t-2xl p-4 shadow-2xl">
+      <div className="w-[280px] sm:w-[400px] lg:w-[500px] h-48 sm:h-64 lg:h-80 bg-graphite-800 rounded-t-xl lg:rounded-t-2xl p-2 sm:p-3 lg:p-4 shadow-2xl">
         <div className="w-full h-full bg-white rounded-lg overflow-hidden relative">
           {/* Browser Bar */}
-          <div className="h-8 bg-sand-100 flex items-center px-3 gap-2 border-b">
+          <div className="h-6 sm:h-8 bg-sand-100 flex items-center px-2 sm:px-3 gap-1 sm:gap-2 border-b">
             <div className="flex gap-1">
-              <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-              <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-              <div className="w-3 h-3 bg-green-400 rounded-full"></div>
+              <div className="w-2 h-2 sm:w-3 sm:h-3 bg-red-400 rounded-full"></div>
+              <div className="w-2 h-2 sm:w-3 sm:h-3 bg-yellow-400 rounded-full"></div>
+              <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-400 rounded-full"></div>
             </div>
-            <div className="flex-1 bg-white rounded px-2 py-1 text-xs text-graphite-600">
+            <div className="flex-1 bg-white rounded px-1 sm:px-2 py-1 text-xs text-graphite-600">
               {currentStep === "homepage" && "barnagestoria.com"}
               {currentStep === "register" && "barnagestoria.com/register"}
               {currentStep === "upload" && "barnagestoria.com/dashboard"}
@@ -224,8 +250,8 @@ function DesktopFrame({ currentStep, animationKey }: { currentStep: AnimationSte
       </div>
 
       {/* Monitor Stand */}
-      <div className="w-24 h-6 bg-graphite-700 mx-auto rounded-b-lg"></div>
-      <div className="w-32 h-3 bg-graphite-600 mx-auto rounded-full"></div>
+      <div className="w-16 sm:w-20 lg:w-24 h-4 sm:h-5 lg:h-6 bg-graphite-700 mx-auto rounded-b-lg"></div>
+      <div className="w-20 sm:w-24 lg:w-32 h-2 sm:h-2.5 lg:h-3 bg-graphite-600 mx-auto rounded-full"></div>
     </div>
   )
 }
@@ -290,8 +316,8 @@ function MobileFrame({ currentStep, animationKey }: { currentStep: AnimationStep
   return (
     <div className="relative">
       {/* Phone Frame */}
-      <div className="w-64 h-96 bg-graphite-800 rounded-3xl p-2 shadow-2xl">
-        <div className="w-full h-full bg-white rounded-2xl overflow-hidden relative">
+      <div className="w-48 sm:w-56 lg:w-64 h-72 sm:h-84 lg:h-96 bg-graphite-800 rounded-2xl lg:rounded-3xl p-2 shadow-2xl">
+        <div className="w-full h-full bg-white rounded-xl lg:rounded-2xl overflow-hidden relative">
           {/* Status Bar */}
           <div className="h-6 bg-sand-50 flex items-center justify-between px-4 text-xs">
             <span>9:41</span>

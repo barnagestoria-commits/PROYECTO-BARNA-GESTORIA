@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { FileText, Upload, Download } from "lucide-react"
+import { FileText, Upload, Download, Shield } from "lucide-react"
 import { ContactInfo } from "@/components/contact-info"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { ProcessAnimation } from "@/components/process-animation"
@@ -151,7 +151,7 @@ export default function HomePage() {
       <section className="bg-gradient-to-br from-sand-50 to-sand-100 py-12 sm:py-16 lg:py-24 relative z-10">
         <div className="container mx-auto px-4 text-center">
           <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg">
-            <ResponsiveLogo size="lg" className="w-10 h-10 sm:w-12 sm:h-12" />
+            <Shield className="h-8 w-8 sm:h-10 sm:w-10 text-emerald-800" />
           </div>
           <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-4 sm:mb-6 text-pine-900">Seguridad Garantizada</h3>
           <p className="text-graphite-700 max-w-2xl mx-auto text-base sm:text-lg px-4">
