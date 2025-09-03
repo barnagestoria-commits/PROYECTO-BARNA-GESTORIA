@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
 import {
   Smartphone,
   Monitor,
@@ -10,9 +9,6 @@ import {
   FileText,
   CheckCircle,
   Download,
-  Play,
-  Pause,
-  RotateCcw,
   Leaf,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -97,67 +93,9 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
     return () => clearTimeout(timer)
   }, [currentStep, isPlaying, cycleCount])
 
-  const togglePlayPause = () => {
-    setIsPlaying(!isPlaying)
-  }
-
-  const resetAnimation = () => {
-    setCurrentStep("homepage")
-    setCurrentDevice("desktop")
-    setCycleCount(0)
-    setAnimationKey((prev) => prev + 1)
-    setIsPlaying(true)
-  }
-
-  const switchDevice = (device: DeviceType) => {
-    setCurrentDevice(device)
-    setAnimationKey((prev) => prev + 1)
-  }
 
   return (
     <div className={cn("relative w-full max-w-4xl mx-auto", className)}>
-      {/* Controls */}
-      <div className="flex flex-col items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-        <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
-            <div
-              className={cn(
-                "flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full transition-all",
-                currentDevice === "desktop" && "bg-emerald-600 text-white shadow-md",
-                currentDevice === "mobile" && "text-graphite-600"
-              )}
-            >
-              <Monitor className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="text-xs sm:text-sm font-medium">Desktop</span>
-            </div>
-            <div
-              className={cn(
-                "flex items-center gap-2 px-2 sm:px-3 py-1 rounded-full transition-all",
-                currentDevice === "mobile" && "bg-emerald-600 text-white shadow-md",
-                currentDevice === "desktop" && "text-graphite-600"
-              )}
-            >
-              <Smartphone className="h-3 w-3 sm:h-4 sm:w-4" />
-              <span className="text-xs sm:text-sm font-medium">Móvil</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 bg-white/80 backdrop-blur-sm rounded-full p-2 shadow-lg">
-            <Button variant="ghost" size="sm" onClick={togglePlayPause} className="rounded-full">
-              {isPlaying ? <Pause className="h-3 w-3 sm:h-4 sm:w-4" /> : <Play className="h-3 w-3 sm:h-4 sm:w-4" />}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={resetAnimation} className="rounded-full">
-              <RotateCcw className="h-3 w-3 sm:h-4 sm:w-4" />
-            </Button>
-          </div>
-        </div>
-        
-        <div className="text-center">
-          <p className="text-xs text-graphite-600 bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm">
-            ✨ Cambia automáticamente entre Desktop y Móvil
-          </p>
-        </div>
-      </div>
 
       {/* Animation Container */}
       <div className="relative bg-gradient-to-br from-white/90 to-sand-100/90 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-2xl border border-sand-200">
