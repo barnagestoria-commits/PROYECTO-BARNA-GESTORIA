@@ -426,10 +426,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
         )}
         onClick={toggleChat}
       >
-        {isOpen ? <X className="h-6 w-6" /> : <div className="relative w-6 h-6 flex items-center justify-center">
-          <Headphones className="h-6 w-6 absolute" />
-          <MessageSquare className="h-4 w-4 relative z-10" />
-        </div>}
+        {isOpen ? <X className="h-6 w-6" /> : <div className="relative"><Headphones className="h-5 w-5" /><MessageSquare className="h-3 w-3 absolute -bottom-1 -right-1" /></div>}
 
         {/* Online indicator */}
         {!isOpen && (
