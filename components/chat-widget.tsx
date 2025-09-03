@@ -237,11 +237,6 @@ export function ChatWidget({ className }: ChatWidgetProps) {
 
   return (
     <div className={cn("fixed bottom-4 right-4 z-50", className)}>
-      {/* WhatsApp Floating Button */}
-      <WhatsAppButton
-        variant="floating"
-        message="Hola Barna Gestoría, me gustaría obtener información sobre sus servicios."
-      />
 
       {/* Chat Window */}
       {isOpen && (
@@ -426,8 +421,8 @@ export function ChatWidget({ className }: ChatWidgetProps) {
       {/* Chat Toggle Button */}
       <Button
         className={cn(
-          "h-14 w-14 rounded-full shadow-lg bg-emerald-600 hover:bg-emerald-700 relative mr-16",
-          isOpen && "bg-emerald-700",
+          "h-14 w-14 rounded-full shadow-lg bg-sand-400 hover:bg-sand-500 text-pine-800 relative mr-16",
+          isOpen && "bg-sand-500",
         )}
         onClick={toggleChat}
       >
