@@ -44,12 +44,6 @@ export function ContactInfo({ variant = "default", showIcons = true }: ContactIn
           {showIcons && <Mail className="h-4 w-4" />}
           ✉️ {contactData.email}
         </button>
-        <div className="pt-2">
-          <WhatsAppButton
-            size="sm"
-            message="Hola Barna Gestoría, me gustaría obtener información sobre sus servicios."
-          />
-        </div>
       </div>
     )
   }
@@ -130,9 +124,6 @@ export function ContactInfo({ variant = "default", showIcons = true }: ContactIn
       <div className="flex items-center gap-2">
         {showIcons && <MapPin className="h-4 w-4 text-emerald-600" />}
         <span className="text-emerald-700">{contactData.address}</span>
-      </div>
-      <div className="pt-2">
-        <WhatsAppButton size="sm" message="Hola Barna Gestoría, me gustaría obtener información sobre sus servicios." />
       </div>
     </div>
   )
