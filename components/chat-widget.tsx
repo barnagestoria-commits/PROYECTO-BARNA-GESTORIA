@@ -421,12 +421,14 @@ export function ChatWidget({ className }: ChatWidgetProps) {
       {/* Chat Toggle Button */}
       <Button
         className={cn(
-          "h-14 w-14 rounded-full shadow-lg bg-sand-400 hover:bg-sand-500 text-pine-800 relative mr-16",
+          "h-16 w-32 rounded-2xl shadow-lg bg-sand-400 hover:bg-sand-500 text-pine-800 relative",
           isOpen && "bg-sand-500",
         )}
         onClick={toggleChat}
       >
-        {isOpen ? <X className="h-6 w-6" /> : <div className="relative"><Headphones className="h-5 w-5" /><MessageSquare className="h-3 w-3 absolute -bottom-1 -right-1" /></div>}
+        {isOpen ? <X className="h-6 w-6" /> : <div className="flex items-center justify-center px-2">
+          <span className="text-xs font-medium whitespace-nowrap">¡Chatea conmigo!</span>
+        </div>}
 
         {/* Online indicator */}
         {!isOpen && (
