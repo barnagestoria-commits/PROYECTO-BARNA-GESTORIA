@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { MessageCircle, X, Send, Phone, Mail, Bot, Minimize2, Maximize2 } from "lucide-react"
+import { Headphones, X, Send, Phone, Mail, Bot, Minimize2, Maximize2, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { WhatsAppButton } from "./whatsapp-button"
@@ -431,7 +431,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
         )}
         onClick={toggleChat}
       >
-        {isOpen ? <X className="h-6 w-6" /> : <MessageCircle className="h-6 w-6" />}
+        {isOpen ? <X className="h-6 w-6" /> : <div className="relative"><Headphones className="h-5 w-5" /><MessageSquare className="h-3 w-3 absolute -bottom-1 -right-1" /></div>}
 
         {/* Online indicator */}
         {!isOpen && (

@@ -44,6 +44,12 @@ export function ContactInfo({ variant = "default", showIcons = true }: ContactIn
           {showIcons && <Mail className="h-4 w-4" />}
           ✉️ {contactData.email}
         </button>
+        <div className="pt-3">
+          <WhatsAppButton
+            size="sm"
+            message="Hola Barna Gestoría, me gustaría obtener información sobre sus servicios."
+          />
+        </div>
       </div>
     )
   }
