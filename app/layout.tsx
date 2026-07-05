@@ -4,6 +4,8 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { AppWrapper } from "@/components/app-wrapper"
 import { ChatProvider } from "@/components/chat-provider"
+import { AuthProvider } from "@/components/auth-provider"
+import { NextAuthProvider } from "@/components/next-auth-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,7 +26,11 @@ export default function RootLayout({
     <html lang="es">
       <body className={inter.className}>
         <AppWrapper>
-          <ChatProvider>{children}</ChatProvider>
+          <NextAuthProvider>
+            <AuthProvider>
+              <ChatProvider>{children}</ChatProvider>
+            </AuthProvider>
+          </NextAuthProvider>
         </AppWrapper>
       </body>
     </html>

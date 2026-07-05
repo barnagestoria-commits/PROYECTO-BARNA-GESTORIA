@@ -1,0 +1,104 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum AccountType {
+  GESTORIA
+  CLIENTE_FINAL
+}
+
+enum UserRole {
+  ADMIN_GESTOR
+  GESTOR
+  CLIENTE
+}
+
+enum DocumentType {
+  FACTURA_RECIBIDA
+  FACTURA_EMITIDA
+  EXTRACTO_BANCARIO
+}
+
+enum DocumentStatus {
+  PENDIENTE
+  PROCESADO
+}
+
+/// Cuenta raíz: despacho de gestoría o cliente final (autónomo/empresa)
+model Account {
+  id          String      @id @default(cuid())
+  name        String
+  accountType AccountType
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  users       User[]
+  companies   Company[]
+}
+
+model User {
+  id            String              @id @default(cuid())
+  email         String              @unique
+  passwordHash  String
+  name          String
+  phone         String?
+  role          UserRole
+  accountId     String
+  account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  sessions      Session[]
+  companyAccess UserCompanyAccess[]
+}
+
+/// Empresa/cliente fiscal. OCR y extractos siempre vinculados a companyId.
+model Company {
+  id         String              @id @default(cuid())
+  name       String
+  cif        String?
+  accountId  String
+  account    Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  documents  FiscalDocument[]
+  userAccess UserCompanyAccess[]
+}
+
+/// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
+model UserCompanyAccess {
+  id        String  @id @default(cuid())
+  userId    String
+  companyId String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+}
+
+model FiscalDocument {
+  id           String         @id @default(cuid())
+  companyId    String
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name         String
+  type         DocumentType
+  status       DocumentStatus @default(PENDIENTE)
+  sizeBytes    Int
+  ocrDataJson  String?
+  uploadedById String?
+  uploadedAt   DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
+
+model Session {
+  id              String   @id @default(cuid())
+  token           String   @unique
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeCompanyId String?
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+}

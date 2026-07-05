@@ -10,6 +10,7 @@ interface FileUploadProps {
   accept?: string
   multiple?: boolean
   maxSize?: number
+  disabled?: boolean
 }
 
 export function FileUpload({
@@ -17,6 +18,7 @@ export function FileUpload({
   accept = ".pdf,.jpg,.jpeg,.png",
   multiple = true,
   maxSize = 10 * 1024 * 1024, // 10MB
+  disabled = false,
 }: FileUploadProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
 
@@ -35,6 +37,7 @@ export function FileUpload({
     ),
     multiple,
     maxSize,
+    disabled,
   })
 
   const removeFile = (index: number) => {
@@ -52,8 +55,12 @@ export function FileUpload({
     <div className="space-y-4">
       <div
         {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
-          isDragActive ? "border-blue-500 bg-blue-50" : "border-gray-300 hover:border-gray-400"
+        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+          disabled
+            ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
+            : isDragActive
+              ? "cursor-pointer border-blue-500 bg-blue-50"
+              : "cursor-pointer border-gray-300 hover:border-gray-400"
         }`}
       >
         <input {...getInputProps()} />
@@ -85,7 +92,7 @@ export function FileUpload({
               </Button>
             </div>
           ))}
-          <Button onClick={handleUpload} className="w-full">
+          <Button onClick={handleUpload} className="w-full" disabled={disabled}>
             <Upload className="h-4 w-4 mr-2" />
             Subir {selectedFiles.length} archivo{selectedFiles.length > 1 ? "s" : ""}
           </Button>
