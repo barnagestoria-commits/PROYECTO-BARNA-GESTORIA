@@ -3,15 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "prisma generate && next build",
+    "build": "prisma generate && prisma migrate deploy && next build",
     "dev": "next dev",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "start": "next start",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "npx tsx prisma/seed.ts",
-    "db:setup": "prisma migrate dev && npx tsx prisma/seed.ts"
+    "db:setup": "prisma migrate deploy && npx tsx prisma/seed.ts",
+    "db:setup:neon": "bash scripts/setup-neon-db.sh",
+    "db:neon:urls": "bash scripts/fetch-neon-urls.sh"
   },
   "dependencies": {
     "@prisma/client": "^6.19.0",
