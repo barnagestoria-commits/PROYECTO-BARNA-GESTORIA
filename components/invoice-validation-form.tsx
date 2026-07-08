@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -19,6 +19,8 @@ import {
   X,
 } from "lucide-react"
 import type { InvoiceOcrResult, IvaDesgloseLine, TipoIva } from "@/lib/types/invoice"
+import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
+import { apiFetch } from "@/lib/api-client"
 import { TIPOS_IVA } from "@/lib/types/invoice"
 import {
   calculateCuotaIva,
@@ -32,6 +34,7 @@ import {
 interface InvoiceValidationFormProps {
   fileName: string
   initialData: InvoiceOcrResult
+  documentType?: "factura-recibida" | "factura-emitida"
   onConfirm: (data: InvoiceOcrResult) => void
   onCancel: () => void
   isSubmitting?: boolean
@@ -47,12 +50,20 @@ function formatEuro(value: number): string {
 export function InvoiceValidationForm({
   fileName,
   initialData,
+  documentType = "factura-recibida",
   onConfirm,
   onCancel,
   isSubmitting = false,
 }: InvoiceValidationFormProps) {
   const [formData, setFormData] = useState<InvoiceOcrResult>(syncInvoiceTotals(initialData))
   const [ocrTotal] = useState(initialData.total)
+  const [accountPreview, setAccountPreview] = useState<ThirdPartyResolution | null>(null)
+  const [accountPreviewError, setAccountPreviewError] = useState<string | null>(null)
+  const [isLoadingAccount, setIsLoadingAccount] = useState(false)
+
+  const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
+  const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
+  const accountGroupLabel = documentType === "factura-emitida" ? "430" : "400"
 
   const { baseImponible, iva } = useMemo(
     () => sumDesglose(formData.iva_desglose),
@@ -65,6 +76,49 @@ export function InvoiceValidationForm({
   )
 
   const totalsMatch = Math.abs(calculatedTotal - ocrTotal) < 0.02
+
+  useEffect(() => {
+    const cif = formData.cif.trim()
+    if (!cif) {
+      setAccountPreview(null)
+      setAccountPreviewError(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = setTimeout(async () => {
+      setIsLoadingAccount(true)
+      setAccountPreviewError(null)
+
+      try {
+        const params = new URLSearchParams({
+          cif,
+          name: formData.proveedor.trim(),
+          type: thirdPartyType,
+        })
+        const result = await apiFetch<{ success: true; resolution: ThirdPartyResolution }>(
+          `/api/accounting/third-parties/resolve?${params.toString()}`,
+          { signal: controller.signal },
+        )
+        setAccountPreview(result.resolution)
+      } catch (error) {
+        if (controller.signal.aborted) return
+        setAccountPreview(null)
+        setAccountPreviewError(
+          error instanceof Error ? error.message : "No se pudo resolver la subcuenta contable.",
+        )
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingAccount(false)
+        }
+      }
+    }, 400)
+
+    return () => {
+      clearTimeout(timer)
+      controller.abort()
+    }
+  }, [formData.cif, formData.proveedor, thirdPartyType])
 
   const applyUpdate = (updater: (prev: InvoiceOcrResult) => InvoiceOcrResult) => {
     setFormData((prev) => syncInvoiceTotals(updater(prev)))
@@ -182,7 +236,7 @@ export function InvoiceValidationForm({
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="proveedor">Proveedor</Label>
+              <Label htmlFor="proveedor">{thirdPartyLabel}</Label>
               <Input
                 id="proveedor"
                 value={formData.proveedor}
@@ -221,6 +275,37 @@ export function InvoiceValidationForm({
                 required
               />
             </div>
+          </div>
+
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
+            <p className="text-sm font-medium text-emerald-900">Subcuenta contable ({accountGroupLabel})</p>
+            {isLoadingAccount ? (
+              <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Buscando ficha y último código disponible…
+              </p>
+            ) : accountPreviewError ? (
+              <p className="mt-2 text-sm text-amber-800">{accountPreviewError}</p>
+            ) : accountPreview ? (
+              <div className="mt-2 space-y-1 text-sm text-emerald-900">
+                <p>
+                  <span className="font-mono font-semibold">{accountPreview.formattedAccountCode}</span>
+                  {" · "}
+                  {accountPreview.isNew ? (
+                    <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">Nueva ficha</Badge>
+                  ) : (
+                    <Badge variant="secondary">Ficha existente</Badge>
+                  )}
+                </p>
+                <p className="text-xs text-emerald-800">
+                  {accountPreview.isNew
+                    ? `Se creará automáticamente la subcuenta ${accountGroupLabel} correlativa antes del asiento.`
+                    : `Se reutilizará la ficha registrada para el NIF ${accountPreview.cif}.`}
+                </p>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-gray-600">Introduce el NIF/CIF para asignar la subcuenta.</p>
+            )}
           </div>
 
           <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">

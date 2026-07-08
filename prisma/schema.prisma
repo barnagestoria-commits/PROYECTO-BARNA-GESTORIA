@@ -49,6 +49,11 @@ enum DataImportStatus {
   ERROR
 }
 
+enum ThirdPartyType {
+  PROVEEDOR
+  CLIENTE
+}
+
 enum FiscalDeclarationStatus {
   SIN_DATOS
   PENDIENTE
@@ -99,6 +104,7 @@ model Company {
   amortizationSettings AmortizationSettings?
   amortizationRuns     AmortizationRun[]
   accountingImports    AccountingDataImport[]
+  thirdParties         ThirdParty[]
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -120,10 +126,12 @@ model FiscalDocument {
   type         DocumentType
   status       DocumentStatus @default(PENDIENTE)
   sizeBytes    Int
-  ocrDataJson  String?
-  uploadedById String?
-  uploadedAt   DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  ocrDataJson       String?
+  uploadedById      String?
+  uploadedAt        DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  accountingEntryId String?        @unique
+  accountingEntry   AccountingEntry? @relation(fields: [accountingEntryId], references: [id], onDelete: SetNull)
 }
 
 model Session {
@@ -147,6 +155,7 @@ model AccountingEntry {
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   lines       EntryLine[]
+  fiscalDocument FiscalDocument?
 
   @@index([companyId, fecha])
 }
@@ -275,4 +284,21 @@ model AccountingDataImport {
   createdAt    DateTime         @default(now())
 
   @@index([companyId, createdAt])
+}
+
+/// Ficha de proveedor (400) o cliente (430) vinculada a subcuenta contable
+model ThirdParty {
+  id          String         @id @default(cuid())
+  companyId   String
+  company     Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type        ThirdPartyType
+  cif         String
+  name        String
+  accountCode String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([companyId, type, cif])
+  @@unique([companyId, accountCode])
+  @@index([companyId, type])
 }

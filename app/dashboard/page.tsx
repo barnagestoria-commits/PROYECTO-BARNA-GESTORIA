@@ -176,14 +176,41 @@ export default function DashboardPage() {
     if (!pendingValidation) return
 
     setIsConfirming(true)
+    setOcrError(null)
 
     try {
-      await saveDocument(pendingValidation.file, "factura-recibida", data)
+      const result = await apiFetch<{
+        success: true
+        accounting: {
+          entryId: string
+          commandCode: string
+          thirdParty: {
+            formattedAccountCode: string
+            isNew: boolean
+          }
+        }
+      }>("/api/invoices/confirm", {
+        method: "POST",
+        body: JSON.stringify({
+          fileName: pendingValidation.fileName,
+          sizeBytes: pendingValidation.file.size,
+          documentType: "factura-recibida",
+          invoice: data,
+        }),
+      })
+
+      const actionLabel = result.accounting.thirdParty.isNew ? "creada" : "reutilizada"
+      setImportMessage(
+        `Factura contabilizada: asiento ${result.accounting.commandCode} con cuenta ${result.accounting.thirdParty.formattedAccountCode} (${actionLabel}).`,
+      )
+      await loadDocuments()
       setPendingValidation(null)
 
       if (validationQueue.length > 0) {
         await processNextInQueue(validationQueue)
       }
+    } catch (error) {
+      setOcrError(error instanceof Error ? error.message : "Error al confirmar la factura.")
     } finally {
       setIsConfirming(false)
     }
