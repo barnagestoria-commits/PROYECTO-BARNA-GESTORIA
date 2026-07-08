@@ -47,6 +47,7 @@ export default function DashboardPage() {
   const [ocrError, setOcrError] = useState<string | null>(null)
   const [pendingValidation, setPendingValidation] = useState<PendingValidation | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
+  const [importMessage, setImportMessage] = useState<string | null>(null)
   const [validationQueue, setValidationQueue] = useState<File[]>([])
 
   const loadDocuments = useCallback(async () => {
@@ -301,59 +302,39 @@ export default function DashboardPage() {
                   />
                 )}
 
-                <div className="grid md:grid-cols-3 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <Receipt className="h-5 w-5 text-emerald-600" />
-                        Facturas Recibidas
-                      </CardTitle>
-                      <CardDescription>OCR automático vinculado a la empresa activa</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <FileUpload
-                        onFilesSelected={(files) => handleFileUpload(files, "factura-recibida")}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        multiple
-                        disabled={isProcessingOcr || !!pendingValidation}
-                        showCamera
-                        cameraTourId="scan-invoice"
-                      />
+                {importMessage && (
+                  <Card className="border-emerald-200 bg-emerald-50">
+                    <CardContent className="py-4">
+                      <p className="text-sm text-emerald-800">{importMessage}</p>
                     </CardContent>
                   </Card>
+                )}
 
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <FileText className="h-5 w-5 text-emerald-600" />
-                        Facturas Emitidas
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FileUpload
-                        onFilesSelected={(files) => handleFileUpload(files, "factura-emitida")}
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        multiple
-                      />
-                    </CardContent>
-                  </Card>
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <CreditCard className="h-5 w-5 text-emerald-700" />
-                        Extractos Bancarios
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <FileUpload
-                        onFilesSelected={(files) => handleFileUpload(files, "extracto-bancario")}
-                        accept=".pdf,.csv,.xls,.xlsx"
-                        multiple
-                      />
-                    </CardContent>
-                  </Card>
-                </div>
+                <Card className="border-emerald-200">
+                  <CardHeader>
+                    <CardTitle>Centro de subida de documentos</CardTitle>
+                    <CardDescription>
+                      Selecciona el tipo de documento y elige cámara, archivo o importación contable.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FileUpload
+                      onFilesSelected={(files, type) => handleFileUpload(files, type)}
+                      onAccountingImport={(result) => {
+                        setImportMessage(
+                          `Importación completada (${result.format.toUpperCase()}): ${result.rowsImported} líneas → ${result.entriesCreated} asientos en el diario.`,
+                        )
+                        setOcrError(null)
+                      }}
+                      onImportError={(message) => {
+                        setImportMessage(null)
+                        setOcrError(message)
+                      }}
+                      disabled={isProcessingOcr || !!pendingValidation}
+                      cameraTourId="scan-invoice"
+                    />
+                  </CardContent>
+                </Card>
               </TabsContent>
 
               <TabsContent value="documents">

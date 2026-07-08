@@ -1,140 +1,291 @@
 "use client"
 
-import { useState, useCallback } from "react"
-import { useDropzone } from "react-dropzone"
+import { useCallback, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Upload, File, X, Camera } from "lucide-react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { InvoiceCameraCapture } from "@/components/invoice-camera-capture"
+import { apiFormFetch } from "@/lib/api-client"
+import { cn } from "@/lib/utils"
+import {
+  Camera,
+  CreditCard,
+  FileSpreadsheet,
+  FileText,
+  ImageUp,
+  Loader2,
+  Receipt,
+} from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+
+export type UploadDocumentType = "factura-recibida" | "factura-emitida" | "extracto-bancario"
+
+export interface AccountingImportResult {
+  rowsImported: number
+  entriesCreated: number
+  fileName: string
+  format: string
+}
 
 interface FileUploadProps {
-  onFilesSelected: (files: File[]) => void
-  accept?: string
-  multiple?: boolean
-  maxSize?: number
+  onFilesSelected: (files: File[], type: UploadDocumentType) => void
+  onAccountingImport?: (result: AccountingImportResult) => void
+  onImportError?: (message: string) => void
   disabled?: boolean
-  showCamera?: boolean
   cameraTourId?: string
 }
 
+interface DocumentTypeConfig {
+  id: UploadDocumentType
+  label: string
+  shortLabel: string
+  description: string
+  icon: LucideIcon
+  accent: string
+  selectedRing: string
+  supportsCamera: boolean
+  mediaAccept: string
+  mediaHint: string
+}
+
+const DOCUMENT_TYPES: DocumentTypeConfig[] = [
+  {
+    id: "factura-recibida",
+    label: "Facturas Recibidas",
+    shortLabel: "Recibidas",
+    description: "Gastos y compras con OCR automático de proveedor, CIF e importes.",
+    icon: Receipt,
+    accent: "text-emerald-700",
+    selectedRing: "ring-emerald-500 border-emerald-300 bg-emerald-50/80",
+    supportsCamera: true,
+    mediaAccept: ".pdf,.jpg,.jpeg,.png",
+    mediaHint: "PDF, JPG o PNG",
+  },
+  {
+    id: "factura-emitida",
+    label: "Facturas Emitidas",
+    shortLabel: "Emitidas",
+    description: "Ventas y facturas que emite tu empresa hacia clientes.",
+    icon: FileText,
+    accent: "text-blue-700",
+    selectedRing: "ring-blue-500 border-blue-300 bg-blue-50/80",
+    supportsCamera: true,
+    mediaAccept: ".pdf,.jpg,.jpeg,.png",
+    mediaHint: "PDF, JPG o PNG",
+  },
+  {
+    id: "extracto-bancario",
+    label: "Extractos Bancarios",
+    shortLabel: "Extractos",
+    description: "Movimientos bancarios y conciliación de tesorería.",
+    icon: CreditCard,
+    accent: "text-amber-700",
+    selectedRing: "ring-amber-500 border-amber-300 bg-amber-50/80",
+    supportsCamera: false,
+    mediaAccept: ".pdf,.jpg,.jpeg,.png",
+    mediaHint: "PDF, JPG o PNG",
+  },
+]
+
+const SPREADSHEET_ACCEPT = ".csv,.xlsx,.xls,.txt"
+
 export function FileUpload({
   onFilesSelected,
-  accept = ".pdf,.jpg,.jpeg,.png",
-  multiple = true,
-  maxSize = 10 * 1024 * 1024, // 10MB
+  onAccountingImport,
+  onImportError,
   disabled = false,
-  showCamera = false,
   cameraTourId,
 }: FileUploadProps) {
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [selectedType, setSelectedType] = useState<UploadDocumentType>("factura-recibida")
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [isImporting, setIsImporting] = useState(false)
 
-  const loweredAccept = accept.toLowerCase()
-  const supportsCamera =
-    showCamera &&
-    (loweredAccept.includes("jpg") ||
-      loweredAccept.includes("jpeg") ||
-      loweredAccept.includes("png"))
+  const mediaInputRef = useRef<HTMLInputElement>(null)
+  const spreadsheetInputRef = useRef<HTMLInputElement>(null)
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    setSelectedFiles((prev) => [...prev, ...acceptedFiles])
-  }, [])
+  const activeConfig = DOCUMENT_TYPES.find((type) => type.id === selectedType) ?? DOCUMENT_TYPES[0]
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: accept.split(",").reduce(
-      (acc, ext) => {
-        acc[ext.trim()] = []
-        return acc
-      },
-      {} as Record<string, string[]>,
-    ),
-    multiple,
-    maxSize,
-    disabled,
-  })
+  const handleMediaFiles = useCallback(
+    (fileList: FileList | null) => {
+      if (!fileList || fileList.length === 0 || disabled) return
+      onFilesSelected(Array.from(fileList), selectedType)
+      if (mediaInputRef.current) mediaInputRef.current.value = ""
+    },
+    [disabled, onFilesSelected, selectedType],
+  )
 
-  const removeFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
-  }
+  const handleCameraCapture = useCallback(
+    (file: File) => {
+      onFilesSelected([file], selectedType)
+    },
+    [onFilesSelected, selectedType],
+  )
 
-  const handleUpload = () => {
-    if (selectedFiles.length > 0) {
-      onFilesSelected(selectedFiles)
-      setSelectedFiles([])
-    }
-  }
+  const handleSpreadsheetImport = useCallback(
+    async (fileList: FileList | null) => {
+      if (!fileList?.[0] || disabled || isImporting) return
 
-  const handleCameraCapture = (file: File) => {
-    onFilesSelected([file])
-  }
+      const file = fileList[0]
+      setIsImporting(true)
+
+      try {
+        const formData = new FormData()
+        formData.append("file", file)
+        const data = await apiFormFetch<{
+          success: true
+          import: AccountingImportResult
+        }>("/api/imports/accounting", formData)
+
+        onAccountingImport?.(data.import)
+      } catch (error) {
+        onImportError?.(error instanceof Error ? error.message : "Error al importar el archivo.")
+      } finally {
+        setIsImporting(false)
+        if (spreadsheetInputRef.current) spreadsheetInputRef.current.value = ""
+      }
+    },
+    [disabled, isImporting, onAccountingImport, onImportError],
+  )
 
   return (
-    <div className="space-y-4">
-      {supportsCamera && (
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full border-emerald-300 text-emerald-800 hover:bg-emerald-50"
-          onClick={() => setCameraOpen(true)}
-          disabled={disabled}
-          data-tour={cameraTourId}
-        >
-          <Camera className="mr-2 h-4 w-4" />
-          Escanear factura con cámara
-        </Button>
-      )}
+    <div className="space-y-6">
+      <div>
+        <p className="mb-3 text-sm font-medium text-gray-700">1. ¿Qué vas a subir?</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          {DOCUMENT_TYPES.map((type) => {
+            const Icon = type.icon
+            const isSelected = selectedType === type.id
+
+            return (
+              <button
+                key={type.id}
+                type="button"
+                disabled={disabled}
+                onClick={() => setSelectedType(type.id)}
+                className={cn(
+                  "rounded-xl border p-4 text-left transition-all",
+                  "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
+                  isSelected ? `ring-2 ${type.selectedRing}` : "border-gray-200 bg-white hover:border-gray-300",
+                  disabled && "cursor-not-allowed opacity-60",
+                )}
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm",
+                      type.accent,
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900">{type.shortLabel}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500">{type.description}</p>
+                  </div>
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <Card className="border-emerald-200/80 shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base text-emerald-900">
+            <activeConfig.icon className={cn("h-5 w-5", activeConfig.accent)} />
+            {activeConfig.label}
+          </CardTitle>
+          <CardDescription>
+            2. Elige cómo quieres aportar la documentación o los movimientos contables.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {activeConfig.supportsCamera && (
+            <Button
+              type="button"
+              size="lg"
+              disabled={disabled}
+              data-tour={selectedType === "factura-recibida" ? cameraTourId : undefined}
+              onClick={() => setCameraOpen(true)}
+              className="h-auto w-full justify-start gap-4 rounded-xl bg-emerald-800 px-5 py-4 text-left hover:bg-emerald-700"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
+                <Camera className="h-6 w-6" />
+              </span>
+              <span>
+                <span className="block text-base font-semibold">Tomar foto con cámara</span>
+                <span className="block text-xs font-normal text-emerald-100/90">
+                  Encuadra la factura con la guía verde y captura al instante
+                </span>
+              </span>
+            </Button>
+          )}
+
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={disabled}
+            onClick={() => mediaInputRef.current?.click()}
+            className="h-auto w-full justify-start gap-4 rounded-xl border-2 px-5 py-4 text-left hover:bg-gray-50"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              <ImageUp className="h-6 w-6" />
+            </span>
+            <span>
+              <span className="block text-base font-semibold text-gray-900">Subir PDF o imagen</span>
+              <span className="block text-xs font-normal text-gray-500">
+                {activeConfig.mediaHint}
+                {selectedType === "factura-recibida" ? " · OCR automático" : ""}
+              </span>
+            </span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            disabled={disabled || isImporting}
+            onClick={() => spreadsheetInputRef.current?.click()}
+            className="h-auto w-full justify-start gap-4 rounded-xl border-2 border-dashed border-emerald-300 px-5 py-4 text-left hover:bg-emerald-50/50"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              {isImporting ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                <FileSpreadsheet className="h-6 w-6" />
+              )}
+            </span>
+            <span>
+              <span className="block text-base font-semibold text-gray-900">Importar Excel / CSV</span>
+              <span className="block text-xs font-normal text-gray-500">
+                Contabilidad externa · columnas: fecha, cuenta, concepto, debe, haber
+              </span>
+            </span>
+          </Button>
+
+          <input
+            ref={mediaInputRef}
+            type="file"
+            className="hidden"
+            accept={activeConfig.mediaAccept}
+            multiple
+            onChange={(event) => handleMediaFiles(event.target.files)}
+          />
+          <input
+            ref={spreadsheetInputRef}
+            type="file"
+            className="hidden"
+            accept={SPREADSHEET_ACCEPT}
+            onChange={(event) => handleSpreadsheetImport(event.target.files)}
+          />
+        </CardContent>
+      </Card>
 
       <InvoiceCameraCapture
         open={cameraOpen}
         onClose={() => setCameraOpen(false)}
         onCapture={handleCameraCapture}
       />
-
-      <div
-        {...getRootProps()}
-        className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
-          disabled
-            ? "cursor-not-allowed border-gray-200 bg-gray-50 opacity-60"
-            : isDragActive
-              ? "cursor-pointer border-blue-500 bg-blue-50"
-              : "cursor-pointer border-gray-300 hover:border-gray-400"
-        }`}
-      >
-        <input {...getInputProps()} />
-        <Upload className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-        {isDragActive ? (
-          <p className="text-blue-600">Suelta los archivos aquí...</p>
-        ) : (
-          <div>
-            <p className="text-gray-600 mb-1">Arrastra archivos aquí o haz clic para seleccionar</p>
-            <p className="text-xs text-gray-400">
-              Formatos: {accept} • Máximo {Math.round(maxSize / 1024 / 1024)}MB
-            </p>
-          </div>
-        )}
-      </div>
-
-      {selectedFiles.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="font-medium text-sm">Archivos seleccionados:</h4>
-          {selectedFiles.map((file, index) => (
-            <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-              <div className="flex items-center gap-2">
-                <File className="h-4 w-4 text-gray-500" />
-                <span className="text-sm">{file.name}</span>
-                <span className="text-xs text-gray-400">({Math.round(file.size / 1024)} KB)</span>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => removeFile(index)}>
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
-          <Button onClick={handleUpload} className="w-full" disabled={disabled}>
-            <Upload className="h-4 w-4 mr-2" />
-            Subir {selectedFiles.length} archivo{selectedFiles.length > 1 ? "s" : ""}
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

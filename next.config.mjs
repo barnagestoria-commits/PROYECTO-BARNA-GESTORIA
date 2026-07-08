@@ -47,7 +47,7 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ["pdf-parse", "pdfmake", "exceljs"],
+    serverComponentsExternalPackages: ["pdf-parse", "pdfmake", "exceljs", "xlsx"],
     instrumentationHook: true,
   },
 }
