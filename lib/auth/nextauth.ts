@@ -1,6 +1,7 @@
 import type { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import AzureADProvider from "next-auth/providers/azure-ad"
+import { env } from "@/lib/config/env"
 import {
   isGoogleOAuthConfigured,
   isOutlookOAuthConfigured,
@@ -55,9 +56,14 @@ export const authOptions: NextAuthOptions = {
       return true
     },
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`
-      if (new URL(url).origin === baseUrl) return url
-      return `${baseUrl}/dashboard`
+      const origin = baseUrl || env.nextAuthUrl
+      if (url.startsWith("/")) return `${origin}${url}`
+      try {
+        if (new URL(url).origin === origin) return url
+      } catch {
+        // URL externa o mal formada: volver al panel
+      }
+      return `${origin}/dashboard`
     },
   },
   debug: process.env.NODE_ENV === "development",

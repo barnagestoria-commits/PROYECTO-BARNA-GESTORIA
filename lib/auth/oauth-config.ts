@@ -1,5 +1,7 @@
 /** Configuración OAuth — activar providers pegando credenciales en .env.local */
 
+import { env } from "@/lib/config/env"
+
 export const NEXTAUTH_BASE_PATH = "/api/oauth"
 
 export function isGoogleOAuthConfigured(): boolean {
@@ -15,7 +17,7 @@ export function isOutlookOAuthConfigured(): boolean {
 }
 
 export function isNextAuthConfigured(): boolean {
-  return Boolean(process.env.NEXTAUTH_SECRET?.trim() && process.env.NEXTAUTH_URL?.trim())
+  return Boolean(process.env.NEXTAUTH_SECRET?.trim() && env.nextAuthUrl)
 }
 
 export function getOAuthStatus() {
