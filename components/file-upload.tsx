@@ -3,7 +3,8 @@
 import { useState, useCallback } from "react"
 import { useDropzone } from "react-dropzone"
 import { Button } from "@/components/ui/button"
-import { Upload, File, X } from "lucide-react"
+import { Upload, File, X, Camera } from "lucide-react"
+import { InvoiceCameraCapture } from "@/components/invoice-camera-capture"
 
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void
@@ -11,6 +12,8 @@ interface FileUploadProps {
   multiple?: boolean
   maxSize?: number
   disabled?: boolean
+  showCamera?: boolean
+  cameraTourId?: string
 }
 
 export function FileUpload({
@@ -19,8 +22,18 @@ export function FileUpload({
   multiple = true,
   maxSize = 10 * 1024 * 1024, // 10MB
   disabled = false,
+  showCamera = false,
+  cameraTourId,
 }: FileUploadProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [cameraOpen, setCameraOpen] = useState(false)
+
+  const loweredAccept = accept.toLowerCase()
+  const supportsCamera =
+    showCamera &&
+    (loweredAccept.includes("jpg") ||
+      loweredAccept.includes("jpeg") ||
+      loweredAccept.includes("png"))
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setSelectedFiles((prev) => [...prev, ...acceptedFiles])
@@ -51,8 +64,32 @@ export function FileUpload({
     }
   }
 
+  const handleCameraCapture = (file: File) => {
+    onFilesSelected([file])
+  }
+
   return (
     <div className="space-y-4">
+      {supportsCamera && (
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+          onClick={() => setCameraOpen(true)}
+          disabled={disabled}
+          data-tour={cameraTourId}
+        >
+          <Camera className="mr-2 h-4 w-4" />
+          Escanear factura con cámara
+        </Button>
+      )}
+
+      <InvoiceCameraCapture
+        open={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCapture={handleCameraCapture}
+      />
+
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${

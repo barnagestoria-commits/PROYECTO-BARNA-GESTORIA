@@ -10,6 +10,7 @@ export default function SumasSaldosPage() {
         title="Sumas y Saldos"
         description="Mayor resumido con totales de debe, haber y saldo por cuenta contable del ejercicio."
         icon={BarChart3}
+        reportType="sumas-saldos"
       />
     </div>
   )

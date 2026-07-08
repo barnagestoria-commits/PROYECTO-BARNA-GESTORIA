@@ -1,10 +1,12 @@
 import type { LucideIcon } from "lucide-react"
+import type { ReportType } from "@/lib/reports/types"
 
 export interface A3ToolbarItem {
   id: string
   label: string
   description?: string
   href: string
+  pdfReportType?: ReportType
   icon?: LucideIcon
   badge?: string
   external?: boolean
@@ -28,18 +30,21 @@ export const A3_TOOLBAR_GROUPS: A3ToolbarGroup[] = [
         label: "Balance de Situación",
         description: "Activo, pasivo y patrimonio neto",
         href: "/dashboard/informes/balance",
+        pdfReportType: "balance",
       },
       {
         id: "sumas-saldos",
         label: "Sumas y Saldos",
         description: "Mayor resumido por cuenta",
         href: "/dashboard/informes/sumas-saldos",
+        pdfReportType: "sumas-saldos",
       },
       {
         id: "pyg",
         label: "Pérdidas y Ganancias (PyG)",
         description: "Cuenta de resultados del ejercicio",
         href: "/dashboard/informes/pyg",
+        pdfReportType: "pyg",
       },
     ],
   },

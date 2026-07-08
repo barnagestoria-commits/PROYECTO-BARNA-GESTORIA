@@ -30,7 +30,6 @@ export default function CertificadosPage() {
         title={cert.title}
         description={cert.description}
         icon={Stamp}
-        formats={["PDF"]}
       />
     </div>
   )

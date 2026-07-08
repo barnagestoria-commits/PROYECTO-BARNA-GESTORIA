@@ -10,6 +10,7 @@ export default function BalancePage() {
         title="Balance de Situación"
         description="Estado de situación patrimonial con activo, pasivo y patrimonio neto a fecha de cierre."
         icon={Scale}
+        reportType="balance"
       />
     </div>
   )

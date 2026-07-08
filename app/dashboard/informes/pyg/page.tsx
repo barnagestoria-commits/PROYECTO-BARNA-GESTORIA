@@ -10,6 +10,7 @@ export default function PygPage() {
         title="Pérdidas y Ganancias (PyG)"
         description="Cuenta de resultados con ingresos, gastos y resultado del ejercicio según el PGC."
         icon={TrendingUp}
+        reportType="pyg"
       />
     </div>
   )

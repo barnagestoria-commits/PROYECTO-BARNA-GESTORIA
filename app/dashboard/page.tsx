@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { FileUpload } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
+import { TaxSummaryPanel } from "@/components/tax-summary-panel"
 import { useRequireAuth } from "@/components/auth-provider"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
@@ -222,7 +223,9 @@ export default function DashboardPage() {
               </p>
             )}
 
-            <div className="grid md:grid-cols-3 gap-6 mb-8">
+            <TaxSummaryPanel companyId={session.activeCompanyId} />
+
+            <div className="mb-8 mt-6 grid gap-6 md:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Documentos Subidos</CardTitle>
@@ -313,6 +316,8 @@ export default function DashboardPage() {
                         accept=".pdf,.jpg,.jpeg,.png"
                         multiple
                         disabled={isProcessingOcr || !!pendingValidation}
+                        showCamera
+                        cameraTourId="scan-invoice"
                       />
                     </CardContent>
                   </Card>

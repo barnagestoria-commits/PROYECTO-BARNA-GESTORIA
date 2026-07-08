@@ -9,6 +9,7 @@ import { CompanySelector } from "@/components/company-selector"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useRequireAuth } from "@/components/auth-provider"
 import { getPageTitle } from "@/lib/navigation/a3-toolbar"
+import { DashboardOnboardingTour } from "@/components/dashboard-onboarding-tour"
 import { BookOpen, Loader2, LogOut } from "lucide-react"
 
 interface DashboardShellProps {
@@ -74,6 +75,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
       </header>
 
       <A3Toolbar />
+
+      <DashboardOnboardingTour enabled={pathname === "/dashboard"} />
 
       <main className="container mx-auto px-4 py-6 md:py-8">{children}</main>
     </div>
