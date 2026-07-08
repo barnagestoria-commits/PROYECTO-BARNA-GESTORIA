@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "prisma generate && prisma migrate deploy && next build",
+    "build": "prisma generate && next build",
+    "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "dev": "next dev",
     "lint": "next lint",
     "postinstall": "prisma generate",
@@ -19,7 +20,8 @@
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "@radix-ui/react-label": "^2.0.2",
-    "@radix-ui/react-tabs": "latest",
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-tabs": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
@@ -29,7 +31,7 @@
     "pdf-parse": "^2.4.5",
     "react": "^18",
     "react-dom": "^18",
-    "react-dropzone": "latest",
+    "react-dropzone": "^14.3.8",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7"
   },
@@ -40,7 +42,7 @@
     "@types/react-dom": "^18",
     "autoprefixer": "^10.0.1",
     "eslint": "^8",
-    "eslint-config-next": "14.0.0",
+    "eslint-config-next": "14.2.16",
     "postcss": "^8.5",
     "prisma": "^6.19.0",
     "tailwindcss": "^3.3.0",

@@ -21,6 +21,44 @@ interface ProcessAnimationProps {
 type DeviceType = "desktop" | "mobile"
 type AnimationStep = "homepage" | "register" | "upload" | "process" | "complete"
 
+const PROCESS_STEPS = [
+  {
+    id: "homepage" as AnimationStep,
+    title: "1. Página de Inicio",
+    description: "Conoce nuestros servicios",
+    icon: Monitor,
+    duration: 4000,
+  },
+  {
+    id: "register" as AnimationStep,
+    title: "2. Registro",
+    description: "Crea tu cuenta en segundos",
+    icon: UserPlus,
+    duration: 3000,
+  },
+  {
+    id: "upload" as AnimationStep,
+    title: "3. Subir Documentos",
+    description: "Arrastra tus facturas y extractos",
+    icon: Upload,
+    duration: 3000,
+  },
+  {
+    id: "process" as AnimationStep,
+    title: "4. Procesamiento",
+    description: "Organizamos tu información",
+    icon: FileText,
+    duration: 3000,
+  },
+  {
+    id: "complete" as AnimationStep,
+    title: "5. Listo",
+    description: "Tu contabilidad al día",
+    icon: CheckCircle,
+    duration: 3000,
+  },
+]
+
 export function ProcessAnimation({ className }: ProcessAnimationProps) {
   const [currentDevice, setCurrentDevice] = useState<DeviceType>("desktop")
   const [currentStep, setCurrentStep] = useState<AnimationStep>("homepage")
@@ -28,52 +66,16 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
   const [animationKey, setAnimationKey] = useState(0)
   const [cycleCount, setCycleCount] = useState(0)
 
-  const steps = [
-    {
-      id: "homepage" as AnimationStep,
-      title: "1. Página de Inicio",
-      description: "Conoce nuestros servicios",
-      icon: Monitor,
-      duration: 4000,
-    },
-    {
-      id: "register" as AnimationStep,
-      title: "2. Registro",
-      description: "Crea tu cuenta en segundos",
-      icon: UserPlus,
-      duration: 3000,
-    },
-    {
-      id: "upload" as AnimationStep,
-      title: "3. Subir Documentos",
-      description: "Arrastra tus facturas y extractos",
-      icon: Upload,
-      duration: 3000,
-    },
-    {
-      id: "process" as AnimationStep,
-      title: "4. Procesamiento",
-      description: "Organizamos tu información",
-      icon: FileText,
-      duration: 3000,
-    },
-    {
-      id: "complete" as AnimationStep,
-      title: "5. Listo",
-      description: "Tu contabilidad al día",
-      icon: CheckCircle,
-      duration: 3000,
-    },
-  ]
+  const steps = PROCESS_STEPS
 
   useEffect(() => {
     if (!isPlaying) return
 
-    const currentStepIndex = steps.findIndex((step) => step.id === currentStep)
-    const currentStepData = steps[currentStepIndex]
+    const currentStepIndex = PROCESS_STEPS.findIndex((step) => step.id === currentStep)
+    const currentStepData = PROCESS_STEPS[currentStepIndex]
 
     const timer = setTimeout(() => {
-      const nextIndex = (currentStepIndex + 1) % steps.length
+      const nextIndex = (currentStepIndex + 1) % PROCESS_STEPS.length
       
       // Si completamos un ciclo completo, cambiar de dispositivo
       if (nextIndex === 0) {
@@ -87,7 +89,7 @@ export function ProcessAnimation({ className }: ProcessAnimationProps) {
         setAnimationKey(prev => prev + 1)
       }
       
-      setCurrentStep(steps[nextIndex].id)
+      setCurrentStep(PROCESS_STEPS[nextIndex].id)
     }, currentStepData.duration)
 
     return () => clearTimeout(timer)

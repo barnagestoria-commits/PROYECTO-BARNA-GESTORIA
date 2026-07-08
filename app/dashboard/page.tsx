@@ -17,6 +17,7 @@ import {
   Loader2,
   ScanLine,
   BookOpen,
+  TableProperties,
 } from "lucide-react"
 import { FileUpload } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
@@ -227,6 +228,12 @@ export default function DashboardPage() {
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <CompanySelector />
+            <Button variant="outline" size="sm" asChild>
+              <Link href="/dashboard/fiscal">
+                <TableProperties className="h-4 w-4 mr-2" />
+                Panorámica fiscal
+              </Link>
+            </Button>
             <Button variant="outline" size="sm" asChild>
               <Link href="/dashboard/contabilidad">
                 <BookOpen className="h-4 w-4 mr-2" />

@@ -70,7 +70,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
       }
       setMessages([welcomeMessage])
     }
-  }, [isOpen, isOnline])
+  }, [isOpen, isOnline, messages.length])
 
   useEffect(() => {
     scrollToBottom()

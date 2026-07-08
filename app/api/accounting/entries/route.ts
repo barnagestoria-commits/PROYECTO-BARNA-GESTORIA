@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
-import type { Decimal } from "@prisma/client/runtime/library"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import { decimalToNumber } from "@/lib/prisma/decimal"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import {
   ACCOUNTING_COMMANDS,
@@ -14,10 +15,6 @@ import type {
 } from "@/lib/types/accounting-entry"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
-
-function decimalToNumber(value: Decimal | number): number {
-  return typeof value === "number" ? value : Number(value)
-}
 
 function parseFecha(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
@@ -65,8 +62,8 @@ function toResponseEntry(
       sortOrder: number
       cuenta: string
       concepto: string
-      debe: Decimal | number
-      haber: Decimal | number
+      debe: Prisma.Decimal
+      haber: Prisma.Decimal
     }>
   },
 ): AccountingEntryResponse {

@@ -30,6 +30,18 @@ enum DocumentStatus {
   PROCESADO
 }
 
+enum FiscalModelCode {
+  M111
+  M115
+  M303
+}
+
+enum FiscalDeclarationStatus {
+  SIN_DATOS
+  PENDIENTE
+  PRESENTADO
+}
+
 /// Cuenta raíz: despacho de gestoría o cliente final (autónomo/empresa)
 model Account {
   id          String      @id @default(cuid())
@@ -68,6 +80,7 @@ model Company {
   documents        FiscalDocument[]
   userAccess       UserCompanyAccess[]
   accountingEntries AccountingEntry[]
+  fiscalDeclarations FiscalDeclaration[]
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -132,4 +145,22 @@ model EntryLine {
   haber     Decimal         @default(0) @db.Decimal(14, 2)
 
   @@index([entryId, sortOrder])
+}
+
+/// Estado de presentación de un modelo fiscal por empresa, año y trimestre
+model FiscalDeclaration {
+  id          String                  @id @default(cuid())
+  companyId   String
+  company     Company                 @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year        Int
+  quarter     Int
+  modelCode   FiscalModelCode
+  status      FiscalDeclarationStatus @default(PENDIENTE)
+  submittedAt DateTime?
+  notes       String?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  @@unique([companyId, year, quarter, modelCode])
+  @@index([companyId, year])
 }
