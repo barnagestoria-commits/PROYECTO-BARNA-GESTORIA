@@ -3,6 +3,7 @@ import GoogleProvider from "next-auth/providers/google"
 import AzureADProvider from "next-auth/providers/azure-ad"
 import { env } from "@/lib/config/env"
 import {
+  getAzureTenantId,
   isGoogleOAuthConfigured,
   isOutlookOAuthConfigured,
   NEXTAUTH_BASE_PATH,
@@ -25,7 +26,7 @@ function buildProviders() {
       AzureADProvider({
         clientId: process.env.AZURE_AD_CLIENT_ID!,
         clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-        tenantId: process.env.AZURE_AD_TENANT_ID!,
+        tenantId: getAzureTenantId(),
       }),
     )
   }

@@ -13,10 +13,18 @@ interface OAuthStatus {
   outlook: boolean
 }
 
-export function SocialLoginButtons() {
+interface SocialLoginButtonsProps {
+  mode?: "login" | "register"
+}
+
+const OAUTH_CALLBACK_URL = "/auth/complete"
+
+export function SocialLoginButtons({ mode = "login" }: SocialLoginButtonsProps) {
   const [status, setStatus] = useState<OAuthStatus | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [loadingProvider, setLoadingProvider] = useState<string | null>(null)
+
+  const actionLabel = mode === "register" ? "Registrarse" : "Iniciar sesión"
 
   useEffect(() => {
     apiFetch<OAuthStatus>("/api/auth/oauth-status")
@@ -24,19 +32,26 @@ export function SocialLoginButtons() {
       .catch(() => setStatus({ nextAuth: false, google: false, outlook: false }))
   }, [])
 
-  const handleOAuth = async (provider: "google" | "azure-ad", label: string, enabled: boolean) => {
+  const handleOAuth = async (provider: "google" | "azure-ad", label: string, providerReady: boolean) => {
     setMessage(null)
 
-    if (!enabled) {
+    if (!status?.nextAuth) {
       setMessage(
-        `${label} estará disponible en cuanto configures las credenciales OAuth en .env.local (ver .env.example).`,
+        "OAuth no está configurado en el servidor. Añade NEXTAUTH_SECRET y NEXTAUTH_URL en Vercel (ver .env.example).",
+      )
+      return
+    }
+
+    if (!providerReady) {
+      setMessage(
+        `${label} no está configurado. Añade las credenciales OAuth correspondientes en Vercel (ver .env.example).`,
       )
       return
     }
 
     setLoadingProvider(provider)
     try {
-      await signIn(provider, { callbackUrl: "/dashboard" })
+      await signIn(provider, { callbackUrl: OAUTH_CALLBACK_URL })
     } finally {
       setLoadingProvider(null)
     }
@@ -62,8 +77,8 @@ export function SocialLoginButtons() {
           disabled={loadingProvider !== null}
           aria-describedby={message ? "oauth-message" : undefined}
         >
-          <GoogleIcon className="h-5 w-5" />
-          {loadingProvider === "google" ? "Conectando..." : "Iniciar sesión con Google"}
+          <GoogleIcon className="h-5 w-5 shrink-0" />
+          {loadingProvider === "google" ? "Conectando..." : `${actionLabel} con Google`}
         </Button>
 
         <Button
@@ -74,8 +89,8 @@ export function SocialLoginButtons() {
           disabled={loadingProvider !== null}
           aria-describedby={message ? "oauth-message" : undefined}
         >
-          <MicrosoftIcon className="h-5 w-5" />
-          {loadingProvider === "azure-ad" ? "Conectando..." : "Iniciar sesión con Outlook"}
+          <MicrosoftIcon className="h-5 w-5 shrink-0" />
+          {loadingProvider === "azure-ad" ? "Conectando..." : `${actionLabel} con Outlook`}
         </Button>
       </div>
 

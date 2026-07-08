@@ -130,16 +130,12 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
           role,
         },
       },
-      ...(input.accountType === "CLIENTE_FINAL"
-        ? {
-            companies: {
-              create: {
-                name: input.companyName,
-                cif: input.cif,
-              },
-            },
-          }
-        : {}),
+      companies: {
+        create: {
+          name: input.companyName,
+          cif: input.accountType === "CLIENTE_FINAL" ? input.cif : undefined,
+        },
+      },
     },
     include: {
       users: true,
@@ -148,23 +144,39 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
   })
 
   const user = account.users[0]
+  const company = account.companies[0]
 
-  if (input.accountType === "CLIENTE_FINAL" && account.companies[0]) {
+  if (company) {
     await prisma.userCompanyAccess.create({
       data: {
         userId: user.id,
-        companyId: account.companies[0].id,
+        companyId: company.id,
       },
     })
   }
 
+  return establishUserSession(user.id, company?.id ?? null)
+}
+
+export async function establishUserSession(
+  userId: string,
+  preferredCompanyId?: string | null,
+): Promise<AuthSession> {
+  const user = await prisma.user.findUniqueOrThrow({
+    where: { id: userId },
+    include: { account: true },
+  })
+
+  const companies = await getCompaniesForUser(user.id, user.account.accountType, user.accountId)
   const token = createSessionToken()
+  const activeCompanyId = resolveActiveCompanyId(companies, preferredCompanyId)
+
   const session = await prisma.session.create({
     data: {
       token,
       userId: user.id,
       expiresAt: getSessionExpiry(),
-      activeCompanyId: account.companies[0]?.id ?? null,
+      activeCompanyId,
     },
   })
 
@@ -176,12 +188,7 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
     expires: session.expiresAt,
   })
 
-  const userWithAccount = await prisma.user.findUniqueOrThrow({
-    where: { id: user.id },
-    include: { account: true },
-  })
-
-  return buildAuthSession(userWithAccount, session.activeCompanyId)
+  return buildAuthSession(user, session.activeCompanyId)
 }
 
 export async function loginAccount(email: string, password: string): Promise<AuthSession> {
@@ -195,26 +202,7 @@ export async function loginAccount(email: string, password: string): Promise<Aut
   }
 
   const companies = await getCompaniesForUser(user.id, user.account.accountType, user.accountId)
-  const token = createSessionToken()
-
-  const session = await prisma.session.create({
-    data: {
-      token,
-      userId: user.id,
-      expiresAt: getSessionExpiry(),
-      activeCompanyId: resolveActiveCompanyId(companies),
-    },
-  })
-
-  cookies().set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: session.expiresAt,
-  })
-
-  return buildAuthSession(user, session.activeCompanyId)
+  return establishUserSession(user.id, resolveActiveCompanyId(companies))
 }
 
 export async function logoutAccount(): Promise<void> {

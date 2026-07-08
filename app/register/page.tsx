@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Building, Building2, Mail, Lock, User, Phone, Briefcase } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
+import { SocialLoginButtons } from "@/components/social-login-buttons"
 import { useAuth, type AccountType } from "@/components/auth-provider"
 
 export default function RegisterPage() {
@@ -32,6 +33,11 @@ export default function RegisterPage() {
 
     if (formData.password !== formData.confirmPassword) {
       setError("Las contraseñas no coinciden.")
+      return
+    }
+
+    if (formData.password.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.")
       return
     }
 
@@ -73,7 +79,9 @@ export default function RegisterPage() {
             Elige el tipo de cuenta y configura tu espacio de trabajo
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-6">
+          <SocialLoginButtons mode="register" />
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-graphite-800">Tipo de cuenta</Label>

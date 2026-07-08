@@ -3,20 +3,33 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { usePathname } from "next/navigation"
 import { SeasonalLoadingScreen } from "./seasonal-loading-screen"
 
 interface AppWrapperProps {
   children: React.ReactNode
 }
 
+const AUTH_PATHS = ["/login", "/register", "/auth/complete"]
+
 export function AppWrapper({ children }: AppWrapperProps) {
-  const [isLoading, setIsLoading] = useState(true)
-  const [showContent, setShowContent] = useState(false)
+  const pathname = usePathname()
+  const skipLoading = AUTH_PATHS.some((path) => pathname === path || pathname?.startsWith(`${path}/`))
+  const [isLoading, setIsLoading] = useState(!skipLoading)
+  const [showContent, setShowContent] = useState(skipLoading)
 
   useEffect(() => {
+    if (skipLoading) {
+      setIsLoading(false)
+      setShowContent(true)
+      return
+    }
+
+    setIsLoading(true)
+    setShowContent(false)
+
     // Simular carga de recursos
     const preloadResources = async () => {
-      // Precargar imágenes críticas
       const logoImage = new Image()
       logoImage.src = "/images/barna-logo-updated.png"
 
@@ -25,12 +38,11 @@ export function AppWrapper({ children }: AppWrapperProps) {
         logoImage.onerror = resolve
       })
 
-      // Simular carga de otros recursos
       await new Promise((resolve) => setTimeout(resolve, 1000))
     }
 
     preloadResources()
-  }, [])
+  }, [skipLoading])
 
   const handleLoadingComplete = () => {
     setIsLoading(false)

@@ -13,6 +13,8 @@ import { Mail, Lock } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useAuth } from "@/components/auth-provider"
 
+const SHOW_DEMO_CREDENTIALS = process.env.NODE_ENV !== "production"
+
 export default function LoginPage() {
   const { login } = useAuth()
   const [email, setEmail] = useState("")
@@ -99,6 +101,7 @@ export default function LoginPage() {
             </Link>
           </div>
 
+          {SHOW_DEMO_CREDENTIALS && (
           <div className="space-y-2 rounded-lg border border-sand-300 bg-sand-100 p-3 text-sm text-pine-800">
             <p>
               <strong>Gestoría:</strong> admin@gestoria.com / demo123
@@ -110,6 +113,7 @@ export default function LoginPage() {
               <strong>Cliente final:</strong> juan@empresa.com / demo123
             </p>
           </div>
+          )}
         </CardContent>
       </Card>
     </div>
