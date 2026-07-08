@@ -33,7 +33,20 @@ enum DocumentStatus {
 enum FiscalModelCode {
   M111
   M115
+  M180
   M303
+}
+
+enum AmortizationPeriodization {
+  MENSUAL
+  TRIMESTRAL
+  ANUAL
+}
+
+enum DataImportStatus {
+  PENDIENTE
+  PROCESADO
+  ERROR
 }
 
 enum FiscalDeclarationStatus {
@@ -81,6 +94,11 @@ model Company {
   userAccess       UserCompanyAccess[]
   accountingEntries AccountingEntry[]
   fiscalDeclarations FiscalDeclaration[]
+  fixedAssets          FixedAsset[]
+  costCenters          CostCenter[]
+  amortizationSettings AmortizationSettings?
+  amortizationRuns     AmortizationRun[]
+  accountingImports    AccountingDataImport[]
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -163,4 +181,98 @@ model FiscalDeclaration {
 
   @@unique([companyId, year, quarter, modelCode])
   @@index([companyId, year])
+}
+
+/// Ficha de inmovilizado (cuentas 21x / 281x / 681x)
+model FixedAsset {
+  id                   String                      @id @default(cuid())
+  companyId            String
+  company              Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code                 String
+  name                 String
+  description          String?
+  cuentaInmovilizado   String
+  cuentaAmortAcumulada String
+  cuentaGastoAmort     String
+  acquisitionDate      DateTime                    @db.Date
+  acquisitionCost      Decimal                     @db.Decimal(14, 2)
+  residualValue        Decimal                     @default(0) @db.Decimal(14, 2)
+  usefulLifeMonths     Int
+  accumulatedAmort     Decimal                     @default(0) @db.Decimal(14, 2)
+  isActive             Boolean                     @default(true)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  costDistributions    FixedAssetCostDistribution[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+/// Centro de coste para distribución analítica
+model CostCenter {
+  id                String                      @id @default(cuid())
+  companyId         String
+  company           Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  code              String
+  name              String
+  isActive          Boolean                     @default(true)
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @updatedAt
+  assetDistributions FixedAssetCostDistribution[]
+
+  @@unique([companyId, code])
+}
+
+/// Distribución analítica de un activo entre centros de coste
+model FixedAssetCostDistribution {
+  id           String     @id @default(cuid())
+  fixedAssetId String
+  fixedAsset   FixedAsset @relation(fields: [fixedAssetId], references: [id], onDelete: Cascade)
+  costCenterId String
+  costCenter   CostCenter @relation(fields: [costCenterId], references: [id], onDelete: Cascade)
+  percentage   Decimal    @db.Decimal(5, 2)
+
+  @@unique([fixedAssetId, costCenterId])
+}
+
+/// Parametrización de amortizaciones por empresa
+model AmortizationSettings {
+  id            String                    @id @default(cuid())
+  companyId     String                    @unique
+  company       Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  periodization AmortizationPeriodization @default(TRIMESTRAL)
+  updatedAt     DateTime                  @updatedAt
+  createdAt     DateTime                  @default(now())
+}
+
+/// Registro de ejecución de amortizaciones del periodo
+model AmortizationRun {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  periodLabel String
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  totalAmount Decimal  @db.Decimal(14, 2)
+  entryId     String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, periodStart])
+}
+
+/// Importación de datos contables externos (CSV/Excel)
+model AccountingDataImport {
+  id           String           @id @default(cuid())
+  companyId    String
+  company      Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fileName     String
+  format       String
+  status       DataImportStatus @default(PENDIENTE)
+  rowsImported Int              @default(0)
+  errorMessage String?
+  uploadedById String?
+  createdAt    DateTime         @default(now())
+
+  @@index([companyId, createdAt])
 }

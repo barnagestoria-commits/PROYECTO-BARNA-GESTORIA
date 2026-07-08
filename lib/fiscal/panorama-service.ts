@@ -2,6 +2,7 @@ import type { FiscalDeclaration, FiscalModelCode } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import {
   FISCAL_MODEL_DEFINITIONS,
+  FISCAL_PERIOD_KEYS,
   buildDetailHref,
   calculateModelAmount,
   periodKeyFromQuarter,
@@ -20,7 +21,7 @@ import type {
   FiscalPanoramaSummary,
   FiscalPeriodKey,
 } from "@/lib/types/fiscal-panorama"
-import { FISCAL_PERIOD_KEYS } from "@/lib/fiscal/panorama"
+import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summary"
 
 function declarationKey(year: number, quarter: number, modelCode: FiscalModelCode): string {
   return `${year}-${quarter}-${modelCode}`
@@ -177,11 +178,13 @@ export async function buildFiscalPanorama(
   ]
 
   const summaryCells = {} as Record<FiscalPeriodKey, FiscalPanoramaCell>
+  const summaryBreakdown = {} as NonNullable<FiscalPanoramaSummary["breakdown"]>
 
   for (const period of FISCAL_PERIOD_KEYS) {
-    const amount = blocks
-      .flatMap((block) => block.rows)
-      .reduce((sum, row) => sum + row.cells[period].amount, 0)
+    const quarter = periodKeyToQuarter(period)
+    const taxSummary = calculateTaxSummary(allLines, year, quarter)
+
+    const amount = taxSummary.totalAPagarDevolver
 
     const lineCount = blocks
       .flatMap((block) => block.rows)
@@ -205,16 +208,26 @@ export async function buildFiscalPanorama(
       period,
       amount: Math.round(amount * 100) / 100,
       status,
-      statusLabel,
+      statusLabel: taxSummary.label === "A ingresar" ? "Pendiente" : taxSummary.label === "A compensar / devolver" ? "Pendiente" : statusLabel,
       entryCount,
       lineCount,
-      href: `/dashboard/fiscal/resumen/${year}/${period === "annual" ? "anual" : period.replace("q", "")}`,
+      href: `/dashboard/fiscal/pagar-devolver/${year}/${period === "annual" ? "anual" : period.replace("q", "")}`,
+    }
+
+    summaryBreakdown[period] = {
+      ivaResult: taxSummary.ivaResult,
+      retenciones111: taxSummary.retenciones111,
+      retenciones115: taxSummary.retenciones115,
+      retenciones180: taxSummary.retenciones180,
+      totalAPagarDevolver: taxSummary.totalAPagarDevolver,
+      resultLabel: taxSummary.label,
     }
   }
 
   const summary: FiscalPanoramaSummary = {
-    label: "Resultado a ingresar / compensar",
+    label: "A pagar / devolver",
     cells: summaryCells,
+    breakdown: summaryBreakdown,
   }
 
   return {
@@ -282,7 +295,7 @@ export async function buildFiscalModelDetail(
 }
 
 export function isValidModelCode(value: string): value is FiscalModelId {
-  return value === "111" || value === "115" || value === "303"
+  return value === "111" || value === "115" || value === "180" || value === "303"
 }
 
 export { prismaCodeToModelId }

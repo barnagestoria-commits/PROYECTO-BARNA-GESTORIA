@@ -31,6 +31,13 @@ export const FISCAL_MODEL_DEFINITIONS: FiscalModelDefinition[] = [
     block: "IRPF",
   },
   {
+    code: "180",
+    prismaCode: "M180",
+    label: "Modelo 180",
+    description: "Resumen anual — Retenciones e ingresos a cuenta (alquileres 4751)",
+    block: "IRPF",
+  },
+  {
     code: "303",
     prismaCode: "M303",
     label: "Modelo 303",
@@ -180,7 +187,7 @@ export function calculateModelAmount(
   const entryIds = new Set<string>()
 
   if (modelCode === "111") {
-    const prefixes = ["4731", "4751"]
+    const prefixes = ["4731"]
     const matched = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, prefixes))
     const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
     for (const line of matched) entryIds.add(line.entry.id)
@@ -204,6 +211,29 @@ export function calculateModelAmount(
       lineCount: matched.length,
       entryIds,
       breakdown: [{ key: "retenciones", label: "Retenciones por arrendamientos", total, lines: breakdownLines }],
+    }
+  }
+
+  if (modelCode === "180") {
+    const prefixes = ["4751"]
+    const matched = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, prefixes))
+    const breakdownLines = matched.map((line) =>
+      mapBreakdownLine(line, signedRetentionAmount(line), "alquiler"),
+    )
+    for (const line of matched) entryIds.add(line.entry.id)
+    const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+    return {
+      amount: total,
+      lineCount: matched.length,
+      entryIds,
+      breakdown: [
+        {
+          key: "retenciones-alquiler",
+          label: "Retenciones alquileres — Hacienda acreedora (4751)",
+          total,
+          lines: breakdownLines,
+        },
+      ],
     }
   }
 
@@ -283,6 +313,8 @@ export function prismaCodeToModelId(code: FiscalModelCode): FiscalModelId {
       return "111"
     case "M115":
       return "115"
+    case "M180":
+      return "180"
     case "M303":
       return "303"
   }

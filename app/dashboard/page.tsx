@@ -1,28 +1,21 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
 import {
   FileText,
   Receipt,
   CreditCard,
-  LogOut,
   Calendar,
   CheckCircle,
   Clock,
   Loader2,
   ScanLine,
-  BookOpen,
-  TableProperties,
 } from "lucide-react"
 import { FileUpload } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
-import { ResponsiveLogo } from "@/components/responsive-logo"
-import { CompanySelector } from "@/components/company-selector"
 import { useRequireAuth } from "@/components/auth-provider"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
@@ -45,7 +38,7 @@ interface PendingValidation {
 }
 
 export default function DashboardPage() {
-  const { session, isLoading, panelTitle, roleLabel, activeCompany, logout } = useRequireAuth()
+  const { session, panelTitle, activeCompany } = useRequireAuth()
 
   const [documents, setDocuments] = useState<Document[]>([])
   const [isLoadingDocs, setIsLoadingDocs] = useState(false)
@@ -202,53 +195,14 @@ export default function DashboardPage() {
     }
   }
 
-  if (isLoading || !session) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
-      </div>
-    )
+  if (!session) {
+    return null
   }
 
   const noCompany = session.companies.length === 0
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b">
-        <div className="container mx-auto px-4 py-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 md:gap-3">
-            <ResponsiveLogo size="sm" />
-            <div>
-              <h1 className="text-lg md:text-2xl font-bold text-emerald-800">{panelTitle}</h1>
-              <p className="text-xs text-gray-500">
-                {session.user.name} • {roleLabel} • {session.user.accountName}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <CompanySelector />
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/fiscal">
-                <TableProperties className="h-4 w-4 mr-2" />
-                Panorámica fiscal
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <Link href="/dashboard/contabilidad">
-                <BookOpen className="h-4 w-4 mr-2" />
-                Asientos rápidos
-              </Link>
-            </Button>
-            <Button variant="outline" size="sm" onClick={() => logout()}>
-              <LogOut className="h-4 w-4 mr-2" />
-              Cerrar Sesión
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <div className="container mx-auto px-4 py-8">
+    <>
         {noCompany ? (
           <Card>
             <CardContent className="py-10 text-center text-gray-600">
@@ -454,7 +408,6 @@ export default function DashboardPage() {
             </Tabs>
           </>
         )}
-      </div>
-    </div>
+    </>
   )
 }
