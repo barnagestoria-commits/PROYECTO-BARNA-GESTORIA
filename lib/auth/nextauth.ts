@@ -51,6 +51,9 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
   },
   secret: process.env.NEXTAUTH_SECRET,
+  // Ruta real del handler: app/api/oauth/[...nextauth]/route.ts
+  // Callbacks: /api/oauth/callback/{provider}
+  // (compatibilidad /api/auth/callback/* vía rewrites en next.config.mjs)
   callbacks: {
     async signIn() {
       // TODO: vincular email OAuth con User en Prisma y crear sesión de plataforma

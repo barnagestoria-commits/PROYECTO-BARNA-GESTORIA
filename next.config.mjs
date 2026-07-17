@@ -50,6 +50,17 @@ const nextConfig = {
     serverComponentsExternalPackages: ["pdf-parse", "pdfmake", "exceljs", "xlsx"],
     instrumentationHook: true,
   },
+  async rewrites() {
+    // NextAuth está en /api/oauth; Azure/Google a veces redirigen al path por defecto /api/auth/*
+    return [
+      { source: "/api/auth/callback/:provider", destination: "/api/oauth/callback/:provider" },
+      { source: "/api/auth/signin/:provider", destination: "/api/oauth/signin/:provider" },
+      { source: "/api/auth/signin", destination: "/api/oauth/signin" },
+      { source: "/api/auth/error", destination: "/api/oauth/error" },
+      { source: "/api/auth/csrf", destination: "/api/oauth/csrf" },
+      { source: "/api/auth/providers", destination: "/api/oauth/providers" },
+    ]
+  },
 }
 
 export default nextConfig
