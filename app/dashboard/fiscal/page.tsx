@@ -42,17 +42,17 @@ export default function FiscalPanoramaPage() {
 
   return (
     <div className="space-y-6">
-      <Card className="border-emerald-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-emerald-900">
-            <TableProperties className="h-5 w-5" />
-            Mantenimiento de datos — Resumen periódico
+      <Card className="overflow-hidden border-emerald-200">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-start gap-2 text-lg leading-snug text-emerald-900 sm:text-xl">
+            <TableProperties className="mt-0.5 h-5 w-5 shrink-0" />
+            <span className="break-words text-balance">Mantenimiento de datos — Resumen periódico</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="break-words text-pretty leading-relaxed">
             Matriz trimestral calculada desde los asientos contables de la empresa activa.
           </CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-center gap-3">
+        <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6">
           <div className="flex items-center gap-2">
             <CalendarRange className="h-4 w-4 text-gray-500" />
             <label htmlFor="fiscal-year" className="text-sm font-medium">

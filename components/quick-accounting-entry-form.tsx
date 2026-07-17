@@ -195,19 +195,19 @@ export function QuickAccountingEntryForm() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-emerald-200">
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2 text-emerald-900">
-                <Zap className="h-5 w-5" />
-                Asiento rápido
+      <Card className="overflow-hidden border-emerald-200">
+        <CardHeader className="px-4 pb-3 sm:px-6">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <CardTitle className="flex items-start gap-2 text-lg leading-snug text-emerald-900 sm:text-xl">
+                <Zap className="mt-0.5 h-5 w-5 shrink-0" />
+                <span className="break-words">Asiento rápido</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="break-words text-pretty leading-relaxed">
                 Escribe un código de comando y pulsa Enter. Navega con Tab o Enter sin soltar el teclado.
               </CardDescription>
             </div>
-            <Badge variant="secondary" className="gap-1">
+            <Badge variant="secondary" className="w-fit gap-1">
               <Keyboard className="h-3 w-3" />
               Modo teclado
             </Badge>

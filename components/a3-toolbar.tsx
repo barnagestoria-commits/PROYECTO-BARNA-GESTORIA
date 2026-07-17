@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Download,
   FileSpreadsheet,
+  HelpCircle,
   Loader2,
   Scale,
   Stamp,
@@ -16,7 +17,6 @@ import { cn } from "@/lib/utils"
 import { A3_TOOLBAR_GROUPS, type A3ToolbarGroup } from "@/lib/navigation/a3-toolbar"
 import { startOnboardingTour } from "@/lib/onboarding"
 import { downloadReportExcel, downloadReportPdf } from "@/lib/reports/download-client"
-import { HelpCircle } from "lucide-react"
 
 const GROUP_ICONS: Record<string, typeof BarChart3> = {
   listados: BarChart3,
@@ -45,6 +45,140 @@ function isItemActive(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`)
 }
 
+function ToolbarMenuItems({
+  group,
+  pathname,
+  downloadingId,
+  onPdfDownload,
+  onExcelDownload,
+  onNavigate,
+  variant,
+}: {
+  group: A3ToolbarGroup
+  pathname: string
+  downloadingId: string | null
+  onPdfDownload: (itemId: string, reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>) => void
+  onExcelDownload: (itemId: string, reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>) => void
+  onNavigate: () => void
+  variant: "mobile" | "desktop"
+}) {
+  return (
+    <ul className={cn("py-1", variant === "mobile" && "space-y-0.5")}>
+      {group.items.map((item) => {
+        const ItemIcon = ITEM_ICONS[item.id] ?? Download
+        const itemActive = isItemActive(item.href, pathname)
+
+        return (
+          <li key={item.id} role="none">
+            <div
+              className={cn(
+                "flex items-start gap-1 px-2 py-1.5",
+                itemActive && (variant === "mobile" ? "bg-emerald-900/40" : "bg-emerald-50/80"),
+              )}
+            >
+              <Link
+                href={item.href}
+                role="menuitem"
+                className={cn(
+                  "flex min-w-0 flex-1 items-start gap-3 rounded-md px-1 py-1 text-left transition-colors",
+                  variant === "mobile" ? "hover:bg-emerald-900/30" : "hover:bg-emerald-50",
+                )}
+                onClick={onNavigate}
+              >
+                <ItemIcon
+                  className={cn(
+                    "mt-0.5 h-4 w-4 shrink-0",
+                    itemActive
+                      ? variant === "mobile"
+                        ? "text-emerald-100"
+                        : "text-emerald-700"
+                      : variant === "mobile"
+                        ? "text-emerald-200/80"
+                        : "text-gray-400",
+                  )}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span
+                      className={cn(
+                        "block text-sm font-medium break-words",
+                        itemActive
+                          ? variant === "mobile"
+                            ? "text-white"
+                            : "text-emerald-900"
+                          : variant === "mobile"
+                            ? "text-emerald-50"
+                            : "text-gray-900",
+                      )}
+                    >
+                      {item.label}
+                    </span>
+                    {item.badge && (
+                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
+                        {item.badge}
+                      </span>
+                    )}
+                  </span>
+                  {item.description && (
+                    <span
+                      className={cn(
+                        "mt-0.5 block text-xs break-words",
+                        variant === "mobile" ? "text-emerald-100/80" : "text-gray-500",
+                      )}
+                    >
+                      {item.description}
+                    </span>
+                  )}
+                </span>
+              </Link>
+              {item.pdfReportType && (
+                <div className="mt-0.5 flex shrink-0 flex-col gap-0.5">
+                  <button
+                    type="button"
+                    title={`Descargar PDF — ${item.label}`}
+                    disabled={downloadingId === item.id}
+                    onClick={() => onPdfDownload(item.id, item.pdfReportType!)}
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:opacity-50",
+                      variant === "mobile"
+                        ? "text-emerald-100 hover:bg-emerald-900/50"
+                        : "text-emerald-700 hover:bg-emerald-100",
+                    )}
+                  >
+                    {downloadingId === item.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    title={`Exportar Excel — ${item.label}`}
+                    disabled={downloadingId === `${item.id}-xlsx`}
+                    onClick={() => onExcelDownload(item.id, item.pdfReportType!)}
+                    className={cn(
+                      "flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:opacity-50",
+                      variant === "mobile"
+                        ? "text-emerald-100 hover:bg-emerald-900/50"
+                        : "text-emerald-700 hover:bg-emerald-100",
+                    )}
+                  >
+                    {downloadingId === `${item.id}-xlsx` ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileSpreadsheet className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 export function A3Toolbar() {
   const pathname = usePathname()
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
@@ -53,7 +187,10 @@ export function A3Toolbar() {
 
   const closeMenus = useCallback(() => setOpenGroupId(null), [])
 
-  const handlePdfDownload = async (itemId: string, reportType: NonNullable<typeof A3_TOOLBAR_GROUPS[0]["items"][0]["pdfReportType"]>) => {
+  const handlePdfDownload = async (
+    itemId: string,
+    reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>,
+  ) => {
     setDownloadingId(itemId)
     try {
       await downloadReportPdf(reportType)
@@ -66,7 +203,10 @@ export function A3Toolbar() {
     }
   }
 
-  const handleExcelDownload = async (itemId: string, reportType: NonNullable<typeof A3_TOOLBAR_GROUPS[0]["items"][0]["pdfReportType"]>) => {
+  const handleExcelDownload = async (
+    itemId: string,
+    reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>,
+  ) => {
     setDownloadingId(`${itemId}-xlsx`)
     try {
       await downloadReportExcel(reportType)
@@ -106,9 +246,73 @@ export function A3Toolbar() {
     <div
       ref={toolbarRef}
       data-tour="a3-toolbar"
-      className="border-b border-emerald-950/30 bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950"
+      className="relative z-20 shrink-0 border-b border-emerald-950/30 bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950"
     >
-      <div className="container mx-auto flex items-stretch gap-1 px-2 sm:px-4">
+      {/* Móvil: acordeón vertical — el menú empuja el contenido, no lo solapa */}
+      <div className="container mx-auto flex flex-col gap-2 px-3 py-2 md:hidden">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-100/90">
+            Consultas y descargas
+          </p>
+          <button
+            type="button"
+            onClick={startOnboardingTour}
+            className="flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-emerald-100/90 hover:bg-emerald-800/70 hover:text-white"
+            title="Ver tutorial de bienvenida"
+          >
+            <HelpCircle className="h-4 w-4" />
+            Tutorial
+          </button>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          {A3_TOOLBAR_GROUPS.map((group) => {
+            const Icon = GROUP_ICONS[group.id] ?? FileSpreadsheet
+            const active = isGroupActive(group, pathname)
+            const isOpen = openGroupId === group.id
+
+            return (
+              <div key={group.id} className="overflow-hidden rounded-lg border border-emerald-800/50">
+                <button
+                  type="button"
+                  onClick={() => setOpenGroupId(isOpen ? null : group.id)}
+                  className={cn(
+                    "flex min-h-11 w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm font-semibold transition-colors",
+                    active || isOpen
+                      ? "bg-emerald-800 text-white"
+                      : "bg-emerald-900/60 text-emerald-100 hover:bg-emerald-800/80",
+                  )}
+                  aria-expanded={isOpen}
+                >
+                  <span className="flex min-w-0 flex-1 items-center gap-2">
+                    <Icon className="h-4 w-4 shrink-0" />
+                    <span className="break-words">{group.shortLabel ?? group.label}</span>
+                  </span>
+                  <ChevronDown
+                    className={cn("h-4 w-4 shrink-0 transition-transform", isOpen && "rotate-180")}
+                  />
+                </button>
+                {isOpen && (
+                  <div className="border-t border-emerald-800/50 bg-emerald-950/80">
+                    <ToolbarMenuItems
+                      group={group}
+                      pathname={pathname}
+                      downloadingId={downloadingId}
+                      onPdfDownload={handlePdfDownload}
+                      onExcelDownload={handleExcelDownload}
+                      onNavigate={closeMenus}
+                      variant="mobile"
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Escritorio: barra horizontal clásica */}
+      <div className="container mx-auto hidden items-stretch gap-1 px-2 sm:px-4 md:flex">
         <nav
           className="flex flex-1 items-stretch gap-0.5 overflow-x-auto py-1 scrollbar-none"
           aria-label="Herramientas de consulta y descarga"
@@ -121,13 +325,13 @@ export function A3Toolbar() {
             return (
               <div key={group.id} className="relative flex shrink-0 items-stretch">
                 {index > 0 && (
-                  <span className="mx-0.5 hidden w-px self-stretch bg-emerald-700/80 sm:block" aria-hidden />
+                  <span className="mx-0.5 hidden w-px self-stretch bg-emerald-700/80 lg:block" aria-hidden />
                 )}
                 <button
                   type="button"
                   onClick={() => setOpenGroupId(isOpen ? null : group.id)}
                   className={cn(
-                    "flex h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold uppercase tracking-wide transition-colors sm:px-3 sm:text-[11px]",
+                    "flex min-h-9 items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-semibold uppercase tracking-wide transition-colors sm:px-3 sm:text-[11px]",
                     active || isOpen
                       ? "bg-emerald-700/90 text-white shadow-inner"
                       : "text-emerald-100/90 hover:bg-emerald-800/70 hover:text-white",
@@ -136,8 +340,8 @@ export function A3Toolbar() {
                   aria-haspopup="menu"
                 >
                   <Icon className="h-3.5 w-3.5 shrink-0 opacity-90" />
-                  <span className="hidden md:inline">{group.label}</span>
-                  <span className="md:hidden">{group.shortLabel ?? group.label}</span>
+                  <span className="hidden lg:inline">{group.label}</span>
+                  <span className="lg:hidden">{group.shortLabel ?? group.label}</span>
                   <ChevronDown
                     className={cn("h-3 w-3 shrink-0 opacity-70 transition-transform", isOpen && "rotate-180")}
                   />
@@ -146,92 +350,20 @@ export function A3Toolbar() {
                 {isOpen && (
                   <div
                     role="menu"
-                    className="absolute left-0 top-full z-50 mt-1 min-w-[280px] max-w-[320px] rounded-md border border-emerald-800/40 bg-white py-1 shadow-xl"
+                    className="absolute left-0 top-full z-50 mt-1 min-w-[280px] max-w-[min(320px,calc(100vw-2rem))] rounded-md border border-emerald-800/40 bg-white py-1 shadow-xl"
                   >
                     <p className="border-b border-gray-100 px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
                       {group.label}
                     </p>
-                    <ul className="py-1">
-                      {group.items.map((item) => {
-                        const ItemIcon = ITEM_ICONS[item.id] ?? Download
-                        const itemActive = isItemActive(item.href, pathname)
-
-                        return (
-                          <li key={item.id} role="none">
-                            <div
-                              className={cn(
-                                "flex items-start gap-1 px-2 py-1.5",
-                                itemActive && "bg-emerald-50/80",
-                              )}
-                            >
-                              <Link
-                                href={item.href}
-                                role="menuitem"
-                                className="flex min-w-0 flex-1 items-start gap-3 rounded-md px-1 py-1 text-left transition-colors hover:bg-emerald-50"
-                                onClick={closeMenus}
-                              >
-                                <ItemIcon
-                                  className={cn(
-                                    "mt-0.5 h-4 w-4 shrink-0",
-                                    itemActive ? "text-emerald-700" : "text-gray-400",
-                                  )}
-                                />
-                                <span className="min-w-0 flex-1">
-                                  <span className="flex items-center gap-2">
-                                    <span
-                                      className={cn(
-                                        "block text-sm font-medium",
-                                        itemActive ? "text-emerald-900" : "text-gray-900",
-                                      )}
-                                    >
-                                      {item.label}
-                                    </span>
-                                    {item.badge && (
-                                      <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
-                                        {item.badge}
-                                      </span>
-                                    )}
-                                  </span>
-                                  {item.description && (
-                                    <span className="mt-0.5 block text-xs text-gray-500">{item.description}</span>
-                                  )}
-                                </span>
-                              </Link>
-                              {item.pdfReportType && (
-                                <div className="mt-0.5 flex shrink-0 flex-col gap-0.5">
-                                  <button
-                                    type="button"
-                                    title={`Descargar PDF — ${item.label}`}
-                                    disabled={downloadingId === item.id}
-                                    onClick={() => handlePdfDownload(item.id, item.pdfReportType!)}
-                                    className="flex h-8 w-8 items-center justify-center rounded-md text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-                                  >
-                                    {downloadingId === item.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Download className="h-4 w-4" />
-                                    )}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    title={`Exportar Excel — ${item.label}`}
-                                    disabled={downloadingId === `${item.id}-xlsx`}
-                                    onClick={() => handleExcelDownload(item.id, item.pdfReportType!)}
-                                    className="flex h-8 w-8 items-center justify-center rounded-md text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50"
-                                  >
-                                    {downloadingId === `${item.id}-xlsx` ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <FileSpreadsheet className="h-4 w-4" />
-                                    )}
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          </li>
-                        )
-                      })}
-                    </ul>
+                    <ToolbarMenuItems
+                      group={group}
+                      pathname={pathname}
+                      downloadingId={downloadingId}
+                      onPdfDownload={handlePdfDownload}
+                      onExcelDownload={handleExcelDownload}
+                      onNavigate={closeMenus}
+                      variant="desktop"
+                    />
                   </div>
                 )}
               </div>
@@ -242,7 +374,7 @@ export function A3Toolbar() {
         <button
           type="button"
           onClick={startOnboardingTour}
-          className="my-1 flex h-9 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-emerald-100/90 transition-colors hover:bg-emerald-800/70 hover:text-white"
+          className="my-1 flex min-h-9 shrink-0 items-center gap-1.5 rounded-md px-2.5 py-2 text-xs font-medium text-emerald-100/90 transition-colors hover:bg-emerald-800/70 hover:text-white"
           title="Ver tutorial de bienvenida"
         >
           <HelpCircle className="h-4 w-4" />

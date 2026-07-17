@@ -291,9 +291,13 @@ export default function DashboardPage() {
             </div>
 
             <Tabs defaultValue="upload" className="space-y-6">
-              <TabsList>
-                <TabsTrigger value="upload">Subir Documentos</TabsTrigger>
-                <TabsTrigger value="documents">Mis Documentos</TabsTrigger>
+              <TabsList className="flex h-auto w-full flex-col gap-1 p-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-row">
+                <TabsTrigger value="upload" className="w-full sm:w-auto">
+                  Subir Documentos
+                </TabsTrigger>
+                <TabsTrigger value="documents" className="w-full sm:w-auto">
+                  Mis Documentos
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="upload" className="space-y-6">
@@ -387,12 +391,12 @@ export default function DashboardPage() {
                         {documents.map((doc) => (
                           <div
                             key={doc.id}
-                            className="flex items-center justify-between p-4 border rounded-lg"
+                            className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between"
                           >
-                            <div className="flex items-center gap-3">
+                            <div className="flex min-w-0 items-start gap-3">
                               {getTypeIcon(doc.type)}
-                              <div>
-                                <p className="font-medium">{doc.name}</p>
+                              <div className="min-w-0">
+                                <p className="break-words font-medium">{doc.name}</p>
                                 <p className="text-sm text-gray-500">
                                   {getTypeLabel(doc.type)} • {doc.size}
                                 </p>
@@ -404,7 +408,7 @@ export default function DashboardPage() {
                                 )}
                               </div>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3 sm:shrink-0">
                               <p className="text-sm text-gray-500">
                                 <Calendar className="h-4 w-4 inline mr-1" />
                                 {new Date(doc.date).toLocaleDateString("es-ES")}

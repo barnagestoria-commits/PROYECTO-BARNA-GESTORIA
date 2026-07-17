@@ -90,18 +90,18 @@ export default function InmovilizadoPage() {
   }
 
   return (
-    <div className="space-y-6">
-      <Card className="border-emerald-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-emerald-900">
-            <Building2 className="h-5 w-5" />
-            Mantenimiento de Inmovilizado
+    <div className="min-w-0 space-y-6">
+      <Card className="overflow-hidden border-emerald-200">
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="flex items-start gap-2 text-lg leading-snug text-emerald-900 sm:text-xl">
+            <Building2 className="mt-0.5 h-5 w-5 shrink-0" />
+            <span className="break-words text-balance">Mantenimiento de Inmovilizado</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="break-words text-pretty leading-relaxed">
             Edita fichas con cuentas 21x (inmovilizado), 281x (amortización acumulada) y 681x (gasto).
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-3 px-4 sm:px-6 md:grid-cols-2 lg:grid-cols-3">
           <Input placeholder="Código" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} />
           <Input placeholder="Nombre del activo" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
           <Input type="date" value={form.acquisitionDate} onChange={(e) => setForm({ ...form, acquisitionDate: e.target.value })} />
@@ -115,12 +115,12 @@ export default function InmovilizadoPage() {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Distribución analítica — Centros de coste</CardTitle>
+        <CardHeader className="px-4 sm:px-6">
+          <CardTitle className="text-base break-words">Distribución analítica — Centros de coste</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-wrap items-end gap-2">
+        <CardContent className="flex flex-col gap-2 px-4 sm:flex-row sm:flex-wrap sm:items-end sm:px-6">
           <select
-            className="h-10 rounded-md border px-3 text-sm"
+            className="h-10 w-full rounded-md border px-3 text-sm sm:w-auto sm:min-w-[200px]"
             value={selectedCenterId}
             onChange={(e) => setSelectedCenterId(e.target.value)}
           >

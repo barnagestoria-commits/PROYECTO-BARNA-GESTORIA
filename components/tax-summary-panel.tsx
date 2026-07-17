@@ -58,16 +58,16 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
       data-tour="pagar-devolver"
       className="border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white"
     >
-      <CardHeader className="pb-2">
-        <CardTitle className="flex items-center gap-2 text-base text-emerald-900">
-          <Scale className="h-5 w-5" />
-          A pagar / devolver
+      <CardHeader className="px-4 pb-2 sm:px-6">
+        <CardTitle className="flex items-start gap-2 text-base leading-snug text-emerald-900">
+          <Scale className="mt-0.5 h-5 w-5 shrink-0" />
+          <span className="break-words">A pagar / devolver</span>
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="break-words text-pretty">
           IVA (472/477) + retenciones del trimestre en curso
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex flex-wrap items-end justify-between gap-4">
+      <CardContent className="flex flex-col gap-4 px-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:px-6">
         {isLoading ? (
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Loader2 className="h-4 w-4 animate-spin" />

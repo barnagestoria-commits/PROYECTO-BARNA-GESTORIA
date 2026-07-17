@@ -33,43 +33,59 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   const pageTitle = getPageTitle(pathname)
+  const isDashboardHome = pathname === "/dashboard"
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="border-b bg-white">
-        <div className="container mx-auto flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2 md:gap-3">
+    <div className="flex min-h-screen flex-col bg-gray-50">
+      <header className="shrink-0 border-b bg-white">
+        <div className="container mx-auto flex max-w-full flex-col gap-3 px-4 py-3 sm:py-4">
+          <div className="flex min-w-0 items-start gap-2 md:items-center md:gap-3">
             <ResponsiveLogo size="sm" />
-            <div>
-              <h1 className="text-lg font-bold text-emerald-800 md:text-xl">
-                {pageTitle} — {panelTitle}
+            <div className="min-w-0 flex-1">
+              <h1 className="text-base font-bold leading-snug text-emerald-800 sm:text-lg md:text-xl">
+                <span className="break-words">{isDashboardHome ? panelTitle : pageTitle}</span>
+                {!isDashboardHome && (
+                  <span className="mt-0.5 block text-sm font-medium text-gray-600 sm:mt-0 sm:inline sm:font-bold sm:text-emerald-800">
+                    <span className="hidden sm:inline"> — </span>
+                    {panelTitle}
+                  </span>
+                )}
               </h1>
-              <p className="text-xs text-gray-500">
+              <p className="mt-1 break-words text-xs leading-relaxed text-gray-500">
                 {session.user.name} • {roleLabel}
                 {activeCompany && ` • ${activeCompany.name}`}
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <CompanySelector />
-            {pathname !== "/dashboard/contabilidad" && (
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/dashboard/contabilidad">
-                  <BookOpen className="mr-1 h-4 w-4" />
-                  Asientos
-                </Link>
+          <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+            <div className="w-full min-w-0 sm:w-auto sm:flex-1">
+              <CompanySelector />
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+              {pathname !== "/dashboard/contabilidad" && (
+                <Button variant="outline" size="sm" className="h-9 w-full sm:w-auto" asChild>
+                  <Link href="/dashboard/contabilidad">
+                    <BookOpen className="mr-1 h-4 w-4 shrink-0" />
+                    <span className="truncate">Asientos</span>
+                  </Link>
+                </Button>
+              )}
+              {pathname !== "/dashboard" && (
+                <Button variant="outline" size="sm" className="h-9 w-full sm:w-auto" asChild>
+                  <Link href="/dashboard">Documentos</Link>
+                </Button>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="col-span-2 h-9 w-full sm:col-span-1 sm:w-auto"
+                onClick={() => logout()}
+              >
+                <LogOut className="mr-2 h-4 w-4 shrink-0" />
+                Cerrar sesión
               </Button>
-            )}
-            {pathname !== "/dashboard" && (
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/dashboard">Documentos</Link>
-              </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={() => logout()}>
-              <LogOut className="mr-2 h-4 w-4" />
-              Cerrar sesión
-            </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -78,7 +94,9 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
       <DashboardOnboardingTour enabled={pathname === "/dashboard"} />
 
-      <main className="container mx-auto max-w-full overflow-x-hidden px-4 py-6 md:py-8">{children}</main>
+      <main className="container mx-auto min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:py-6 md:py-8">
+        {children}
+      </main>
     </div>
   )
 }
