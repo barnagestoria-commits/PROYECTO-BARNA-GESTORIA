@@ -147,7 +147,7 @@ export function FileUpload({
   )
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <div>
         <p className="mb-3 text-sm font-medium text-gray-700">1. ¿Qué vas a subir?</p>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -162,7 +162,7 @@ export function FileUpload({
                 disabled={disabled}
                 onClick={() => setSelectedType(type.id)}
                 className={cn(
-                  "rounded-xl border p-4 text-left transition-all",
+                  "rounded-xl border p-3 sm:p-4 text-left transition-all",
                   "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
                   isSelected ? `ring-2 ${type.selectedRing}` : "border-gray-200 bg-white hover:border-gray-300",
                   disabled && "cursor-not-allowed opacity-60",
@@ -177,9 +177,11 @@ export function FileUpload({
                   >
                     <Icon className="h-5 w-5" />
                   </div>
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900">{type.shortLabel}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-gray-500">{type.description}</p>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-gray-900 break-words">{type.shortLabel}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 break-words text-pretty">
+                      {type.description}
+                    </p>
                   </div>
                 </div>
               </button>
@@ -188,17 +190,17 @@ export function FileUpload({
         </div>
       </div>
 
-      <Card className="border-emerald-200/80 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center gap-2 text-base text-emerald-900">
-            <activeConfig.icon className={cn("h-5 w-5", activeConfig.accent)} />
-            {activeConfig.label}
+      <Card className="border-emerald-200/80 shadow-sm overflow-hidden">
+        <CardHeader className="pb-3 px-4 sm:px-6">
+          <CardTitle className="flex items-start gap-2 text-base sm:text-lg text-emerald-900 leading-snug">
+            <activeConfig.icon className={cn("mt-0.5 h-5 w-5 shrink-0", activeConfig.accent)} />
+            <span className="min-w-0 break-words text-balance">{activeConfig.label}</span>
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="break-words text-pretty leading-relaxed">
             2. Elige cómo quieres aportar la documentación o los movimientos contables.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6">
           {activeConfig.supportsCamera && (
             <Button
               type="button"
@@ -206,14 +208,14 @@ export function FileUpload({
               disabled={disabled}
               data-tour={selectedType === "factura-recibida" ? cameraTourId : undefined}
               onClick={() => setCameraOpen(true)}
-              className="h-auto w-full justify-start gap-4 rounded-xl bg-emerald-800 px-5 py-4 text-left hover:bg-emerald-700"
+              className="h-auto w-full min-w-0 justify-start gap-3 sm:gap-4 rounded-xl bg-emerald-800 px-4 py-3 sm:px-5 sm:py-4 text-left hover:bg-emerald-700 whitespace-normal"
             >
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
-                <Camera className="h-6 w-6" />
+              <span className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-white/15">
+                <Camera className="h-5 w-5 sm:h-6 sm:w-6" />
               </span>
-              <span>
-                <span className="block text-base font-semibold">Tomar foto con cámara</span>
-                <span className="block text-xs font-normal text-emerald-100/90">
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block text-sm sm:text-base font-semibold break-words">Tomar foto con cámara</span>
+                <span className="block text-xs font-normal text-emerald-100/90 break-words text-pretty leading-relaxed">
                   Encuadra la factura con la guía verde y captura al instante
                 </span>
               </span>
@@ -226,14 +228,16 @@ export function FileUpload({
             size="lg"
             disabled={disabled}
             onClick={() => mediaInputRef.current?.click()}
-            className="h-auto w-full justify-start gap-4 rounded-xl border-2 px-5 py-4 text-left hover:bg-gray-50"
+            className="h-auto w-full min-w-0 justify-start gap-3 sm:gap-4 rounded-xl border-2 px-4 py-3 sm:px-5 sm:py-4 text-left hover:bg-gray-50 whitespace-normal"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
-              <ImageUp className="h-6 w-6" />
+            <span className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+              <ImageUp className="h-5 w-5 sm:h-6 sm:w-6" />
             </span>
-            <span>
-              <span className="block text-base font-semibold text-gray-900">Subir PDF o imagen</span>
-              <span className="block text-xs font-normal text-gray-500">
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block text-sm sm:text-base font-semibold text-gray-900 break-words">
+                Subir PDF o imagen
+              </span>
+              <span className="block text-xs font-normal text-gray-500 break-words text-pretty leading-relaxed">
                 {activeConfig.mediaHint}
                 {selectedType === "factura-recibida" ? " · OCR automático" : ""}
               </span>
@@ -246,18 +250,20 @@ export function FileUpload({
             size="lg"
             disabled={disabled || isImporting}
             onClick={() => spreadsheetInputRef.current?.click()}
-            className="h-auto w-full justify-start gap-4 rounded-xl border-2 border-dashed border-emerald-300 px-5 py-4 text-left hover:bg-emerald-50/50"
+            className="h-auto w-full min-w-0 justify-start gap-3 sm:gap-4 rounded-xl border-2 border-dashed border-emerald-300 px-4 py-3 sm:px-5 sm:py-4 text-left hover:bg-emerald-50/50 whitespace-normal"
           >
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
+            <span className="flex h-10 w-10 sm:h-11 sm:w-11 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700">
               {isImporting ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
+                <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
               ) : (
-                <FileSpreadsheet className="h-6 w-6" />
+                <FileSpreadsheet className="h-5 w-5 sm:h-6 sm:w-6" />
               )}
             </span>
-            <span>
-              <span className="block text-base font-semibold text-gray-900">Importar Excel / CSV</span>
-              <span className="block text-xs font-normal text-gray-500">
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block text-sm sm:text-base font-semibold text-gray-900 break-words">
+                Importar Excel / CSV
+              </span>
+              <span className="block text-xs font-normal text-gray-500 break-words text-pretty leading-relaxed">
                 Contabilidad externa · columnas: fecha, cuenta, concepto, debe, haber
               </span>
             </span>

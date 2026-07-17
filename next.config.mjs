@@ -47,7 +47,14 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
-    serverComponentsExternalPackages: ["pdf-parse", "pdfmake", "exceljs", "xlsx"],
+    serverComponentsExternalPackages: [
+      "pdf-parse",
+      "pdfjs-dist",
+      "@napi-rs/canvas",
+      "pdfmake",
+      "exceljs",
+      "xlsx",
+    ],
     instrumentationHook: true,
   },
   async rewrites() {

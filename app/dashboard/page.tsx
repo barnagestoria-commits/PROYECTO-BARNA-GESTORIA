@@ -337,14 +337,16 @@ export default function DashboardPage() {
                   </Card>
                 )}
 
-                <Card className="border-emerald-200">
-                  <CardHeader>
-                    <CardTitle>Centro de subida de documentos</CardTitle>
-                    <CardDescription>
+                <Card className="border-emerald-200 overflow-hidden">
+                  <CardHeader className="px-4 sm:px-6">
+                    <CardTitle className="text-lg sm:text-xl leading-snug break-words text-balance">
+                      Centro de subida de documentos
+                    </CardTitle>
+                    <CardDescription className="break-words text-pretty leading-relaxed">
                       Selecciona el tipo de documento y elige cámara, archivo o importación contable.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 overflow-x-hidden">
                     <FileUpload
                       onFilesSelected={(files, type) => handleFileUpload(files, type)}
                       onAccountingImport={(result) => {

@@ -90,8 +90,11 @@ export async function POST(request: Request) {
 
     console.error("[invoices/ocr]", error)
 
+    const message =
+      error instanceof Error ? error.message : "Error al procesar la factura. Inténtalo de nuevo."
+
     return NextResponse.json<InvoiceOcrErrorResponse>(
-      { success: false, error: "Error al procesar la factura. Inténtalo de nuevo." },
+      { success: false, error: message },
       { status: 500 },
     )
   }

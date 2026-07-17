@@ -78,7 +78,7 @@ export function DashboardShell({ children }: DashboardShellProps) {
 
       <DashboardOnboardingTour enabled={pathname === "/dashboard"} />
 
-      <main className="container mx-auto px-4 py-6 md:py-8">{children}</main>
+      <main className="container mx-auto max-w-full overflow-x-hidden px-4 py-6 md:py-8">{children}</main>
     </div>
   )
 }
