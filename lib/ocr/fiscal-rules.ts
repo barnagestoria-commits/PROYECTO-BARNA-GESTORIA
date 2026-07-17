@@ -1,4 +1,5 @@
 import type { InvoiceOcrResult, IvaDesgloseLine, RecargoEquivalencia, TipoIva } from "@/lib/types/invoice"
+import { normalizeTaxId } from "@/lib/tax-id"
 import {
   calculateCuotaIva,
   createEmptyDesgloseLine,
@@ -108,7 +109,7 @@ export function applyFiscalAmountRules(result: InvoiceOcrResult): InvoiceOcrResu
 }
 
 export function applyFiscalRules(raw: InvoiceOcrResult, sourceText?: string): InvoiceOcrResult {
-  let result = { ...raw }
+  let result = { ...raw, cif: normalizeTaxId(raw.cif) }
 
   if (sourceText) {
     result.isSujetoPasivo = result.isSujetoPasivo || detectSujetoPasivoFromText(sourceText)

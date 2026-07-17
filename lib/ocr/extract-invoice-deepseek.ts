@@ -9,6 +9,7 @@ import {
   parseRecargoEquivalencia,
 } from "@/lib/ocr/fiscal-rules"
 import { round2, syncInvoiceTotals } from "@/lib/invoice-totals"
+import { normalizeTaxId } from "@/lib/tax-id"
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
@@ -144,7 +145,7 @@ function normalizeInvoiceResult(raw: Record<string, unknown>): InvoiceOcrResult 
 
   const result: InvoiceOcrResult = {
     proveedor: typeof raw.proveedor === "string" ? raw.proveedor.trim() : "",
-    cif: typeof raw.cif === "string" ? raw.cif.replace(/[\s-]/g, "").toUpperCase() : "",
+    cif: typeof raw.cif === "string" ? normalizeTaxId(raw.cif) : "",
     numeroFactura: typeof raw.numeroFactura === "string" ? raw.numeroFactura.trim() : "",
     fechaFactura: normalizeDate(raw.fechaFactura),
     iva_desglose,

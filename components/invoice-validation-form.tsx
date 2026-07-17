@@ -21,6 +21,7 @@ import {
 import type { InvoiceOcrResult, IvaDesgloseLine, TipoIva } from "@/lib/types/invoice"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
 import { apiFetch } from "@/lib/api-client"
+import { normalizeTaxId } from "@/lib/tax-id"
 import { TIPOS_IVA } from "@/lib/types/invoice"
 import {
   calculateCuotaIva,
@@ -55,7 +56,12 @@ export function InvoiceValidationForm({
   onCancel,
   isSubmitting = false,
 }: InvoiceValidationFormProps) {
-  const [formData, setFormData] = useState<InvoiceOcrResult>(syncInvoiceTotals(initialData))
+  const [formData, setFormData] = useState<InvoiceOcrResult>(() =>
+    syncInvoiceTotals({
+      ...initialData,
+      cif: normalizeTaxId(initialData.cif),
+    }),
+  )
   const [ocrTotal] = useState(initialData.total)
   const [accountPreview, setAccountPreview] = useState<ThirdPartyResolution | null>(null)
   const [accountPreviewError, setAccountPreviewError] = useState<string | null>(null)
@@ -186,7 +192,12 @@ export function InvoiceValidationForm({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
-    onConfirm(syncInvoiceTotals(formData))
+    onConfirm(
+      syncInvoiceTotals({
+        ...formData,
+        cif: normalizeTaxId(formData.cif),
+      }),
+    )
   }
 
   const ivaLinesDisabled = formData.isSujetoPasivo
@@ -250,7 +261,7 @@ export function InvoiceValidationForm({
               <Input
                 id="cif"
                 value={formData.cif}
-                onChange={(e) => updateField("cif", e.target.value.toUpperCase())}
+                onChange={(e) => updateField("cif", normalizeTaxId(e.target.value))}
                 required
               />
             </div>

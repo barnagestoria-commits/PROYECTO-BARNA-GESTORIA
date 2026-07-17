@@ -1,4 +1,5 @@
 import type { ThirdPartyType } from "@prisma/client"
+import { normalizeTaxId } from "@/lib/tax-id"
 
 export const THIRD_PARTY_PREFIX: Record<ThirdPartyType, string> = {
   PROVEEDOR: "400",
@@ -21,10 +22,7 @@ export interface ThirdPartyResolution {
 }
 
 export function normalizeCif(value: string): string {
-  return value
-    .trim()
-    .toUpperCase()
-    .replace(/[\s.-]/g, "")
+  return normalizeTaxId(value)
 }
 
 export function formatAccountCodeDisplay(accountCode: string): string {
