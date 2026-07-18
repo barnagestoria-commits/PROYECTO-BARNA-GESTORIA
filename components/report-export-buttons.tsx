@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   downloadFiscalExport,
@@ -29,6 +29,8 @@ const FORMAT_ICONS = {
   txt: FileText,
   zip: Archive,
 } as const
+
+const TOOLBAR_FORMAT_ORDER = ["xlsx", "csv", "pdf", "zip"] as const
 
 interface ReportExportButtonsProps {
   reportType: ReportType
@@ -125,6 +127,127 @@ export function FiscalExportButtons({
   })
 }
 
+function orderToolbarFormats<T extends string>(formats: readonly T[]): T[] {
+  const ordered = TOOLBAR_FORMAT_ORDER.filter((format) =>
+    formats.includes(format as T),
+  ) as T[]
+  const remaining = formats.filter((format) => !TOOLBAR_FORMAT_ORDER.includes(format as typeof TOOLBAR_FORMAT_ORDER[number]))
+  return [...ordered, ...remaining]
+}
+
+function ExportFormatDropdown<T extends string>({
+  formats,
+  labels,
+  descriptions,
+  downloading,
+  disabled,
+  variant,
+  onDownload,
+}: {
+  formats: readonly T[]
+  labels: Record<T, string>
+  descriptions: Record<T, string>
+  downloading: T | null
+  disabled: boolean
+  variant: "toolbar-mobile" | "toolbar-desktop"
+  onDownload: (format: T) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const isMobile = variant === "toolbar-mobile"
+  const orderedFormats = orderToolbarFormats(formats)
+
+  useEffect(() => {
+    if (!open) return
+
+    function handlePointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+      }
+    }
+
+    function handleEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false)
+    }
+
+    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("keydown", handleEscape)
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("keydown", handleEscape)
+    }
+  }, [open])
+
+  const handleSelect = (format: T) => {
+    setOpen(false)
+    onDownload(format)
+  }
+
+  return (
+    <div ref={containerRef} className="relative shrink-0">
+      <button
+        type="button"
+        title="Exportar listado"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        disabled={disabled || downloading !== null}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex h-8 items-center gap-1 rounded-md px-2 text-xs font-medium transition-colors disabled:opacity-50",
+          isMobile
+            ? "text-emerald-100 hover:bg-emerald-900/50"
+            : "text-emerald-700 hover:bg-emerald-100",
+        )}
+      >
+        {downloading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : (
+          <Download className="h-4 w-4" />
+        )}
+        <span className="hidden sm:inline">Exportar</span>
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className={cn(
+            "absolute right-0 top-full z-50 mt-1 min-w-[9.5rem] overflow-hidden rounded-md border py-1 shadow-xl",
+            isMobile ? "border-emerald-800/60 bg-emerald-950" : "border-gray-200 bg-white",
+          )}
+        >
+          {orderedFormats.map((format) => {
+            const Icon = FORMAT_ICONS[format as keyof typeof FORMAT_ICONS] ?? Download
+            const loading = downloading === format
+            return (
+              <button
+                key={format}
+                type="button"
+                role="menuitem"
+                disabled={disabled || loading}
+                title={descriptions[format]}
+                onClick={() => handleSelect(format)}
+                className={cn(
+                  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:opacity-50",
+                  isMobile
+                    ? "text-emerald-50 hover:bg-emerald-900/70"
+                    : "text-gray-800 hover:bg-emerald-50",
+                )}
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Icon className="h-4 w-4 shrink-0" />
+                )}
+                <span>{labels[format]}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function renderFormatButtons<T extends string>({
   formats,
   labels,
@@ -145,31 +268,16 @@ function renderFormatButtons<T extends string>({
   onDownload: (format: T) => void
 }) {
   if (variant === "toolbar-mobile" || variant === "toolbar-desktop") {
-    const isMobile = variant === "toolbar-mobile"
     return (
-      <div className={cn("flex shrink-0 flex-wrap gap-0.5", className)}>
-        {formats.map((format) => {
-          const Icon = FORMAT_ICONS[format as keyof typeof FORMAT_ICONS] ?? Download
-          const loading = downloading === format
-          return (
-            <button
-              key={format}
-              type="button"
-              title={`${labels[format]} — ${descriptions[format]}`}
-              disabled={disabled || loading}
-              onClick={() => onDownload(format)}
-              className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:opacity-50",
-                isMobile
-                  ? "text-emerald-100 hover:bg-emerald-900/50"
-                  : "text-emerald-700 hover:bg-emerald-100",
-              )}
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
-            </button>
-          )
-        })}
-      </div>
+      <ExportFormatDropdown
+        formats={formats}
+        labels={labels}
+        descriptions={descriptions}
+        downloading={downloading}
+        disabled={disabled}
+        variant={variant}
+        onDownload={onDownload}
+      />
     )
   }
 

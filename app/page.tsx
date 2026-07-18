@@ -8,7 +8,7 @@ import { ProcessAnimation } from "@/components/process-animation"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen elegant-gradient">
+    <div className="min-h-screen elegant-gradient pb-16 md:pb-0">
       {/* Header */}
       <header className="bg-white/95 backdrop-blur-sm border-b border-sand-300 sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3 sm:py-4 flex items-center justify-between">

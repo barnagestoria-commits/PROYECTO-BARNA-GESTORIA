@@ -236,13 +236,18 @@ export function ChatWidget({ className }: ChatWidgetProps) {
   }
 
   return (
-    <div className={cn("fixed bottom-4 right-4 z-50", className)}>
-
+    <div
+      className={cn(
+        "z-50",
+        "fixed bottom-0 left-0 right-0 md:bottom-4 md:left-auto md:right-4 md:w-auto",
+        className,
+      )}
+    >
       {/* Chat Window */}
       {isOpen && (
         <Card
           className={cn(
-            "w-80 md:w-96 mb-4 shadow-2xl border-emerald-200 transition-all duration-300",
+            "mx-3 mb-3 w-[calc(100%-1.5rem)] shadow-2xl border-emerald-200 transition-all duration-300 md:mx-0 md:w-96 md:mb-4",
             isMinimized ? "h-16" : "h-96 md:h-[500px]",
           )}
         >
@@ -421,14 +426,19 @@ export function ChatWidget({ className }: ChatWidgetProps) {
       {/* Chat Toggle Button */}
       <Button
         className={cn(
-          "h-16 w-32 rounded-2xl shadow-lg bg-sand-400 hover:bg-sand-500 text-pine-800 relative",
+          "relative h-14 w-full rounded-none shadow-lg bg-sand-400 hover:bg-sand-500 text-pine-800 md:h-16 md:w-32 md:rounded-2xl",
           isOpen && "bg-sand-500",
         )}
         onClick={toggleChat}
       >
-        {isOpen ? <X className="h-6 w-6" /> : <div className="flex items-center justify-center px-2">
-          <span className="text-xs font-medium whitespace-nowrap">¡Chatea conmigo!</span>
-        </div>}
+        {isOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <div className="flex items-center justify-center gap-2 px-2">
+            <MessageSquare className="h-5 w-5 md:hidden" />
+            <span className="text-sm font-medium whitespace-nowrap md:text-xs">¡Chatea conmigo!</span>
+          </div>
+        )}
 
         {/* Online indicator */}
         {!isOpen && (

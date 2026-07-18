@@ -1,13 +1,15 @@
 import type { Content, TableCell, TDocumentDefinitions } from "pdfmake/interfaces"
 import { createPdfBuffer } from "@/lib/reports/pdf/pdfmake-client"
-import { buildBalanceReport } from "@/lib/reports/build-balance"
-import { buildPygReport } from "@/lib/reports/build-pyg"
-import {
-  buildSumasSaldosReport,
-  filterAccountsWithMovement,
-} from "@/lib/reports/build-sumas-saldos"
+import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
+import { fetchReportData } from "@/lib/reports/fetch-report-data"
 import { formatAmount, formatDateTimeEs, formatEuro } from "@/lib/reports/format"
-import type { ReportMeta, ReportType } from "@/lib/reports/types"
+import type {
+  BalanceReportData,
+  PygReportData,
+  ReportMeta,
+  ReportType,
+  SumasSaldosReportData,
+} from "@/lib/reports/types"
 import type { LedgerQuery } from "@/lib/reports/account-ledger"
 
 const EMERALD = "#145A32"
@@ -25,15 +27,18 @@ const tableLayout = {
   paddingRight: () => 6,
   paddingTop: () => 4,
   paddingBottom: () => 4,
-  fillColor: (rowIndex: number) => (rowIndex > 0 && rowIndex % 2 === 0 ? ZEBRA : null),
 }
 
-function indentCell(text: string, level: number): TableCell {
-  return { text, margin: [level * 10, 0, 0, 0] }
+function labelCell(label: string, level: number): TableCell {
+  return { text: `${"  ".repeat(level)}${label}`, fontSize: 8 }
+}
+
+function cuentaCell(cuenta: string): TableCell {
+  return { text: cuenta, fontSize: 8 }
 }
 
 function amountCell(value: number): TableCell {
-  return { text: formatAmount(value), alignment: "right", fontSize: 8 }
+  return { text: formatAmount(value), alignment: "right", fontSize: 8, noWrap: true }
 }
 
 function headerBlock(meta: ReportMeta): Content[] {
@@ -95,13 +100,17 @@ function baseStyles(): TDocumentDefinitions["styles"] {
     sectionTitle: { fontSize: 10, bold: true, color: EMERALD_DARK, margin: [0, 10, 0, 6] },
     tableHeader: { bold: true, color: "#FFFFFF", fontSize: 8 },
     totalRow: { bold: true, color: EMERALD_DARK, fontSize: 9 },
-    amount: { alignment: "right", fontSize: 8 },
     empty: { fontSize: 9, color: MUTED, italics: true, margin: [0, 20, 0, 0] },
   }
 }
 
-async function generateSumasSaldosPdf(query: LedgerQuery): Promise<Buffer> {
-  const report = await buildSumasSaldosReport(query)
+function tableFillColor(rowIndex: number, rowCount: number): string | null {
+  if (rowIndex === 0) return EMERALD
+  if (rowIndex === rowCount - 1) return "#ECFDF5"
+  return rowIndex % 2 === 0 ? ZEBRA : null
+}
+
+function buildSumasSaldosPdf(report: SumasSaldosReportData): Content[] {
   const rows = filterAccountsWithMovement(report.rows)
 
   const body: TableCell[][] = [
@@ -114,51 +123,43 @@ async function generateSumasSaldosPdf(query: LedgerQuery): Promise<Buffer> {
     ],
     ...rows.map(
       (row): TableCell[] => [
-        indentCell(row.cuenta, row.level),
-        indentCell(row.label, row.level),
+        cuentaCell(row.cuenta),
+        labelCell(row.label, row.level),
         amountCell(row.totalDebe),
         amountCell(row.totalHaber),
         amountCell(row.saldo),
       ],
     ),
     [
-      { text: "TOTALES", style: "totalRow", colSpan: 2 },
-      {},
+      { text: "TOTALES", style: "totalRow" },
+      { text: "", style: "totalRow" },
       { text: formatAmount(report.totalDebe), style: "totalRow", alignment: "right" },
       { text: formatAmount(report.totalHaber), style: "totalRow", alignment: "right" },
-      { text: formatAmount(report.totalDebe - report.totalHaber), style: "totalRow", alignment: "right" },
+      {
+        text: formatAmount(report.totalDebe - report.totalHaber),
+        style: "totalRow",
+        alignment: "right",
+      },
     ],
   ]
 
-  const doc: TDocumentDefinitions = {
-    pageSize: "A4",
-    pageMargins: [40, 40, 40, 50],
-    defaultStyle: { font: "Roboto", fontSize: 9, color: GRAPHITE },
-    styles: baseStyles(),
-    footer: footer(report.meta),
-    content: [
-      ...headerBlock(report.meta),
-      rows.length === 0
-        ? { text: "No hay movimientos contables en el periodo seleccionado.", style: "empty" }
-        : {
-            table: {
-              headerRows: 1,
-              widths: [55, "*", 65, 65, 65],
-              body,
-            },
-            layout: {
-              ...tableLayout,
-              fillColor: (rowIndex: number) => {
-                if (rowIndex === 0) return EMERALD
-                if (rowIndex === body.length - 1) return "#ECFDF5"
-                return rowIndex % 2 === 0 ? ZEBRA : null
-              },
-            },
-          },
-    ],
+  if (rows.length === 0) {
+    return [{ text: "No hay movimientos contables en el periodo seleccionado.", style: "empty" }]
   }
 
-  return createPdfBuffer(doc)
+  return [
+    {
+      table: {
+        headerRows: 1,
+        widths: [52, "*", 62, 62, 62],
+        body,
+      },
+      layout: {
+        ...tableLayout,
+        fillColor: (rowIndex: number) => tableFillColor(rowIndex, body.length),
+      },
+    },
+  ]
 }
 
 function sectionTable(
@@ -172,38 +173,36 @@ function sectionTable(
 
   for (const section of sections) {
     content.push({ text: section.title, style: "sectionTitle" })
+
+    const body: TableCell[][] = [
+      [
+        { text: "Cuenta", style: "tableHeader" },
+        { text: "Descripción", style: "tableHeader" },
+        { text: "Importe", style: "tableHeader", alignment: "right" },
+      ],
+      ...section.rows.map(
+        (row): TableCell[] => [
+          cuentaCell(row.cuenta),
+          labelCell(row.label, row.level),
+          amountCell(row.amount),
+        ],
+      ),
+      [
+        { text: `Subtotal ${section.title}`, style: "totalRow" },
+        { text: "", style: "totalRow" },
+        { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
+      ],
+    ]
+
     content.push({
       table: {
         headerRows: 1,
-        widths: [55, "*", 80],
-        body: [
-          [
-            { text: "Cuenta", style: "tableHeader" },
-            { text: "Descripción", style: "tableHeader" },
-            { text: "Importe", style: "tableHeader", alignment: "right" },
-          ],
-          ...section.rows.map(
-            (row): TableCell[] => [
-              indentCell(row.cuenta, row.level),
-              indentCell(row.label, row.level),
-              amountCell(row.amount),
-            ],
-          ),
-          [
-            { text: `Subtotal ${section.title}`, style: "totalRow", colSpan: 2 },
-            {},
-            { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
-          ],
-        ],
+        widths: [52, "*", 72],
+        body,
       },
       layout: {
         ...tableLayout,
-        fillColor: (rowIndex: number) => {
-          if (rowIndex === 0) return EMERALD
-          const rowCount = section.rows.length + 2
-          if (rowIndex === rowCount - 1) return "#ECFDF5"
-          return rowIndex % 2 === 0 ? ZEBRA : null
-        },
+        fillColor: (rowIndex: number) => tableFillColor(rowIndex, body.length),
       },
       margin: [0, 0, 0, 4],
     })
@@ -212,108 +211,108 @@ function sectionTable(
   return content
 }
 
-async function generateBalancePdf(query: LedgerQuery): Promise<Buffer> {
-  const report = await buildBalanceReport(query)
-
-  const doc: TDocumentDefinitions = {
-    pageSize: "A4",
-    pageMargins: [40, 40, 40, 50],
-    defaultStyle: { font: "Roboto", fontSize: 9, color: GRAPHITE },
-    styles: baseStyles(),
-    footer: footer(report.meta),
-    content: [
-      ...headerBlock(report.meta),
-      { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 4] },
-      ...(report.activo.length > 0
-        ? sectionTable(report.activo)
-        : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
-      {
-        columns: [
-          { text: "TOTAL ACTIVO", style: "totalRow" },
-          { text: formatEuro(report.totalActivo), style: "totalRow", alignment: "right" },
-        ],
-        margin: [0, 8, 0, 16],
-      },
-      { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 4] },
-      ...(report.pasivo.length > 0
-        ? sectionTable(report.pasivo)
-        : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
-      {
-        columns: [
-          { text: "TOTAL PATRIMONIO NETO Y PASIVO", style: "totalRow" },
-          { text: formatEuro(report.totalPasivo), style: "totalRow", alignment: "right" },
-        ],
-        margin: [0, 8, 0, 0],
-      },
-    ],
-  }
-
-  return createPdfBuffer(doc)
+function buildBalancePdf(report: BalanceReportData): Content[] {
+  return [
+    { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 4] },
+    ...(report.activo.length > 0
+      ? sectionTable(report.activo)
+      : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
+    {
+      columns: [
+        { text: "TOTAL ACTIVO", style: "totalRow" },
+        { text: formatEuro(report.totalActivo), style: "totalRow", alignment: "right" },
+      ],
+      margin: [0, 8, 0, 16],
+    },
+    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 4] },
+    ...(report.pasivo.length > 0
+      ? sectionTable(report.pasivo)
+      : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
+    {
+      columns: [
+        { text: "TOTAL PATRIMONIO NETO Y PASIVO", style: "totalRow" },
+        { text: formatEuro(report.totalPasivo), style: "totalRow", alignment: "right" },
+      ],
+      margin: [0, 8, 0, 0],
+    },
+  ]
 }
 
-async function generatePygPdf(query: LedgerQuery): Promise<Buffer> {
-  const report = await buildPygReport(query)
-
-  const doc: TDocumentDefinitions = {
-    pageSize: "A4",
-    pageMargins: [40, 40, 40, 50],
-    defaultStyle: { font: "Roboto", fontSize: 9, color: GRAPHITE },
-    styles: baseStyles(),
-    footer: footer(report.meta),
-    content: [
-      ...headerBlock(report.meta),
-      ...(report.ingresos.length > 0
-        ? sectionTable(report.ingresos)
-        : [{ text: "Sin ingresos registrados en el periodo.", style: "empty" }]),
-      {
-        columns: [
-          { text: "TOTAL INGRESOS", style: "totalRow" },
-          { text: formatEuro(report.totalIngresos), style: "totalRow", alignment: "right" },
-        ],
-        margin: [0, 4, 0, 12],
-      },
-      ...(report.gastos.length > 0
-        ? sectionTable(report.gastos)
-        : [{ text: "Sin gastos registrados en el periodo.", style: "empty" }]),
-      {
-        columns: [
-          { text: "TOTAL GASTOS", style: "totalRow" },
-          { text: formatEuro(report.totalGastos), style: "totalRow", alignment: "right" },
-        ],
-        margin: [0, 4, 0, 12],
-      },
-      {
-        canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 1, color: BORDER }],
-        margin: [0, 4, 0, 8],
-      },
-      {
-        columns: [
-          { text: "RESULTADO DEL EJERCICIO", fontSize: 11, bold: true, color: EMERALD_DARK },
-          {
-            text: formatEuro(report.resultado),
-            fontSize: 11,
-            bold: true,
-            alignment: "right",
-            color: report.resultado >= 0 ? EMERALD : "#B91C1C",
-          },
-        ],
-        margin: [0, 0, 0, 0],
-      },
-    ],
-  }
-
-  return createPdfBuffer(doc)
+function buildPygPdf(report: PygReportData): Content[] {
+  return [
+    { text: "INGRESOS", style: "sectionTitle", margin: [0, 0, 0, 4] },
+    ...(report.ingresos.length > 0
+      ? sectionTable(report.ingresos)
+      : [{ text: "Sin ingresos registrados en el periodo.", style: "empty" }]),
+    {
+      columns: [
+        { text: "TOTAL INGRESOS", style: "totalRow" },
+        { text: formatEuro(report.totalIngresos), style: "totalRow", alignment: "right" },
+      ],
+      margin: [0, 4, 0, 12],
+    },
+    { text: "GASTOS", style: "sectionTitle", margin: [0, 0, 0, 4] },
+    ...(report.gastos.length > 0
+      ? sectionTable(report.gastos)
+      : [{ text: "Sin gastos registrados en el periodo.", style: "empty" }]),
+    {
+      columns: [
+        { text: "TOTAL GASTOS", style: "totalRow" },
+        { text: formatEuro(report.totalGastos), style: "totalRow", alignment: "right" },
+      ],
+      margin: [0, 4, 0, 12],
+    },
+    {
+      canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 1, color: BORDER }],
+      margin: [0, 4, 0, 8],
+    },
+    {
+      columns: [
+        { text: "RESULTADO DEL EJERCICIO", fontSize: 11, bold: true, color: EMERALD_DARK },
+        {
+          text: formatEuro(report.resultado),
+          fontSize: 11,
+          bold: true,
+          alignment: "right",
+          color: report.resultado >= 0 ? EMERALD : "#B91C1C",
+        },
+      ],
+      margin: [0, 0, 0, 0],
+    },
+  ]
 }
 
 export async function generateReportPdf(type: ReportType, query: LedgerQuery): Promise<Buffer> {
-  switch (type) {
+  const report = await fetchReportData(type, query)
+
+  let content: Content[]
+  let meta: ReportMeta
+
+  switch (report.type) {
     case "sumas-saldos":
-      return generateSumasSaldosPdf(query)
+      meta = report.data.meta
+      content = buildSumasSaldosPdf(report.data)
+      break
     case "balance":
-      return generateBalancePdf(query)
+      meta = report.data.meta
+      content = buildBalancePdf(report.data)
+      break
     case "pyg":
-      return generatePygPdf(query)
+      meta = report.data.meta
+      content = buildPygPdf(report.data)
+      break
   }
+
+  const doc: TDocumentDefinitions = {
+    pageSize: "A4",
+    pageMargins: [40, 40, 40, 50],
+    defaultStyle: { font: "Roboto", fontSize: 9, color: GRAPHITE },
+    styles: baseStyles(),
+    footer: footer(meta),
+    content: [...headerBlock(meta), ...content],
+  }
+
+  return createPdfBuffer(doc)
 }
 
 export function buildPdfFilename(type: ReportType, companyName: string, year: number): string {
