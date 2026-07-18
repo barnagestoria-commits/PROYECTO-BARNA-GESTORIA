@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Building, Building2, Mail, Lock, User, Phone, Briefcase } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { SocialLoginButtons } from "@/components/social-login-buttons"
+import { LegalFooterLinks } from "@/components/legal-footer-links"
 import { useAuth, type AccountType } from "@/components/auth-provider"
 
 export default function RegisterPage() {
@@ -233,6 +234,8 @@ export default function RegisterPage() {
               Inicia sesión
             </Link>
           </div>
+
+          <LegalFooterLinks />
         </CardContent>
       </Card>
     </div>

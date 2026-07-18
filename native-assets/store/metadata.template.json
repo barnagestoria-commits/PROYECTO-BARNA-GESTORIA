@@ -1,0 +1,16 @@
+{
+  "bundleId": "com.gestoria.platform",
+  "appDisplayName": "Gestoría",
+  "shortDescription": "Gestión contable, fiscal y documental para empresas y gestorías.",
+  "fullDescription": "[PLACEHOLDER] Descripción completa para ficha de App Store / Play Store.",
+  "privacyPolicyUrl": "https://v0-factura-y-extractos-web.vercel.app/politica-privacidad",
+  "termsOfServiceUrl": "https://v0-factura-y-extractos-web.vercel.app/terminos-servicio",
+  "supportUrl": "https://v0-factura-y-extractos-web.vercel.app/contact",
+  "category": "Business",
+  "contentRating": "Everyone",
+  "keywords": ["gestoría", "contabilidad", "fiscal", "facturas", "autónomos"],
+  "screenshots": {
+    "ios": [],
+    "android": []
+  }
+}

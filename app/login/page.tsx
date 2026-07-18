@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/password-input"
 import { SocialLoginButtons } from "@/components/social-login-buttons"
+import { LegalFooterLinks } from "@/components/legal-footer-links"
 import { Mail, Lock } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useAuth } from "@/components/auth-provider"
@@ -114,6 +115,8 @@ export default function LoginPage() {
             </p>
           </div>
           )}
+
+          <LegalFooterLinks />
         </CardContent>
       </Card>
     </div>

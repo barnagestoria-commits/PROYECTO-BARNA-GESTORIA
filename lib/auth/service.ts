@@ -8,18 +8,17 @@ import {
   resolveActiveCompanyId,
 } from "@/lib/auth/permissions"
 
-export const SESSION_COOKIE = "barna_session"
-const SESSION_DAYS = 7
+import {
+  getSessionCookieOptions,
+  getSessionExpiry,
+  SESSION_COOKIE,
+} from "@/lib/auth/session-cookie"
 
 function createSessionToken(): string {
   return randomBytes(32).toString("hex")
 }
 
-function getSessionExpiry(): Date {
-  const expires = new Date()
-  expires.setDate(expires.getDate() + SESSION_DAYS)
-  return expires
-}
+export { SESSION_COOKIE }
 
 async function getCompaniesForUser(
   userId: string,
@@ -180,13 +179,7 @@ export async function establishUserSession(
     },
   })
 
-  cookies().set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: session.expiresAt,
-  })
+  cookies().set(SESSION_COOKIE, token, getSessionCookieOptions(session.expiresAt))
 
   return buildAuthSession(user, session.activeCompanyId)
 }

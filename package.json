@@ -13,6 +13,7 @@
     "desktop:dev": "npm run dev -w @gestoria/desktop",
     "desktop:build": "npm run build -w @gestoria/desktop",
     "mobile:sync": "npm run sync -w @gestoria/mobile",
+    "native:config": "node scripts/sync-native-config.mjs",
     "mobile:android": "npm run open:android -w @gestoria/mobile",
     "mobile:ios": "npm run open:ios -w @gestoria/mobile",
     "lint": "next lint",
