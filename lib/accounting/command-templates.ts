@@ -13,8 +13,8 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     description: "Factura de venta — Clientes, ingresos e IVA repercutido",
     lines: [
       { cuenta: "430", concepto: "Cliente", debe: 0, haber: 0 },
-      { cuenta: "700", concepto: "Ventas de mercaderías", debe: 0, haber: 0 },
       { cuenta: "477", concepto: "IVA repercutido", debe: 0, haber: 0 },
+      { cuenta: "700", concepto: "Ventas de mercaderías", debe: 0, haber: 0 },
     ],
   },
   "34": {
@@ -22,9 +22,9 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     label: "Su factura (recibida / proveedor)",
     description: "Factura de compra — Gastos, IVA soportado y proveedor",
     lines: [
-      { cuenta: "600", concepto: "Compras de mercaderías", debe: 0, haber: 0 },
-      { cuenta: "472", concepto: "IVA soportado", debe: 0, haber: 0 },
       { cuenta: "400", concepto: "Proveedor", debe: 0, haber: 0 },
+      { cuenta: "472", concepto: "IVA soportado", debe: 0, haber: 0 },
+      { cuenta: "600", concepto: "Compras de mercaderías", debe: 0, haber: 0 },
     ],
   },
   "16": {
@@ -32,9 +32,9 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     label: "Bien de inversión",
     description: "Adquisición de inmovilizado material",
     lines: [
-      { cuenta: "213", concepto: "Maquinaria", debe: 0, haber: 0 },
-      { cuenta: "472", concepto: "IVA soportado", debe: 0, haber: 0 },
       { cuenta: "400", concepto: "Proveedor inmovilizado", debe: 0, haber: 0 },
+      { cuenta: "472", concepto: "IVA soportado", debe: 0, haber: 0 },
+      { cuenta: "213", concepto: "Maquinaria", debe: 0, haber: 0 },
     ],
   },
   "57": {

@@ -31,10 +31,10 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
   const lines = [
     {
       sortOrder: 0,
-      cuenta: "600",
-      concepto: concept,
-      debe: baseImponible,
-      haber: 0,
+      cuenta: providerAccount,
+      concepto: `${invoice.proveedor} (${invoice.cif})`,
+      debe: 0,
+      haber: total,
     },
   ]
 
@@ -50,10 +50,10 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
 
   lines.push({
     sortOrder: lines.length,
-    cuenta: providerAccount,
-    concepto: `${invoice.proveedor} (${invoice.cif})`,
-    debe: 0,
-    haber: total,
+    cuenta: "600",
+    concepto: concept,
+    debe: baseImponible,
+    haber: 0,
   })
 
   return lines
@@ -72,13 +72,6 @@ function buildIssuedInvoiceLines(invoice: InvoiceOcrResult, clientAccount: strin
       debe: total,
       haber: 0,
     },
-    {
-      sortOrder: 1,
-      cuenta: "700",
-      concepto: concept,
-      debe: 0,
-      haber: baseImponible,
-    },
   ]
 
   if (iva > 0) {
@@ -90,6 +83,14 @@ function buildIssuedInvoiceLines(invoice: InvoiceOcrResult, clientAccount: strin
       haber: iva,
     })
   }
+
+  lines.push({
+    sortOrder: lines.length,
+    cuenta: "700",
+    concepto: concept,
+    debe: 0,
+    haber: baseImponible,
+  })
 
   return lines
 }
