@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -42,6 +43,7 @@ function parseAmount(value: string): number {
 
 export function QuickAccountingEntryForm() {
   const { activeCompany } = useAuth()
+  const searchParams = useSearchParams()
   const [commandInput, setCommandInput] = useState("")
   const [activeCommand, setActiveCommand] = useState<AccountingCommandCode | null>(null)
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0])
@@ -50,6 +52,7 @@ export function QuickAccountingEntryForm() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
+  const [focusedThirdParty, setFocusedThirdParty] = useState<string | null>(null)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
@@ -107,6 +110,30 @@ export function QuickAccountingEntryForm() {
     },
     [focusCell],
   )
+
+  useEffect(() => {
+    const comando = searchParams.get("comando")
+    if (comando) {
+      const code = parseCommandInput(comando)
+      if (code) applyCommand(code)
+    }
+
+    const cuenta = searchParams.get("cuenta")?.trim()
+    const tercero = searchParams.get("tercero")?.trim()
+    if (cuenta) {
+      setLines((prev) => {
+        const next = prev.length > 0 ? [...prev] : [createEmptyLine()]
+        next[0] = {
+          ...next[0],
+          cuenta,
+          concepto: tercero || next[0].concepto,
+        }
+        return next
+      })
+      if (tercero) setFocusedThirdParty(tercero)
+      requestAnimationFrame(() => focusCell(0, "debe"))
+    }
+  }, [searchParams, applyCommand, focusCell])
 
   const handleCommandKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return
@@ -214,6 +241,12 @@ export function QuickAccountingEntryForm() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {focusedThirdParty && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              Tercero seleccionado: <strong>{focusedThirdParty}</strong>. Revisa la subcuenta y completa el
+              asiento.
+            </div>
+          )}
           <div className="grid gap-4 md:grid-cols-[140px_1fr]">
             <div className="space-y-2">
               <label htmlFor="entry-fecha" className="text-sm font-medium">

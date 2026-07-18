@@ -1,6 +1,7 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +15,7 @@ import {
   Loader2,
   ScanLine,
 } from "lucide-react"
-import { FileUpload } from "@/components/file-upload"
+import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
 import { TaxSummaryPanel } from "@/components/tax-summary-panel"
 import { useRequireAuth } from "@/components/auth-provider"
@@ -38,8 +39,10 @@ interface PendingValidation {
   ocrData: InvoiceOcrResult
 }
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const { session, panelTitle, activeCompany } = useRequireAuth()
+  const searchParams = useSearchParams()
+  const uploadSectionRef = useRef<HTMLDivElement>(null)
 
   const [documents, setDocuments] = useState<Document[]>([])
   const [isLoadingDocs, setIsLoadingDocs] = useState(false)
@@ -49,6 +52,21 @@ export default function DashboardPage() {
   const [isConfirming, setIsConfirming] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [validationQueue, setValidationQueue] = useState<File[]>([])
+
+  const initialDocumentType = useMemo<UploadDocumentType>(() => {
+    const actionMap: Record<string, UploadDocumentType> = {
+      "subir-factura-recibida": "factura-recibida",
+      "subir-factura-emitida": "factura-emitida",
+      "subir-extracto": "extracto-bancario",
+    }
+    return actionMap[searchParams.get("accion") ?? ""] ?? "factura-recibida"
+  }, [searchParams])
+
+  useEffect(() => {
+    if (searchParams.get("accion")) {
+      uploadSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [searchParams])
 
   const loadDocuments = useCallback(async () => {
     if (!session?.activeCompanyId) return
@@ -341,7 +359,7 @@ export default function DashboardPage() {
                   </Card>
                 )}
 
-                <Card className="border-emerald-200 overflow-hidden">
+                <Card className="border-emerald-200 overflow-hidden" ref={uploadSectionRef}>
                   <CardHeader className="px-4 sm:px-6">
                     <CardTitle className="text-lg sm:text-xl leading-snug break-words text-balance">
                       Centro de subida de documentos
@@ -352,6 +370,7 @@ export default function DashboardPage() {
                   </CardHeader>
                   <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6 overflow-x-hidden">
                     <FileUpload
+                      initialDocumentType={initialDocumentType}
                       onFilesSelected={(files, type) => handleFileUpload(files, type)}
                       onAccountingImport={(result) => {
                         setImportMessage(
@@ -428,5 +447,19 @@ export default function DashboardPage() {
           </>
         )}
     </>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex justify-center py-16">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
+        </div>
+      }
+    >
+      <DashboardPageContent />
+    </Suspense>
   )
 }

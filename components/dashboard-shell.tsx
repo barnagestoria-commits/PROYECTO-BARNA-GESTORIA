@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import type { ReactNode } from "react"
+import { useCallback, useState, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { A3Toolbar } from "@/components/a3-toolbar"
 import { CompanySelector } from "@/components/company-selector"
+import { CommandPalette, CommandPaletteTrigger } from "@/components/command-palette"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useRequireAuth } from "@/components/auth-provider"
 import { getPageTitle } from "@/lib/navigation/a3-toolbar"
@@ -19,6 +20,8 @@ interface DashboardShellProps {
 export function DashboardShell({ children }: DashboardShellProps) {
   const pathname = usePathname()
   const { session, panelTitle, roleLabel, activeCompany, logout, isLoading } = useRequireAuth()
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false)
+  const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
 
   if (isLoading) {
     return (
@@ -56,6 +59,10 @@ export function DashboardShell({ children }: DashboardShellProps) {
                 {activeCompany && ` • ${activeCompany.name}`}
               </p>
             </div>
+          </div>
+
+          <div className="w-full">
+            <CommandPaletteTrigger onOpen={openCommandPalette} />
           </div>
 
           <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
@@ -97,6 +104,8 @@ export function DashboardShell({ children }: DashboardShellProps) {
       <main className="container mx-auto min-h-0 w-full max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:py-6 md:py-8">
         {children}
       </main>
+
+      <CommandPalette open={commandPaletteOpen} onOpenChange={setCommandPaletteOpen} />
     </div>
   )
 }

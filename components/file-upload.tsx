@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { InvoiceCameraCapture } from "@/components/invoice-camera-capture"
@@ -32,6 +32,7 @@ interface FileUploadProps {
   onImportError?: (message: string) => void
   disabled?: boolean
   cameraTourId?: string
+  initialDocumentType?: UploadDocumentType
 }
 
 interface DocumentTypeConfig {
@@ -94,10 +95,15 @@ export function FileUpload({
   onImportError,
   disabled = false,
   cameraTourId,
+  initialDocumentType = "factura-recibida",
 }: FileUploadProps) {
-  const [selectedType, setSelectedType] = useState<UploadDocumentType>("factura-recibida")
+  const [selectedType, setSelectedType] = useState<UploadDocumentType>(initialDocumentType)
   const [cameraOpen, setCameraOpen] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+
+  useEffect(() => {
+    setSelectedType(initialDocumentType)
+  }, [initialDocumentType])
 
   const mediaInputRef = useRef<HTMLInputElement>(null)
   const spreadsheetInputRef = useRef<HTMLInputElement>(null)
