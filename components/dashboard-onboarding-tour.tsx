@@ -15,7 +15,7 @@ const Joyride = dynamic(() => import("react-joyride").then((mod) => mod.Joyride)
 const TOUR_STEPS: Step[] = [
   {
     target: '[data-tour="a3-toolbar"]',
-    title: "Barra de herramientas A3",
+    title: "Barra de consultas y descargas",
     content:
       "Desde aquí accedes a listados contables, modelos fiscales, certificados, inmovilizado y utilidades. Es tu menú principal de consulta.",
     placement: "bottom",

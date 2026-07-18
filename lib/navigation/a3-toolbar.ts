@@ -58,7 +58,6 @@ export const A3_TOOLBAR_GROUPS: A3ToolbarGroup[] = [
         label: "Vista panorámica fiscal",
         description: "Matriz trimestral de modelos",
         href: "/dashboard/fiscal",
-        badge: "A3",
       },
       {
         id: "pagar-devolver",

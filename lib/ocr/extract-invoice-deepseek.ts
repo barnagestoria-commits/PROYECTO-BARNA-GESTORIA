@@ -74,7 +74,7 @@ function getDeepSeekClient(): OpenAI {
 
   if (!apiKey) {
     throw new OcrConfigError(
-      "DEEPSEEK_API_KEY no está configurada. Crea un archivo .env.local con tu clave de DeepSeek.",
+      "DEEPSEEK_API_KEY no está configurada. Configura el servicio de análisis de facturas en el entorno.",
     )
   }
 
@@ -162,7 +162,7 @@ function normalizeInvoiceResult(raw: Record<string, unknown>): InvoiceOcrResult 
 
 function parseModelResponse(content: string | null | undefined): InvoiceOcrResult {
   if (!content?.trim()) {
-    throw new OcrExtractionError("DeepSeek no devolvió datos de la factura.")
+    throw new OcrExtractionError("El servicio de análisis no devolvió datos de la factura.")
   }
 
   let parsed: unknown
@@ -175,11 +175,11 @@ function parseModelResponse(content: string | null | undefined): InvoiceOcrResul
       .replace(/\s*```$/i, "")
     parsed = JSON.parse(cleaned)
   } catch {
-    throw new OcrExtractionError("La respuesta de DeepSeek no tiene un formato JSON válido.")
+    throw new OcrExtractionError("La respuesta del análisis no tiene un formato JSON válido.")
   }
 
   if (!parsed || typeof parsed !== "object") {
-    throw new OcrExtractionError("La respuesta de DeepSeek no contiene un objeto de factura.")
+    throw new OcrExtractionError("La respuesta del análisis no contiene un objeto de factura.")
   }
 
   return normalizeInvoiceResult(parsed as Record<string, unknown>)
@@ -209,7 +209,7 @@ async function requestStructuredExtraction(documentText: string): Promise<Invoic
     }
 
     const message = error instanceof Error ? error.message : "Error desconocido"
-    throw new OcrExtractionError(`Error al analizar la factura con DeepSeek: ${message}`)
+    throw new OcrExtractionError(`Error al analizar la factura: ${message}`)
   }
 }
 

@@ -32,8 +32,8 @@ function isPdf(mimeType: string, fileName: string): boolean {
 }
 
 /**
- * Extrae datos de factura usando texto del PDF y DeepSeek para estructurar los campos.
- * DeepSeek no soporta visión: PDFs escaneados o imágenes deben convertirse a PDF con texto.
+ * Extrae datos de factura usando texto del PDF y un modelo de IA para estructurar los campos.
+ * Las imágenes deben contener texto legible o convertirse a PDF con texto seleccionable.
  */
 export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<InvoiceOcrResult> {
   const mimeType = resolveMimeType(input.mimeType, input.fileName)
@@ -46,13 +46,13 @@ export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<In
     }
 
     throw new OcrExtractionError(
-      "No se pudo extraer texto del PDF. DeepSeek requiere facturas con texto seleccionable (no escaneadas).",
+      "No se pudo extraer texto del PDF. Usa facturas con texto seleccionable (no escaneadas sin OCR).",
     )
   }
 
   if (mimeType.startsWith("image/")) {
     throw new OcrExtractionError(
-      "DeepSeek no soporta análisis de imágenes. Sube un PDF con texto seleccionable.",
+      "No se pudo analizar la imagen. Sube un PDF con texto seleccionable o una foto nítida de la factura.",
     )
   }
 

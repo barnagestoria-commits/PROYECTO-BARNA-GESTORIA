@@ -216,9 +216,6 @@ export function InvoiceValidationForm({
               Revisa el desglose de IVA, recargo de equivalencia y confirma que cuadra con el total.
             </CardDescription>
           </div>
-          <Badge variant="secondary" className="shrink-0">
-            DeepSeek
-          </Badge>
         </div>
       </CardHeader>
       <CardContent>
