@@ -45,12 +45,17 @@ export function buildReportFilename(
   type: ReportType,
   companyName: string,
   year: number,
-  extension: "pdf" | "xlsx",
+  extension: "pdf" | "xlsx" | "csv" | "zip",
 ): string {
   const prefix: Record<ReportType, string> = {
     balance: "balance",
     "sumas-saldos": "sumas-saldos",
     pyg: "pyg",
   }
-  return `${prefix[type]}-${slugifyCompanyName(companyName)}-${year}.${extension}`
+  const suffix = extension === "zip" ? "export" : String(year)
+  return `${prefix[type]}-${slugifyCompanyName(companyName)}-${suffix}.${extension}`
+}
+
+export function buildListadosBundleFilename(companyName: string, year: number): string {
+  return `listados-contables-${slugifyCompanyName(companyName)}-${year}.zip`
 }

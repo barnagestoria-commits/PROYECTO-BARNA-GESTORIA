@@ -15,7 +15,7 @@ const CERTIFICADOS: Record<string, { title: string; description: string }> = {
   },
   "resumen-anual": {
     title: "Resumen anual de retenciones",
-    description: "Relación consolidada de certificados emitidos por cliente en el ejercicio.",
+    description: "Exportación anual de los modelos 111, 115, 180 y 303 habilitados para el ejercicio.",
   },
 }
 
@@ -30,6 +30,7 @@ export default function CertificadosPage() {
         title={cert.title}
         description={cert.description}
         icon={Stamp}
+        certificadoSlug={slugKey}
       />
     </div>
   )

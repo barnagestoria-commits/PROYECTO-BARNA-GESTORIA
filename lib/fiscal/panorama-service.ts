@@ -146,7 +146,12 @@ export async function buildFiscalPanorama(
   companyId: string,
   companyName: string,
   year: number,
+  enabledModels?: FiscalModelId[],
 ): Promise<FiscalPanoramaResponse> {
+  const activeModels = enabledModels ?? FISCAL_MODEL_DEFINITIONS.map((model) => model.code)
+  const activeDefinitions = FISCAL_MODEL_DEFINITIONS.filter((model) =>
+    activeModels.includes(model.code),
+  )
   const [allLines, declarations] = await Promise.all([
     fetchYearLines(companyId, year),
     prisma.fiscalDeclaration.findMany({ where: { companyId, year } }),
@@ -156,9 +161,9 @@ export async function buildFiscalPanorama(
 
   const blocks: FiscalPanoramaBlock[] = [
     {
-      id: "IRPF",
+      id: "IRPF" as const,
       label: "I.R.P.F.",
-      rows: FISCAL_MODEL_DEFINITIONS.filter((model) => model.block === "IRPF").map((model) => ({
+      rows: activeDefinitions.filter((model) => model.block === "IRPF").map((model) => ({
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
@@ -166,16 +171,16 @@ export async function buildFiscalPanorama(
       })),
     },
     {
-      id: "IVA",
+      id: "IVA" as const,
       label: "I.V.A.",
-      rows: FISCAL_MODEL_DEFINITIONS.filter((model) => model.block === "IVA").map((model) => ({
+      rows: activeDefinitions.filter((model) => model.block === "IVA").map((model) => ({
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
         cells: computeRowCells(model.code, year, allLines, declarationMap),
       })),
     },
-  ]
+  ].filter((block) => block.rows.length > 0)
 
   const summaryCells = {} as Record<FiscalPeriodKey, FiscalPanoramaCell>
   const summaryBreakdown = {} as NonNullable<FiscalPanoramaSummary["breakdown"]>

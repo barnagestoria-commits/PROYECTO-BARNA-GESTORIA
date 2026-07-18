@@ -16,6 +16,7 @@ export default function FiscalModelHubPage() {
   const modelCode = params.model as FiscalModelId
 
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
+  const isAnnualOnly = modelCode === "180"
 
   if (!model || !VALID_MODELS.has(modelCode)) {
     return (
@@ -42,35 +43,58 @@ export default function FiscalModelHubPage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {([1, 2, 3, 4] as const).map((quarter) => (
+      {!isAnnualOnly ? (
+        <>
+          <div>
+            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-800">
+              Presentación trimestral (.txt Hacienda)
+            </h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {([1, 2, 3, 4] as const).map((quarter) => (
+                <Link
+                  key={quarter}
+                  href={`/dashboard/fiscal/${modelCode}/${year}/${quarter}`}
+                  className="group rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">{quarter}T {year}</p>
+                      <p className="text-sm text-gray-500">Borrador, exportación .txt y desglose</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-700" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+
           <Link
-            key={quarter}
-            href={`/dashboard/fiscal/${modelCode}/${year}/${quarter}`}
-            className="group rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50"
+            href={`/dashboard/fiscal/${modelCode}/${year}/anual`}
+            className="group block rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 transition-colors hover:bg-emerald-50"
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-semibold text-gray-900">{quarter}T {year}</p>
-                <p className="text-sm text-gray-500">Borrador y desglose trimestral</p>
+                <p className="font-semibold text-emerald-900">Resumen anual acumulado {year}</p>
+                <p className="text-sm text-emerald-700/80">Totales del ejercicio (PDF, Excel, CSV, ZIP)</p>
               </div>
-              <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-700" />
+              <ArrowRight className="h-4 w-4 text-emerald-600 transition-transform group-hover:translate-x-0.5" />
             </div>
           </Link>
-        ))}
+        </>
+      ) : (
         <Link
           href={`/dashboard/fiscal/${modelCode}/${year}/anual`}
-          className="group rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 transition-colors hover:bg-emerald-50 sm:col-span-2"
+          className="group block rounded-lg border border-emerald-200 bg-emerald-50/40 p-4 transition-colors hover:bg-emerald-50"
         >
           <div className="flex items-center justify-between">
             <div>
               <p className="font-semibold text-emerald-900">Resumen anual {year}</p>
-              <p className="text-sm text-emerald-700/80">Totales acumulados del ejercicio</p>
+              <p className="text-sm text-emerald-700/80">Modelo 180 — certificados y exportación .txt anual</p>
             </div>
             <ArrowRight className="h-4 w-4 text-emerald-600 transition-transform group-hover:translate-x-0.5" />
           </div>
         </Link>
-      </div>
+      )}
     </div>
   )
 }

@@ -9,14 +9,13 @@ import {
   Download,
   FileSpreadsheet,
   HelpCircle,
-  Loader2,
   Scale,
   Stamp,
 } from "lucide-react"
+import { ReportExportButtons } from "@/components/report-export-buttons"
 import { cn } from "@/lib/utils"
 import { A3_TOOLBAR_GROUPS, type A3ToolbarGroup } from "@/lib/navigation/a3-toolbar"
 import { startOnboardingTour } from "@/lib/onboarding"
-import { downloadReportExcel, downloadReportPdf } from "@/lib/reports/download-client"
 
 const GROUP_ICONS: Record<string, typeof BarChart3> = {
   listados: BarChart3,
@@ -48,17 +47,11 @@ function isItemActive(href: string, pathname: string): boolean {
 function ToolbarMenuItems({
   group,
   pathname,
-  downloadingId,
-  onPdfDownload,
-  onExcelDownload,
   onNavigate,
   variant,
 }: {
   group: A3ToolbarGroup
   pathname: string
-  downloadingId: string | null
-  onPdfDownload: (itemId: string, reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>) => void
-  onExcelDownload: (itemId: string, reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>) => void
   onNavigate: () => void
   variant: "mobile" | "desktop"
 }) {
@@ -132,44 +125,10 @@ function ToolbarMenuItems({
                 </span>
               </Link>
               {item.pdfReportType && (
-                <div className="mt-0.5 flex shrink-0 flex-col gap-0.5">
-                  <button
-                    type="button"
-                    title={`Descargar PDF — ${item.label}`}
-                    disabled={downloadingId === item.id}
-                    onClick={() => onPdfDownload(item.id, item.pdfReportType!)}
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:opacity-50",
-                      variant === "mobile"
-                        ? "text-emerald-100 hover:bg-emerald-900/50"
-                        : "text-emerald-700 hover:bg-emerald-100",
-                    )}
-                  >
-                    {downloadingId === item.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Download className="h-4 w-4" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    title={`Exportar Excel — ${item.label}`}
-                    disabled={downloadingId === `${item.id}-xlsx`}
-                    onClick={() => onExcelDownload(item.id, item.pdfReportType!)}
-                    className={cn(
-                      "flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:opacity-50",
-                      variant === "mobile"
-                        ? "text-emerald-100 hover:bg-emerald-900/50"
-                        : "text-emerald-700 hover:bg-emerald-100",
-                    )}
-                  >
-                    {downloadingId === `${item.id}-xlsx` ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <FileSpreadsheet className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
+                <ReportExportButtons
+                  reportType={item.pdfReportType}
+                  variant={variant === "mobile" ? "toolbar-mobile" : "toolbar-desktop"}
+                />
               )}
             </div>
           </li>
@@ -182,42 +141,9 @@ function ToolbarMenuItems({
 export function A3Toolbar() {
   const pathname = usePathname()
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
-  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
 
   const closeMenus = useCallback(() => setOpenGroupId(null), [])
-
-  const handlePdfDownload = async (
-    itemId: string,
-    reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>,
-  ) => {
-    setDownloadingId(itemId)
-    try {
-      await downloadReportPdf(reportType)
-      closeMenus()
-    } catch (error) {
-      console.error(error)
-      window.alert(error instanceof Error ? error.message : "No se pudo generar el PDF.")
-    } finally {
-      setDownloadingId(null)
-    }
-  }
-
-  const handleExcelDownload = async (
-    itemId: string,
-    reportType: NonNullable<(typeof A3_TOOLBAR_GROUPS)[0]["items"][0]["pdfReportType"]>,
-  ) => {
-    setDownloadingId(`${itemId}-xlsx`)
-    try {
-      await downloadReportExcel(reportType)
-      closeMenus()
-    } catch (error) {
-      console.error(error)
-      window.alert(error instanceof Error ? error.message : "No se pudo generar el Excel.")
-    } finally {
-      setDownloadingId(null)
-    }
-  }
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
@@ -297,9 +223,6 @@ export function A3Toolbar() {
                     <ToolbarMenuItems
                       group={group}
                       pathname={pathname}
-                      downloadingId={downloadingId}
-                      onPdfDownload={handlePdfDownload}
-                      onExcelDownload={handleExcelDownload}
                       onNavigate={closeMenus}
                       variant="mobile"
                     />
@@ -358,9 +281,6 @@ export function A3Toolbar() {
                     <ToolbarMenuItems
                       group={group}
                       pathname={pathname}
-                      downloadingId={downloadingId}
-                      onPdfDownload={handlePdfDownload}
-                      onExcelDownload={handleExcelDownload}
                       onNavigate={closeMenus}
                       variant="desktop"
                     />

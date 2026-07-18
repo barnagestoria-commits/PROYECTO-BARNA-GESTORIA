@@ -18,6 +18,7 @@ import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
 import { formatFiscalAmount } from "@/lib/fiscal/panorama"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
+import { FiscalExportButtons } from "@/components/report-export-buttons"
 import { ArrowLeft, FileSpreadsheet, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -105,6 +106,22 @@ export default function FiscalModelDetailPage() {
               <p className="mt-1 text-sm text-gray-500">
                 Importe calculado desde los asientos contables del periodo.
               </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-emerald-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base text-emerald-900">Exportar modelo fiscal</CardTitle>
+              <CardDescription>
+                PDF, Excel, CSV, TXT Hacienda (.txt) o ZIP para presentación telemática y archivo mercantil.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <FiscalExportButtons
+                model={params.model}
+                quarter={params.quarter}
+                year={Number.parseInt(params.year, 10)}
+              />
             </CardContent>
           </Card>
 

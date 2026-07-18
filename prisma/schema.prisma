@@ -60,6 +60,13 @@ enum FiscalDeclarationStatus {
   PRESENTADO
 }
 
+enum CompanyClientProfile {
+  PERSONA_FISICA
+  AUTONOMO
+  PYME
+  GRAN_EMPRESA
+}
+
 /// Cuenta raíz: despacho de gestoría o cliente final (autónomo/empresa)
 model Account {
   id          String      @id @default(cuid())
@@ -105,6 +112,7 @@ model Company {
   amortizationRuns     AmortizationRun[]
   accountingImports    AccountingDataImport[]
   thirdParties         ThirdParty[]
+  fiscalSettings       CompanyFiscalSettings?
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -190,6 +198,20 @@ model FiscalDeclaration {
 
   @@unique([companyId, year, quarter, modelCode])
   @@index([companyId, year])
+}
+
+/// Perfil fiscal y modelos habilitados por empresa
+model CompanyFiscalSettings {
+  id               String               @id @default(cuid())
+  companyId        String               @unique
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientProfile    CompanyClientProfile @default(PYME)
+  model111Enabled  Boolean              @default(true)
+  model115Enabled  Boolean              @default(false)
+  model180Enabled  Boolean              @default(false)
+  model303Enabled  Boolean              @default(true)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
 }
 
 /// Ficha de inmovilizado (cuentas 21x / 281x / 681x)

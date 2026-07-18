@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { getEnabledModels } from "@/lib/fiscal/fiscal-settings"
+import { getOrCreateCompanyFiscalSettings } from "@/lib/fiscal/fiscal-settings-service"
 import { buildFiscalPanorama } from "@/lib/fiscal/panorama-service"
 
 export async function GET(request: Request) {
@@ -15,9 +17,16 @@ export async function GET(request: Request) {
     }
 
     const company = session.companies.find((item) => item.id === companyId)
-    const panorama = await buildFiscalPanorama(companyId, company?.name ?? "Empresa", year)
+    const settings = await getOrCreateCompanyFiscalSettings(companyId)
+    const enabledModels = getEnabledModels(settings)
+    const panorama = await buildFiscalPanorama(
+      companyId,
+      company?.name ?? "Empresa",
+      year,
+      enabledModels,
+    )
 
-    return NextResponse.json({ success: true, panorama })
+    return NextResponse.json({ success: true, panorama, settings })
   } catch (error) {
     return authErrorResponse(error)
   }

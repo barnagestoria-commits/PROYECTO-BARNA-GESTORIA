@@ -15,6 +15,7 @@ import {
 import { apiFetch } from "@/lib/api-client"
 import { formatFiscalAmount } from "@/lib/fiscal/panorama"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
+import { FiscalExportButtons } from "@/components/report-export-buttons"
 import { FileSpreadsheet, Loader2 } from "lucide-react"
 
 export default function CertificadoModelo180Page() {
@@ -67,6 +68,16 @@ export default function CertificadoModelo180Page() {
           ) : (
             <p className="text-sm text-gray-500">Sin datos de retenciones de alquileres.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-emerald-200">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base text-emerald-900">Exportar certificados Mod. 180</CardTitle>
+          <CardDescription>PDF, Excel, CSV o ZIP para Hacienda y registro mercantil.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <FiscalExportButtons model="180" quarter="anual" year={year} disabled={!detail} />
         </CardContent>
       </Card>
 
