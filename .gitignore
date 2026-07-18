@@ -29,6 +29,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# native shells
+apps/desktop/src-tauri/target
+apps/mobile/android
+apps/mobile/ios
+apps/mobile/.capacitor
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

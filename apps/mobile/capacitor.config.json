@@ -1,0 +1,16 @@
+{
+  "appId": "com.gestoria.platform",
+  "appName": "Gestoría",
+  "webDir": "www",
+  "server": {
+    "url": "https://v0-factura-y-extractos-web.vercel.app",
+    "cleartext": false,
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "automatic"
+  }
+}

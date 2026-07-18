@@ -2,10 +2,19 @@
   "name": "gestoria-platform",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "build": "prisma generate && next build",
     "vercel-build": "prisma generate && prisma migrate deploy && next build",
     "dev": "next dev",
+    "desktop:dev": "npm run dev -w @gestoria/desktop",
+    "desktop:build": "npm run build -w @gestoria/desktop",
+    "mobile:sync": "npm run sync -w @gestoria/mobile",
+    "mobile:android": "npm run open:android -w @gestoria/mobile",
+    "mobile:ios": "npm run open:ios -w @gestoria/mobile",
     "lint": "next lint",
     "postinstall": "prisma generate",
     "start": "next start",

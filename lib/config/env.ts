@@ -1,4 +1,7 @@
-const DEFAULT_APP_URL = "http://localhost:3000"
+import { DEFAULT_APP_URL as PLATFORM_DEFAULT_APP_URL } from "@gestoria/platform"
+
+const LOCAL_APP_URL = "http://localhost:3000"
+const DEFAULT_APP_URL = PLATFORM_DEFAULT_APP_URL
 const PUBLIC_APP_URL_KEY = "NEXT_PUBLIC_APP_URL"
 
 function normalizeUrlInput(value: string | undefined): string | null {
@@ -35,7 +38,7 @@ function resolveAppUrl(): string {
     if (fromVercel) return fromVercel
   }
 
-  return DEFAULT_APP_URL
+  return LOCAL_APP_URL
 }
 
 function bootstrapUrlEnv(): void {
@@ -56,8 +59,8 @@ export const env = {
   nodeEnv: process.env.NODE_ENV ?? "development",
   isProduction: process.env.NODE_ENV === "production",
   isDevelopment: process.env.NODE_ENV === "development",
-  appUrl: normalizeUrlInput(process.env[PUBLIC_APP_URL_KEY]) ?? DEFAULT_APP_URL,
-  nextAuthUrl: normalizeUrlInput(process.env.NEXTAUTH_URL) ?? DEFAULT_APP_URL,
+  appUrl: normalizeUrlInput(process.env[PUBLIC_APP_URL_KEY]) ?? LOCAL_APP_URL,
+  nextAuthUrl: normalizeUrlInput(process.env.NEXTAUTH_URL) ?? LOCAL_APP_URL,
 } as const
 
 export function getAppUrl(): string {

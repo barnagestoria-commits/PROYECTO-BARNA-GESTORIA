@@ -43,6 +43,7 @@ if (!normalizeUrlInput(process.env[PUBLIC_APP_URL_KEY])) {
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  transpilePackages: ["@gestoria/platform"],
   images: {
     unoptimized: true,
   },
