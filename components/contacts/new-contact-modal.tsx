@@ -1,16 +1,23 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Building2, Handshake, Truck, X } from "lucide-react"
+import { Building2, Handshake, Loader2, Truck, Wand2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
+import { apiFetch } from "@/lib/api-client"
 import {
   PAYMENT_METHOD_LABELS,
   suggestAccountCodes,
 } from "@/lib/contacts/mock-contacts"
+import type { CifLookupResult } from "@/lib/contacts/cif-lookup"
 import type { Contact, ContactType, NewContactFormData, PaymentMethod } from "@/lib/contacts/types"
+
+type LookupFeedback = {
+  tone: "success" | "warning"
+  message: string
+}
 
 interface NewContactModalProps {
   open: boolean
@@ -56,9 +63,14 @@ export function NewContactModal({
   mode = "create",
 }: NewContactModalProps) {
   const [form, setForm] = useState<NewContactFormData>(initialData)
+  const [lookupFeedback, setLookupFeedback] = useState<LookupFeedback | null>(null)
+  const [isLookingUp, setIsLookingUp] = useState(false)
 
   useEffect(() => {
-    if (open) setForm(initialData)
+    if (open) {
+      setForm(initialData)
+      setLookupFeedback(null)
+    }
   }, [open, initialData])
 
   useEffect(() => {
@@ -85,6 +97,46 @@ export function NewContactModal({
     e.preventDefault()
     if (!form.razonSocial.trim() || !form.nif.trim()) return
     onSubmit(form)
+  }
+
+  const handleLookupCif = async () => {
+    const cif = form.nif.trim()
+    if (!cif) {
+      setLookupFeedback({
+        tone: "warning",
+        message: "Introduce un NIF o CIF antes de buscar datos fiscales.",
+      })
+      return
+    }
+
+    setIsLookingUp(true)
+    setLookupFeedback(null)
+
+    try {
+      const result = await apiFetch<{ success: true; data: CifLookupResult }>(
+        `/api/lookup-cif?cif=${encodeURIComponent(cif)}`,
+      )
+
+      setForm((prev) => ({
+        ...prev,
+        razonSocial: result.data.razonSocial,
+        direccionFiscal: result.data.direccionFiscal,
+        codigoPostal: result.data.codigoPostal,
+        ciudad: result.data.ciudad,
+      }))
+      setLookupFeedback({
+        tone: "success",
+        message: "Datos fiscales importados correctamente.",
+      })
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.includes("válido")
+          ? error.message
+          : "No se encontraron datos automáticos, introduce los datos manualmente."
+      setLookupFeedback({ tone: "warning", message })
+    } finally {
+      setIsLookingUp(false)
+    }
   }
 
   const showClienteAccount = form.tipo === "cliente" || form.tipo === "ambos"
@@ -190,6 +242,55 @@ export function NewContactModal({
           )}
 
           <div className="grid gap-4 sm:grid-cols-2">
+            {lookupFeedback && (
+              <div
+                className={cn(
+                  "sm:col-span-2 rounded-xl border px-4 py-3 text-sm",
+                  lookupFeedback.tone === "success"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                    : "border-amber-200 bg-amber-50 text-amber-800",
+                )}
+                role="status"
+              >
+                {lookupFeedback.message}
+              </div>
+            )}
+
+            <div className="sm:col-span-2">
+              <Label htmlFor="nif">NIF / CIF *</Label>
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="nif"
+                  value={form.nif}
+                  onChange={(e) => {
+                    setLookupFeedback(null)
+                    setForm((p) => ({ ...p, nif: e.target.value.toUpperCase() }))
+                  }}
+                  className="font-mono uppercase sm:flex-1"
+                  placeholder="B00000018"
+                  required
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-10 shrink-0 border-emerald-200 text-emerald-800 hover:bg-emerald-50"
+                  onClick={handleLookupCif}
+                  disabled={isLookingUp || !form.nif.trim()}
+                >
+                  {isLookingUp ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Wand2 className="mr-2 h-4 w-4" />
+                  )}
+                  Buscar datos fiscal
+                </Button>
+              </div>
+              <p className="mt-1.5 text-xs text-graphite-500">
+                Prueba con <span className="font-mono">B00000018</span> o{" "}
+                <span className="font-mono">B00000083</span>
+              </p>
+            </div>
+
             <div className="sm:col-span-2">
               <Label htmlFor="razonSocial">Razón social *</Label>
               <Input
@@ -197,16 +298,6 @@ export function NewContactModal({
                 value={form.razonSocial}
                 onChange={(e) => setForm((p) => ({ ...p, razonSocial: e.target.value }))}
                 className="mt-1"
-                required
-              />
-            </div>
-            <div>
-              <Label htmlFor="nif">NIF / CIF *</Label>
-              <Input
-                id="nif"
-                value={form.nif}
-                onChange={(e) => setForm((p) => ({ ...p, nif: e.target.value.toUpperCase() }))}
-                className="mt-1 font-mono uppercase"
                 required
               />
             </div>
@@ -253,6 +344,27 @@ export function NewContactModal({
                 value={form.direccionFiscal}
                 onChange={(e) => setForm((p) => ({ ...p, direccionFiscal: e.target.value }))}
                 className="mt-1"
+                placeholder="Calle, número, piso..."
+              />
+            </div>
+            <div>
+              <Label htmlFor="codigoPostal">Código postal</Label>
+              <Input
+                id="codigoPostal"
+                value={form.codigoPostal}
+                onChange={(e) => setForm((p) => ({ ...p, codigoPostal: e.target.value }))}
+                className="mt-1"
+                placeholder="08008"
+              />
+            </div>
+            <div>
+              <Label htmlFor="ciudad">Ciudad</Label>
+              <Input
+                id="ciudad"
+                value={form.ciudad}
+                onChange={(e) => setForm((p) => ({ ...p, ciudad: e.target.value }))}
+                className="mt-1"
+                placeholder="Barcelona"
               />
             </div>
             <div className="sm:col-span-2">
@@ -291,6 +403,8 @@ function contactToForm(contact: Contact): NewContactFormData {
     email: contact.email,
     telefono: contact.telefono,
     direccionFiscal: contact.direccionFiscal,
+    codigoPostal: contact.codigoPostal,
+    ciudad: contact.ciudad,
     iban: contact.iban ?? "",
     formaPago: contact.formaPago,
   }

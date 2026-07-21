@@ -17,6 +17,8 @@ export interface Contact {
   email: string
   telefono: string
   direccionFiscal: string
+  codigoPostal: string
+  ciudad: string
   iban?: string
   formaPago: PaymentMethod
   saldoPendiente: number
@@ -31,6 +33,8 @@ export interface NewContactFormData {
   email: string
   telefono: string
   direccionFiscal: string
+  codigoPostal: string
+  ciudad: string
   iban: string
   formaPago: PaymentMethod
 }
