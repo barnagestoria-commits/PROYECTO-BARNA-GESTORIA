@@ -4,7 +4,13 @@ import { Building2, ChevronDown } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 
-export function SidebarCompanySelector({ className }: { className?: string }) {
+interface SidebarCompanySelectorProps {
+  className?: string
+  /** Oculta la ficha estática si coincide con el nombre de usuario (evita duplicado con el menú de perfil). */
+  userName?: string
+}
+
+export function SidebarCompanySelector({ className, userName }: SidebarCompanySelectorProps) {
   const { session, activeCompany, setActiveCompany } = useAuth()
 
   if (!session || !activeCompany) {
@@ -34,6 +40,10 @@ export function SidebarCompanySelector({ className }: { className?: string }) {
         </select>
       </div>
     )
+  }
+
+  if (!session.canSwitchCompanies && userName && activeCompany.name === userName) {
+    return null
   }
 
   return (

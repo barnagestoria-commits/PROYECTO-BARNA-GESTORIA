@@ -10,6 +10,8 @@ interface SidebarUserMenuProps {
   userName: string
   onLogout: () => void
   variant?: "desktop" | "mobile"
+  /** top = debajo del logo; footer = pie del sidebar (legacy) */
+  placement?: "top" | "footer"
   onNavigate?: () => void
 }
 
@@ -33,6 +35,7 @@ export function SidebarUserMenu({
   userName,
   onLogout,
   variant = "desktop",
+  placement = "footer",
   onNavigate,
 }: SidebarUserMenuProps) {
   const pathname = usePathname()
@@ -59,9 +62,12 @@ export function SidebarUserMenu({
         pathname={pathname}
         onNavigate={onNavigate}
         onLogout={onLogout}
+        placement={placement}
       />
     )
   }
+
+  const opensUpward = placement === "footer"
 
   return (
     <div ref={ref} className="relative">
@@ -69,21 +75,31 @@ export function SidebarUserMenu({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
-          open || isActive
-            ? "bg-white/10 text-white"
-            : "text-white/80 hover:bg-white/5 hover:text-white",
+          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
+          placement === "top"
+            ? "border border-white/10 bg-white/5 text-white hover:border-emerald-500/30 hover:bg-white/10"
+            : open || isActive
+              ? "bg-white/10 text-white"
+              : "text-white/80 hover:bg-white/5 hover:text-white",
+          (open || isActive) && placement === "top" && "border-emerald-500/40 bg-white/10",
         )}
         aria-expanded={open}
         aria-haspopup="menu"
+        aria-label="Menú de cuenta y configuración"
       >
         <User className="h-4 w-4 shrink-0 text-emerald-300/80" />
-        <span className="min-w-0 flex-1 truncate">{userName}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", open && "rotate-180")} />
+        <span className="min-w-0 flex-1 truncate font-medium">{userName}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/50 transition-transform", open && "rotate-180")} />
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 z-50 mb-2 w-full min-w-[260px] overflow-hidden rounded-xl border border-white/10 bg-[#1c221f] py-1 shadow-2xl">
+        <div
+          className={cn(
+            "absolute left-0 z-[110] w-full min-w-[260px] overflow-hidden rounded-xl border border-white/10 bg-[#1c221f] py-1 shadow-2xl",
+            opensUpward ? "bottom-full mb-2" : "top-full mt-2",
+          )}
+          role="menu"
+        >
           {USER_LINKS.map((link) => {
             const Icon = link.icon
             const active = link.match(pathname)
@@ -127,27 +143,35 @@ function MobileUserSection({
   pathname,
   onNavigate,
   onLogout,
+  placement = "footer",
 }: {
   userName: string
   pathname: string
   onNavigate?: () => void
   onLogout: () => void
+  placement?: "top" | "footer"
 }) {
   const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="overflow-hidden rounded-lg border border-white/5">
+    <div
+      className={cn(
+        "overflow-hidden rounded-lg",
+        placement === "top" ? "border border-white/10 bg-white/5" : "border border-white/5",
+      )}
+    >
       <button
         type="button"
-        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm text-white/80"
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-sm text-white/90"
         onClick={() => setExpanded((value) => !value)}
         aria-expanded={expanded}
+        aria-label="Menú de cuenta y configuración"
       >
-        <span className="flex items-center gap-3">
-          <User className="h-4 w-4 text-emerald-300/80" />
-          {userName}
+        <span className="flex min-w-0 flex-1 items-center gap-3">
+          <User className="h-4 w-4 shrink-0 text-emerald-300/80" />
+          <span className="truncate font-medium">{userName}</span>
         </span>
-        <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/50 transition-transform", expanded && "rotate-180")} />
       </button>
       {expanded && (
         <div className="border-t border-white/5 bg-white/[0.03] py-1">

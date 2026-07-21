@@ -106,8 +106,9 @@ export function AppSidebar({ onLogout, userName }: AppSidebarProps) {
           </Link>
         </div>
 
-        <div className="border-b border-white/5 px-3 py-3">
-          <SidebarCompanySelector />
+        <div className="border-b border-white/5 px-3 py-3 space-y-2">
+          <SidebarUserMenu userName={userName} onLogout={onLogout} placement="top" />
+          <SidebarCompanySelector userName={userName} />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Módulos principales">
@@ -189,9 +190,6 @@ export function AppSidebar({ onLogout, userName }: AppSidebarProps) {
                 <MessageCircle className="h-4 w-4 shrink-0" />
                 Soporte
               </Link>
-            </li>
-            <li>
-              <SidebarUserMenu userName={userName} onLogout={onLogout} />
             </li>
           </ul>
         </div>

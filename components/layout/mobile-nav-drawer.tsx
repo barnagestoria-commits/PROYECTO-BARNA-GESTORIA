@@ -76,8 +76,15 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
           </button>
         </div>
 
-        <div className="border-b border-white/5 px-3 py-3">
-          <SidebarCompanySelector />
+        <div className="border-b border-white/5 px-3 py-3 space-y-2">
+          <SidebarUserMenu
+            userName={userName}
+            onLogout={onLogout}
+            variant="mobile"
+            placement="top"
+            onNavigate={onClose}
+          />
+          <SidebarCompanySelector userName={userName} />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Navegación móvil">
@@ -265,12 +272,6 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
             <MessageCircle className="h-4 w-4" />
             Soporte
           </Link>
-          <SidebarUserMenu
-            userName={userName}
-            onLogout={onLogout}
-            variant="mobile"
-            onNavigate={onClose}
-          />
         </div>
       </div>
     </div>
