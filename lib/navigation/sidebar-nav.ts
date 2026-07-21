@@ -43,7 +43,7 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
   },
   {
     id: "contactos",
-    label: "Contactos",
+    label: "Cliente/Proveedor",
     icon: Users,
     sections: [
       {
