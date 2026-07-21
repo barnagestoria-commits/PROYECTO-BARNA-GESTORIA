@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useCallback, useRef, useState } from "react"
-import { HelpCircle, LogOut, MessageCircle, User } from "lucide-react"
+import { HelpCircle, MessageCircle } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { SidebarCompanySelector } from "@/components/layout/sidebar-company-selector"
 import { SidebarFlyoutPanel } from "@/components/layout/sidebar-flyout-panel"
+import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu"
 import { cn } from "@/lib/utils"
 import { startOnboardingTour } from "@/lib/onboarding"
 import {
@@ -190,20 +191,7 @@ export function AppSidebar({ onLogout, userName }: AppSidebarProps) {
               </Link>
             </li>
             <li>
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/80">
-                <User className="h-4 w-4 shrink-0 text-emerald-300/80" />
-                <span className="truncate">{userName}</span>
-              </div>
-            </li>
-            <li>
-              <button
-                type="button"
-                onClick={onLogout}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-white/60 transition-colors hover:bg-red-500/10 hover:text-red-200"
-              >
-                <LogOut className="h-4 w-4 shrink-0" />
-                Cerrar sesión
-              </button>
+              <SidebarUserMenu userName={userName} onLogout={onLogout} />
             </li>
           </ul>
         </div>

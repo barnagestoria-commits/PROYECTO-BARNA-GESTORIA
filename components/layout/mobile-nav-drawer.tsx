@@ -3,16 +3,10 @@
 import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
-import {
-  ChevronDown,
-  HelpCircle,
-  LogOut,
-  MessageCircle,
-  User,
-  X,
-} from "lucide-react"
+import { ChevronDown, HelpCircle, MessageCircle, X } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { SidebarCompanySelector } from "@/components/layout/sidebar-company-selector"
+import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu"
 import { cn } from "@/lib/utils"
 import { startOnboardingTour } from "@/lib/onboarding"
 import {
@@ -271,21 +265,12 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
             <MessageCircle className="h-4 w-4" />
             Soporte
           </Link>
-          <div className="flex items-center gap-3 px-3 py-2 text-sm text-white/75">
-            <User className="h-4 w-4 text-emerald-300/80" />
-            {userName}
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              onLogout()
-              onClose()
-            }}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-white/60 hover:bg-red-500/10 hover:text-red-200"
-          >
-            <LogOut className="h-4 w-4" />
-            Cerrar sesión
-          </button>
+          <SidebarUserMenu
+            userName={userName}
+            onLogout={onLogout}
+            variant="mobile"
+            onNavigate={onClose}
+          />
         </div>
       </div>
     </div>
