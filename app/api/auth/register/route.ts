@@ -14,7 +14,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const validAccountTypes: AccountType[] = ["GESTORIA", "CLIENTE_FINAL"]
+    const validAccountTypes: AccountType[] = ["GESTORIA", "CLIENTE_FINAL", "EMPRESA"]
     if (!validAccountTypes.includes(body.accountType)) {
       return NextResponse.json(
         { success: false, error: "Tipo de cuenta no válido." },

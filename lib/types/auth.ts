@@ -1,4 +1,4 @@
-export type AccountType = "GESTORIA" | "CLIENTE_FINAL"
+export type AccountType = "GESTORIA" | "CLIENTE_FINAL" | "EMPRESA"
 
 export type UserRole = "ADMIN_GESTOR" | "GESTOR" | "CLIENTE"
 

@@ -25,7 +25,7 @@ async function getCompaniesForUser(
   accountType: AccountType,
   accountId: string,
 ): Promise<CompanySummary[]> {
-  if (accountType === "CLIENTE_FINAL") {
+  if (accountType === "CLIENTE_FINAL" || accountType === "EMPRESA") {
     const access = await prisma.userCompanyAccess.findMany({
       where: { userId },
       include: { company: true },
@@ -132,7 +132,7 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
       companies: {
         create: {
           name: input.companyName,
-          cif: input.accountType === "CLIENTE_FINAL" ? input.cif : undefined,
+          cif: input.accountType !== "GESTORIA" ? input.cif : undefined,
         },
       },
     },
@@ -255,6 +255,65 @@ export async function setActiveCompany(companyId: string): Promise<AuthSession> 
   })
 
   return { ...session, activeCompanyId: companyId }
+}
+
+export async function upgradeAccountPlan(
+  targetAccountType: AccountType,
+  options?: { gestoriaTierId?: string; empresaTierId?: string },
+): Promise<AuthSession> {
+  const token = cookies().get(SESSION_COOKIE)?.value
+  const session = await getSessionFromToken(token)
+
+  if (!session) {
+    throw new Error("Sesión no válida.")
+  }
+
+  if (session.user.accountType === targetAccountType) {
+    if (targetAccountType === "GESTORIA" && options?.gestoriaTierId) {
+      return session
+    }
+    if (targetAccountType === "EMPRESA" && options?.empresaTierId) {
+      return session
+    }
+    throw new Error("Ya tienes este plan activo.")
+  }
+
+  if (session.user.accountType === "GESTORIA") {
+    throw new Error("Para cambiar a un plan inferior, contacta con soporte.")
+  }
+
+  const upgradePaths: Record<AccountType, AccountType[]> = {
+    CLIENTE_FINAL: ["EMPRESA", "GESTORIA"],
+    EMPRESA: ["GESTORIA"],
+    GESTORIA: [],
+  }
+
+  if (!upgradePaths[session.user.accountType]?.includes(targetAccountType)) {
+    throw new Error("Mejora de plan no disponible.")
+  }
+
+  await prisma.account.update({
+    where: { id: session.user.accountId },
+    data: { accountType: targetAccountType },
+  })
+
+  if (targetAccountType === "GESTORIA") {
+    await prisma.user.update({
+      where: { id: session.user.id },
+      data: { role: "ADMIN_GESTOR" },
+    })
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    include: { account: true },
+  })
+
+  if (!user) {
+    throw new Error("Usuario no encontrado.")
+  }
+
+  return buildAuthSession(user, session.activeCompanyId)
 }
 
 export async function assertCompanyAccess(

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { KeyRound, Settings, Shield, UserCircle2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { useRequireAuth } from "@/components/auth-provider"
+import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel"
 
 const SETTINGS_LINKS = [
   {
@@ -49,10 +50,13 @@ export function AccountSettingsPage() {
           <ProfileField label="Email" value={session.user.email} />
           <ProfileField label="Rol" value={roleLabel} />
           <ProfileField label="Empresa activa" value={activeCompany?.name ?? "—"} />
-          <ProfileField label="Tipo de cuenta" value={session.user.accountType} />
           <ProfileField label="Cuenta" value={session.user.accountName} />
         </CardContent>
       </Card>
+
+      <div id="suscripcion">
+        <SubscriptionPlansPanel />
+      </div>
 
       <Card className="border-sand-200 shadow-sm">
         <CardHeader>

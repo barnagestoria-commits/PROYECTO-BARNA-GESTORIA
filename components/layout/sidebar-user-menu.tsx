@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDown, KeyRound, LogOut, Settings, User } from "lucide-react"
+import { ChevronDown, KeyRound, LogOut, Settings, Sparkles, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface SidebarUserMenuProps {
@@ -22,6 +22,12 @@ const USER_LINKS = [
     icon: Settings,
     match: (path: string) =>
       path === "/configuracion" || path === "/dashboard/configuracion",
+  },
+  {
+    href: "/configuracion#suscripcion",
+    label: "Suscripción y plan",
+    icon: Sparkles,
+    match: (path: string) => false,
   },
   {
     href: "/configuracion/certificado",

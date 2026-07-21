@@ -36,7 +36,10 @@ export function getPanelTitle(session: AuthSession): string {
   if (session.user.accountType === "GESTORIA") {
     return "Panel Gestoría"
   }
-  return "Panel Cliente"
+  if (session.user.accountType === "EMPRESA") {
+    return "Panel Empresa"
+  }
+  return "Panel Autónomo"
 }
 
 export function getRoleLabel(role: UserRole): string {
