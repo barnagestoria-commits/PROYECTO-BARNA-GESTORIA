@@ -1,6 +1,2 @@
--- Renombrar tipo de cuenta PYME → EMPRESA (si PYME ya existía en el enum)
+-- AlterEnum: debe ir en su propia transacción (PostgreSQL no permite usar el valor nuevo en la misma).
 ALTER TYPE "AccountType" ADD VALUE IF NOT EXISTS 'EMPRESA';
-
-UPDATE "Account"
-SET "accountType" = 'EMPRESA'
-WHERE "accountType"::text = 'PYME';
