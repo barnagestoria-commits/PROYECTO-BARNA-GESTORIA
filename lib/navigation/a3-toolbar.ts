@@ -164,6 +164,7 @@ export const A3_TOOLBAR_GROUPS: A3ToolbarGroup[] = [
 
 export function getPageTitle(pathname: string): string {
   if (pathname === "/dashboard") return "Dashboard"
+  if (pathname.startsWith("/dashboard/contactos")) return "Clientes y Proveedores"
   if (pathname.startsWith("/dashboard/contabilidad")) return "Contabilización"
   if (pathname.startsWith("/dashboard/inmovilizado/parametrizacion")) return "Parametrización"
   if (pathname.startsWith("/dashboard/inmovilizado")) return "Mantenimiento de Inmovilizado"

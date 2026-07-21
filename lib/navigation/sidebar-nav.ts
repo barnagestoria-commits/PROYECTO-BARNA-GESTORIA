@@ -50,19 +50,19 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
         title: "Directorio",
         items: [
           {
+            label: "Directorio completo",
+            href: "/dashboard/contactos",
+            description: "Clientes, proveedores y terceros",
+          },
+          {
             label: "Clientes",
-            href: "/dashboard/contabilidad",
+            href: "/dashboard/contactos",
             description: "Cartera de clientes y cuentas 430",
           },
           {
             label: "Proveedores",
-            href: "/dashboard/contabilidad",
+            href: "/dashboard/contactos",
             description: "Proveedores habituales y cuentas 400",
-          },
-          {
-            label: "Terceros y CIF",
-            href: "/dashboard/contabilidad",
-            description: "Alta y mantenimiento de terceros",
           },
         ],
       },

@@ -43,6 +43,13 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
     "upload",
     "subida",
   ]),
+  navItem(
+    "nav-contactos",
+    "Ir a Clientes y Proveedores",
+    "/dashboard/contactos",
+    "Directorio de terceros",
+    ["contactos", "clientes", "proveedores", "nif", "terceros"],
+  ),
   navItem("nav-asientos", "Ir a Asientos", "/dashboard/contabilidad", "Contabilización y diario", [
     "asientos",
     "contabilidad",
