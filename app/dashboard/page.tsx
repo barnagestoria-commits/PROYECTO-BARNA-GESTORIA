@@ -10,14 +10,13 @@ import {
   Receipt,
   CreditCard,
   Calendar,
-  CheckCircle,
-  Clock,
   Loader2,
   ScanLine,
 } from "lucide-react"
 import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
 import { TaxSummaryPanel } from "@/components/tax-summary-panel"
+import { FinancialAnalyticsDashboard } from "@/components/dashboard/financial-analytics-dashboard"
 import { useRequireAuth } from "@/components/auth-provider"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
@@ -262,52 +261,19 @@ function DashboardPageContent() {
           </Card>
         ) : (
           <>
-            {activeCompany && session.canSwitchCompanies && (
-              <p className="mb-4 text-sm text-gray-600">
-                Gestionando documentación de{" "}
-                <span className="font-medium text-emerald-800">{activeCompany.name}</span>
-              </p>
-            )}
+            <FinancialAnalyticsDashboard
+              userName={session.user.name}
+              companyName={activeCompany?.name}
+              onUploadClick={() => {
+                uploadSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }}
+            />
+
+            <div className="my-8 border-t border-sand-200" />
 
             <TaxSummaryPanel companyId={session.activeCompanyId} />
 
-            <div className="mb-8 mt-6 grid gap-6 md:grid-cols-3">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Documentos Subidos</CardTitle>
-                  <FileText className="h-4 w-4 text-muted-foreground" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{documents.length}</div>
-                  <p className="text-xs text-muted-foreground">Empresa activa</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Procesados</CardTitle>
-                  <CheckCircle className="h-4 w-4 text-emerald-700" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-emerald-700">
-                    {documents.filter((d) => d.status === "procesado").length}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
-                  <Clock className="h-4 w-4 text-amber-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-amber-600">
-                    {documents.filter((d) => d.status === "pendiente").length}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
+            <div ref={uploadSectionRef} className="mt-8">
             <Tabs defaultValue="upload" className="space-y-6">
               <TabsList className="flex h-auto w-full flex-col gap-1 p-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-row">
                 <TabsTrigger value="upload" className="w-full sm:w-auto">
@@ -444,6 +410,7 @@ function DashboardPageContent() {
                 </Card>
               </TabsContent>
             </Tabs>
+            </div>
           </>
         )}
     </>

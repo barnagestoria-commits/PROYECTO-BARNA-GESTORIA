@@ -47,6 +47,7 @@
     "react-dom": "^18",
     "react-dropzone": "^14.3.8",
     "react-joyride": "^3.1.0",
+    "recharts": "^3.10.0",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "xlsx": "^0.18.5"
