@@ -45,6 +45,7 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
     id: "contactos",
     label: "Cliente/Proveedor",
     icon: Users,
+    href: "/dashboard/contactos",
     sections: [
       {
         title: "Directorio",
