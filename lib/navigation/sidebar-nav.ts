@@ -9,12 +9,15 @@ import {
   ShoppingCart,
   Users,
 } from "lucide-react"
+import type { AccountType } from "@/lib/types/auth"
 
 export interface SidebarNavLink {
   label: string
   href: string
   description?: string
   badge?: string
+  /** Si se indica, el enlace solo aparece para estos tipos de cuenta */
+  accountTypes?: AccountType[]
 }
 
 export interface SidebarNavSection {
@@ -173,6 +176,12 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
         title: "Libros y asientos",
         items: [
           {
+            label: "Contabilidad Clientes Gestoría",
+            href: "/dashboard/contabilidad/clientes-gestoria",
+            description: "Cartera de empresas clientes y acceso a sus libros",
+            accountTypes: ["GESTORIA"],
+          },
+          {
             label: "Libro diario / Asientos",
             href: "/dashboard/contabilidad",
             description: "Contabilización estilo A3",
@@ -313,6 +322,25 @@ export const SIDEBAR_FOOTER_LINKS = [
   { label: "Soporte", href: "/contact" },
 ] as const
 
+function isNavLinkVisibleForAccount(item: SidebarNavLink, accountType: AccountType): boolean {
+  return !item.accountTypes || item.accountTypes.includes(accountType)
+}
+
+export function getSidebarNavModules(accountType: AccountType): SidebarNavModule[] {
+  return SIDEBAR_NAV_MODULES.map((module) => {
+    if (!module.sections?.length) return module
+
+    const sections = module.sections
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => isNavLinkVisibleForAccount(item, accountType)),
+      }))
+      .filter((section) => section.items.length > 0)
+
+    return { ...module, sections }
+  })
+}
+
 export function isNavLinkActive(href: string, pathname: string, searchParams?: string): boolean {
   const [path, query] = href.split("?")
   if (query && searchParams) {
@@ -329,6 +357,15 @@ export function isNavLinkActive(href: string, pathname: string, searchParams?: s
   }
   if (path === "/dashboard/utilidades/importar") {
     return pathname === "/dashboard/utilidades/importar"
+  }
+  if (path === "/dashboard/contabilidad/clientes-gestoria") {
+    return pathname === "/dashboard/contabilidad/clientes-gestoria"
+  }
+  if (path === "/dashboard/contabilidad/conciliacion-bancaria") {
+    return pathname === "/dashboard/contabilidad/conciliacion-bancaria"
+  }
+  if (path === "/dashboard/contabilidad") {
+    return pathname === "/dashboard/contabilidad"
   }
   if (path === "/dashboard/fiscal") {
     return pathname === "/dashboard/fiscal" || pathname.startsWith("/dashboard/fiscal/")

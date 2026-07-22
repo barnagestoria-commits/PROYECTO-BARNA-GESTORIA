@@ -5,15 +5,15 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { useCallback, useRef, useState } from "react"
 import { HelpCircle, MessageCircle } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
+import { useAuth } from "@/components/auth-provider"
 import { SidebarCompanySelector } from "@/components/layout/sidebar-company-selector"
 import { SidebarFlyoutPanel } from "@/components/layout/sidebar-flyout-panel"
 import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu"
 import { cn } from "@/lib/utils"
 import { startOnboardingTour } from "@/lib/onboarding"
 import {
-  SIDEBAR_NAV_MODULES,
+  getSidebarNavModules,
   SIDEBAR_WIDTH_CLASS,
-  getActiveModuleId,
   isSidebarModuleActive,
   type SidebarNavModule,
 } from "@/lib/navigation/sidebar-nav"
@@ -35,11 +35,14 @@ export function AppSidebar({ onLogout, userName }: AppSidebarProps) {
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { session } = useAuth()
+
+  const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL")
 
   const [hoveredModuleId, setHoveredModuleId] = useState<string | null>(null)
   const [flyoutPosition, setFlyoutPosition] = useState<FlyoutPosition | null>(null)
 
-  const openModule = SIDEBAR_NAV_MODULES.find((m) => m.id === hoveredModuleId)
+  const openModule = sidebarModules.find((m) => m.id === hoveredModuleId)
 
   const clearCloseTimer = useCallback(() => {
     if (closeTimerRef.current) {
@@ -113,7 +116,7 @@ export function AppSidebar({ onLogout, userName }: AppSidebarProps) {
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Módulos principales">
           <ul className="space-y-0.5">
-            {SIDEBAR_NAV_MODULES.map((module) => {
+            {sidebarModules.map((module) => {
               const Icon = module.icon
               const isActive = isSidebarModuleActive(module, pathname, searchString)
               const isOpen = hoveredModuleId === module.id

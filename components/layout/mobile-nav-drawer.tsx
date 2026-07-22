@@ -5,12 +5,13 @@ import { usePathname, useSearchParams } from "next/navigation"
 import { useEffect, useState } from "react"
 import { ChevronDown, HelpCircle, MessageCircle, X } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
+import { useAuth } from "@/components/auth-provider"
 import { SidebarCompanySelector } from "@/components/layout/sidebar-company-selector"
 import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu"
 import { cn } from "@/lib/utils"
 import { startOnboardingTour } from "@/lib/onboarding"
 import {
-  SIDEBAR_NAV_MODULES,
+  getSidebarNavModules,
   isNavLinkActive,
   isSidebarModuleActive,
 } from "@/lib/navigation/sidebar-nav"
@@ -27,6 +28,9 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null)
+  const { session } = useAuth()
+
+  const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL")
 
   useEffect(() => {
     if (open) {
@@ -41,13 +45,13 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
 
   useEffect(() => {
     if (!open) return
-    const active = SIDEBAR_NAV_MODULES.find((m) =>
+    const active = sidebarModules.find((m) =>
       isSidebarModuleActive(m, pathname, searchString),
     )
     if (active?.sections?.length) {
       setExpandedModuleId(active.id)
     }
-  }, [open, pathname, searchString])
+  }, [open, pathname, searchString, sidebarModules])
 
   if (!open) return null
 
@@ -89,7 +93,7 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
 
         <nav className="flex-1 overflow-y-auto px-2 py-3" aria-label="Navegación móvil">
           <ul className="space-y-1">
-            {SIDEBAR_NAV_MODULES.map((module) => {
+            {sidebarModules.map((module) => {
               const Icon = module.icon
               const isActive = isSidebarModuleActive(module, pathname, searchString)
               const isExpanded = expandedModuleId === module.id
