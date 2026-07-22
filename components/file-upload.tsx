@@ -33,6 +33,8 @@ interface FileUploadProps {
   disabled?: boolean
   cameraTourId?: string
   initialDocumentType?: UploadDocumentType
+  /** Si se indica, oculta el selector de tipo y fija el flujo a un solo documento */
+  fixedDocumentType?: UploadDocumentType
 }
 
 interface DocumentTypeConfig {
@@ -96,14 +98,17 @@ export function FileUpload({
   disabled = false,
   cameraTourId,
   initialDocumentType = "factura-recibida",
+  fixedDocumentType,
 }: FileUploadProps) {
-  const [selectedType, setSelectedType] = useState<UploadDocumentType>(initialDocumentType)
+  const [selectedType, setSelectedType] = useState<UploadDocumentType>(
+    fixedDocumentType ?? initialDocumentType,
+  )
   const [cameraOpen, setCameraOpen] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
 
   useEffect(() => {
-    setSelectedType(initialDocumentType)
-  }, [initialDocumentType])
+    setSelectedType(fixedDocumentType ?? initialDocumentType)
+  }, [fixedDocumentType, initialDocumentType])
 
   const mediaInputRef = useRef<HTMLInputElement>(null)
   const spreadsheetInputRef = useRef<HTMLInputElement>(null)
@@ -154,47 +159,49 @@ export function FileUpload({
 
   return (
     <div className="space-y-6 overflow-x-hidden">
-      <div>
-        <p className="mb-3 text-sm font-medium text-gray-700">1. ¿Qué vas a subir?</p>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {DOCUMENT_TYPES.map((type) => {
-            const Icon = type.icon
-            const isSelected = selectedType === type.id
+      {!fixedDocumentType && (
+        <div>
+          <p className="mb-3 text-sm font-medium text-gray-700">1. ¿Qué vas a subir?</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {DOCUMENT_TYPES.map((type) => {
+              const Icon = type.icon
+              const isSelected = selectedType === type.id
 
-            return (
-              <button
-                key={type.id}
-                type="button"
-                disabled={disabled}
-                onClick={() => setSelectedType(type.id)}
-                className={cn(
-                  "rounded-xl border p-3 sm:p-4 text-left transition-all",
-                  "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
-                  isSelected ? `ring-2 ${type.selectedRing}` : "border-gray-200 bg-white hover:border-gray-300",
-                  disabled && "cursor-not-allowed opacity-60",
-                )}
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={cn(
-                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm",
-                      type.accent,
-                    )}
-                  >
-                    <Icon className="h-5 w-5" />
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setSelectedType(type.id)}
+                  className={cn(
+                    "rounded-xl border p-3 sm:p-4 text-left transition-all",
+                    "hover:shadow-md focus:outline-none focus:ring-2 focus:ring-emerald-500/40",
+                    isSelected ? `ring-2 ${type.selectedRing}` : "border-gray-200 bg-white hover:border-gray-300",
+                    disabled && "cursor-not-allowed opacity-60",
+                  )}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={cn(
+                        "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm",
+                        type.accent,
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-gray-900 break-words">{type.shortLabel}</p>
+                      <p className="mt-1 text-xs leading-relaxed text-gray-500 break-words text-pretty">
+                        {type.description}
+                      </p>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900 break-words">{type.shortLabel}</p>
-                    <p className="mt-1 text-xs leading-relaxed text-gray-500 break-words text-pretty">
-                      {type.description}
-                    </p>
-                  </div>
-                </div>
-              </button>
-            )
-          })}
+                </button>
+              )
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       <Card className="border-emerald-200/80 shadow-sm overflow-hidden">
         <CardHeader className="pb-3 px-4 sm:px-6">
@@ -203,7 +210,9 @@ export function FileUpload({
             <span className="min-w-0 break-words text-balance">{activeConfig.label}</span>
           </CardTitle>
           <CardDescription className="break-words text-pretty leading-relaxed">
-            2. Elige cómo quieres aportar la documentación o los movimientos contables.
+            {fixedDocumentType
+              ? "Elige cómo quieres aportar la documentación o los movimientos contables."
+              : "2. Elige cómo quieres aportar la documentación o los movimientos contables."}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3 px-4 sm:px-6 pb-4 sm:pb-6">

@@ -37,7 +37,7 @@ function actionItem(
 }
 
 export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
-  navItem("nav-documentos", "Ir a Documentos", "/dashboard", "Subida y gestión de facturas", [
+  navItem("nav-documentos", "Ir a Facturas recibidas", "/dashboard/compras/facturas-recibidas", "Subida y gestión de facturas", [
     "documentos",
     "facturas",
     "upload",
@@ -97,21 +97,21 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
   actionItem(
     "action-subir-recibida",
     "Subir factura recibida",
-    "/dashboard?accion=subir-factura-recibida",
+    "/dashboard/compras/facturas-recibidas",
     "OCR automático de proveedor e importes",
     ["factura", "recibida", "compra", "proveedor", "gasto", "ocr"],
   ),
   actionItem(
     "action-subir-emitida",
     "Subir factura emitida",
-    "/dashboard?accion=subir-factura-emitida",
+    "/dashboard/ventas/facturas-emitidas",
     "Ventas y facturas de tu empresa",
     ["factura", "emitida", "venta", "cliente"],
   ),
   actionItem(
     "action-subir-extracto",
     "Subir extracto bancario",
-    "/dashboard?accion=subir-extracto",
+    "/dashboard/compras/extractos",
     "Movimientos bancarios del periodo",
     ["extracto", "banco", "bancario", "57"],
   ),

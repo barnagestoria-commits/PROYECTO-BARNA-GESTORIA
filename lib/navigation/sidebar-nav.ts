@@ -73,13 +73,14 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
     id: "ventas",
     label: "Ventas",
     icon: LineChart,
+    href: "/dashboard/ventas/facturas-emitidas",
     sections: [
       {
         title: "Facturación emitida",
         items: [
           {
             label: "Facturas emitidas",
-            href: "/dashboard?accion=subir-factura-emitida",
+            href: "/dashboard/ventas/facturas-emitidas",
             description: "Registro y envío de facturas de venta",
           },
           {
@@ -101,13 +102,14 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
     id: "compras",
     label: "Compras",
     icon: ShoppingCart,
+    href: "/dashboard/compras/facturas-recibidas",
     sections: [
       {
         title: "Gastos y compras",
         items: [
           {
             label: "Facturas recibidas",
-            href: "/dashboard?accion=subir-factura-recibida",
+            href: "/dashboard/compras/facturas-recibidas",
             description: "Gastos, proveedores y OCR",
           },
           {
@@ -117,7 +119,7 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
           },
           {
             label: "Extractos bancarios",
-            href: "/dashboard?accion=subir-extracto",
+            href: "/dashboard/compras/extractos",
             description: "Conciliación con movimientos bancarios",
           },
         ],
@@ -154,14 +156,14 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
         title: "Captura documental",
         items: [
           {
-            label: "Subir factura / extracto",
-            href: "/dashboard?accion=subir-factura-recibida",
+            label: "Facturas recibidas",
+            href: "/dashboard/compras/facturas-recibidas",
             description: "Cámara, archivo o arrastrar PDF",
           },
           {
-            label: "Centro de documentos",
-            href: "/dashboard",
-            description: "Historial de archivos subidos",
+            label: "Facturas emitidas",
+            href: "/dashboard/ventas/facturas-emitidas",
+            description: "Ventas y facturas de tu empresa",
           },
         ],
       },

@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import Link from "next/link"
 import { useMemo, useState } from "react"
 import {
   Area,
@@ -55,7 +56,7 @@ import {
 interface FinancialAnalyticsDashboardProps {
   userName: string
   companyName?: string
-  onUploadClick?: () => void
+  uploadHref?: string
 }
 
 function TrendBadge({ changePercent, invertColors = false }: { changePercent: number; invertColors?: boolean }) {
@@ -161,7 +162,7 @@ function ChartTooltip({
 export function FinancialAnalyticsDashboard({
   userName,
   companyName,
-  onUploadClick,
+  uploadHref = "/dashboard/compras/facturas-recibidas",
 }: FinancialAnalyticsDashboardProps) {
   const [dateRange, setDateRange] = useState<DateRangeKey>("this_month")
   const data = useMemo(() => getFinancialDashboardData(dateRange), [dateRange])
@@ -203,11 +204,13 @@ export function FinancialAnalyticsDashboard({
           </div>
 
           <Button
+            asChild
             className="h-10 rounded-xl bg-emerald-800 px-4 shadow-sm hover:bg-pine-900"
-            onClick={onUploadClick}
           >
-            <Upload className="mr-2 h-4 w-4" />
-            Subir factura / extracto
+            <Link href={uploadHref}>
+              <Upload className="mr-2 h-4 w-4" />
+              Subir factura / extracto
+            </Link>
           </Button>
         </div>
       </div>

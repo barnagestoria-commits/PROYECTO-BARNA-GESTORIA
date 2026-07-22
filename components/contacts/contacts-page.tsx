@@ -99,8 +99,8 @@ export function ContactsPage() {
   const invoiceHref =
     (contact: Contact) =>
       contact.tipo === "proveedor" || contact.tipo === "ambos"
-        ? "/dashboard?accion=subir-factura-recibida"
-        : "/dashboard?accion=subir-factura-emitida"
+        ? "/dashboard/compras/facturas-recibidas"
+        : "/dashboard/ventas/facturas-emitidas"
 
   return (
     <div className="space-y-6">
