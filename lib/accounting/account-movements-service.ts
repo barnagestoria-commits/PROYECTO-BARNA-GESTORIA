@@ -6,6 +6,7 @@ import { normalizeCuenta, round2 } from "@/lib/reports/format"
 
 export interface AccountMovementRow {
   id: string
+  entryId: string
   fecha: string
   commandCode: string | null
   concepto: string
@@ -80,6 +81,7 @@ export async function fetchAccountMovements(
 
     return {
       id: line.id,
+      entryId: line.entry.id,
       fecha: line.entry.fecha.toISOString().split("T")[0],
       commandCode: line.entry.commandCode,
       concepto: line.concepto,

@@ -136,6 +136,9 @@ export async function createInvoiceAccountingEntry(params: {
     data: {
       companyId: params.companyId,
       fecha: parseInvoiceDate(params.invoice.fechaFactura),
+      issueDate: parseInvoiceDate(params.invoice.fechaFactura),
+      operationDate: parseInvoiceDate(params.invoice.fechaFactura),
+      invoiceNumber: params.invoice.numeroFactura,
       commandCode,
       createdById: params.createdById,
       lines: { create: lines },

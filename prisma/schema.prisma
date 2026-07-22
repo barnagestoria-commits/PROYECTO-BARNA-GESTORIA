@@ -160,6 +160,10 @@ model AccountingEntry {
   companyId   String
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
   fecha       DateTime    @db.Date
+  issueDate   DateTime?   @db.Date
+  operationDate DateTime? @db.Date
+  invoiceNumber String?
+  invoiceDataJson String?
   commandCode String?
   createdById String?
   createdAt   DateTime    @default(now())

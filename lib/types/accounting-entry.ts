@@ -1,3 +1,5 @@
+import type { InvoiceEntryDetails } from "@/lib/types/invoice-entry-details"
+
 export type AccountingCommandCode = "17" | "34" | "16" | "57"
 
 export interface AccountingEntryLine {
@@ -43,6 +45,10 @@ export interface CreateAccountingEntryLineInput {
 
 export interface CreateAccountingEntryRequest {
   fecha: string
+  issueDate?: string | null
+  operationDate?: string | null
+  invoiceNumber?: string | null
+  invoiceDetails?: InvoiceEntryDetails | null
   commandCode?: AccountingCommandCode | null
   lines: CreateAccountingEntryLineInput[]
 }
@@ -51,6 +57,9 @@ export interface AccountingEntryResponse {
   id: string
   companyId: string
   fecha: string
+  issueDate?: string | null
+  operationDate?: string | null
+  invoiceNumber?: string | null
   commandCode: AccountingCommandCode | null
   lines: Array<{
     id: string

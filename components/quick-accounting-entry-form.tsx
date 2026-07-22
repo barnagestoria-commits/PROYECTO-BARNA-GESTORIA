@@ -49,6 +49,7 @@ import { NewSubaccountDialog, type AccountCreationResult } from "@/components/ac
 import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 import { AccountMovementsDialog } from "@/components/accounting/account-movements-dialog"
 import { CompanyExtractDialog } from "@/components/accounting/company-extract-dialog"
+import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { normalizeCuenta } from "@/lib/reports/format"
 
 function cellKey(row: number, field: EntryCellField): string {
@@ -96,6 +97,8 @@ export function QuickAccountingEntryForm() {
   const [movementsDialogOpen, setMovementsDialogOpen] = useState(false)
   const [movementsAccount, setMovementsAccount] = useState<string | null>(null)
   const [companyExtractOpen, setCompanyExtractOpen] = useState(false)
+  const [editEntryId, setEditEntryId] = useState<string | null>(null)
+  const [movementsRefreshKey, setMovementsRefreshKey] = useState(0)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
@@ -431,6 +434,10 @@ export function QuickAccountingEntryForm() {
         body: JSON.stringify({
           fecha,
           commandCode: activeCommand,
+          issueDate: showInvoicePanel ? invoiceDetails.issueDate : null,
+          operationDate: showInvoicePanel ? invoiceDetails.operationDate : null,
+          invoiceNumber: showInvoicePanel ? invoiceDetails.invoiceNumber : null,
+          invoiceDetails: showInvoicePanel ? invoiceDetails : null,
           lines: lines.map(({ cuenta, concepto, debe, haber }) => ({
             cuenta,
             concepto,
@@ -507,7 +514,7 @@ export function QuickAccountingEntryForm() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <label htmlFor="entry-fecha" className="text-xs font-medium text-graphite-600">
-                Fecha
+                Fecha asiento
               </label>
               <Input
                 id="entry-fecha"
@@ -826,6 +833,8 @@ export function QuickAccountingEntryForm() {
         open={movementsDialogOpen}
         cuenta={movementsAccount}
         year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
+        refreshKey={movementsRefreshKey}
+        onOpenEntry={(entryId) => setEditEntryId(entryId)}
         onClose={() => {
           setMovementsDialogOpen(false)
           setMovementsAccount(null)
@@ -837,6 +846,13 @@ export function QuickAccountingEntryForm() {
         year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
         onClose={() => setCompanyExtractOpen(false)}
         onSelectAccount={handleExtractAccountSelect}
+      />
+
+      <EditAccountingEntryDialog
+        open={editEntryId !== null}
+        entryId={editEntryId}
+        onClose={() => setEditEntryId(null)}
+        onSaved={() => setMovementsRefreshKey((value) => value + 1)}
       />
     </div>
   )

@@ -11,14 +11,18 @@ interface AccountMovementsDialogProps {
   open: boolean
   cuenta: string | null
   year?: number
+  refreshKey?: number
   onClose: () => void
+  onOpenEntry?: (entryId: string) => void
 }
 
 export function AccountMovementsDialog({
   open,
   cuenta,
   year = new Date().getFullYear(),
+  refreshKey = 0,
   onClose,
+  onOpenEntry,
 }: AccountMovementsDialogProps) {
   const [summary, setSummary] = useState<AccountMovementsSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -54,7 +58,7 @@ export function AccountMovementsDialog({
     return () => {
       cancelled = true
     }
-  }, [cuenta, open, year])
+  }, [cuenta, open, refreshKey, year])
 
   return (
     <AccountingModal
@@ -89,7 +93,7 @@ export function AccountMovementsDialog({
           </div>
 
           <div className="max-h-[420px] overflow-auto rounded-lg border border-sand-200">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className="w-full min-w-[820px] text-sm">
               <thead className="sticky top-0 bg-sand-100 text-left text-xs uppercase tracking-wide text-graphite-600">
                 <tr>
                   <th className="px-3 py-2">Fecha</th>
@@ -109,7 +113,13 @@ export function AccountMovementsDialog({
                   </tr>
                 ) : (
                   summary.movements.map((row) => (
-                    <tr key={row.id} className="border-t border-sand-100 hover:bg-sand-50/70">
+                    <tr
+                      key={row.id}
+                      className="cursor-pointer border-t border-sand-100 hover:bg-emerald-50/70"
+                      onClick={() => onOpenEntry?.(row.entryId)}
+                      onDoubleClick={() => onOpenEntry?.(row.entryId)}
+                      title="Clic para modificar el asiento"
+                    >
                       <td className="px-3 py-2 font-mono text-xs">{row.fecha}</td>
                       <td className="px-3 py-2">{row.concepto || "—"}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.contrapartida ?? "—"}</td>
@@ -128,6 +138,11 @@ export function AccountMovementsDialog({
               </tbody>
             </table>
           </div>
+
+          <p className="text-xs text-graphite-500">
+            Haz clic en un movimiento para abrir y modificar el asiento, incluidas fechas de expedición y
+            operación.
+          </p>
         </div>
       ) : null}
     </AccountingModal>
