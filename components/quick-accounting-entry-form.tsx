@@ -3,13 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import {
   AlertTriangle,
   CheckCircle2,
-  Keyboard,
+  FileSpreadsheet,
   Loader2,
   Plus,
   Scale,
@@ -49,6 +48,7 @@ import { NifAccountDialog } from "@/components/accounting/nif-account-dialog"
 import { NewSubaccountDialog, type AccountCreationResult } from "@/components/accounting/new-subaccount-dialog"
 import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 import { AccountMovementsDialog } from "@/components/accounting/account-movements-dialog"
+import { CompanyExtractDialog } from "@/components/accounting/company-extract-dialog"
 import { normalizeCuenta } from "@/lib/reports/format"
 
 function cellKey(row: number, field: EntryCellField): string {
@@ -73,7 +73,6 @@ function isInvoiceCommand(code: AccountingCommandCode | null): code is "17" | "3
 export function QuickAccountingEntryForm() {
   const { activeCompany } = useAuth()
   const searchParams = useSearchParams()
-  const [commandInput, setCommandInput] = useState("")
   const [activeCommand, setActiveCommand] = useState<AccountingCommandCode | null>(null)
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0])
   const [lines, setLines] = useState<AccountingEntryLine[]>([createEmptyLine()])
@@ -96,6 +95,7 @@ export function QuickAccountingEntryForm() {
   const [newSubaccountPrefix, setNewSubaccountPrefix] = useState<NewAccountPrefix | null>(null)
   const [movementsDialogOpen, setMovementsDialogOpen] = useState(false)
   const [movementsAccount, setMovementsAccount] = useState<string | null>(null)
+  const [companyExtractOpen, setCompanyExtractOpen] = useState(false)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
@@ -253,7 +253,6 @@ export function QuickAccountingEntryForm() {
 
   const startManualEntry = useCallback(() => {
     setActiveCommand(null)
-    setCommandInput("")
     setCommandHint(null)
     setLines([createEmptyLine()])
     setInvoiceDetails(createDefaultInvoiceDetails(fecha))
@@ -263,7 +262,6 @@ export function QuickAccountingEntryForm() {
   const applyCommand = useCallback(
     (code: AccountingCommandCode) => {
       setActiveCommand(code)
-      setCommandInput(code)
       setCommandHint(null)
       setLines(linesFromTemplate(code))
       setInvoiceDetails(createDefaultInvoiceDetails(fecha))
@@ -317,19 +315,6 @@ export function QuickAccountingEntryForm() {
     }))
   }, [fecha])
 
-  const handleCommandKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== "Enter") return
-    event.preventDefault()
-
-    const code = parseCommandInput(commandInput)
-    if (code) {
-      applyCommand(code)
-      return
-    }
-
-    setCommandHint(`Comando no reconocido. Usa: ${COMMAND_CODES.join(", ")}`)
-  }
-
   const handleCellKeyDown = (
     event: KeyboardEvent<HTMLInputElement>,
     row: number,
@@ -373,6 +358,20 @@ export function QuickAccountingEntryForm() {
     setMovementsDialogOpen(true)
   }, [lines])
 
+  const openCompanyExtract = useCallback(() => {
+    if (!activeCompany?.id) {
+      setSubmitError("Selecciona una empresa cliente para consultar el extracto.")
+      return
+    }
+    setSubmitError(null)
+    setCompanyExtractOpen(true)
+  }, [activeCompany?.id])
+
+  const handleExtractAccountSelect = useCallback((accountCode: string) => {
+    setMovementsAccount(accountCode)
+    setMovementsDialogOpen(true)
+  }, [])
+
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === "F4") {
@@ -403,7 +402,6 @@ export function QuickAccountingEntryForm() {
   }
 
   const resetForm = useCallback(() => {
-    setCommandInput("")
     setActiveCommand(null)
     setFecha(new Date().toISOString().split("T")[0])
     setLines([createEmptyLine()])
@@ -492,34 +490,23 @@ export function QuickAccountingEntryForm() {
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden border-emerald-200">
-        <CardHeader className="px-4 pb-3 sm:px-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <CardTitle className="flex items-start gap-2 text-lg leading-snug text-emerald-900 sm:text-xl">
-                <Zap className="mt-0.5 h-5 w-5 shrink-0" />
-                <span className="break-words">Asiento rápido</span>
-              </CardTitle>
-              <CardDescription className="break-words text-pretty leading-relaxed">
-                Comandos prediseñados o asiento manual. En cualquier línea: sugerencias de cuenta,
-                F4 plan contable, F6 por NIF, código+ (430+, 678+) con Tab y EX para ver movimientos.
-              </CardDescription>
-            </div>
-            <Badge variant="secondary" className="w-fit gap-1">
-              <Keyboard className="h-3 w-3" />
-              F4 · F6 · F8 · 678+
-            </Badge>
-          </div>
+        <CardHeader className="px-4 pb-2 sm:px-6">
+          <CardTitle className="flex items-center gap-2 text-lg text-emerald-900 sm:text-xl">
+            <Zap className="h-5 w-5 shrink-0" />
+            Asiento rápido
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           {focusedThirdParty && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               Tercero seleccionado: <strong>{focusedThirdParty}</strong>. Revisa la subcuenta y completa el
               asiento.
             </div>
           )}
-          <div className="grid gap-4 md:grid-cols-[140px_1fr]">
-            <div className="space-y-2">
-              <label htmlFor="entry-fecha" className="text-sm font-medium">
+
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <label htmlFor="entry-fecha" className="text-xs font-medium text-graphite-600">
                 Fecha
               </label>
               <Input
@@ -527,67 +514,59 @@ export function QuickAccountingEntryForm() {
                 type="date"
                 value={fecha}
                 onChange={(e) => setFecha(e.target.value)}
+                className="h-9 w-[148px]"
               />
             </div>
 
-            <div className="space-y-2">
-              <label htmlFor="entry-command" className="text-sm font-medium">
-                Código de comando
-              </label>
-              <Input
-                id="entry-command"
-                value={commandInput}
-                onChange={(e) => {
-                  setCommandInput(e.target.value)
-                  setCommandHint(null)
-                }}
-                onKeyDown={handleCommandKeyDown}
-                placeholder="17, 34, 16 o 57 — Enter para cargar"
-                className="font-mono text-lg tracking-widest"
-                autoComplete="off"
-              />
-              {activeCommand && (
-                <p className="text-sm text-emerald-700">
-                  {ACCOUNTING_COMMANDS[activeCommand].label} —{" "}
-                  {ACCOUNTING_COMMANDS[activeCommand].description}
-                </p>
-              )}
-              {commandHint && (
-                <p className="text-sm text-amber-700" role="alert">
-                  {commandHint}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={startManualEntry}
-              className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
-                !activeCommand
-                  ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
-              }`}
-            >
-              Asiento manual
-            </button>
-            {COMMAND_CODES.map((code) => (
+            <div className="flex flex-wrap gap-2">
               <button
-                key={code}
                 type="button"
-                onClick={() => applyCommand(code)}
+                onClick={startManualEntry}
                 className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
-                  activeCommand === code
+                  !activeCommand
                     ? "border-emerald-600 bg-emerald-50 text-emerald-800"
                     : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
                 }`}
               >
-                <span className="font-mono font-bold">{code}</span>{" "}
-                {ACCOUNTING_COMMANDS[code].label}
+                Asiento manual
               </button>
-            ))}
+              {COMMAND_CODES.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  onClick={() => applyCommand(code)}
+                  className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
+                    activeCommand === code
+                      ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                      : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
+                  }`}
+                >
+                  <span className="font-mono font-bold">{code}</span>{" "}
+                  {ACCOUNTING_COMMANDS[code].label}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={openCompanyExtract}
+                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-800 px-3 py-1.5 text-xs text-white transition-colors hover:bg-pine-900"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                EX extracto
+              </button>
+            </div>
           </div>
+
+          {activeCommand && (
+            <p className="text-sm text-emerald-700">
+              {ACCOUNTING_COMMANDS[activeCommand].label} —{" "}
+              {ACCOUNTING_COMMANDS[activeCommand].description}
+            </p>
+          )}
+          {commandHint && (
+            <p className="text-sm text-amber-700" role="alert">
+              {commandHint}
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -783,11 +762,7 @@ export function QuickAccountingEntryForm() {
                     ({totals.difference > 0 ? "más Debe" : "más Haber"})
                   </span>
                 </>
-              ) : (
-                <span className="text-sm text-gray-500">
-                  F4 plan contable · F6 NIF · Tab en 430+ · EX / F8 movimientos
-                </span>
-              )}
+              ) : null}
             </div>
 
             <div className="flex gap-2">
@@ -855,6 +830,13 @@ export function QuickAccountingEntryForm() {
           setMovementsDialogOpen(false)
           setMovementsAccount(null)
         }}
+      />
+
+      <CompanyExtractDialog
+        open={companyExtractOpen}
+        year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
+        onClose={() => setCompanyExtractOpen(false)}
+        onSelectAccount={handleExtractAccountSelect}
       />
     </div>
   )
