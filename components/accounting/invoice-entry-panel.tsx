@@ -29,6 +29,7 @@ interface InvoiceEntryPanelProps {
   details: InvoiceEntryDetails
   onChange: (details: InvoiceEntryDetails) => void
   onApplyTotals: (totals: { base: number; quota: number; total: number }) => void
+  onOpenPgcChart: () => void
   onOpenNifLookup: () => void
 }
 
@@ -51,6 +52,7 @@ export function InvoiceEntryPanel({
   details,
   onChange,
   onApplyTotals,
+  onOpenPgcChart,
   onOpenNifLookup,
 }: InvoiceEntryPanelProps) {
   const totals = sumInvoiceTotals(details.vatLines)
@@ -114,6 +116,9 @@ export function InvoiceEntryPanel({
             <Badge variant={details.isRectificativa ? "default" : "secondary"}>
               {details.isRectificativa ? "Rectificativa" : "Ordinaria"}
             </Badge>
+            <Button type="button" size="sm" variant="outline" onClick={onOpenPgcChart}>
+              F4 · Plan contable
+            </Button>
             <Button type="button" size="sm" variant="outline" onClick={onOpenNifLookup}>
               F6 · Buscar NIF
             </Button>

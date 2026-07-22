@@ -598,6 +598,7 @@ export function QuickAccountingEntryForm() {
           details={invoiceDetails}
           onChange={setInvoiceDetails}
           onApplyTotals={applyInvoiceTotals}
+          onOpenPgcChart={() => setPgcDialogOpen(true)}
           onOpenNifLookup={() => setNifDialogOpen(true)}
         />
       )}
