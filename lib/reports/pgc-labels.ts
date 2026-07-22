@@ -67,6 +67,10 @@ const GROUP_LABELS: Record<string, string> = {
   "79": "Cargas excepcionales",
 }
 
+const ACCOUNT_LABELS: Record<string, string> = {
+  "678": "Multas y sanciones",
+}
+
 export function getAccountLabel(cuenta: string): string {
   const digits = cuenta.replace(/\D/g, "")
   if (!digits) return cuenta
@@ -74,5 +78,10 @@ export function getAccountLabel(cuenta: string): string {
   const prefix3 = digits.slice(0, 3)
   const prefix2 = digits.slice(0, 2)
 
-  return GROUP_LABELS[prefix3] ?? GROUP_LABELS[prefix2] ?? `Cuenta ${digits}`
+  return (
+    ACCOUNT_LABELS[prefix3] ??
+    GROUP_LABELS[prefix3] ??
+    GROUP_LABELS[prefix2] ??
+    `Cuenta ${digits}`
+  )
 }

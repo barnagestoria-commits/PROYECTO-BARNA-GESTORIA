@@ -28,8 +28,26 @@ import {
   parseCommandInput,
   validateEntryLines,
 } from "@/lib/accounting/command-templates"
+import {
+  createDefaultInvoiceDetails,
+  type InvoiceEntryDetails,
+} from "@/lib/types/invoice-entry-details"
+import type { ThirdPartyAccountOption } from "@/lib/accounting/account-suggestions"
+import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
+import {
+  isEmitidaThirdPartyAccount,
+} from "@/lib/accounting/account-suggestions"
+import {
+  isThirdPartyAccountPrefix,
+  type NewAccountPrefix,
+} from "@/lib/accounting/new-account-prefix"
 import { apiFetch } from "@/lib/api-client"
 import { useAuth } from "@/components/auth-provider"
+import { AccountCellInput } from "@/components/accounting/account-cell-input"
+import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
+import { NifAccountDialog } from "@/components/accounting/nif-account-dialog"
+import { NewSubaccountDialog, type AccountCreationResult } from "@/components/accounting/new-subaccount-dialog"
+import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 
 function cellKey(row: number, field: EntryCellField): string {
   return `${row}-${field}`
@@ -41,6 +59,10 @@ function parseAmount(value: string): number {
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0
 }
 
+function isInvoiceCommand(code: AccountingCommandCode | null): code is "17" | "34" {
+  return code === "17" || code === "34"
+}
+
 export function QuickAccountingEntryForm() {
   const { activeCompany } = useAuth()
   const searchParams = useSearchParams()
@@ -48,11 +70,23 @@ export function QuickAccountingEntryForm() {
   const [activeCommand, setActiveCommand] = useState<AccountingCommandCode | null>(null)
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0])
   const [lines, setLines] = useState<AccountingEntryLine[]>([createEmptyLine()])
+  const [invoiceDetails, setInvoiceDetails] = useState<InvoiceEntryDetails>(() =>
+    createDefaultInvoiceDetails(new Date().toISOString().split("T")[0]),
+  )
   const [commandHint, setCommandHint] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null)
   const [focusedThirdParty, setFocusedThirdParty] = useState<string | null>(null)
+  const [thirdParties, setThirdParties] = useState<ThirdPartyAccountOption[]>([])
+  const [ledgerSubaccounts, setLedgerSubaccounts] = useState<LedgerSubaccountOption[]>([])
+  const [activeCell, setActiveCell] = useState<{ row: number; field: EntryCellField }>({
+    row: 0,
+    field: "cuenta",
+  })
+  const [pgcDialogOpen, setPgcDialogOpen] = useState(false)
+  const [nifDialogOpen, setNifDialogOpen] = useState(false)
+  const [newSubaccountPrefix, setNewSubaccountPrefix] = useState<NewAccountPrefix | null>(null)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
 
@@ -67,6 +101,50 @@ export function QuickAccountingEntryForm() {
     return map
   }, [lineValidations])
 
+  const showInvoicePanel = useMemo(() => {
+    if (isInvoiceCommand(activeCommand)) return true
+    return lines.some((line) => isThirdPartyAccountPrefix(line.cuenta))
+  }, [activeCommand, lines])
+
+  const invoiceMode = useMemo((): "emitida" | "recibida" => {
+    if (activeCommand === "34") return "recibida"
+    if (activeCommand === "17") return "emitida"
+    if (lines.some((line) => isEmitidaThirdPartyAccount(line.cuenta))) return "emitida"
+    return "recibida"
+  }, [activeCommand, lines])
+
+  const loadThirdParties = useCallback(async () => {
+    if (!activeCompany?.id) {
+      setThirdParties([])
+      return
+    }
+
+    try {
+      const data = await apiFetch<{ success: true; thirdParties: ThirdPartyAccountOption[] }>(
+        "/api/accounting/third-parties",
+      )
+      setThirdParties(data.thirdParties)
+    } catch {
+      setThirdParties([])
+    }
+  }, [activeCompany?.id])
+
+  const loadLedgerSubaccounts = useCallback(async () => {
+    if (!activeCompany?.id) {
+      setLedgerSubaccounts([])
+      return
+    }
+
+    try {
+      const data = await apiFetch<{ success: true; subaccounts: LedgerSubaccountOption[] }>(
+        "/api/accounting/ledger-subaccounts",
+      )
+      setLedgerSubaccounts(data.subaccounts)
+    } catch {
+      setLedgerSubaccounts([])
+    }
+  }, [activeCompany?.id])
+
   const registerRef = useCallback((row: number, field: EntryCellField, el: HTMLInputElement | null) => {
     const key = cellKey(row, field)
     if (el) {
@@ -77,6 +155,7 @@ export function QuickAccountingEntryForm() {
   }, [])
 
   const focusCell = useCallback((row: number, field: EntryCellField) => {
+    setActiveCell({ row, field })
     const el = inputRefs.current.get(cellKey(row, field))
     el?.focus()
     el?.select()
@@ -92,13 +171,83 @@ export function QuickAccountingEntryForm() {
       if (row < lines.length - 1) {
         focusCell(row + 1, "cuenta")
       } else {
-        const newLine = createEmptyLine()
-        setLines((prev) => [...prev, newLine])
+        setLines((prev) => [...prev, createEmptyLine()])
         requestAnimationFrame(() => focusCell(row + 1, "cuenta"))
       }
     },
     [focusCell, lines.length],
   )
+
+  const applyAccountAssignment = useCallback(
+    (
+      assignment: { formattedAccountCode: string; name: string; cif?: string },
+      targetRow = 0,
+    ) => {
+      setLines((prev) =>
+        prev.map((line, index) =>
+          index === targetRow
+            ? {
+                ...line,
+                cuenta: assignment.formattedAccountCode,
+                concepto: assignment.name,
+              }
+            : line,
+        ),
+      )
+      if (assignment.cif) {
+        setFocusedThirdParty(assignment.name)
+        setInvoiceDetails((prev) => ({
+          ...prev,
+          nif: assignment.cif ?? prev.nif,
+          thirdPartyName: assignment.name,
+        }))
+      }
+      requestAnimationFrame(() => focusCell(targetRow, "debe"))
+    },
+    [focusCell],
+  )
+
+  const applyInvoiceTotals = useCallback(
+    (amounts: { base: number; quota: number; total: number }) => {
+      setLines((prev) => {
+        const thirdIdx = prev.findIndex((line) =>
+          isThirdPartyAccountPrefix(line.cuenta),
+        )
+        const vatIdx = prev.findIndex((line) => /^47[27]/.test(line.cuenta.replace(/\D/g, "")))
+        const baseIdx = prev.findIndex((line) => /^[67]/.test(line.cuenta.replace(/\D/g, "")))
+
+        const thirdPartyIndex = thirdIdx >= 0 ? thirdIdx : 0
+        const vatIndex = vatIdx >= 0 ? vatIdx : 1
+        const baseIndex = baseIdx >= 0 ? baseIdx : 2
+        const emitida =
+          activeCommand === "17" ||
+          (activeCommand !== "34" && isEmitidaThirdPartyAccount(prev[thirdPartyIndex]?.cuenta ?? ""))
+
+        return prev.map((line, index) => {
+          if (emitida) {
+            if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
+            if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
+            if (index === baseIndex) return { ...line, debe: 0, haber: amounts.base }
+          } else {
+            if (index === thirdPartyIndex) return { ...line, debe: 0, haber: amounts.total }
+            if (index === vatIndex) return { ...line, debe: amounts.quota, haber: 0 }
+            if (index === baseIndex) return { ...line, debe: amounts.base, haber: 0 }
+          }
+          return line
+        })
+      })
+    },
+    [activeCommand],
+  )
+
+  const startManualEntry = useCallback(() => {
+    setActiveCommand(null)
+    setCommandInput("")
+    setCommandHint(null)
+    setLines([createEmptyLine()])
+    setInvoiceDetails(createDefaultInvoiceDetails(fecha))
+    requestAnimationFrame(() => focusCell(0, "cuenta"))
+  }, [fecha, focusCell])
 
   const applyCommand = useCallback(
     (code: AccountingCommandCode) => {
@@ -106,10 +255,16 @@ export function QuickAccountingEntryForm() {
       setCommandInput(code)
       setCommandHint(null)
       setLines(linesFromTemplate(code))
+      setInvoiceDetails(createDefaultInvoiceDetails(fecha))
       requestAnimationFrame(() => focusCell(0, "cuenta"))
     },
-    [focusCell],
+    [fecha, focusCell],
   )
+
+  useEffect(() => {
+    loadThirdParties()
+    loadLedgerSubaccounts()
+  }, [loadLedgerSubaccounts, loadThirdParties])
 
   useEffect(() => {
     const comando = searchParams.get("comando")
@@ -134,6 +289,30 @@ export function QuickAccountingEntryForm() {
       requestAnimationFrame(() => focusCell(0, "debe"))
     }
   }, [searchParams, applyCommand, focusCell])
+
+  useEffect(() => {
+    setInvoiceDetails((prev) => ({
+      ...prev,
+      issueDate: fecha,
+      operationDate: fecha,
+    }))
+  }, [fecha])
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "F4") {
+        event.preventDefault()
+        setPgcDialogOpen(true)
+      }
+      if (event.key === "F6") {
+        event.preventDefault()
+        setNifDialogOpen(true)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [])
 
   const handleCommandKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return
@@ -177,8 +356,10 @@ export function QuickAccountingEntryForm() {
     setActiveCommand(null)
     setFecha(new Date().toISOString().split("T")[0])
     setLines([createEmptyLine()])
+    setInvoiceDetails(createDefaultInvoiceDetails(new Date().toISOString().split("T")[0]))
     setCommandHint(null)
     setSubmitError(null)
+    setFocusedThirdParty(null)
   }, [])
 
   const handleSubmit = async () => {
@@ -220,6 +401,43 @@ export function QuickAccountingEntryForm() {
     }
   }
 
+  const handlePgcSelect = (accountCode: string, accountName: string) => {
+    const { row } = activeCell
+    const line = lines[row]
+    if (!line) return
+    updateLine(line.id, { cuenta: accountCode, concepto: line.concepto || accountName })
+    requestAnimationFrame(() => focusCell(row, "concepto"))
+  }
+
+  const handleCreateAccountPrefix = (prefix: NewAccountPrefix, row: number) => {
+    setActiveCell({ row, field: "cuenta" })
+    setNewSubaccountPrefix(prefix)
+  }
+
+  const handleSubaccountCreated = async (result: AccountCreationResult) => {
+    if (result.kind === "third-party") {
+      await loadThirdParties()
+      applyAccountAssignment(
+        {
+          formattedAccountCode: result.resolution.formattedAccountCode,
+          name: result.resolution.name,
+          cif: result.resolution.cif,
+        },
+        activeCell.row,
+      )
+      return
+    }
+
+    await loadLedgerSubaccounts()
+    applyAccountAssignment(
+      {
+        formattedAccountCode: result.resolution.formattedAccountCode,
+        name: result.resolution.name,
+      },
+      activeCell.row,
+    )
+  }
+
   return (
     <div className="space-y-4">
       <Card className="overflow-hidden border-emerald-200">
@@ -231,12 +449,13 @@ export function QuickAccountingEntryForm() {
                 <span className="break-words">Asiento rápido</span>
               </CardTitle>
               <CardDescription className="break-words text-pretty leading-relaxed">
-                Escribe un código de comando y pulsa Enter. Navega con Tab o Enter sin soltar el teclado.
+                Comandos prediseñados o asiento manual. En cualquier línea: sugerencias de cuenta,
+                F4 plan contable, F6 por NIF y código+ (430+, 678+, …) para alta de subcuenta.
               </CardDescription>
             </div>
             <Badge variant="secondary" className="w-fit gap-1">
               <Keyboard className="h-3 w-3" />
-              Modo teclado
+              F4 · F6 · 678+
             </Badge>
           </div>
         </CardHeader>
@@ -291,6 +510,17 @@ export function QuickAccountingEntryForm() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={startManualEntry}
+              className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
+                !activeCommand
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                  : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
+              }`}
+            >
+              Asiento manual
+            </button>
             {COMMAND_CODES.map((code) => (
               <button
                 key={code}
@@ -309,6 +539,17 @@ export function QuickAccountingEntryForm() {
           </div>
         </CardContent>
       </Card>
+
+      {showInvoicePanel && (
+        <InvoiceEntryPanel
+          invoiceMode={invoiceMode}
+          isManual={!isInvoiceCommand(activeCommand)}
+          details={invoiceDetails}
+          onChange={setInvoiceDetails}
+          onApplyTotals={applyInvoiceTotals}
+          onOpenNifLookup={() => setNifDialogOpen(true)}
+        />
+      )}
 
       <Card>
         <CardContent className="p-0">
@@ -334,14 +575,33 @@ export function QuickAccountingEntryForm() {
                       className={`border-b ${hasWarning ? "bg-amber-50/60" : "hover:bg-gray-50/50"}`}
                     >
                       <td className="px-2 py-1">
-                        <Input
-                          ref={(el) => registerRef(rowIndex, "cuenta", el)}
+                        <AccountCellInput
                           value={line.cuenta}
-                          onChange={(e) => updateLine(line.id, { cuenta: e.target.value })}
-                          onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "cuenta")}
-                          className={`h-9 font-mono ${hasWarning ? "border-amber-400" : ""}`}
-                          placeholder="430"
-                          aria-label={`Cuenta línea ${rowIndex + 1}`}
+                          onChange={(value) => updateLine(line.id, { cuenta: value })}
+                          onCreateAccountPrefix={(prefix) =>
+                            handleCreateAccountPrefix(prefix, rowIndex)
+                          }
+                          onSelectSuggestion={(suggestion) => {
+                            if (
+                              (suggestion.source === "tercero" || suggestion.source === "ledger") &&
+                              suggestion.subtitle
+                            ) {
+                              updateLine(line.id, {
+                                cuenta: suggestion.label,
+                                concepto: suggestion.subtitle.split(" · ")[0] ?? line.concepto,
+                              })
+                              if (suggestion.source === "tercero") {
+                                setFocusedThirdParty(suggestion.subtitle.split(" · ")[0] ?? null)
+                              }
+                            }
+                          }}
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "cuenta" })}
+                          inputRef={(el) => registerRef(rowIndex, "cuenta", el)}
+                          onKeyDown={(event) => handleCellKeyDown(event, rowIndex, "cuenta")}
+                          thirdParties={thirdParties}
+                          ledgerSubaccounts={ledgerSubaccounts}
+                          hasWarning={hasWarning}
+                          rowLabel={`Cuenta línea ${rowIndex + 1}`}
                         />
                       </td>
                       <td className="px-2 py-1">
@@ -349,6 +609,7 @@ export function QuickAccountingEntryForm() {
                           ref={(el) => registerRef(rowIndex, "concepto", el)}
                           value={line.concepto}
                           onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
                           onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "concepto")}
                           className="h-9"
                           placeholder="Descripción"
@@ -365,6 +626,7 @@ export function QuickAccountingEntryForm() {
                           onChange={(e) =>
                             updateLine(line.id, { debe: parseAmount(e.target.value) })
                           }
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "debe" })}
                           onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "debe")}
                           className="h-9 text-right font-mono tabular-nums"
                           placeholder="0,00"
@@ -381,6 +643,7 @@ export function QuickAccountingEntryForm() {
                           onChange={(e) =>
                             updateLine(line.id, { haber: parseAmount(e.target.value) })
                           }
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "haber" })}
                           onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "haber")}
                           className="h-9 text-right font-mono tabular-nums"
                           placeholder="0,00"
@@ -466,7 +729,9 @@ export function QuickAccountingEntryForm() {
                   </span>
                 </>
               ) : (
-                <span className="text-sm text-gray-500">Introduce importes en Debe y Haber</span>
+                <span className="text-sm text-gray-500">
+                  F4 plan contable · F6 NIF · código+ nueva subcuenta (430+, 678+, …)
+                </span>
               )}
             </div>
 
@@ -495,6 +760,37 @@ export function QuickAccountingEntryForm() {
           </div>
         </CardContent>
       </Card>
+
+      <PgcChartDialog
+        open={pgcDialogOpen}
+        onClose={() => setPgcDialogOpen(false)}
+        onSelect={handlePgcSelect}
+      />
+
+      <NifAccountDialog
+        open={nifDialogOpen}
+        onClose={() => setNifDialogOpen(false)}
+        thirdPartyType={
+          invoiceMode === "emitida" ? "CLIENTE" : "PROVEEDOR"
+        }
+        onResolved={(resolution) =>
+          applyAccountAssignment(
+            {
+              formattedAccountCode: resolution.formattedAccountCode,
+              name: resolution.name,
+              cif: resolution.cif,
+            },
+            activeCell.row,
+          )
+        }
+      />
+
+      <NewSubaccountDialog
+        open={newSubaccountPrefix !== null}
+        prefix={newSubaccountPrefix}
+        onClose={() => setNewSubaccountPrefix(null)}
+        onCreated={handleSubaccountCreated}
+      />
     </div>
   )
 }

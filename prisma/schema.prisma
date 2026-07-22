@@ -113,6 +113,7 @@ model Company {
   amortizationRuns     AmortizationRun[]
   accountingImports    AccountingDataImport[]
   thirdParties         ThirdParty[]
+  ledgerSubaccounts    LedgerSubaccount[]
   fiscalSettings       CompanyFiscalSettings?
 }
 
@@ -324,4 +325,23 @@ model ThirdParty {
   @@unique([companyId, type, cif])
   @@unique([companyId, accountCode])
   @@index([companyId, type])
+}
+
+/// Subcuenta personalizada del plan contable (678.0001, 629.0003, etc.)
+model LedgerSubaccount {
+  id          String   @id @default(cuid())
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parentCode  String
+  accountCode String
+  name        String
+  notes       String?
+  address     String?
+  phone       String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([companyId, accountCode])
+  @@index([companyId, parentCode])
 }

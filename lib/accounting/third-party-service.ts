@@ -14,7 +14,7 @@ async function collectExistingSequences(companyId: string, prefix: string): Prom
     prisma.thirdParty.findMany({
       where: {
         companyId,
-        type: prefix === "400" ? "PROVEEDOR" : "CLIENTE",
+        accountCode: { startsWith: prefix },
       },
       select: { accountCode: true },
     }),
@@ -43,11 +43,18 @@ async function collectExistingSequences(companyId: string, prefix: string): Prom
   return Array.from(sequences)
 }
 
-export async function findNextAccountSequence(companyId: string, type: ThirdPartyType): Promise<number> {
-  const prefix = THIRD_PARTY_PREFIX[type]
+export async function findNextAccountSequenceForPrefix(
+  companyId: string,
+  prefix: string,
+): Promise<number> {
   const sequences = await collectExistingSequences(companyId, prefix)
   const max = sequences.length > 0 ? Math.max(...sequences) : 0
   return max + 1
+}
+
+export async function findNextAccountSequence(companyId: string, type: ThirdPartyType): Promise<number> {
+  const prefix = THIRD_PARTY_PREFIX[type]
+  return findNextAccountSequenceForPrefix(companyId, prefix)
 }
 
 export async function findThirdPartyByCif(
@@ -160,6 +167,91 @@ export async function resolveOrCreateThirdParty(
     accountCode: created.accountCode,
     formattedAccountCode: formatAccountCodeDisplay(created.accountCode),
     isNew: true,
+    thirdPartyId: created.id,
+  }
+}
+
+function accountPrefixToType(prefix: string): ThirdPartyType {
+  return prefix === "430" ? "CLIENTE" : "PROVEEDOR"
+}
+
+export async function previewThirdPartyWithPrefix(
+  companyId: string,
+  accountPrefix: string,
+  cif: string,
+  name: string,
+): Promise<ThirdPartyResolution> {
+  const normalizedCif = normalizeCif(cif)
+  if (!normalizedCif) {
+    throw new Error("El NIF/CIF es obligatorio para crear la subcuenta.")
+  }
+
+  const type = accountPrefixToType(accountPrefix)
+  const existing = await findThirdPartyByCif(companyId, type, normalizedCif)
+
+  if (existing) {
+    if (!existing.accountCode.startsWith(accountPrefix)) {
+      throw new Error(
+        `Este NIF ya está registrado con la cuenta ${formatAccountCodeDisplay(existing.accountCode)}.`,
+      )
+    }
+
+    return {
+      type,
+      cif: normalizedCif,
+      name: existing.name,
+      accountCode: existing.accountCode,
+      formattedAccountCode: formatAccountCodeDisplay(existing.accountCode),
+      isNew: false,
+      thirdPartyId: existing.id,
+    }
+  }
+
+  const nextSequence = await findNextAccountSequenceForPrefix(companyId, accountPrefix)
+  const accountCode = buildAccountCode(accountPrefix, nextSequence)
+
+  return {
+    type,
+    cif: normalizedCif,
+    name: name.trim() || normalizedCif,
+    accountCode,
+    formattedAccountCode: formatAccountCodeDisplay(accountCode),
+    isNew: true,
+    thirdPartyId: null,
+  }
+}
+
+export async function resolveOrCreateThirdPartyWithPrefix(
+  companyId: string,
+  accountPrefix: string,
+  cif: string,
+  name: string,
+): Promise<ThirdPartyResolution> {
+  const preview = await previewThirdPartyWithPrefix(companyId, accountPrefix, cif, name)
+
+  if (!preview.isNew && preview.thirdPartyId) {
+    if (preview.name !== name.trim() && name.trim()) {
+      await prisma.thirdParty.update({
+        where: { id: preview.thirdPartyId },
+        data: { name: name.trim() },
+      })
+      return { ...preview, name: name.trim() }
+    }
+    return preview
+  }
+
+  const created = await prisma.thirdParty.create({
+    data: {
+      companyId,
+      type: preview.type,
+      cif: preview.cif,
+      name: preview.name,
+      accountCode: preview.accountCode,
+    },
+  })
+
+  return {
+    ...preview,
     thirdPartyId: created.id,
   }
 }
