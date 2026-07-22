@@ -1,6 +1,7 @@
 import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { calculateTotals } from "@/lib/accounting/command-templates"
+import { buildInvoiceLineConcept } from "@/lib/accounting/invoice-entry-concepts"
 import { resolveOrCreateThirdParty } from "@/lib/accounting/third-party-service"
 import { thirdPartyTypeFromDocumentType } from "@/lib/accounting/third-party-types"
 import { calculateTotalFromBreakdown, sumDesglose } from "@/lib/invoice-totals"
@@ -26,7 +27,7 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
   const recargo = invoice.recargo_equivalencia?.cuota ?? 0
   const totalIva = Math.round((iva + recargo) * 100) / 100
   const total = calculateTotalFromBreakdown(invoice.iva_desglose, invoice.recargo_equivalencia)
-  const concept = `Factura ${invoice.numeroFactura} — ${invoice.proveedor}`
+  const concept = buildInvoiceLineConcept("34", invoice.numeroFactura)
 
   const lines = [
     {
@@ -42,7 +43,7 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
     lines.push({
       sortOrder: lines.length,
       cuenta: "472",
-      concepto: `IVA soportado ${invoice.numeroFactura}`,
+      concepto: buildInvoiceLineConcept("34", invoice.numeroFactura),
       debe: totalIva,
       haber: 0,
     })
@@ -62,7 +63,7 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
 function buildIssuedInvoiceLines(invoice: InvoiceOcrResult, clientAccount: string) {
   const { baseImponible, iva } = sumDesglose(invoice.iva_desglose)
   const total = calculateTotalFromBreakdown(invoice.iva_desglose, invoice.recargo_equivalencia)
-  const concept = `Factura ${invoice.numeroFactura} — ${invoice.proveedor}`
+  const concept = buildInvoiceLineConcept("17", invoice.numeroFactura)
 
   const lines = [
     {
@@ -78,7 +79,7 @@ function buildIssuedInvoiceLines(invoice: InvoiceOcrResult, clientAccount: strin
     lines.push({
       sortOrder: lines.length,
       cuenta: "477",
-      concepto: `IVA repercutido ${invoice.numeroFactura}`,
+      concepto: buildInvoiceLineConcept("17", invoice.numeroFactura),
       debe: 0,
       haber: iva,
     })

@@ -5,6 +5,10 @@ import type {
   EntryTotals,
   LineValidation,
 } from "@/lib/types/accounting-entry"
+import {
+  applyInvoiceConceptsToLines,
+  isInvoiceConceptCommand,
+} from "@/lib/accounting/invoice-entry-concepts"
 
 export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingCommandTemplate> = {
   "17": {
@@ -13,8 +17,8 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     description: "Factura de venta — Clientes, ingresos e IVA repercutido",
     lines: [
       { cuenta: "430", concepto: "Cliente", debe: 0, haber: 0 },
-      { cuenta: "477", concepto: "IVA repercutido", debe: 0, haber: 0 },
-      { cuenta: "700", concepto: "Ventas de mercaderías", debe: 0, haber: 0 },
+      { cuenta: "477", concepto: "Nuestra factura N. ", debe: 0, haber: 0 },
+      { cuenta: "700", concepto: "Nuestra factura N. ", debe: 0, haber: 0 },
     ],
   },
   "34": {
@@ -23,8 +27,8 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     description: "Factura de compra — Gastos, IVA soportado y proveedor",
     lines: [
       { cuenta: "400", concepto: "Proveedor", debe: 0, haber: 0 },
-      { cuenta: "472", concepto: "IVA soportado", debe: 0, haber: 0 },
-      { cuenta: "600", concepto: "Compras de mercaderías", debe: 0, haber: 0 },
+      { cuenta: "472", concepto: "Su factura N. ", debe: 0, haber: 0 },
+      { cuenta: "600", concepto: "Su factura N. ", debe: 0, haber: 0 },
     ],
   },
   "16": {
@@ -60,11 +64,20 @@ export function createEmptyLine(): AccountingEntryLine {
   return { id: createLineId(), cuenta: "", concepto: "", debe: 0, haber: 0 }
 }
 
-export function linesFromTemplate(code: AccountingCommandCode): AccountingEntryLine[] {
-  return ACCOUNTING_COMMANDS[code].lines.map((line) => ({
+export function linesFromTemplate(
+  code: AccountingCommandCode,
+  invoiceNumber = "",
+): AccountingEntryLine[] {
+  const lines = ACCOUNTING_COMMANDS[code].lines.map((line) => ({
     ...line,
     id: createLineId(),
   }))
+
+  if (isInvoiceConceptCommand(code)) {
+    return applyInvoiceConceptsToLines(lines, code, invoiceNumber)
+  }
+
+  return lines
 }
 
 export function parseCommandInput(value: string): AccountingCommandCode | null {

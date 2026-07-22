@@ -22,6 +22,13 @@ import {
   isEmitidaThirdPartyAccount,
 } from "@/lib/accounting/account-suggestions"
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
+import {
+  applyInvoiceConceptsToLines,
+  INVOICE_CONCEPT_PREFIX,
+  isInvoiceConceptAccountLine,
+  isInvoiceConceptCommand,
+} from "@/lib/accounting/invoice-entry-concepts"
+import { cn } from "@/lib/utils"
 
 interface EditAccountingEntryDialogProps {
   open: boolean
@@ -129,7 +136,7 @@ export function EditAccountingEntryDialog({
           entry?.commandCode === "17" ||
           (entry?.commandCode !== "34" && isEmitidaThirdPartyAccount(prev[thirdPartyIndex]?.cuenta ?? ""))
 
-        return prev.map((line, index) => {
+        const next = prev.map((line, index) => {
           if (emitida) {
             if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
             if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
@@ -141,10 +148,25 @@ export function EditAccountingEntryDialog({
           }
           return line
         })
+
+        return entry?.commandCode && isInvoiceConceptCommand(entry.commandCode)
+          ? applyInvoiceConceptsToLines(next, entry.commandCode, invoiceDetails?.invoiceNumber ?? "")
+          : next
       })
     },
-    [entry?.commandCode],
+    [entry?.commandCode, invoiceDetails?.invoiceNumber],
   )
+
+  useEffect(() => {
+    if (!entry?.commandCode || !isInvoiceConceptCommand(entry.commandCode)) return
+    setLines((prev) =>
+      applyInvoiceConceptsToLines(
+        prev,
+        entry.commandCode as "17" | "34",
+        invoiceDetails?.invoiceNumber ?? "",
+      ),
+    )
+  }, [entry?.commandCode, invoiceDetails?.invoiceNumber])
 
   const handleSave = async () => {
     if (!entryId || !entry || !totals.isBalanced || isSaving) return
@@ -273,6 +295,13 @@ export function EditAccountingEntryDialog({
             <InvoiceEntryPanel
               invoiceMode={invoiceMode}
               isManual={!entry.commandCode || (entry.commandCode !== "17" && entry.commandCode !== "34")}
+              invoiceConceptPrefix={
+                entry.commandCode === "17"
+                  ? INVOICE_CONCEPT_PREFIX["17"]
+                  : entry.commandCode === "34"
+                    ? INVOICE_CONCEPT_PREFIX["34"]
+                    : null
+              }
               details={invoiceDetails}
               onChange={setInvoiceDetails}
               onApplyTotals={applyInvoiceTotals}
@@ -293,7 +322,13 @@ export function EditAccountingEntryDialog({
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => (
+                {lines.map((line) => {
+                  const invoiceConceptLocked =
+                    entry.commandCode !== null &&
+                    isInvoiceConceptCommand(entry.commandCode) &&
+                    isInvoiceConceptAccountLine(line.cuenta, entry.commandCode)
+
+                  return (
                   <tr key={line.id} className="border-t border-sand-100">
                     <td className="px-2 py-1">
                       <Input
@@ -306,7 +341,17 @@ export function EditAccountingEntryDialog({
                       <Input
                         value={line.concepto}
                         onChange={(event) => updateLine(line.id, { concepto: event.target.value })}
-                        className="h-9"
+                        readOnly={invoiceConceptLocked}
+                        tabIndex={invoiceConceptLocked ? -1 : undefined}
+                        className={cn(
+                          "h-9",
+                          invoiceConceptLocked && "bg-sand-50 text-graphite-600",
+                        )}
+                        title={
+                          invoiceConceptLocked
+                            ? "Edita el número de factura en Datos de factura"
+                            : undefined
+                        }
                       />
                     </td>
                     <td className="px-2 py-1">
@@ -343,7 +388,8 @@ export function EditAccountingEntryDialog({
                       </Button>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>

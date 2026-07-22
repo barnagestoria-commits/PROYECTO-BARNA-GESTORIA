@@ -40,6 +40,12 @@ import {
   isThirdPartyAccountPrefix,
   type NewAccountPrefix,
 } from "@/lib/accounting/new-account-prefix"
+import {
+  applyInvoiceConceptsToLines,
+  INVOICE_CONCEPT_PREFIX,
+  isInvoiceConceptAccountLine,
+  isInvoiceConceptCommand,
+} from "@/lib/accounting/invoice-entry-concepts"
 import { apiFetch } from "@/lib/api-client"
 import { useAuth } from "@/components/auth-provider"
 import { AccountCellInput } from "@/components/accounting/account-cell-input"
@@ -51,6 +57,7 @@ import { AccountMovementsDialog } from "@/components/accounting/account-movement
 import { CompanyExtractDialog } from "@/components/accounting/company-extract-dialog"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { normalizeCuenta } from "@/lib/reports/format"
+import { cn } from "@/lib/utils"
 
 function cellKey(row: number, field: EntryCellField): string {
   return `${row}-${field}`
@@ -237,7 +244,7 @@ export function QuickAccountingEntryForm() {
           activeCommand === "17" ||
           (activeCommand !== "34" && isEmitidaThirdPartyAccount(prev[thirdPartyIndex]?.cuenta ?? ""))
 
-        return prev.map((line, index) => {
+        const next = prev.map((line, index) => {
           if (emitida) {
             if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
             if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
@@ -249,9 +256,13 @@ export function QuickAccountingEntryForm() {
           }
           return line
         })
+
+        return isInvoiceConceptCommand(activeCommand)
+          ? applyInvoiceConceptsToLines(next, activeCommand, invoiceDetails.invoiceNumber)
+          : next
       })
     },
-    [activeCommand],
+    [activeCommand, invoiceDetails.invoiceNumber],
   )
 
   const startManualEntry = useCallback(() => {
@@ -309,6 +320,13 @@ export function QuickAccountingEntryForm() {
       requestAnimationFrame(() => focusCell(0, "debe"))
     }
   }, [searchParams, applyCommand, focusCell])
+
+  useEffect(() => {
+    if (!isInvoiceConceptCommand(activeCommand)) return
+    setLines((prev) =>
+      applyInvoiceConceptsToLines(prev, activeCommand, invoiceDetails.invoiceNumber),
+    )
+  }, [activeCommand, invoiceDetails.invoiceNumber])
 
   useEffect(() => {
     setInvoiceDetails((prev) => ({
@@ -581,6 +599,11 @@ export function QuickAccountingEntryForm() {
         <InvoiceEntryPanel
           invoiceMode={invoiceMode}
           isManual={!isInvoiceCommand(activeCommand)}
+          invoiceConceptPrefix={
+            isInvoiceConceptCommand(activeCommand)
+              ? INVOICE_CONCEPT_PREFIX[activeCommand]
+              : null
+          }
           details={invoiceDetails}
           onChange={setInvoiceDetails}
           onApplyTotals={applyInvoiceTotals}
@@ -606,6 +629,9 @@ export function QuickAccountingEntryForm() {
                 {lines.map((line, rowIndex) => {
                   const warnings = validationByLine.get(line.id) ?? []
                   const hasWarning = warnings.length > 0
+                  const invoiceConceptLocked =
+                    isInvoiceConceptCommand(activeCommand) &&
+                    isInvoiceConceptAccountLine(line.cuenta, activeCommand)
 
                   return (
                     <tr
@@ -652,8 +678,18 @@ export function QuickAccountingEntryForm() {
                           onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
                           onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "concepto")}
-                          className="h-9"
+                          readOnly={invoiceConceptLocked}
+                          tabIndex={invoiceConceptLocked ? -1 : undefined}
+                          className={cn(
+                            "h-9",
+                            invoiceConceptLocked && "bg-sand-50 text-graphite-600",
+                          )}
                           placeholder="Descripción"
+                          title={
+                            invoiceConceptLocked
+                              ? "Edita el número de factura en Datos de factura"
+                              : undefined
+                          }
                           aria-label={`Concepto línea ${rowIndex + 1}`}
                         />
                       </td>

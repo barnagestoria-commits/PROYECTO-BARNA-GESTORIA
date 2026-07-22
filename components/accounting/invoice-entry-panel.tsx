@@ -26,6 +26,7 @@ import { VatLookupDialog } from "@/components/accounting/vat-lookup-dialog"
 interface InvoiceEntryPanelProps {
   invoiceMode: "emitida" | "recibida"
   isManual?: boolean
+  invoiceConceptPrefix?: string | null
   details: InvoiceEntryDetails
   onChange: (details: InvoiceEntryDetails) => void
   onApplyTotals: (totals: { base: number; quota: number; total: number }) => void
@@ -49,6 +50,7 @@ function LookupButton({ label, onClick }: { label: string; onClick: () => void }
 export function InvoiceEntryPanel({
   invoiceMode,
   isManual = false,
+  invoiceConceptPrefix = null,
   details,
   onChange,
   onApplyTotals,
@@ -127,12 +129,30 @@ export function InvoiceEntryPanel({
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div className="space-y-1.5">
-            <Label htmlFor="invoice-number">Nro. factura</Label>
-            <Input
-              id="invoice-number"
-              value={details.invoiceNumber}
-              onChange={(event) => onChange({ ...details, invoiceNumber: event.target.value })}
-            />
+            <Label htmlFor="invoice-number">
+              {invoiceConceptPrefix ? "Concepto de factura" : "Nro. factura"}
+            </Label>
+            {invoiceConceptPrefix ? (
+              <div className="flex h-9 overflow-hidden rounded-md border border-input bg-background">
+                <span className="flex items-center whitespace-nowrap bg-sand-50 px-3 text-sm text-graphite-600">
+                  {invoiceConceptPrefix}
+                </span>
+                <Input
+                  id="invoice-number"
+                  value={details.invoiceNumber}
+                  onChange={(event) => onChange({ ...details, invoiceNumber: event.target.value })}
+                  className="h-9 border-0 shadow-none focus-visible:ring-0"
+                  placeholder="000123"
+                  aria-label="Número de factura"
+                />
+              </div>
+            ) : (
+              <Input
+                id="invoice-number"
+                value={details.invoiceNumber}
+                onChange={(event) => onChange({ ...details, invoiceNumber: event.target.value })}
+              />
+            )}
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="issue-date">F. expedición</Label>
