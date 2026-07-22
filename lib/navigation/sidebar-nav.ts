@@ -128,7 +128,33 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
     id: "importacion",
     label: "Importación",
     icon: ScanLine,
+    href: "/dashboard/importacion",
     sections: [
+      {
+        title: "Intercambio contable",
+        items: [
+          {
+            label: "Centro importación / exportación",
+            href: "/dashboard/importacion",
+            description: "A3, Holded, Sage y CSV genérico",
+          },
+          {
+            label: "Importar asientos",
+            href: "/dashboard/importacion?tab=importar",
+            description: "Subir diario desde otro software",
+          },
+          {
+            label: "Exportar asientos",
+            href: "/dashboard/importacion?tab=exportar",
+            description: "Descargar compatible con A3 / Holded",
+          },
+          {
+            label: "Historial de importaciones",
+            href: "/dashboard/importacion?tab=historial",
+            description: "Ficheros procesados recientemente",
+          },
+        ],
+      },
       {
         title: "Captura documental",
         items: [
@@ -141,11 +167,6 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Centro de documentos",
             href: "/dashboard",
             description: "Historial de archivos subidos",
-          },
-          {
-            label: "Importar datos contables",
-            href: "/dashboard/utilidades/importar",
-            description: "CSV, Excel y movimientos externos",
           },
         ],
       },
@@ -300,6 +321,9 @@ export function isNavLinkActive(href: string, pathname: string, searchParams?: s
   }
   if (path === "/dashboard" && !query) {
     return pathname === "/dashboard" && !searchParams?.includes("accion=")
+  }
+  if (path === "/dashboard/importacion") {
+    return pathname === "/dashboard/importacion" || pathname.startsWith("/dashboard/importacion/")
   }
   if (path === "/dashboard/fiscal") {
     return pathname === "/dashboard/fiscal" || pathname.startsWith("/dashboard/fiscal/")

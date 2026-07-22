@@ -1,4 +1,8 @@
 import * as XLSX from "xlsx"
+import {
+  getAccountingFormatProfile,
+  type AccountingSourceFormat,
+} from "@/lib/imports/accounting-formats"
 
 export interface AccountingImportRow {
   fecha: string
@@ -95,10 +99,15 @@ function detectDelimiter(header: string): string {
 }
 
 function findColumnIndex(headers: string[], matchers: string[]): number {
-  return headers.findIndex((header) => matchers.some((matcher) => header.includes(matcher)))
+  const normalized = headers.map((header) => header.trim().toLowerCase())
+  return normalized.findIndex((header) => matchers.some((matcher) => header.includes(matcher)))
 }
 
-function mapMatrixToRows(matrix: unknown[][]): AccountingImportRow[] {
+function mapMatrixToRows(
+  matrix: unknown[][],
+  sourceFormat: AccountingSourceFormat = "generic",
+): AccountingImportRow[] {
+  const profile = getAccountingFormatProfile(sourceFormat)
   const normalizedMatrix = matrix
     .map((row) => (Array.isArray(row) ? row : []))
     .filter((row) => row.some((cell) => String(cell ?? "").trim() !== ""))
@@ -108,14 +117,16 @@ function mapMatrixToRows(matrix: unknown[][]): AccountingImportRow[] {
   }
 
   const headers = normalizedMatrix[0].map((cell) => String(cell ?? "").trim().toLowerCase())
-  const fechaIdx = findColumnIndex(headers, ["fecha", "date"])
-  const cuentaIdx = findColumnIndex(headers, ["cuenta", "account", "codigo"])
-  const conceptoIdx = findColumnIndex(headers, ["concepto", "descripcion", "description"])
-  const debeIdx = findColumnIndex(headers, ["debe", "debit"])
-  const haberIdx = findColumnIndex(headers, ["haber", "credit"])
+  const fechaIdx = findColumnIndex(headers, profile.columnAliases.fecha)
+  const cuentaIdx = findColumnIndex(headers, profile.columnAliases.cuenta)
+  const conceptoIdx = findColumnIndex(headers, profile.columnAliases.concepto)
+  const debeIdx = findColumnIndex(headers, profile.columnAliases.debe)
+  const haberIdx = findColumnIndex(headers, profile.columnAliases.haber)
 
   if (fechaIdx < 0 || cuentaIdx < 0 || debeIdx < 0 || haberIdx < 0) {
-    throw new Error("Cabeceras requeridas: fecha, cuenta, debe y haber (concepto opcional).")
+    throw new Error(
+      `Cabeceras no reconocidas para ${profile.name}. Revisa el formato o prueba otro origen de software.`,
+    )
   }
 
   const rows: AccountingImportRow[] = []
@@ -141,7 +152,10 @@ function mapMatrixToRows(matrix: unknown[][]): AccountingImportRow[] {
   return rows
 }
 
-export function parseAccountingCsvContent(content: string): AccountingImportRow[] {
+export function parseAccountingCsvContent(
+  content: string,
+  sourceFormat: AccountingSourceFormat = "generic",
+): AccountingImportRow[] {
   const lines = content
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -153,10 +167,13 @@ export function parseAccountingCsvContent(content: string): AccountingImportRow[
 
   const delimiter = detectDelimiter(lines[0])
   const matrix = lines.map((line) => parseCsvLine(line, delimiter))
-  return mapMatrixToRows(matrix)
+  return mapMatrixToRows(matrix, sourceFormat)
 }
 
-export function parseAccountingExcelBuffer(buffer: Buffer): AccountingImportRow[] {
+export function parseAccountingExcelBuffer(
+  buffer: Buffer,
+  sourceFormat: AccountingSourceFormat = "generic",
+): AccountingImportRow[] {
   const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true })
   const sheetName = workbook.SheetNames[0]
   if (!sheetName) {
@@ -170,16 +187,20 @@ export function parseAccountingExcelBuffer(buffer: Buffer): AccountingImportRow[
     defval: "",
   }) as unknown[][]
 
-  return mapMatrixToRows(matrix)
+  return mapMatrixToRows(matrix, sourceFormat)
 }
 
-export function parseAccountingFile(buffer: Buffer, fileName: string): AccountingImportRow[] {
+export function parseAccountingFile(
+  buffer: Buffer,
+  fileName: string,
+  sourceFormat: AccountingSourceFormat = "generic",
+): AccountingImportRow[] {
   const format = detectAccountingFileFormat(fileName)
 
   if (format === "csv") {
     const content = buffer.toString("utf-8")
-    return parseAccountingCsvContent(content)
+    return parseAccountingCsvContent(content, sourceFormat)
   }
 
-  return parseAccountingExcelBuffer(buffer)
+  return parseAccountingExcelBuffer(buffer, sourceFormat)
 }

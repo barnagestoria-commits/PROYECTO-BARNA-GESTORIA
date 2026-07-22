@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db"
 import {
+  encodeImportFormatLabel,
+  type AccountingSourceFormat,
+} from "@/lib/imports/accounting-formats"
+import {
   detectAccountingFileFormat,
   parseAccountingFile,
   type AccountingImportRow,
@@ -20,21 +24,22 @@ export async function importAccountingFile(
   fileName: string,
   buffer: Buffer,
   uploadedById?: string,
+  sourceFormat: AccountingSourceFormat = "generic",
 ) {
-  const format = detectAccountingFileFormat(fileName)
+  const fileFormat = detectAccountingFileFormat(fileName)
 
   const importRecord = await prisma.accountingDataImport.create({
     data: {
       companyId,
       fileName,
-      format,
+      format: encodeImportFormatLabel(sourceFormat, fileFormat),
       status: "PENDIENTE",
       uploadedById,
     },
   })
 
   try {
-    const rows = parseAccountingFile(buffer, fileName)
+    const rows = parseAccountingFile(buffer, fileName, sourceFormat)
     const groups = groupRowsByDate(rows)
     let entriesCreated = 0
 
@@ -70,7 +75,8 @@ export async function importAccountingFile(
     return {
       id: importRecord.id,
       fileName,
-      format,
+      format: fileFormat,
+      sourceFormat,
       rowsImported: rows.length,
       status: "PROCESADO" as const,
       entriesCreated,

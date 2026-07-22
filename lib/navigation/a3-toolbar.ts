@@ -156,7 +156,7 @@ export const A3_TOOLBAR_GROUPS: A3ToolbarGroup[] = [
         id: "importar",
         label: "Importar datos contables",
         description: "Subir CSV/Excel de facturas y movimientos externos",
-        href: "/dashboard/utilidades/importar",
+        href: "/dashboard/importacion",
       },
     ],
   },
@@ -170,7 +170,8 @@ export function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/contabilidad")) return "Contabilización"
   if (pathname.startsWith("/dashboard/inmovilizado/parametrizacion")) return "Parametrización"
   if (pathname.startsWith("/dashboard/inmovilizado")) return "Mantenimiento de Inmovilizado"
-  if (pathname.startsWith("/dashboard/utilidades/importar")) return "Importar Datos"
+  if (pathname.startsWith("/dashboard/importacion")) return "Importación y exportación"
+  if (pathname.startsWith("/dashboard/utilidades/importar")) return "Importación y exportación"
   if (pathname.startsWith("/dashboard/fiscal/pagar-devolver")) return "A pagar / devolver"
   if (pathname.match(/^\/dashboard\/fiscal\/\d{3}\/\d{4}/)) return "Borrador fiscal"
   if (pathname.match(/^\/dashboard\/fiscal\/\d{3}$/)) {
