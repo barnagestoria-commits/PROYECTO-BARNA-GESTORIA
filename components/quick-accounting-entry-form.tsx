@@ -48,6 +48,8 @@ import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
 import { NifAccountDialog } from "@/components/accounting/nif-account-dialog"
 import { NewSubaccountDialog, type AccountCreationResult } from "@/components/accounting/new-subaccount-dialog"
 import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
+import { AccountMovementsDialog } from "@/components/accounting/account-movements-dialog"
+import { normalizeCuenta } from "@/lib/reports/format"
 
 function cellKey(row: number, field: EntryCellField): string {
   return `${row}-${field}`
@@ -57,6 +59,11 @@ function parseAmount(value: string): number {
   const normalized = value.replace(",", ".").trim()
   const parsed = Number.parseFloat(normalized)
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0
+}
+
+function isValidAccountValue(value: string): boolean {
+  const digits = normalizeCuenta(value)
+  return digits.length >= 2 && value.trim().toUpperCase() !== "EX"
 }
 
 function isInvoiceCommand(code: AccountingCommandCode | null): code is "17" | "34" {
@@ -87,8 +94,11 @@ export function QuickAccountingEntryForm() {
   const [pgcDialogOpen, setPgcDialogOpen] = useState(false)
   const [nifDialogOpen, setNifDialogOpen] = useState(false)
   const [newSubaccountPrefix, setNewSubaccountPrefix] = useState<NewAccountPrefix | null>(null)
+  const [movementsDialogOpen, setMovementsDialogOpen] = useState(false)
+  const [movementsAccount, setMovementsAccount] = useState<string | null>(null)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
+  const lastAccountByRow = useRef<Map<number, string>>(new Map())
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -183,6 +193,7 @@ export function QuickAccountingEntryForm() {
       assignment: { formattedAccountCode: string; name: string; cif?: string },
       targetRow = 0,
     ) => {
+      lastAccountByRow.current.set(targetRow, assignment.formattedAccountCode)
       setLines((prev) =>
         prev.map((line, index) =>
           index === targetRow
@@ -267,6 +278,14 @@ export function QuickAccountingEntryForm() {
   }, [loadLedgerSubaccounts, loadThirdParties])
 
   useEffect(() => {
+    lines.forEach((line, index) => {
+      if (isValidAccountValue(line.cuenta)) {
+        lastAccountByRow.current.set(index, line.cuenta)
+      }
+    })
+  }, [lines])
+
+  useEffect(() => {
     const comando = searchParams.get("comando")
     if (comando) {
       const code = parseCommandInput(comando)
@@ -298,22 +317,6 @@ export function QuickAccountingEntryForm() {
     }))
   }, [fecha])
 
-  useEffect(() => {
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "F4") {
-        event.preventDefault()
-        setPgcDialogOpen(true)
-      }
-      if (event.key === "F6") {
-        event.preventDefault()
-        setNifDialogOpen(true)
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown)
-    return () => window.removeEventListener("keydown", onKeyDown)
-  }, [])
-
   const handleCommandKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") return
     event.preventDefault()
@@ -339,8 +342,56 @@ export function QuickAccountingEntryForm() {
   }
 
   const updateLine = (lineId: string, patch: Partial<AccountingEntryLine>) => {
-    setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)))
+    setLines((prev) =>
+      prev.map((line, index) => {
+        if (line.id !== lineId) return line
+        const next = { ...line, ...patch }
+        if (patch.cuenta !== undefined && isValidAccountValue(patch.cuenta)) {
+          lastAccountByRow.current.set(index, patch.cuenta)
+        }
+        return next
+      }),
+    )
   }
+
+  const openAccountExtract = useCallback((row: number, explicitAccount?: string) => {
+    const account =
+      explicitAccount ??
+      (lines[row]?.cuenta && isValidAccountValue(lines[row].cuenta)
+        ? lines[row].cuenta
+        : lastAccountByRow.current.get(row) ??
+          lines.find((line) => isValidAccountValue(line.cuenta))?.cuenta ??
+          null)
+
+    if (!account) {
+      setSubmitError("Introduce una cuenta contable antes de consultar EX.")
+      return
+    }
+
+    setSubmitError(null)
+    setMovementsAccount(account)
+    setMovementsDialogOpen(true)
+  }, [lines])
+
+  useEffect(() => {
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "F4") {
+        event.preventDefault()
+        setPgcDialogOpen(true)
+      }
+      if (event.key === "F6") {
+        event.preventDefault()
+        setNifDialogOpen(true)
+      }
+      if (event.key === "F8") {
+        event.preventDefault()
+        openAccountExtract(activeCell.row)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [activeCell.row, openAccountExtract])
 
   const removeLine = (lineId: string) => {
     setLines((prev) => (prev.length > 1 ? prev.filter((line) => line.id !== lineId) : prev))
@@ -450,12 +501,12 @@ export function QuickAccountingEntryForm() {
               </CardTitle>
               <CardDescription className="break-words text-pretty leading-relaxed">
                 Comandos prediseñados o asiento manual. En cualquier línea: sugerencias de cuenta,
-                F4 plan contable, F6 por NIF y código+ (430+, 678+, …) para alta de subcuenta.
+                F4 plan contable, F6 por NIF, código+ (430+, 678+) con Tab y EX para ver movimientos.
               </CardDescription>
             </div>
             <Badge variant="secondary" className="w-fit gap-1">
               <Keyboard className="h-3 w-3" />
-              F4 · F6 · 678+
+              F4 · F6 · F8 · 678+
             </Badge>
           </div>
         </CardHeader>
@@ -581,11 +632,14 @@ export function QuickAccountingEntryForm() {
                           onCreateAccountPrefix={(prefix) =>
                             handleCreateAccountPrefix(prefix, rowIndex)
                           }
+                          onOpenAccountExtract={(accountCode) => openAccountExtract(rowIndex, accountCode)}
+                          extractAccountCode={lastAccountByRow.current.get(rowIndex) ?? null}
                           onSelectSuggestion={(suggestion) => {
                             if (
                               (suggestion.source === "tercero" || suggestion.source === "ledger") &&
                               suggestion.subtitle
                             ) {
+                              lastAccountByRow.current.set(rowIndex, suggestion.label)
                               updateLine(line.id, {
                                 cuenta: suggestion.label,
                                 concepto: suggestion.subtitle.split(" · ")[0] ?? line.concepto,
@@ -730,7 +784,7 @@ export function QuickAccountingEntryForm() {
                 </>
               ) : (
                 <span className="text-sm text-gray-500">
-                  F4 plan contable · F6 NIF · código+ nueva subcuenta (430+, 678+, …)
+                  F4 plan contable · F6 NIF · Tab en 430+ · EX / F8 movimientos
                 </span>
               )}
             </div>
@@ -790,6 +844,16 @@ export function QuickAccountingEntryForm() {
         prefix={newSubaccountPrefix}
         onClose={() => setNewSubaccountPrefix(null)}
         onCreated={handleSubaccountCreated}
+      />
+
+      <AccountMovementsDialog
+        open={movementsDialogOpen}
+        cuenta={movementsAccount}
+        year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
+        onClose={() => {
+          setMovementsDialogOpen(false)
+          setMovementsAccount(null)
+        }}
       />
     </div>
   )

@@ -17,6 +17,7 @@ import {
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
 import { parseNewAccountPrefix, type NewAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { normalizeCuenta } from "@/lib/reports/format"
 import { cn } from "@/lib/utils"
 
 interface AccountCellInputProps {
@@ -24,13 +25,24 @@ interface AccountCellInputProps {
   onChange: (value: string) => void
   onSelectSuggestion?: (suggestion: AccountSuggestion) => void
   onCreateAccountPrefix?: (prefix: NewAccountPrefix) => void
+  onOpenAccountExtract?: (accountCode: string) => void
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
   onFocus?: () => void
   inputRef?: (el: HTMLInputElement | null) => void
   thirdParties: ThirdPartyAccountOption[]
   ledgerSubaccounts?: LedgerSubaccountOption[]
+  extractAccountCode?: string | null
   hasWarning?: boolean
   rowLabel: string
+}
+
+function isExtractCommand(value: string): boolean {
+  return value.trim().toUpperCase() === "EX"
+}
+
+function isValidAccountCode(value: string): boolean {
+  const digits = normalizeCuenta(value)
+  return digits.length >= 2 && !isExtractCommand(value)
 }
 
 export function AccountCellInput({
@@ -38,11 +50,13 @@ export function AccountCellInput({
   onChange,
   onSelectSuggestion,
   onCreateAccountPrefix,
+  onOpenAccountExtract,
   onKeyDown,
   onFocus,
   inputRef,
   thirdParties,
   ledgerSubaccounts = [],
+  extractAccountCode,
   hasWarning,
   rowLabel,
 }: AccountCellInputProps) {
@@ -52,10 +66,12 @@ export function AccountCellInput({
 
   const suggestions = useMemo(
     () =>
-      searchAccountSuggestions(value, thirdParties, ledgerSubaccounts, {
-        preferPrefix: inferThirdPartyPrefix(value) ?? undefined,
-        limit: 12,
-      }),
+      isExtractCommand(value)
+        ? []
+        : searchAccountSuggestions(value, thirdParties, ledgerSubaccounts, {
+            preferPrefix: inferThirdPartyPrefix(value) ?? undefined,
+            limit: 12,
+          }),
     [ledgerSubaccounts, thirdParties, value],
   )
 
@@ -86,12 +102,34 @@ export function AccountCellInput({
     setOpen(false)
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    const createPrefix = parseNewAccountPrefix(value)
+  const tryOpenExtract = (): boolean => {
+    const accountCode = extractAccountCode ?? (isValidAccountCode(value) ? value : null)
+    if (!accountCode) return false
+    onOpenAccountExtract?.(accountCode)
+    return true
+  }
 
-    if (event.key === "Enter" && createPrefix) {
+  const tryOpenCreateDialog = (): boolean => {
+    const createPrefix = parseNewAccountPrefix(value)
+    if (!createPrefix) return false
+    onCreateAccountPrefix?.(createPrefix)
+    return true
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    const isConfirmKey =
+      event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)
+
+    if (isConfirmKey && isExtractCommand(value)) {
       event.preventDefault()
-      onCreateAccountPrefix?.(createPrefix)
+      if (!tryOpenExtract()) {
+        onKeyDown?.(event)
+      }
+      return
+    }
+
+    if (isConfirmKey && tryOpenCreateDialog()) {
+      event.preventDefault()
       return
     }
 
@@ -127,15 +165,15 @@ export function AccountCellInput({
         value={value}
         onChange={(event) => {
           onChange(event.target.value)
-          setOpen(true)
+          setOpen(!isExtractCommand(event.target.value))
         }}
         onFocus={() => {
           onFocus?.()
-          setOpen(true)
+          if (!isExtractCommand(value)) setOpen(true)
         }}
         onKeyDown={handleKeyDown}
         className={cn("h-9 font-mono", hasWarning && "border-amber-400")}
-        placeholder="430 · 678+"
+        placeholder="430 · 678+ · EX"
         aria-label={rowLabel}
         aria-expanded={open && suggestions.length > 0}
         aria-autocomplete="list"

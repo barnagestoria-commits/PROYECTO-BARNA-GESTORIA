@@ -5,6 +5,7 @@ export interface InvoiceVatLine {
   vatType: string
   vatPercent: number
   quota: number
+  taxForm: string
 }
 
 export interface InvoiceEntryDetails {
@@ -20,11 +21,12 @@ export interface InvoiceEntryDetails {
 export function createEmptyVatLine(): InvoiceVatLine {
   return {
     id: `vat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-    operation: "Op.",
+    operation: "1",
     base: 0,
-    vatType: "G",
+    vatType: "04",
     vatPercent: 21,
     quota: 0,
+    taxForm: "347",
   }
 }
 
