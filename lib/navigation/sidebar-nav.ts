@@ -117,11 +117,6 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             href: "/dashboard/contabilidad",
             description: "Clasificación contable de gastos",
           },
-          {
-            label: "Extractos bancarios",
-            href: "/dashboard/compras/extractos",
-            description: "Conciliación con movimientos bancarios",
-          },
         ],
       },
     ],
@@ -206,6 +201,16 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Parametrización amortizaciones",
             href: "/dashboard/inmovilizado/parametrizacion",
             description: "Periodificación y generación",
+          },
+        ],
+      },
+      {
+        title: "Conciliación bancaria",
+        items: [
+          {
+            label: "Extractos bancarios",
+            href: "/dashboard/contabilidad/conciliacion-bancaria",
+            description: "Movimientos bancarios y conciliación de tesorería",
           },
         ],
       },

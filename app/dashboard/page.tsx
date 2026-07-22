@@ -11,7 +11,7 @@ import { useRequireAuth } from "@/components/auth-provider"
 const ACTION_REDIRECTS: Record<string, string> = {
   "subir-factura-recibida": "/dashboard/compras/facturas-recibidas",
   "subir-factura-emitida": "/dashboard/ventas/facturas-emitidas",
-  "subir-extracto": "/dashboard/compras/extractos",
+  "subir-extracto": "/dashboard/contabilidad/conciliacion-bancaria",
 }
 
 function DashboardPageContent() {

@@ -1,11 +1,5 @@
-import { DocumentUploadWorkspace } from "@/components/documents/document-upload-workspace"
+import { redirect } from "next/navigation"
 
-export default function ExtractosBancariosPage() {
-  return (
-    <DocumentUploadWorkspace
-      documentType="extracto-bancario"
-      title="Extractos bancarios"
-      description="Movimientos bancarios y conciliación de tesorería."
-    />
-  )
+export default function ExtractosLegacyPage() {
+  redirect("/dashboard/contabilidad/conciliacion-bancaria")
 }

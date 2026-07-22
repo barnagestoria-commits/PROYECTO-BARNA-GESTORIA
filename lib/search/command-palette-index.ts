@@ -111,9 +111,9 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
   actionItem(
     "action-subir-extracto",
     "Subir extracto bancario",
-    "/dashboard/compras/extractos",
-    "Movimientos bancarios del periodo",
-    ["extracto", "banco", "bancario", "57"],
+    "/dashboard/contabilidad/conciliacion-bancaria",
+    "Conciliación bancaria y movimientos del periodo",
+    ["extracto", "banco", "bancario", "57", "conciliación", "tesorería"],
   ),
   actionItem(
     "action-nuevo-asiento",
