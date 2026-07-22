@@ -64,7 +64,24 @@ export function buildGestoriaCompanyCode(index: number): string {
   return String(1564 + index).padStart(5, "0")
 }
 
-export function mapCompanyToGestoriaRow(company: CompanySummary, index: number): GestoriaCompanyRow {
+export type DocumentStorageMode = "local" | "cloud"
+
+export function resolveCompanyAccessPath(
+  code: string,
+  mode: DocumentStorageMode = "cloud",
+): string {
+  if (mode === "local") {
+    return `\\A3\\A3ECO\\E${code}\\`
+  }
+
+  return `Nube / Barna Gestoría / Clientes / E${code}`
+}
+
+export function mapCompanyToGestoriaRow(
+  company: CompanySummary,
+  index: number,
+  storageMode: DocumentStorageMode = "cloud",
+): GestoriaCompanyRow {
   const code = buildGestoriaCompanyCode(index)
 
   return {
@@ -73,15 +90,18 @@ export function mapCompanyToGestoriaRow(company: CompanySummary, index: number):
     name: company.name,
     type: inferCompanyTaxType(company.name, company.cif),
     res: inferResCode(company.cif, index),
-    accessPath: `\\A3\\A3ECO\\E${code}\\`,
+    accessPath: resolveCompanyAccessPath(code, storageMode),
     cif: company.cif,
   }
 }
 
-export function mapCompaniesToGestoriaRows(companies: CompanySummary[]): GestoriaCompanyRow[] {
+export function mapCompaniesToGestoriaRows(
+  companies: CompanySummary[],
+  storageMode: DocumentStorageMode = "cloud",
+): GestoriaCompanyRow[] {
   return [...companies]
     .sort((a, b) => a.name.localeCompare(b.name, "es"))
-    .map(mapCompanyToGestoriaRow)
+    .map((company, index) => mapCompanyToGestoriaRow(company, index, storageMode))
 }
 
 function matchesFilter(value: string, filter: string): boolean {

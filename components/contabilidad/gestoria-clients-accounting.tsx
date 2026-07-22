@@ -28,19 +28,16 @@ const GRID_COLUMNS =
 function FilterCell({
   value,
   onChange,
-  placeholder,
   "aria-label": ariaLabel,
 }: {
   value: string
   onChange: (value: string) => void
-  placeholder: string
   "aria-label": string
 }) {
   return (
     <Input
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
       aria-label={ariaLabel}
       className="h-8 rounded-none border-0 border-r border-sand-300 bg-white px-2 text-xs shadow-none focus-visible:ring-1 focus-visible:ring-emerald-500"
     />
@@ -152,7 +149,7 @@ export function GestoriaClientsAccountingPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-pine-900">Contabilidad Clientes Gestoría</h1>
         <p className="mt-1 text-sm text-graphite-500">
-          Buscador de empresas cliente · estilo A3 Empresas
+          Buscador de empresas cliente · modo nube (documentación centralizada en Barna Gestoría)
         </p>
       </div>
 
@@ -173,51 +170,50 @@ export function GestoriaClientsAccountingPage() {
           <ToolbarIconButton
             label="Ayuda"
             icon={HelpCircle}
-            onClick={() => setStatusMessage("Use los filtros superiores para localizar empresas por código, nombre, tipo, res o camino de acceso.")}
+            onClick={() =>
+              setStatusMessage(
+                "En modo nube la documentación se guarda en el repositorio de Barna Gestoría por cliente. En instalación de escritorio se usará ruta local tipo A3.",
+              )
+            }
           />
         </div>
 
         <div className="flex flex-col lg:flex-row">
           <div className="min-w-0 flex-1">
-            <div className={cn(GRID_COLUMNS, "border-b border-sand-300 bg-sand-200/80")}>
-              <FilterCell
-                value={filters.code}
-                onChange={(value) => updateFilter("code", value)}
-                placeholder="Cód."
-                aria-label="Filtrar por código"
-              />
-              <FilterCell
-                value={filters.name}
-                onChange={(value) => updateFilter("name", value)}
-                placeholder="Nombre Empresa"
-                aria-label="Filtrar por nombre"
-              />
-              <FilterCell
-                value={filters.type}
-                onChange={(value) => updateFilter("type", value)}
-                placeholder="Tipo"
-                aria-label="Filtrar por tipo"
-              />
-              <FilterCell
-                value={filters.res}
-                onChange={(value) => updateFilter("res", value)}
-                placeholder="Res"
-                aria-label="Filtrar por res"
-              />
-              <FilterCell
-                value={filters.accessPath}
-                onChange={(value) => updateFilter("accessPath", value)}
-                placeholder="Camino de Acceso"
-                aria-label="Filtrar por camino de acceso"
-              />
-            </div>
-
             <div className={cn(GRID_COLUMNS, "border-b border-sand-300 bg-sand-100 text-[11px] font-semibold uppercase tracking-wide text-graphite-600")}>
               <div className="border-r border-sand-300 px-2 py-2">Cód.</div>
               <div className="border-r border-sand-300 px-2 py-2">Nombre Empresa</div>
               <div className="border-r border-sand-300 px-2 py-2">Tipo</div>
               <div className="border-r border-sand-300 px-2 py-2">Res</div>
               <div className="px-2 py-2">Camino de Acceso</div>
+            </div>
+
+            <div className={cn(GRID_COLUMNS, "border-b border-sand-300 bg-sand-200/80")}>
+              <FilterCell
+                value={filters.code}
+                onChange={(value) => updateFilter("code", value)}
+                aria-label="Filtrar por código"
+              />
+              <FilterCell
+                value={filters.name}
+                onChange={(value) => updateFilter("name", value)}
+                aria-label="Filtrar por nombre de empresa"
+              />
+              <FilterCell
+                value={filters.type}
+                onChange={(value) => updateFilter("type", value)}
+                aria-label="Filtrar por tipo"
+              />
+              <FilterCell
+                value={filters.res}
+                onChange={(value) => updateFilter("res", value)}
+                aria-label="Filtrar por res"
+              />
+              <FilterCell
+                value={filters.accessPath}
+                onChange={(value) => updateFilter("accessPath", value)}
+                aria-label="Filtrar por camino de acceso"
+              />
             </div>
 
             <div className="max-h-[420px] overflow-auto bg-white">
