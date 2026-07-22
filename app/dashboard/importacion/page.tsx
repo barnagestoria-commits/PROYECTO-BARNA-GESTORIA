@@ -1,17 +1,5 @@
-import { Suspense } from "react"
-import { Loader2 } from "lucide-react"
-import { ImportExportHub } from "@/components/import-export/import-export-hub"
+import { redirect } from "next/navigation"
 
-export default function ImportacionPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex justify-center py-16">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
-        </div>
-      }
-    >
-      <ImportExportHub />
-    </Suspense>
-  )
+export default function ImportacionAliasPage() {
+  redirect("/dashboard/utilidades/importar")
 }

@@ -128,29 +128,24 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
     id: "importacion",
     label: "Importación",
     icon: ScanLine,
-    href: "/dashboard/importacion",
+    href: "/dashboard/utilidades/importar",
     sections: [
       {
         title: "Intercambio contable",
         items: [
           {
-            label: "Centro importación / exportación",
-            href: "/dashboard/importacion",
-            description: "A3, Holded, Sage y CSV genérico",
-          },
-          {
-            label: "Importar asientos",
-            href: "/dashboard/importacion?tab=importar",
-            description: "Subir diario desde otro software",
+            label: "Importar datos contables",
+            href: "/dashboard/utilidades/importar",
+            description: "A3, Holded, Sage y CSV/Excel genérico",
           },
           {
             label: "Exportar asientos",
-            href: "/dashboard/importacion?tab=exportar",
-            description: "Descargar compatible con A3 / Holded",
+            href: "/dashboard/utilidades/importar?tab=exportar",
+            description: "Descargar diario compatible con A3 / Holded",
           },
           {
             label: "Historial de importaciones",
-            href: "/dashboard/importacion?tab=historial",
+            href: "/dashboard/utilidades/importar?tab=historial",
             description: "Ficheros procesados recientemente",
           },
         ],
@@ -324,6 +319,9 @@ export function isNavLinkActive(href: string, pathname: string, searchParams?: s
   }
   if (path === "/dashboard/importacion") {
     return pathname === "/dashboard/importacion" || pathname.startsWith("/dashboard/importacion/")
+  }
+  if (path === "/dashboard/utilidades/importar") {
+    return pathname === "/dashboard/utilidades/importar"
   }
   if (path === "/dashboard/fiscal") {
     return pathname === "/dashboard/fiscal" || pathname.startsWith("/dashboard/fiscal/")

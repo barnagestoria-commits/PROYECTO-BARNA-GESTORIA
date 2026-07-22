@@ -78,10 +78,10 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
   ),
   navItem(
     "nav-importar",
-    "Importación y exportación",
-    "/dashboard/importacion",
+    "Importar datos contables",
+    "/dashboard/utilidades/importar",
     "A3, Holded, Sage y CSV",
-    ["importar", "exportar", "csv", "excel", "a3", "holded"],
+    ["importar", "exportar", "csv", "excel", "a3", "holded", "importación"],
   ),
   ...A3_TOOLBAR_GROUPS.flatMap((group) =>
     group.items.map((item) =>
