@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type KeyboardEvent } from "react"
 import { Plus, Receipt, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -101,6 +101,23 @@ export function InvoiceEntryPanel({
   const openTaxFormDialog = (lineId: string) => {
     setActiveVatLineId(lineId)
     setTaxFormDialogOpen(true)
+  }
+
+  const triggerApplyTotals = () => {
+    const payload = {
+      base: totals.base,
+      quota: totals.quota,
+      total: netTotal,
+      irpf: irpfQuota,
+    }
+    onApplyTotals(payload)
+  }
+
+  const handlePanelApplyKeyDown = (event: KeyboardEvent) => {
+    if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
+      event.preventDefault()
+      triggerApplyTotals()
+    }
   }
 
   return (
@@ -296,6 +313,7 @@ export function InvoiceEntryPanel({
                         onChange={(event) =>
                           updateVatLine(line.id, { base: Number.parseFloat(event.target.value) || 0 })
                         }
+                        onKeyDown={handlePanelApplyKeyDown}
                         className="h-8 text-right font-mono"
                       />
                     </td>
@@ -385,14 +403,7 @@ export function InvoiceEntryPanel({
               type="button"
               size="sm"
               className="bg-emerald-800 hover:bg-pine-900"
-              onClick={() =>
-                onApplyTotals({
-                  base: totals.base,
-                  quota: totals.quota,
-                  total: netTotal,
-                  irpf: irpfQuota,
-                })
-              }
+              onClick={triggerApplyTotals}
             >
               Aplicar al asiento
             </Button>

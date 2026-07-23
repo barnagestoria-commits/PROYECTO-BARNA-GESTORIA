@@ -17,7 +17,16 @@ import {
   Zap,
 } from "lucide-react"
 import type { AccountingCommandCode, AccountingEntryLine, EntryCellField } from "@/lib/types/accounting-entry"
-import { getCellFieldsForRow } from "@/lib/types/accounting-entry"
+import {
+  applyAmountToLineSide,
+  getInvoiceAmountsFromDetails,
+  getLineAmountSide,
+  getLinePrefilledAmount,
+  getNavigableFieldsForRow,
+  getNextNavigableField,
+  isAmountFieldDisabled,
+  type EntryNavigationContext,
+} from "@/lib/accounting/entry-line-navigation"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
 import {
   isAnalyticAccount,
@@ -60,6 +69,8 @@ import {
   applyInvoiceAmountsToLines,
   applyTreatmentToEntryLines,
   applyTreatmentToInvoiceDetails,
+  calculateInvoiceAmountsWithIrpf,
+  ensureMinimumInvoiceLines,
 } from "@/lib/accounting/invoice-auto-fill"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { apiFetch } from "@/lib/api-client"
@@ -162,6 +173,16 @@ export function QuickAccountingEntryForm() {
     return "recibida"
   }, [activeCommand, lines])
 
+  const navigationContext = useMemo(
+    (): EntryNavigationContext => ({
+      activeCommand,
+      invoiceMode,
+      invoiceDetails: showInvoicePanel ? invoiceDetails : null,
+      lines,
+    }),
+    [activeCommand, invoiceMode, invoiceDetails, showInvoicePanel, lines],
+  )
+
   const loadThirdParties = useCallback(async () => {
     if (!activeCompany?.id) {
       setThirdParties([])
@@ -210,22 +231,66 @@ export function QuickAccountingEntryForm() {
     el?.select()
   }, [])
 
+  const syncInvoiceAmountsToLines = useCallback(
+    (sourceLines: AccountingEntryLine[]) => {
+      const amounts =
+        getInvoiceAmountsFromDetails(invoiceDetails) ??
+        calculateInvoiceAmountsWithIrpf(invoiceDetails)
+      if (amounts.base <= 0 && amounts.quota <= 0 && amounts.total <= 0) {
+        return sourceLines
+      }
+
+      let next = ensureMinimumInvoiceLines(sourceLines)
+      next = applyInvoiceAmountsToLines(next, amounts, {
+        activeCommand: activeCommand ?? undefined,
+      })
+
+      if (isInvoiceConceptCommand(activeCommand)) {
+        next = applyInvoiceConceptsToLines(next, activeCommand, invoiceDetails.invoiceNumber)
+      }
+
+      return next
+    },
+    [activeCommand, invoiceDetails],
+  )
+
+  const prefillLineAmount = useCallback(
+    (row: number, sourceLines = lines) => {
+      const line = sourceLines[row]
+      if (!line) return
+
+      const ctx: EntryNavigationContext = {
+        ...navigationContext,
+        lines: sourceLines,
+      }
+      const side = getLineAmountSide(row, line, ctx)
+      const amount = getLinePrefilledAmount(row, ctx)
+      if (!side || amount <= 0) return
+
+      setLines((prev) =>
+        prev.map((item) =>
+          item.id === line.id ? applyAmountToLineSide(item, side, amount) : item,
+        ),
+      )
+    },
+    [lines, navigationContext],
+  )
+
   const focusNextCell = useCallback(
     (row: number, field: EntryCellField) => {
-      const fields = getCellFieldsForRow(row)
-      const fieldIndex = fields.indexOf(field)
-      if (fieldIndex < fields.length - 1) {
-        focusCell(row, fields[fieldIndex + 1])
+      const next = getNextNavigableField(row, field, navigationContext)
+      if (next) {
+        if (next.field === "debe" || next.field === "haber") {
+          prefillLineAmount(next.row)
+        }
+        focusCell(next.row, next.field)
         return
       }
-      if (row < lines.length - 1) {
-        focusCell(row + 1, getCellFieldsForRow(row + 1)[0])
-      } else {
-        setLines((prev) => [...prev, createEmptyLine()])
-        requestAnimationFrame(() => focusCell(row + 1, "concepto"))
-      }
+
+      setLines((prev) => [...prev, createEmptyLine()])
+      requestAnimationFrame(() => focusCell(row + 1, "concepto"))
     },
-    [focusCell, lines.length],
+    [focusCell, navigationContext, prefillLineAmount],
   )
 
   const applyAccountTreatment = useCallback(
@@ -280,31 +345,56 @@ export function QuickAccountingEntryForm() {
         assignment.accountCode ?? assignment.formattedAccountCode,
         targetRow,
       )
-      requestAnimationFrame(() => focusCell(targetRow, "debe"))
+      requestAnimationFrame(() => {
+        const line = lines[targetRow]
+        if (!line) {
+          focusCell(targetRow, "debe")
+          return
+        }
+        const side = getLineAmountSide(targetRow, line, navigationContext) ?? "debe"
+        prefillLineAmount(targetRow)
+        focusCell(targetRow, side)
+      })
     },
-    [applyAccountTreatment, focusCell],
+    [applyAccountTreatment, focusCell, lines, navigationContext, prefillLineAmount],
   )
 
-  const applyInvoiceTotals = useCallback(
-    (amounts: { base: number; quota: number; total: number; irpf?: number }) => {
+  const applyInvoiceTotalsAndFocus = useCallback(
+    (amounts?: { base: number; quota: number; total: number; irpf?: number }) => {
+      const resolved = amounts ?? calculateInvoiceAmountsWithIrpf(invoiceDetails)
       setLines((prev) => {
-        const withAmounts = applyInvoiceAmountsToLines(
-          prev,
+        let next = ensureMinimumInvoiceLines(prev)
+        next = applyInvoiceAmountsToLines(
+          next,
           {
-            base: amounts.base,
-            quota: amounts.quota,
-            irpf: amounts.irpf ?? 0,
-            total: amounts.total,
+            base: resolved.base,
+            quota: resolved.quota,
+            irpf: resolved.irpf ?? 0,
+            total: resolved.total,
           },
           { activeCommand: activeCommand ?? undefined },
         )
 
-        return isInvoiceConceptCommand(activeCommand)
-          ? applyInvoiceConceptsToLines(withAmounts, activeCommand, invoiceDetails.invoiceNumber)
-          : withAmounts
+        if (isInvoiceConceptCommand(activeCommand)) {
+          next = applyInvoiceConceptsToLines(next, activeCommand, invoiceDetails.invoiceNumber)
+        }
+
+        requestAnimationFrame(() => {
+          const ctx: EntryNavigationContext = {
+            activeCommand,
+            invoiceMode,
+            invoiceDetails,
+            lines: next,
+          }
+          const firstLine = next[0]
+          const side = firstLine ? getLineAmountSide(0, firstLine, ctx) ?? "debe" : "debe"
+          focusCell(0, side)
+        })
+
+        return next
       })
     },
-    [activeCommand, invoiceDetails.invoiceNumber],
+    [activeCommand, focusCell, invoiceDetails, invoiceMode],
   )
 
   const applyCommand = useCallback(
@@ -506,14 +596,38 @@ export function QuickAccountingEntryForm() {
         return
       }
 
+      if (field === "cuenta") {
+        const ok = await validateAccountBeforeAdvance(row)
+        if (!ok) return
+
+        if (showInvoicePanel) {
+          setLines((prev) => {
+            const synced = syncInvoiceAmountsToLines(prev)
+            requestAnimationFrame(() => {
+              const next = getNextNavigableField(row, field, {
+                ...navigationContext,
+                lines: synced,
+              })
+              if (next) {
+                focusCell(next.row, next.field)
+              } else {
+                focusNextCell(row, field)
+              }
+            })
+            return synced
+          })
+        } else {
+          prefillLineAmount(row)
+          requestAnimationFrame(() => focusNextCell(row, field))
+        }
+        return
+      }
+
       if (field === "debe" || field === "haber") {
         const canAdvance = await maybePromptAnalytic(row)
         if (!canAdvance) return
       }
-      if (field === "cuenta") {
-        const ok = await validateAccountBeforeAdvance(row)
-        if (!ok) return
-      }
+
       focusNextCell(row, field)
     }
   }
@@ -630,6 +744,9 @@ export function QuickAccountingEntryForm() {
     if (activeCell.field === "codigo") {
       return "Indique el Código de Predefinido o Pulse F4"
     }
+    if (activeCell.field === "cuenta") {
+      return "F4 · Plan contable · F6 · Buscar NIF · EX · extracto de cuenta"
+    }
     if (activeCommand) {
       return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
     }
@@ -687,7 +804,11 @@ export function QuickAccountingEntryForm() {
     if (!line) return
     updateLine(line.id, { cuenta: accountCode, concepto: line.concepto || accountName })
     void applyAccountTreatment(accountCode, row)
-    requestAnimationFrame(() => focusCell(row, "concepto"))
+    requestAnimationFrame(() => {
+      const side = getLineAmountSide(row, { ...line, cuenta: accountCode }, navigationContext) ?? "debe"
+      prefillLineAmount(row)
+      focusCell(row, side)
+    })
   }
 
   const handleCreateAccountPrefix = (prefix: NewAccountPrefix, row: number) => {
@@ -798,7 +919,7 @@ export function QuickAccountingEntryForm() {
           }
           details={invoiceDetails}
           onChange={setInvoiceDetails}
-          onApplyTotals={applyInvoiceTotals}
+          onApplyTotals={applyInvoiceTotalsAndFocus}
           onOpenPgcChart={() => setPgcDialogOpen(true)}
           onOpenNifLookup={() => setNifDialogOpen(true)}
         />
@@ -829,6 +950,15 @@ export function QuickAccountingEntryForm() {
                   const invoiceConceptLocked =
                     isInvoiceConceptCommand(activeCommand) &&
                     isInvoiceConceptAccountLine(line.cuenta, activeCommand)
+                  const rowContext: EntryNavigationContext = {
+                    ...navigationContext,
+                    lines,
+                  }
+                  const debeDisabled = isAmountFieldDisabled(rowIndex, line, "debe", rowContext)
+                  const haberDisabled = isAmountFieldDisabled(rowIndex, line, "haber", rowContext)
+                  const conceptSkippable =
+                    getNavigableFieldsForRow(rowIndex, line, rowContext).includes("concepto") ===
+                    false && Boolean(line.concepto)
 
                   return (
                     <tr
@@ -876,11 +1006,12 @@ export function QuickAccountingEntryForm() {
                           onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "concepto")}
-                          readOnly={invoiceConceptLocked}
-                          tabIndex={invoiceConceptLocked ? -1 : undefined}
+                          readOnly={invoiceConceptLocked || conceptSkippable}
+                          tabIndex={invoiceConceptLocked || conceptSkippable ? -1 : undefined}
                           className={cn(
                             "h-9",
-                            invoiceConceptLocked && "bg-sand-50 text-graphite-600",
+                            (invoiceConceptLocked || conceptSkippable) &&
+                              "bg-sand-50 text-graphite-600",
                           )}
                           placeholder="Descripción"
                           title={
@@ -916,22 +1047,6 @@ export function QuickAccountingEntryForm() {
                             openAccountExtract(rowIndex, accountCode)
                           }
                           extractAccountCode={lastAccountByRow.current.get(rowIndex) ?? null}
-                          onSelectSuggestion={(suggestion) => {
-                            if (
-                              (suggestion.source === "tercero" || suggestion.source === "ledger") &&
-                              suggestion.subtitle
-                            ) {
-                              lastAccountByRow.current.set(rowIndex, suggestion.label)
-                              updateLine(line.id, {
-                                cuenta: suggestion.label,
-                                concepto: suggestion.subtitle.split(" · ")[0] ?? line.concepto,
-                              })
-                              if (suggestion.source === "tercero") {
-                                setFocusedThirdParty(suggestion.subtitle.split(" · ")[0] ?? null)
-                                void applyAccountTreatment(suggestion.label, rowIndex)
-                              }
-                            }
-                          }}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "cuenta" })}
                           inputRef={(el) => registerRef(rowIndex, "cuenta", el)}
                           onBeforeAdvance={() => validateAccountBeforeAdvance(rowIndex)}
@@ -939,8 +1054,6 @@ export function QuickAccountingEntryForm() {
                             void validateAccountBeforeAdvance(rowIndex)
                           }}
                           onKeyDown={(event) => void handleCellKeyDown(event, rowIndex, "cuenta")}
-                          thirdParties={thirdParties}
-                          ledgerSubaccounts={ledgerSubaccounts}
                           hasWarning={hasWarning}
                           rowLabel={`Cuenta línea ${rowIndex + 1}`}
                         />
@@ -953,11 +1066,16 @@ export function QuickAccountingEntryForm() {
                           min="0"
                           value={line.debe || ""}
                           onChange={(e) =>
-                            updateLine(line.id, { debe: parseAmount(e.target.value) })
+                            updateLine(line.id, { debe: parseAmount(e.target.value), haber: 0 })
                           }
                           onFocus={() => setActiveCell({ row: rowIndex, field: "debe" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "debe")}
-                          className="h-9 text-right font-mono tabular-nums"
+                          readOnly={debeDisabled}
+                          tabIndex={debeDisabled ? -1 : undefined}
+                          className={cn(
+                            "h-9 text-right font-mono tabular-nums",
+                            debeDisabled && "cursor-default bg-gray-100 text-gray-400",
+                          )}
                           placeholder="0,00"
                           aria-label={`Debe línea ${rowIndex + 1}`}
                         />
@@ -970,11 +1088,16 @@ export function QuickAccountingEntryForm() {
                           min="0"
                           value={line.haber || ""}
                           onChange={(e) =>
-                            updateLine(line.id, { haber: parseAmount(e.target.value) })
+                            updateLine(line.id, { haber: parseAmount(e.target.value), debe: 0 })
                           }
                           onFocus={() => setActiveCell({ row: rowIndex, field: "haber" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "haber")}
-                          className="h-9 text-right font-mono tabular-nums"
+                          readOnly={haberDisabled}
+                          tabIndex={haberDisabled ? -1 : undefined}
+                          className={cn(
+                            "h-9 text-right font-mono tabular-nums",
+                            haberDisabled && "cursor-default bg-gray-100 text-gray-400",
+                          )}
                           placeholder="0,00"
                           aria-label={`Haber línea ${rowIndex + 1}`}
                         />
