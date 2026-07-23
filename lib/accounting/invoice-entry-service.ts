@@ -1,5 +1,6 @@
 import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { calculateTotals } from "@/lib/accounting/command-templates"
 import { buildInvoiceLineConcept } from "@/lib/accounting/invoice-entry-concepts"
 import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
@@ -151,9 +152,12 @@ export async function createInvoiceAccountingEntry(params: {
     )
   }
 
+  const refNumber = await getNextEntryRefNumber(params.companyId)
+
   const entry = await prisma.accountingEntry.create({
     data: {
       companyId: params.companyId,
+      refNumber,
       fecha: parseInvoiceDate(params.invoice.fechaFactura),
       issueDate: parseInvoiceDate(params.invoice.fechaFactura),
       operationDate: parseInvoiceDate(params.invoice.fechaFactura),

@@ -78,6 +78,7 @@ export function normalizeEntryLines(
 export function buildEntryDetail(params: {
   id: string
   companyId: string
+  refNumber: number
   fecha: Date
   issueDate: Date | null
   operationDate: Date | null
@@ -119,6 +120,7 @@ export function buildEntryDetail(params: {
   return {
     id: params.id,
     companyId: params.companyId,
+    refNumber: params.refNumber,
     fecha,
     issueDate,
     operationDate,

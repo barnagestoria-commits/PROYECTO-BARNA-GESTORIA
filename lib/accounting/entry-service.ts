@@ -10,6 +10,7 @@ import {
   type AccountingEntryDetail,
   type SaveAccountingEntryInput,
 } from "@/lib/accounting/entry-payload"
+import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
@@ -39,6 +40,7 @@ function mapEntryLines(
 function toEntryDetail(entry: {
   id: string
   companyId: string
+  refNumber: number
   fecha: Date
   issueDate: Date | null
   operationDate: Date | null
@@ -125,27 +127,32 @@ export async function createAccountingEntry(
 
   const invoiceFields = resolveInvoiceFields(input, fecha)
 
-  const entry = await prisma.accountingEntry.create({
-    data: {
-      companyId,
-      fecha,
-      issueDate: invoiceFields.issueDate,
-      operationDate: invoiceFields.operationDate,
-      invoiceNumber: invoiceFields.invoiceNumber,
-      invoiceDataJson: invoiceFields.invoiceDataJson,
-      commandCode,
-      createdById,
-      lines: {
-        create: normalized.lines.map((line, index) => ({
-          sortOrder: index,
-          cuenta: line.cuenta,
-          concepto: line.concepto,
-          debe: line.debe,
-          haber: line.haber,
-        })),
+  const entry = await prisma.$transaction(async (tx) => {
+    const refNumber = await getNextEntryRefNumber(companyId, tx)
+
+    return tx.accountingEntry.create({
+      data: {
+        companyId,
+        refNumber,
+        fecha,
+        issueDate: invoiceFields.issueDate,
+        operationDate: invoiceFields.operationDate,
+        invoiceNumber: invoiceFields.invoiceNumber,
+        invoiceDataJson: invoiceFields.invoiceDataJson,
+        commandCode,
+        createdById,
+        lines: {
+          create: normalized.lines.map((line, index) => ({
+            sortOrder: index,
+            cuenta: line.cuenta,
+            concepto: line.concepto,
+            debe: line.debe,
+            haber: line.haber,
+          })),
+        },
       },
-    },
-    include: { lines: true },
+      include: { lines: true },
+    })
   })
 
   return toEntryDetail(entry)

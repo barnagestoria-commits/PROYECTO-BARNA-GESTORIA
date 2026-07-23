@@ -29,6 +29,7 @@ import {
   isInvoiceConceptCommand,
 } from "@/lib/accounting/invoice-entry-concepts"
 import { cn } from "@/lib/utils"
+import { formatEntryRefLabel } from "@/lib/accounting/entry-ref-service"
 
 interface EditAccountingEntryDialogProps {
   open: boolean
@@ -231,7 +232,9 @@ export function EditAccountingEntryDialog({
     <AccountingModal
       open={open}
       title="Modificación de apunte"
-      subtitle={entry ? `Asiento ${entry.id.slice(0, 8)} · ${entry.commandCode ?? "Manual"}` : undefined}
+      subtitle={
+        entry ? formatEntryRefLabel(entry.refNumber, entry.commandCode) : undefined
+      }
       onClose={onClose}
       className="max-w-6xl"
       footer={
@@ -246,6 +249,24 @@ export function EditAccountingEntryDialog({
             )}
           </div>
           <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              className="bg-emerald-800 hover:bg-pine-900"
+              disabled={!totals.isBalanced || isSaving || isLoading || isDeleting}
+              onClick={handleSave}
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <Save className="mr-1 h-4 w-4" />
+                  Guardar cambios
+                </>
+              )}
+            </Button>
             <Button
               type="button"
               variant="outline"
@@ -259,25 +280,7 @@ export function EditAccountingEntryDialog({
               ) : (
                 <>
                   <X className="mr-1 h-4 w-4" />
-                  Eliminar
-                </>
-              )}
-            </Button>
-            <Button type="button" variant="outline" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              type="button"
-              className="bg-emerald-800 hover:bg-pine-900"
-              disabled={!totals.isBalanced || isSaving || isLoading}
-              onClick={handleSave}
-            >
-              {isSaving ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <Save className="mr-1 h-4 w-4" />
-                  Guardar cambios
+                  Eliminar asiento
                 </>
               )}
             </Button>

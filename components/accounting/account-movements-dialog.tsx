@@ -119,6 +119,7 @@ export function AccountMovementsDialog({
             <table className="w-full min-w-[820px] text-sm">
               <thead className="sticky top-0 bg-sand-100 text-left text-xs uppercase tracking-wide text-graphite-600">
                 <tr>
+                  <th className="px-3 py-2">Ref.</th>
                   <th className="px-3 py-2">Fecha</th>
                   <th className="px-3 py-2">Concepto</th>
                   <th className="px-3 py-2">Contrapartida</th>
@@ -131,7 +132,7 @@ export function AccountMovementsDialog({
               <tbody>
                 {summary.movements.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-graphite-500">
+                    <td colSpan={8} className="px-3 py-8 text-center text-graphite-500">
                       No hay movimientos para esta cuenta en {year}.
                     </td>
                   </tr>
@@ -144,6 +145,7 @@ export function AccountMovementsDialog({
                       onDoubleClick={() => onOpenEntry?.(row.entryId)}
                       title="Clic para modificar el asiento"
                     >
+                      <td className="px-3 py-2 font-mono text-xs font-semibold">{row.refNumber}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.fecha}</td>
                       <td className="px-3 py-2">{row.concepto || "—"}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.contrapartida ?? "—"}</td>

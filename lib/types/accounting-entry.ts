@@ -56,6 +56,7 @@ export interface CreateAccountingEntryRequest {
 export interface AccountingEntryResponse {
   id: string
   companyId: string
+  refNumber: number
   fecha: string
   issueDate?: string | null
   operationDate?: string | null

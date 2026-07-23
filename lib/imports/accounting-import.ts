@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import {
   encodeImportFormatLabel,
   type AccountingSourceFormat,
@@ -47,9 +48,12 @@ export async function importAccountingFile(
       const date = new Date(`${fecha}T00:00:00.000Z`)
       if (Number.isNaN(date.getTime())) continue
 
+      const refNumber = await getNextEntryRefNumber(companyId)
+
       await prisma.accountingEntry.create({
         data: {
           companyId,
+          refNumber,
           fecha: date,
           commandCode: null,
           createdById: uploadedById,

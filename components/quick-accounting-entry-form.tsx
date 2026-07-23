@@ -62,6 +62,7 @@ import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 import { AccountMovementsDialog } from "@/components/accounting/account-movements-dialog"
 import { CompanyExtractDialog } from "@/components/accounting/company-extract-dialog"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
+import { EntryRefSearchBar } from "@/components/accounting/entry-ref-search-bar"
 import { normalizeCuenta } from "@/lib/reports/format"
 import { cn } from "@/lib/utils"
 
@@ -497,7 +498,7 @@ export function QuickAccountingEntryForm() {
     try {
       const data = await apiFetch<{
         success: true
-        entry: { id: string; fecha: string }
+        entry: { id: string; refNumber: number; fecha: string }
       }>("/api/accounting/entries", {
         method: "POST",
         body: JSON.stringify({
@@ -516,7 +517,8 @@ export function QuickAccountingEntryForm() {
         }),
       })
 
-      setSubmitSuccess(`Asiento guardado correctamente (${data.entry.fecha}).`)
+      setSubmitSuccess(`Asiento ${data.entry.refNumber} guardado correctamente (${data.entry.fecha}).`)
+      setMovementsRefreshKey((value) => value + 1)
       resetForm()
       requestAnimationFrame(() => focusCell(0, "cuenta"))
     } catch (error) {
@@ -576,6 +578,11 @@ export function QuickAccountingEntryForm() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
+          <EntryRefSearchBar
+            refreshKey={movementsRefreshKey}
+            onOpenEntry={(entryId) => setEditEntryId(entryId)}
+          />
+
           {focusedThirdParty && (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               Tercero seleccionado: <strong>{focusedThirdParty}</strong>. Revisa la subcuenta y completa el

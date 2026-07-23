@@ -160,6 +160,7 @@ model AccountingEntry {
   id          String      @id @default(cuid())
   companyId   String
   company     Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  refNumber   Int
   fecha       DateTime    @db.Date
   issueDate   DateTime?   @db.Date
   operationDate DateTime? @db.Date
@@ -172,6 +173,7 @@ model AccountingEntry {
   lines       EntryLine[]
   fiscalDocument FiscalDocument?
 
+  @@unique([companyId, refNumber])
   @@index([companyId, fecha])
 }
 

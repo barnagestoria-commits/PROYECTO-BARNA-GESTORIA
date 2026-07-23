@@ -1,5 +1,6 @@
 import type { AmortizationPeriodization, Prisma } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import type { FixedAssetInput, FixedAssetResponse } from "@/lib/types/extended-modules"
 
@@ -268,9 +269,12 @@ export async function generateAmortizations(companyId: string, createdById?: str
     throw new Error("No se generaron importes de amortización para el periodo.")
   }
 
+  const refNumber = await getNextEntryRefNumber(companyId)
+
   const entry = await prisma.accountingEntry.create({
     data: {
       companyId,
+      refNumber,
       fecha: end,
       commandCode: null,
       createdById,
