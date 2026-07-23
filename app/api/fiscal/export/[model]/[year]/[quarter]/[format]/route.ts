@@ -17,20 +17,21 @@ import { prisma } from "@/lib/db"
 export const runtime = "nodejs"
 
 interface RouteContext {
-  params: { model: string; year: string; quarter: string; format: string }
+  params: Promise<{ model: string; year: string; quarter: string; format: string }>
 }
 
 const VALID_FORMATS = new Set<FiscalExportFormat>(["pdf", "xlsx", "csv", "txt", "zip"])
 
 export async function GET(request: Request, { params }: RouteContext) {
   try {
+    const { model, year: yearParam, quarter: quarterParam, format: formatParam } = await params
     const { companyId } = await requireActiveCompany(request)
 
-    if (!isValidModelCode(params.model)) {
+    if (!isValidModelCode(model)) {
       return NextResponse.json({ success: false, error: "Modelo fiscal no válido." }, { status: 400 })
     }
 
-    const format = params.format as FiscalExportFormat
+    const format = formatParam as FiscalExportFormat
     if (!VALID_FORMATS.has(format)) {
       return NextResponse.json(
         { success: false, error: "Formato no válido. Use pdf, xlsx, csv, txt o zip." },
@@ -38,18 +39,18 @@ export async function GET(request: Request, { params }: RouteContext) {
       )
     }
 
-    const year = Number.parseInt(params.year, 10)
+    const year = Number.parseInt(yearParam, 10)
     if (!Number.isFinite(year) || year < 2000 || year > 2100) {
       return NextResponse.json({ success: false, error: "Año no válido." }, { status: 400 })
     }
 
-    const quarter = parseDetailQuarter(params.quarter)
+    const quarter = parseDetailQuarter(quarterParam)
     if (!quarter) {
       return NextResponse.json({ success: false, error: "Trimestre no válido." }, { status: 400 })
     }
 
     const [detail, company] = await Promise.all([
-      buildFiscalModelDetail(companyId, params.model, year, quarter),
+      buildFiscalModelDetail(companyId, model, year, quarter),
       prisma.company.findUnique({ where: { id: companyId }, select: { name: true, cif: true } }),
     ])
 

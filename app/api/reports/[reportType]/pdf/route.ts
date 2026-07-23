@@ -10,7 +10,7 @@ export const runtime = "nodejs"
 const VALID_TYPES = new Set<ReportType>(["balance", "sumas-saldos", "pyg"])
 
 interface RouteContext {
-  params: { reportType: string }
+  params: Promise<{ reportType: string }>
 }
 
 function parseYear(value: string | null): number | null {
@@ -29,8 +29,9 @@ function parseMonth(value: string | null): number | undefined {
 
 export async function GET(request: Request, { params }: RouteContext) {
   try {
+    const { reportType: reportTypeParam } = await params
     const { companyId } = await requireActiveCompany(request)
-    const reportType = params.reportType as ReportType
+    const reportType = reportTypeParam as ReportType
 
     if (!VALID_TYPES.has(reportType)) {
       return NextResponse.json(

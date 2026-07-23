@@ -6,7 +6,7 @@ import { SESSION_COOKIE, getSessionFromToken } from "@/lib/auth/service"
 export const SESSION_HEADER = "x-session-token"
 
 export async function getRequestSession(_request: Request): Promise<AuthSession | null> {
-  const cookieToken = cookies().get(SESSION_COOKIE)?.value
+  const cookieToken = (await cookies()).get(SESSION_COOKIE)?.value
   return getSessionFromToken(cookieToken)
 }
 

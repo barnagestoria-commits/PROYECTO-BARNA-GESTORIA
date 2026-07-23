@@ -179,7 +179,7 @@ export async function establishUserSession(
     },
   })
 
-  cookies().set(SESSION_COOKIE, token, getSessionCookieOptions(session.expiresAt))
+  ;(await cookies()).set(SESSION_COOKIE, token, getSessionCookieOptions(session.expiresAt))
 
   return buildAuthSession(user, session.activeCompanyId)
 }
@@ -199,11 +199,12 @@ export async function loginAccount(email: string, password: string): Promise<Aut
 }
 
 export async function logoutAccount(): Promise<void> {
-  const token = cookies().get(SESSION_COOKIE)?.value
+  const cookieStore = await cookies()
+  const token = cookieStore.get(SESSION_COOKIE)?.value
   if (token) {
     await prisma.session.deleteMany({ where: { token } })
   }
-  cookies().delete(SESSION_COOKIE)
+  cookieStore.delete(SESSION_COOKIE)
 }
 
 export async function getSessionFromToken(token: string | undefined): Promise<AuthSession | null> {
@@ -229,12 +230,12 @@ export async function getSessionFromToken(token: string | undefined): Promise<Au
 }
 
 export async function getCurrentSession(): Promise<AuthSession | null> {
-  const token = cookies().get(SESSION_COOKIE)?.value
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
   return getSessionFromToken(token)
 }
 
 export async function setActiveCompany(companyId: string): Promise<AuthSession> {
-  const token = cookies().get(SESSION_COOKIE)?.value
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
   const session = await getSessionFromToken(token)
 
   if (!session) {
@@ -261,7 +262,7 @@ export async function upgradeAccountPlan(
   targetAccountType: AccountType,
   options?: { gestoriaTierId?: string; empresaTierId?: string },
 ): Promise<AuthSession> {
-  const token = cookies().get(SESSION_COOKIE)?.value
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
   const session = await getSessionFromToken(token)
 
   if (!session) {

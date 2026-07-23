@@ -10,13 +10,14 @@ import type { ReportType } from "@/lib/reports/types"
 export const runtime = "nodejs"
 
 interface RouteContext {
-  params: { reportType: string }
+  params: Promise<{ reportType: string }>
 }
 
 export async function GET(request: Request, { params }: RouteContext) {
   try {
+    const { reportType: reportTypeParam } = await params
     const { companyId } = await requireActiveCompany(request)
-    const reportType = params.reportType as ReportType
+    const reportType = reportTypeParam as ReportType
 
     if (!VALID_REPORT_TYPES.has(reportType)) {
       return NextResponse.json(

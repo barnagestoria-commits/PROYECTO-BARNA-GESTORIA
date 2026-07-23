@@ -47,17 +47,14 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-  experimental: {
-    serverComponentsExternalPackages: [
-      "pdf-parse",
-      "pdfjs-dist",
-      "@napi-rs/canvas",
-      "pdfmake",
-      "exceljs",
-      "xlsx",
-    ],
-    instrumentationHook: true,
-  },
+  serverExternalPackages: [
+    "pdf-parse",
+    "pdfjs-dist",
+    "@napi-rs/canvas",
+    "pdfmake",
+    "exceljs",
+    "xlsx",
+  ],
   async rewrites() {
     // NextAuth está en /api/oauth; Azure/Google a veces redirigen al path por defecto /api/auth/*
     return [

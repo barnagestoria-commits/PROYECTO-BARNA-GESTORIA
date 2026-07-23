@@ -9,7 +9,7 @@ import { parseDetailQuarter } from "@/lib/fiscal/panorama"
 import type { FiscalPeriodKey } from "@/lib/types/fiscal-panorama"
 
 interface RouteContext {
-  params: { year: string; quarter: string }
+  params: Promise<{ year: string; quarter: string }>
 }
 
 async function fetchYearLines(companyId: string, year: number) {
@@ -24,9 +24,10 @@ async function fetchYearLines(companyId: string, year: number) {
 
 export async function GET(request: Request, { params }: RouteContext) {
   try {
+    const { year: yearParam, quarter: quarterParam } = await params
     const { companyId } = await requireActiveCompany(request)
-    const year = Number.parseInt(params.year, 10)
-    const quarter = parseDetailQuarter(params.quarter)
+    const year = Number.parseInt(yearParam, 10)
+    const quarter = parseDetailQuarter(quarterParam)
 
     if (!Number.isFinite(year) || !quarter) {
       return NextResponse.json({ success: false, error: "Periodo no válido." }, { status: 400 })

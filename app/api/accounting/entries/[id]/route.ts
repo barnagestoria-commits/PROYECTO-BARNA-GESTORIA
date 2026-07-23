@@ -9,11 +9,12 @@ import type { SaveAccountingEntryInput } from "@/lib/accounting/entry-payload"
 
 export async function GET(
   _request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await params
     const { companyId } = await requireActiveCompany(_request)
-    const entry = await getAccountingEntryById(companyId, params.id)
+    const entry = await getAccountingEntryById(companyId, id)
 
     if (!entry) {
       return NextResponse.json({ success: false, error: "Asiento no encontrado." }, { status: 404 })
@@ -27,12 +28,13 @@ export async function GET(
 
 export async function PATCH(
   request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await params
     const { companyId } = await requireActiveCompany(request)
     const body = (await request.json()) as SaveAccountingEntryInput
-    const entry = await updateAccountingEntry(companyId, params.id, body)
+    const entry = await updateAccountingEntry(companyId, id, body)
 
     return NextResponse.json({ success: true, entry })
   } catch (error) {
@@ -45,11 +47,12 @@ export async function PATCH(
 
 export async function DELETE(
   _request: Request,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const { id } = await params
     const { companyId } = await requireActiveCompany(_request)
-    await deleteAccountingEntry(companyId, params.id)
+    await deleteAccountingEntry(companyId, id)
     return NextResponse.json({ success: true })
   } catch (error) {
     if (error instanceof Error) {
