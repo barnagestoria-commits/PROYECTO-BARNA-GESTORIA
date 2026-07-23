@@ -2,6 +2,7 @@
 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { CounterpartAccountPicker } from "@/components/accounting/counterpart-account-picker"
 import {
   DOCUMENT_ACCUMULATION_OPTIONS,
   IRPF_ACCOUNT_OPTIONS,
@@ -36,12 +37,10 @@ export function AccountTreatmentFields({
         {showCounterpart && (
           <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="treatment-counterpart">Contrapartida habitual</Label>
-            <Input
+            <CounterpartAccountPicker
               id="treatment-counterpart"
               value={value.defaultCounterpartAccount ?? ""}
-              onChange={(event) => patch({ defaultCounterpartAccount: event.target.value })}
-              placeholder="60700000 · Trabajos realizados"
-              className="font-mono"
+              onChange={(accountCode) => patch({ defaultCounterpartAccount: accountCode })}
             />
           </div>
         )}

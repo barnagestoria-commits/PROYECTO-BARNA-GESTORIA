@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Loader2, Plus, Save, Trash2 } from "lucide-react"
+import { Loader2, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -35,6 +35,7 @@ interface EditAccountingEntryDialogProps {
   entryId: string | null
   onClose: () => void
   onSaved?: () => void
+  onDeleted?: () => void
 }
 
 function mapEntryLines(entry: AccountingEntryDetail): AccountingEntryLine[] {
@@ -52,6 +53,7 @@ export function EditAccountingEntryDialog({
   entryId,
   onClose,
   onSaved,
+  onDeleted,
 }: EditAccountingEntryDialogProps) {
   const [entry, setEntry] = useState<AccountingEntryDetail | null>(null)
   const [fecha, setFecha] = useState("")
@@ -60,6 +62,7 @@ export function EditAccountingEntryDialog({
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -168,6 +171,29 @@ export function EditAccountingEntryDialog({
     )
   }, [entry?.commandCode, invoiceDetails?.invoiceNumber])
 
+  const handleDelete = async () => {
+    if (!entryId || !entry || isDeleting) return
+
+    const confirmed = window.confirm(
+      "¿Eliminar este asiento de forma permanente? Esta acción no se puede deshacer.",
+    )
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      await apiFetch(`/api/accounting/entries/${entryId}`, { method: "DELETE" })
+      onDeleted?.()
+      onSaved?.()
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el asiento.")
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!entryId || !entry || !totals.isBalanced || isSaving) return
 
@@ -220,6 +246,23 @@ export function EditAccountingEntryDialog({
             )}
           </div>
           <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+              disabled={isLoading || isDeleting || isSaving}
+              onClick={handleDelete}
+              title="Eliminar asiento"
+            >
+              {isDeleting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  <X className="mr-1 h-4 w-4" />
+                  Eliminar
+                </>
+              )}
+            </Button>
             <Button type="button" variant="outline" onClick={onClose}>
               Cancelar
             </Button>

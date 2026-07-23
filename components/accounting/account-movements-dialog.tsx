@@ -1,7 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { Loader2, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
@@ -14,6 +15,7 @@ interface AccountMovementsDialogProps {
   refreshKey?: number
   onClose: () => void
   onOpenEntry?: (entryId: string) => void
+  onEntryDeleted?: () => void
 }
 
 export function AccountMovementsDialog({
@@ -23,10 +25,12 @@ export function AccountMovementsDialog({
   refreshKey = 0,
   onClose,
   onOpenEntry,
+  onEntryDeleted,
 }: AccountMovementsDialogProps) {
   const [summary, setSummary] = useState<AccountMovementsSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open || !cuenta) {
@@ -59,6 +63,25 @@ export function AccountMovementsDialog({
       cancelled = true
     }
   }, [cuenta, open, refreshKey, year])
+
+  const handleDeleteEntry = async (entryId: string) => {
+    const confirmed = window.confirm(
+      "¿Eliminar este asiento de forma permanente? Esta acción no se puede deshacer.",
+    )
+    if (!confirmed) return
+
+    setDeletingEntryId(entryId)
+    setError(null)
+
+    try {
+      await apiFetch(`/api/accounting/entries/${entryId}`, { method: "DELETE" })
+      onEntryDeleted?.()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el asiento.")
+    } finally {
+      setDeletingEntryId(null)
+    }
+  }
 
   return (
     <AccountingModal
@@ -102,12 +125,13 @@ export function AccountMovementsDialog({
                   <th className="px-3 py-2 text-right">Debe</th>
                   <th className="px-3 py-2 text-right">Haber</th>
                   <th className="px-3 py-2 text-right">Saldo</th>
+                  <th className="w-10 px-1 py-2" />
                 </tr>
               </thead>
               <tbody>
                 {summary.movements.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-graphite-500">
+                    <td colSpan={7} className="px-3 py-8 text-center text-graphite-500">
                       No hay movimientos para esta cuenta en {year}.
                     </td>
                   </tr>
@@ -132,6 +156,26 @@ export function AccountMovementsDialog({
                       <td className="px-3 py-2 text-right font-mono tabular-nums">
                         {formatEuro(row.saldo)}
                       </td>
+                      <td className="px-1 py-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                          disabled={deletingEntryId === row.entryId}
+                          title="Eliminar asiento"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            void handleDeleteEntry(row.entryId)
+                          }}
+                        >
+                          {deletingEntryId === row.entryId ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <X className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -140,8 +184,8 @@ export function AccountMovementsDialog({
           </div>
 
           <p className="text-xs text-graphite-500">
-            Haz clic en un movimiento para abrir y modificar el asiento, incluidas fechas de expedición y
-            operación.
+            Clic en la fila para modificar el asiento ·{" "}
+            <X className="inline h-3 w-3 text-red-600" /> para eliminarlo
           </p>
         </div>
       ) : null}

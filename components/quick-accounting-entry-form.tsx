@@ -927,6 +927,7 @@ export function QuickAccountingEntryForm() {
         year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
         refreshKey={movementsRefreshKey}
         onOpenEntry={(entryId) => setEditEntryId(entryId)}
+        onEntryDeleted={() => setMovementsRefreshKey((value) => value + 1)}
         onClose={() => {
           setMovementsDialogOpen(false)
           setMovementsAccount(null)
@@ -945,6 +946,7 @@ export function QuickAccountingEntryForm() {
         entryId={editEntryId}
         onClose={() => setEditEntryId(null)}
         onSaved={() => setMovementsRefreshKey((value) => value + 1)}
+        onDeleted={() => setMovementsRefreshKey((value) => value + 1)}
       />
     </div>
   )

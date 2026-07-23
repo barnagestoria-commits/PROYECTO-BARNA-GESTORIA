@@ -210,6 +210,21 @@ export async function updateAccountingEntry(
   return toEntryDetail(entry)
 }
 
+export async function deleteAccountingEntry(companyId: string, entryId: string): Promise<void> {
+  const existing = await prisma.accountingEntry.findFirst({
+    where: { id: entryId, companyId },
+    select: { id: true },
+  })
+
+  if (!existing) {
+    throw new Error("Asiento no encontrado.")
+  }
+
+  await prisma.accountingEntry.delete({
+    where: { id: entryId },
+  })
+}
+
 export function hasInvoiceData(entry: AccountingEntryDetail): boolean {
   return Boolean(
     entry.invoiceDetails ||
