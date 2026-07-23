@@ -8,6 +8,8 @@ export interface AccountingEntryLine {
   concepto: string
   debe: number
   haber: number
+  documento?: string
+  contrapartida?: string
 }
 
 export interface AccountingCommandTemplate {
@@ -32,9 +34,44 @@ export interface EntryTotals {
   isBalanced: boolean
 }
 
-export type EntryCellField = "cuenta" | "concepto" | "debe" | "haber"
+export type EntryCellField =
+  | "fecha"
+  | "codigo"
+  | "concepto"
+  | "documento"
+  | "cuenta"
+  | "debe"
+  | "haber"
+  | "contrapartida"
 
-export const ENTRY_CELL_FIELDS: EntryCellField[] = ["cuenta", "concepto", "debe", "haber"]
+/** Orden de tabulación en la primera línea del asiento (estilo A3CON). */
+export const ENTRY_ROW0_CELL_FIELDS: EntryCellField[] = [
+  "fecha",
+  "codigo",
+  "concepto",
+  "documento",
+  "cuenta",
+  "debe",
+  "haber",
+  "contrapartida",
+]
+
+/** Líneas adicionales del mismo asiento: sin fecha ni código predefinido. */
+export const ENTRY_MANUAL_LINE_FIELDS: EntryCellField[] = [
+  "concepto",
+  "documento",
+  "cuenta",
+  "debe",
+  "haber",
+  "contrapartida",
+]
+
+/** @deprecated Usar getCellFieldsForRow */
+export const ENTRY_CELL_FIELDS: EntryCellField[] = ENTRY_ROW0_CELL_FIELDS
+
+export function getCellFieldsForRow(row: number): EntryCellField[] {
+  return row === 0 ? ENTRY_ROW0_CELL_FIELDS : ENTRY_MANUAL_LINE_FIELDS
+}
 
 export interface CreateAccountingEntryLineInput {
   cuenta: string

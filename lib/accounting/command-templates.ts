@@ -2,6 +2,7 @@ import type {
   AccountingCommandCode,
   AccountingCommandTemplate,
   AccountingEntryLine,
+  EntryCellField,
   EntryTotals,
   LineValidation,
 } from "@/lib/types/accounting-entry"
@@ -96,6 +97,27 @@ export function parseCommandInput(value: string): AccountingCommandCode | null {
     return trimmed as AccountingCommandCode
   }
   return null
+}
+
+/** Campo donde debe situarse el cursor tras confirmar un código predefinido. */
+export function getCommandEntryFocus(code: AccountingCommandCode): {
+  row: number
+  field: EntryCellField
+} {
+  switch (code) {
+    case "17":
+      return { row: 0, field: "debe" }
+    case "34":
+      return { row: 0, field: "documento" }
+    case "16":
+      return { row: 0, field: "cuenta" }
+    case "57":
+      return { row: 0, field: "debe" }
+    case "303":
+      return { row: 0, field: "debe" }
+    default:
+      return { row: 0, field: "concepto" }
+  }
 }
 
 function round2(n: number): number {

@@ -17,7 +17,7 @@ import {
   Zap,
 } from "lucide-react"
 import type { AccountingCommandCode, AccountingEntryLine, EntryCellField } from "@/lib/types/accounting-entry"
-import { ENTRY_CELL_FIELDS } from "@/lib/types/accounting-entry"
+import { getCellFieldsForRow } from "@/lib/types/accounting-entry"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
 import {
   isAnalyticAccount,
@@ -39,13 +39,13 @@ import {
 } from "@/lib/accounting/invoice-entry-concepts"
 import {
   ACCOUNTING_COMMANDS,
-  COMMAND_CODES,
   calculateTotals,
   createEmptyLine,
   formatEuro,
   linesFromTemplate,
   parseCommandInput,
   validateEntryLines,
+  getCommandEntryFocus,
 } from "@/lib/accounting/command-templates"
 import {
   createDefaultInvoiceDetails,
@@ -113,8 +113,9 @@ export function QuickAccountingEntryForm() {
   const [ledgerSubaccounts, setLedgerSubaccounts] = useState<LedgerSubaccountOption[]>([])
   const [activeCell, setActiveCell] = useState<{ row: number; field: EntryCellField }>({
     row: 0,
-    field: "cuenta",
+    field: "fecha",
   })
+  const [codigoDraft, setCodigoDraft] = useState("")
   const [pgcDialogOpen, setPgcDialogOpen] = useState(false)
   const [nifDialogOpen, setNifDialogOpen] = useState(false)
   const [newSubaccountPrefix, setNewSubaccountPrefix] = useState<NewAccountPrefix | null>(null)
@@ -211,16 +212,17 @@ export function QuickAccountingEntryForm() {
 
   const focusNextCell = useCallback(
     (row: number, field: EntryCellField) => {
-      const fieldIndex = ENTRY_CELL_FIELDS.indexOf(field)
-      if (fieldIndex < ENTRY_CELL_FIELDS.length - 1) {
-        focusCell(row, ENTRY_CELL_FIELDS[fieldIndex + 1])
+      const fields = getCellFieldsForRow(row)
+      const fieldIndex = fields.indexOf(field)
+      if (fieldIndex < fields.length - 1) {
+        focusCell(row, fields[fieldIndex + 1])
         return
       }
       if (row < lines.length - 1) {
-        focusCell(row + 1, "cuenta")
+        focusCell(row + 1, getCellFieldsForRow(row + 1)[0])
       } else {
         setLines((prev) => [...prev, createEmptyLine()])
-        requestAnimationFrame(() => focusCell(row + 1, "cuenta"))
+        requestAnimationFrame(() => focusCell(row + 1, "concepto"))
       }
     },
     [focusCell, lines.length],
@@ -305,14 +307,6 @@ export function QuickAccountingEntryForm() {
     [activeCommand, invoiceDetails.invoiceNumber],
   )
 
-  const startManualEntry = useCallback(() => {
-    setActiveCommand(null)
-    setCommandHint(null)
-    setLines([createEmptyLine()])
-    setInvoiceDetails(createDefaultInvoiceDetails(fecha))
-    requestAnimationFrame(() => focusCell(0, "cuenta"))
-  }, [fecha, focusCell])
-
   const applyCommand = useCallback(
     async (code: AccountingCommandCode) => {
       setActiveCommand(code)
@@ -352,10 +346,17 @@ export function QuickAccountingEntryForm() {
         setInvoiceDetails(createDefaultInvoiceDetails(fecha))
       }
 
-      requestAnimationFrame(() => focusCell(0, "cuenta"))
+      requestAnimationFrame(() => {
+        const focus = getCommandEntryFocus(code)
+        focusCell(focus.row, focus.field)
+      })
     },
     [fecha, focusCell],
   )
+
+  useEffect(() => {
+    requestAnimationFrame(() => focusCell(0, "fecha"))
+  }, [focusCell])
 
   useEffect(() => {
     loadThirdParties()
@@ -386,7 +387,10 @@ export function QuickAccountingEntryForm() {
     const comando = searchParams.get("comando")
     if (comando) {
       const code = parseCommandInput(comando)
-      if (code) applyCommand(code)
+      if (code) {
+        setCodigoDraft(comando.trim())
+        applyCommand(code)
+      }
     }
 
     const cuenta = searchParams.get("cuenta")?.trim()
@@ -420,6 +424,28 @@ export function QuickAccountingEntryForm() {
       operationDate: fecha,
     }))
   }, [fecha])
+
+  const applyCodigoFromRow = useCallback(
+    async (row: number, raw: string): Promise<boolean> => {
+      if (row !== 0) return false
+      const trimmed = raw.trim()
+      if (!trimmed) {
+        setActiveCommand(null)
+        setCommandHint(null)
+        setCodigoDraft("")
+        return false
+      }
+      const code = parseCommandInput(trimmed)
+      if (!code) {
+        setCommandHint(`Código "${trimmed}" no reconocido. Use 17, 34, 16, 57 o 303, o deje vacío para apunte manual.`)
+        return false
+      }
+      setCodigoDraft(trimmed)
+      await applyCommand(code)
+      return true
+    },
+    [applyCommand],
+  )
 
   const validateAccountBeforeAdvance = useCallback(
     async (row: number): Promise<boolean> => {
@@ -471,9 +497,22 @@ export function QuickAccountingEntryForm() {
   ) => {
     if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
       event.preventDefault()
+
+      if (field === "codigo") {
+        const applied = await applyCodigoFromRow(row, codigoDraft)
+        if (!applied) {
+          focusNextCell(row, field)
+        }
+        return
+      }
+
       if (field === "debe" || field === "haber") {
         const canAdvance = await maybePromptAnalytic(row)
         if (!canAdvance) return
+      }
+      if (field === "cuenta") {
+        const ok = await validateAccountBeforeAdvance(row)
+        if (!ok) return
       }
       focusNextCell(row, field)
     }
@@ -551,11 +590,12 @@ export function QuickAccountingEntryForm() {
 
   const addLine = () => {
     setLines((prev) => [...prev, createEmptyLine()])
-    requestAnimationFrame(() => focusCell(lines.length, "cuenta"))
+    requestAnimationFrame(() => focusCell(lines.length, "concepto"))
   }
 
   const resetForm = useCallback(() => {
     setActiveCommand(null)
+    setCodigoDraft("")
     setFecha(new Date().toISOString().split("T")[0])
     setLines([createEmptyLine()])
     setInvoiceDetails(createDefaultInvoiceDetails(new Date().toISOString().split("T")[0]))
@@ -564,6 +604,37 @@ export function QuickAccountingEntryForm() {
     setFocusedThirdParty(null)
     setAnalyticByLineId(new Map())
   }, [])
+
+  const getDocumentoValue = useCallback(
+    (rowIndex: number, line: AccountingEntryLine): string => {
+      if (rowIndex === 0 && isInvoiceConceptCommand(activeCommand)) {
+        return invoiceDetails.invoiceNumber
+      }
+      return line.documento ?? ""
+    },
+    [activeCommand, invoiceDetails.invoiceNumber],
+  )
+
+  const handleDocumentoChange = useCallback(
+    (rowIndex: number, lineId: string, value: string) => {
+      if (rowIndex === 0 && isInvoiceConceptCommand(activeCommand)) {
+        setInvoiceDetails((prev) => ({ ...prev, invoiceNumber: value }))
+      } else {
+        updateLine(lineId, { documento: value })
+      }
+    },
+    [activeCommand],
+  )
+
+  const entryStatusHint = useMemo((): string => {
+    if (activeCell.field === "codigo") {
+      return "Indique el Código de Predefinido o Pulse F4"
+    }
+    if (activeCommand) {
+      return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
+    }
+    return "Apunte manual — Tab para avanzar entre campos"
+  }, [activeCell.field, activeCommand])
 
   const handleSubmit = async () => {
     if (!totals.isBalanced || isSubmitting) return
@@ -602,7 +673,7 @@ export function QuickAccountingEntryForm() {
       setSubmitSuccess(`Asiento ${data.entry.refNumber} guardado correctamente (${data.entry.fecha}).`)
       setMovementsRefreshKey((value) => value + 1)
       resetForm()
-      requestAnimationFrame(() => focusCell(0, "cuenta"))
+      requestAnimationFrame(() => focusCell(0, "fecha"))
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "No se pudo guardar el asiento.")
     } finally {
@@ -688,62 +759,24 @@ export function QuickAccountingEntryForm() {
             </div>
           )}
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <label htmlFor="entry-fecha" className="text-xs font-medium text-graphite-600">
-                Fecha asiento
-              </label>
-              <Input
-                id="entry-fecha"
-                type="date"
-                value={fecha}
-                onChange={(e) => setFecha(e.target.value)}
-                className="h-9 w-[148px]"
-              />
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={startManualEntry}
-                className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
-                  !activeCommand
-                    ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                    : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
-                }`}
-              >
-                Asiento manual
-              </button>
-              {COMMAND_CODES.map((code) => (
-                <button
-                  key={code}
-                  type="button"
-                  onClick={() => applyCommand(code)}
-                  className={`rounded-md border px-3 py-1.5 text-xs transition-colors ${
-                    activeCommand === code
-                      ? "border-emerald-600 bg-emerald-50 text-emerald-800"
-                      : "border-gray-200 bg-white text-gray-600 hover:border-emerald-300"
-                  }`}
-                >
-                  <span className="font-mono font-bold">{code}</span>{" "}
-                  {ACCOUNTING_COMMANDS[code].label}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={openCompanyExtract}
-                className="inline-flex items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-800 px-3 py-1.5 text-xs text-white transition-colors hover:bg-pine-900"
-              >
-                <FileSpreadsheet className="h-3.5 w-3.5" />
-                EX extracto
-              </button>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-graphite-500">
+              Tab entre campos · F4 plan contable · F6 NIF · F8 extracto cuenta
+            </p>
+            <button
+              type="button"
+              onClick={openCompanyExtract}
+              className="inline-flex items-center gap-1.5 rounded-md border border-emerald-700 bg-emerald-800 px-3 py-1.5 text-xs text-white transition-colors hover:bg-pine-900"
+            >
+              <FileSpreadsheet className="h-3.5 w-3.5" />
+              EX extracto
+            </button>
           </div>
 
           {activeCommand && (
             <p className="text-sm text-emerald-700">
-              {ACCOUNTING_COMMANDS[activeCommand].label} —{" "}
-              {ACCOUNTING_COMMANDS[activeCommand].description}
+              Código <span className="font-mono font-bold">{activeCommand}</span> —{" "}
+              {ACCOUNTING_COMMANDS[activeCommand].label}
             </p>
           )}
           {commandHint && (
@@ -774,20 +807,25 @@ export function QuickAccountingEntryForm() {
       <Card>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-sm">
+            <table className="w-full min-w-[960px] text-sm">
               <thead>
                 <tr className="border-b bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="w-28 px-3 py-2 font-medium">Cuenta</th>
-                  <th className="px-3 py-2 font-medium">Concepto</th>
-                  <th className="w-32 px-3 py-2 font-medium text-right">Debe</th>
-                  <th className="w-32 px-3 py-2 font-medium text-right">Haber</th>
-                  <th className="w-10 px-2 py-2" />
+                  <th className="w-[108px] px-2 py-2 font-medium">Fecha</th>
+                  <th className="w-14 px-2 py-2 font-medium">Cód.</th>
+                  <th className="min-w-[140px] px-2 py-2 font-medium">Concepto</th>
+                  <th className="w-24 px-2 py-2 font-medium">Documen.</th>
+                  <th className="w-28 px-2 py-2 font-medium">Cuenta</th>
+                  <th className="w-28 px-2 py-2 font-medium text-right">Debe</th>
+                  <th className="w-28 px-2 py-2 font-medium text-right">Haber</th>
+                  <th className="w-28 px-2 py-2 font-medium">Contrapartida</th>
+                  <th className="w-10 px-1 py-2" />
                 </tr>
               </thead>
               <tbody>
                 {lines.map((line, rowIndex) => {
                   const warnings = validationByLine.get(line.id) ?? []
                   const hasWarning = warnings.length > 0
+                  const isActiveRow = activeCell.row === rowIndex
                   const invoiceConceptLocked =
                     isInvoiceConceptCommand(activeCommand) &&
                     isInvoiceConceptAccountLine(line.cuenta, activeCommand)
@@ -795,16 +833,88 @@ export function QuickAccountingEntryForm() {
                   return (
                     <tr
                       key={line.id}
-                      className={`border-b ${hasWarning ? "bg-amber-50/60" : "hover:bg-gray-50/50"}`}
+                      className={cn(
+                        "border-b",
+                        isActiveRow && "bg-emerald-100/70",
+                        !isActiveRow && hasWarning && "bg-amber-50/60",
+                        !isActiveRow && !hasWarning && "hover:bg-gray-50/50",
+                      )}
                     >
-                      <td className="px-2 py-1">
+                      <td className="px-1 py-1">
+                        {rowIndex === 0 ? (
+                          <Input
+                            ref={(el) => registerRef(rowIndex, "fecha", el)}
+                            type="date"
+                            value={fecha}
+                            onChange={(e) => setFecha(e.target.value)}
+                            onFocus={() => setActiveCell({ row: rowIndex, field: "fecha" })}
+                            onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "fecha")}
+                            className="h-9 px-2 text-xs"
+                            aria-label="Fecha contable"
+                          />
+                        ) : null}
+                      </td>
+                      <td className="px-1 py-1">
+                        {rowIndex === 0 ? (
+                          <Input
+                            ref={(el) => registerRef(rowIndex, "codigo", el)}
+                            value={codigoDraft}
+                            onChange={(e) => setCodigoDraft(e.target.value)}
+                            onFocus={() => setActiveCell({ row: rowIndex, field: "codigo" })}
+                            onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "codigo")}
+                            className="h-9 px-2 text-center font-mono font-semibold"
+                            placeholder="—"
+                            maxLength={3}
+                            aria-label="Código predefinido"
+                          />
+                        ) : null}
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          ref={(el) => registerRef(rowIndex, "concepto", el)}
+                          value={line.concepto}
+                          onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
+                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "concepto")}
+                          readOnly={invoiceConceptLocked}
+                          tabIndex={invoiceConceptLocked ? -1 : undefined}
+                          className={cn(
+                            "h-9",
+                            invoiceConceptLocked && "bg-sand-50 text-graphite-600",
+                          )}
+                          placeholder="Descripción"
+                          title={
+                            invoiceConceptLocked
+                              ? "Edita el número en Documen. o Datos de factura"
+                              : undefined
+                          }
+                          aria-label={`Concepto línea ${rowIndex + 1}`}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          ref={(el) => registerRef(rowIndex, "documento", el)}
+                          value={getDocumentoValue(rowIndex, line)}
+                          onChange={(e) =>
+                            handleDocumentoChange(rowIndex, line.id, e.target.value)
+                          }
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "documento" })}
+                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "documento")}
+                          className="h-9 px-2 font-mono text-xs"
+                          placeholder="N.º"
+                          aria-label={`Documento línea ${rowIndex + 1}`}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
                         <AccountCellInput
                           value={line.cuenta}
                           onChange={(value) => updateLine(line.id, { cuenta: value })}
                           onCreateAccountPrefix={(prefix) =>
                             handleCreateAccountPrefix(prefix, rowIndex)
                           }
-                          onOpenAccountExtract={(accountCode) => openAccountExtract(rowIndex, accountCode)}
+                          onOpenAccountExtract={(accountCode) =>
+                            openAccountExtract(rowIndex, accountCode)
+                          }
                           extractAccountCode={lastAccountByRow.current.get(rowIndex) ?? null}
                           onSelectSuggestion={(suggestion) => {
                             if (
@@ -835,29 +945,7 @@ export function QuickAccountingEntryForm() {
                           rowLabel={`Cuenta línea ${rowIndex + 1}`}
                         />
                       </td>
-                      <td className="px-2 py-1">
-                        <Input
-                          ref={(el) => registerRef(rowIndex, "concepto", el)}
-                          value={line.concepto}
-                          onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
-                          onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
-                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "concepto")}
-                          readOnly={invoiceConceptLocked}
-                          tabIndex={invoiceConceptLocked ? -1 : undefined}
-                          className={cn(
-                            "h-9",
-                            invoiceConceptLocked && "bg-sand-50 text-graphite-600",
-                          )}
-                          placeholder="Descripción"
-                          title={
-                            invoiceConceptLocked
-                              ? "Edita el número de factura en Datos de factura"
-                              : undefined
-                          }
-                          aria-label={`Concepto línea ${rowIndex + 1}`}
-                        />
-                      </td>
-                      <td className="px-2 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           ref={(el) => registerRef(rowIndex, "debe", el)}
                           type="number"
@@ -874,7 +962,7 @@ export function QuickAccountingEntryForm() {
                           aria-label={`Debe línea ${rowIndex + 1}`}
                         />
                       </td>
-                      <td className="px-2 py-1">
+                      <td className="px-1 py-1">
                         <Input
                           ref={(el) => registerRef(rowIndex, "haber", el)}
                           type="number"
@@ -889,6 +977,20 @@ export function QuickAccountingEntryForm() {
                           className="h-9 text-right font-mono tabular-nums"
                           placeholder="0,00"
                           aria-label={`Haber línea ${rowIndex + 1}`}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          ref={(el) => registerRef(rowIndex, "contrapartida", el)}
+                          value={line.contrapartida ?? ""}
+                          onChange={(e) =>
+                            updateLine(line.id, { contrapartida: e.target.value })
+                          }
+                          onFocus={() => setActiveCell({ row: rowIndex, field: "contrapartida" })}
+                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "contrapartida")}
+                          className="h-9 px-2 font-mono text-xs"
+                          placeholder="430…"
+                          aria-label={`Contrapartida línea ${rowIndex + 1}`}
                         />
                       </td>
                       <td className="px-1 py-1">
@@ -927,7 +1029,7 @@ export function QuickAccountingEntryForm() {
               </tbody>
               <tfoot>
                 <tr className="border-t bg-gray-50 font-semibold">
-                  <td colSpan={2} className="px-3 py-2 text-right text-gray-600">
+                  <td colSpan={5} className="px-3 py-2 text-right text-gray-600">
                     Totales
                   </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums">
@@ -936,10 +1038,14 @@ export function QuickAccountingEntryForm() {
                   <td className="px-3 py-2 text-right font-mono tabular-nums">
                     {formatEuro(totals.haber)}
                   </td>
-                  <td />
+                  <td colSpan={2} />
                 </tr>
               </tfoot>
             </table>
+          </div>
+
+          <div className="border-t bg-emerald-50/80 px-4 py-2 text-xs text-emerald-900">
+            {entryStatusHint}
           </div>
 
           {lineValidations.length > 0 && (
