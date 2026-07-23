@@ -35,9 +35,16 @@ async function downloadReportBlob(
   URL.revokeObjectURL(objectUrl)
 }
 
-function getReportUrl(type: ReportType, format: ReportExportFormat | "preview", year?: number): string {
+function getReportUrl(
+  type: ReportType,
+  format: ReportExportFormat | "preview",
+  year?: number,
+  costCenterId?: string,
+): string {
   const y = year ?? new Date().getFullYear()
-  return `/api/reports/${type}/${format}?year=${y}`
+  const params = new URLSearchParams({ year: String(y) })
+  if (costCenterId) params.set("costCenterId", costCenterId)
+  return `/api/reports/${type}/${format}?${params.toString()}`
 }
 
 export function getReportPdfUrl(type: ReportType, year?: number): string {
@@ -107,8 +114,11 @@ export async function downloadListadosBundleZip(year?: number): Promise<void> {
 export async function fetchReportPreview(
   type: ReportType,
   year?: number,
+  costCenterId?: string,
 ): Promise<SerializedPreview> {
-  const response = await fetch(getReportUrl(type, "preview", year), { credentials: "include" })
+  const response = await fetch(getReportUrl(type, "preview", year, costCenterId), {
+    credentials: "include",
+  })
   const data = await response.json()
 
   if (!response.ok) {

@@ -323,3 +323,16 @@ export async function createCostCenter(companyId: string, code: string, name: st
     data: { companyId, code: code.trim(), name: name.trim() },
   })
 }
+
+export async function deactivateCostCenter(companyId: string, costCenterId: string) {
+  const existing = await prisma.costCenter.findFirst({
+    where: { id: costCenterId, companyId },
+  })
+  if (!existing) {
+    throw new Error("Centro de coste no encontrado.")
+  }
+  return prisma.costCenter.update({
+    where: { id: costCenterId },
+    data: { isActive: false },
+  })
+}

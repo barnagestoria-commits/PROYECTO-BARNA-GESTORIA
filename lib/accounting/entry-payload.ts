@@ -6,6 +6,12 @@ import type {
   EntryTotals,
 } from "@/lib/types/accounting-entry"
 import {
+  isAnalyticAccount,
+  lineAnalyticAmount,
+  validateAnalyticDistributions,
+  type AnalyticDistributionInput,
+} from "@/lib/accounting/analytic-accounting-types"
+import {
   createDefaultInvoiceDetails,
   type InvoiceEntryDetails,
 } from "@/lib/types/invoice-entry-details"
@@ -50,7 +56,7 @@ export function parseInvoiceDetails(json: string | null | undefined): InvoiceEnt
 
 export function normalizeEntryLines(
   rawLines: CreateAccountingEntryLineInput[],
-): { lines: Omit<AccountingEntryLine, "id">[] } | { error: string } {
+): { lines: Array<Omit<AccountingEntryLine, "id"> & { analyticDistributions?: AnalyticDistributionInput[] }> } | { error: string } {
   if (!Array.isArray(rawLines) || rawLines.length === 0) {
     return { error: "El asiento debe incluir al menos una línea." }
   }
@@ -61,6 +67,11 @@ export function normalizeEntryLines(
       concepto: String(line.concepto ?? "").trim(),
       debe: Math.round((Number(line.debe) || 0) * 100) / 100,
       haber: Math.round((Number(line.haber) || 0) * 100) / 100,
+      analyticDistributions: line.analyticDistributions?.map((item) => ({
+        costCenterId: item.costCenterId,
+        percentage: Math.round((Number(item.percentage) || 0) * 100) / 100,
+        amount: Math.round((Number(item.amount) || 0) * 100) / 100,
+      })),
     }))
     .filter((line) => line.cuenta || line.debe > 0 || line.haber > 0)
 
@@ -70,6 +81,14 @@ export function normalizeEntryLines(
 
   if (lines.some((line) => !line.cuenta)) {
     return { error: "Todas las líneas con importe deben tener cuenta contable." }
+  }
+
+  for (const line of lines) {
+    if (!isAnalyticAccount(line.cuenta) || !line.analyticDistributions?.length) continue
+    const amount = lineAnalyticAmount(line.debe, line.haber)
+    if (amount <= 0) continue
+    const validationError = validateAnalyticDistributions(amount, line.analyticDistributions)
+    if (validationError) return { error: validationError }
   }
 
   return { lines }

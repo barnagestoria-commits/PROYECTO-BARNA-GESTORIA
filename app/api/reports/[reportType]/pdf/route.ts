@@ -48,6 +48,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const fromMonth = parseMonth(url.searchParams.get("fromMonth"))
     const toMonth = parseMonth(url.searchParams.get("toMonth"))
+    const costCenterId = url.searchParams.get("costCenterId")?.trim() || undefined
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -63,6 +64,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       year,
       fromMonth,
       toMonth,
+      costCenterId,
     })
 
     const filename = buildPdfFilename(reportType, company.name, year)

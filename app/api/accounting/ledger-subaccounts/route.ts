@@ -4,6 +4,7 @@ import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { resolveAccountParentCode } from "@/lib/accounting/new-account-prefix"
 import {
   resolveOrCreateLedgerSubaccount,
+  createLedgerSubaccountWithFixedCode,
 } from "@/lib/accounting/ledger-subaccount-service"
 import { upsertAccountTreatment } from "@/lib/accounting/account-treatment-service"
 import type { AccountTreatmentConfigInput } from "@/lib/accounting/account-treatment-types"
@@ -37,24 +38,13 @@ export async function POST(request: Request) {
     const { companyId } = await requireActiveCompany(request)
     const body = (await request.json()) as {
       parentCode?: string
+      accountCode?: string
       name?: string
       notes?: string
       address?: string
       phone?: string
       email?: string
       treatment?: AccountTreatmentConfigInput
-    }
-
-    const parentCode = body.parentCode?.trim() ?? ""
-    const meta = resolveAccountParentCode(parentCode)
-    if (!meta || meta.isThirdParty) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "Prefijo de cuenta no válido. Usa cuentas del plan contable (p. ej. 678+, 629+).",
-        },
-        { status: 400 },
-      )
     }
 
     if (!body.name?.trim()) {
@@ -64,12 +54,36 @@ export async function POST(request: Request) {
       )
     }
 
-    const resolution = await resolveOrCreateLedgerSubaccount(companyId, meta.code, body.name, {
-      notes: body.notes,
-      address: body.address,
-      phone: body.phone,
-      email: body.email,
-    })
+    const fixedCode = body.accountCode?.trim().replace(/\D/g, "") ?? ""
+    let resolution
+
+    if (fixedCode) {
+      resolution = await createLedgerSubaccountWithFixedCode(companyId, fixedCode, body.name, {
+        notes: body.notes,
+        address: body.address,
+        phone: body.phone,
+        email: body.email,
+      })
+    } else {
+      const parentCode = body.parentCode?.trim() ?? ""
+      const meta = resolveAccountParentCode(parentCode)
+      if (!meta || meta.isThirdParty) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Prefijo de cuenta no válido. Usa cuentas del plan contable (p. ej. 678+, 629+).",
+          },
+          { status: 400 },
+        )
+      }
+
+      resolution = await resolveOrCreateLedgerSubaccount(companyId, meta.code, body.name, {
+        notes: body.notes,
+        address: body.address,
+        phone: body.phone,
+        email: body.email,
+      })
+    }
 
     if (body.treatment) {
       await upsertAccountTreatment(companyId, resolution.accountCode, body.treatment)

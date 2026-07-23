@@ -48,6 +48,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       year: parsed.year,
       fromMonth: parsed.fromMonth,
       toMonth: parsed.toMonth,
+      costCenterId: parsed.costCenterId,
     }
 
     const zipBuffer = await generateReportZip(reportType, query, company.name)

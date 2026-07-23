@@ -41,6 +41,11 @@ export interface CreateAccountingEntryLineInput {
   concepto: string
   debe: number
   haber: number
+  analyticDistributions?: Array<{
+    costCenterId: string
+    percentage: number
+    amount: number
+  }>
 }
 
 export interface CreateAccountingEntryRequest {

@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { apiFetch } from "@/lib/api-client"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type { LedgerSubaccountResolution } from "@/lib/accounting/ledger-subaccount-types"
 import {
   emptyAccountTreatmentInput,
@@ -29,6 +30,7 @@ export type AccountCreationResult =
 interface NewSubaccountDialogProps {
   open: boolean
   prefix: NewAccountPrefix | null
+  fixedAccountCode?: string | null
   onClose: () => void
   onCreated: (result: AccountCreationResult) => void
 }
@@ -36,6 +38,7 @@ interface NewSubaccountDialogProps {
 export function NewSubaccountDialog({
   open,
   prefix,
+  fixedAccountCode = null,
   onClose,
   onCreated,
 }: NewSubaccountDialogProps) {
@@ -60,6 +63,11 @@ export function NewSubaccountDialog({
   useEffect(() => {
     if (!open || !prefix) {
       setPreviewAccount(null)
+      return
+    }
+
+    if (fixedAccountCode) {
+      setPreviewAccount(formatAccountCodeDisplay(fixedAccountCode))
       return
     }
 
@@ -102,7 +110,7 @@ export function NewSubaccountDialog({
     }, 350)
 
     return () => window.clearTimeout(timer)
-  }, [open, prefix, isThirdParty, nif, name])
+  }, [open, prefix, isThirdParty, nif, name, fixedAccountCode])
 
   useEffect(() => {
     if (!open) {
@@ -150,6 +158,7 @@ export function NewSubaccountDialog({
             method: "POST",
             body: JSON.stringify({
               parentCode: prefix,
+              accountCode: fixedAccountCode ?? undefined,
               name,
               address,
               phone,
@@ -176,7 +185,11 @@ export function NewSubaccountDialog({
   return (
     <AccountingModal
       open={open}
-      title={`Alta de subcuenta ${prefix}+`}
+      title={
+        fixedAccountCode
+          ? `Alta de cuenta ${formatAccountCodeDisplay(fixedAccountCode)}`
+          : `Alta de subcuenta ${prefix}+`
+      }
       subtitle={
         isThirdParty
           ? thirdPartyConfig?.description

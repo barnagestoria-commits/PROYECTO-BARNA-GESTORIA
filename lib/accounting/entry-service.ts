@@ -11,6 +11,10 @@ import {
   type SaveAccountingEntryInput,
 } from "@/lib/accounting/entry-payload"
 import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
+import {
+  saveAccountAnalyticTemplate,
+} from "@/lib/accounting/analytic-accounting-service"
+import { isAnalyticAccount } from "@/lib/accounting/analytic-accounting-types"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
@@ -130,7 +134,7 @@ export async function createAccountingEntry(
   const entry = await prisma.$transaction(async (tx) => {
     const refNumber = await getNextEntryRefNumber(companyId, tx)
 
-    return tx.accountingEntry.create({
+    const created = await tx.accountingEntry.create({
       data: {
         companyId,
         refNumber,
@@ -153,7 +157,34 @@ export async function createAccountingEntry(
       },
       include: { lines: true },
     })
+
+    for (let index = 0; index < created.lines.length; index++) {
+      const line = created.lines[index]
+      const source = normalized.lines[index]
+      const distributions = source.analyticDistributions ?? []
+      if (distributions.length > 0) {
+        await tx.entryLineAnalyticDistribution.createMany({
+          data: distributions.map((item) => ({
+            entryLineId: line.id,
+            costCenterId: item.costCenterId,
+            percentage: item.percentage,
+            amount: item.amount,
+          })),
+        })
+      }
+    }
+
+    return created
   })
+
+  for (let index = 0; index < entry.lines.length; index++) {
+    const line = entry.lines[index]
+    const source = normalized.lines[index]
+    const distributions = source.analyticDistributions ?? []
+    if (distributions.length > 0 && isAnalyticAccount(line.cuenta)) {
+      await saveAccountAnalyticTemplate(companyId, line.cuenta, distributions)
+    }
+  }
 
   return toEntryDetail(entry)
 }
@@ -190,8 +221,19 @@ export async function updateAccountingEntry(
   const invoiceFields = resolveInvoiceFields(input, fecha)
 
   const entry = await prisma.$transaction(async (tx) => {
+    const existingLines = await tx.entryLine.findMany({
+      where: { entryId },
+      select: { id: true },
+    })
+    if (existingLines.length > 0) {
+      await tx.entryLineAnalyticDistribution.deleteMany({
+        where: { entryLineId: { in: existingLines.map((line) => line.id) } },
+      })
+    }
+
     await tx.entryLine.deleteMany({ where: { entryId } })
-    return tx.accountingEntry.update({
+
+    const updated = await tx.accountingEntry.update({
       where: { id: entryId },
       data: {
         fecha,
@@ -212,7 +254,34 @@ export async function updateAccountingEntry(
       },
       include: { lines: true },
     })
+
+    for (let index = 0; index < updated.lines.length; index++) {
+      const line = updated.lines[index]
+      const source = normalized.lines[index]
+      const distributions = source.analyticDistributions ?? []
+      if (distributions.length > 0) {
+        await tx.entryLineAnalyticDistribution.createMany({
+          data: distributions.map((item) => ({
+            entryLineId: line.id,
+            costCenterId: item.costCenterId,
+            percentage: item.percentage,
+            amount: item.amount,
+          })),
+        })
+      }
+    }
+
+    return updated
   })
+
+  for (let index = 0; index < entry.lines.length; index++) {
+    const line = entry.lines[index]
+    const source = normalized.lines[index]
+    const distributions = source.analyticDistributions ?? []
+    if (distributions.length > 0 && isAnalyticAccount(line.cuenta)) {
+      await saveAccountAnalyticTemplate(companyId, line.cuenta, distributions)
+    }
+  }
 
   return toEntryDetail(entry)
 }

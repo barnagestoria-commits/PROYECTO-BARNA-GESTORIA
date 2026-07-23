@@ -6,6 +6,7 @@ export interface ParsedReportQuery {
   year: number
   fromMonth?: number
   toMonth?: number
+  costCenterId?: string
 }
 
 export function parseYear(value: string | null): number | null {
@@ -25,10 +26,12 @@ export function parseMonth(value: string | null): number | undefined {
 export function parseReportQueryFromUrl(url: URL): ParsedReportQuery | { error: string } {
   const year = parseYear(url.searchParams.get("year"))
   if (year === null) return { error: "Ejercicio no válido." }
+  const costCenterId = url.searchParams.get("costCenterId")?.trim() || undefined
   return {
     year,
     fromMonth: parseMonth(url.searchParams.get("fromMonth")),
     toMonth: parseMonth(url.searchParams.get("toMonth")),
+    costCenterId,
   }
 }
 

@@ -1,8 +1,9 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/auth-provider"
 import { ReportPreviewModal } from "@/components/report-preview-modal"
 import { FiscalExportButtons, ReportExportButtons } from "@/components/report-export-buttons"
@@ -15,8 +16,15 @@ import {
 } from "@/lib/reports/download-client"
 import { ANNUAL_SUMMARY_MODELS, FISCAL_MODEL_OPTIONS } from "@/lib/fiscal/fiscal-settings"
 import type { ReportType } from "@/lib/reports/types"
+import { apiFetch } from "@/lib/api-client"
 import { Eye, FileText, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+
+interface CostCenterOption {
+  id: string
+  code: string
+  name: string
+}
 
 interface InformeDownloadCardProps {
   title: string
@@ -40,7 +48,21 @@ export function InformeDownloadCard({
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [previewData, setPreviewData] = useState<SerializedPreview | null>(null)
   const [bundleLoading, setBundleLoading] = useState<"annual" | "trimestral" | "listados" | null>(null)
+  const [costCenters, setCostCenters] = useState<CostCenterOption[]>([])
+  const [selectedCostCenterId, setSelectedCostCenterId] = useState("")
   const currentYear = new Date().getFullYear()
+
+  const supportsCostCenterFilter = reportType === "balance" || reportType === "pyg"
+
+  useEffect(() => {
+    if (!activeCompany?.id || !supportsCostCenterFilter) {
+      setCostCenters([])
+      return
+    }
+    apiFetch<{ success: true; costCenters: CostCenterOption[] }>("/api/cost-centers")
+      .then((data) => setCostCenters(data.costCenters))
+      .catch(() => setCostCenters([]))
+  }, [activeCompany?.id, supportsCostCenterFilter])
 
   const fiscalExport = certificadoSlug ? CERTIFICADO_FISCAL_MODELS[certificadoSlug] : undefined
   const isResumenAnual = certificadoSlug === "resumen-anual"
@@ -55,7 +77,11 @@ export function InformeDownloadCard({
     setPreviewData(null)
 
     try {
-      const preview = await fetchReportPreview(reportType, currentYear)
+      const preview = await fetchReportPreview(
+        reportType,
+        currentYear,
+        selectedCostCenterId || undefined,
+      )
       setPreviewData(preview)
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "No se pudo cargar la vista previa.")
@@ -112,7 +138,29 @@ export function InformeDownloadCard({
             </p>
 
             {reportType ? (
-              <ReportExportButtons reportType={reportType} year={currentYear} disabled={!canExport} />
+              <>
+                {supportsCostCenterFilter && costCenters.length > 0 && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="report-cost-center" className="text-xs text-graphite-600">
+                      Centro de coste (analítica)
+                    </Label>
+                    <select
+                      id="report-cost-center"
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={selectedCostCenterId}
+                      onChange={(event) => setSelectedCostCenterId(event.target.value)}
+                    >
+                      <option value="">Todos los centros (consolidado)</option>
+                      {costCenters.map((center) => (
+                        <option key={center.id} value={center.id}>
+                          {center.code} · {center.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <ReportExportButtons reportType={reportType} year={currentYear} disabled={!canExport} />
+              </>
             ) : isResumenAnual ? (
               <div className="space-y-4">
                 {ANNUAL_SUMMARY_MODELS.map((modelId) => {

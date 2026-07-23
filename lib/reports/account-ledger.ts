@@ -14,6 +14,7 @@ export interface LedgerQuery {
   year: number
   fromMonth?: number
   toMonth?: number
+  costCenterId?: string
 }
 
 export function buildPeriodLabel(year: number, fromMonth?: number, toMonth?: number): string {
@@ -42,11 +43,24 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
         companyId: query.companyId,
         fecha: { gte: start, lte: end },
       },
+      ...(query.costCenterId
+        ? {
+            analyticDistributions: {
+              some: { costCenterId: query.costCenterId },
+            },
+          }
+        : {}),
     },
     select: {
       cuenta: true,
       debe: true,
       haber: true,
+      analyticDistributions: query.costCenterId
+        ? {
+            where: { costCenterId: query.costCenterId },
+            select: { amount: true, percentage: true },
+          }
+        : false,
     },
   })
 
@@ -56,9 +70,25 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
     const cuenta = normalizeCuenta(line.cuenta)
     if (!cuenta) continue
 
+    let debe = decimalToNumber(line.debe)
+    let haber = decimalToNumber(line.haber)
+
+    if (query.costCenterId && line.analyticDistributions?.length) {
+      const assigned = line.analyticDistributions.reduce(
+        (sum, item) => sum + decimalToNumber(item.amount),
+        0,
+      )
+      const lineTotal = Math.max(debe, haber)
+      if (lineTotal > 0 && assigned > 0) {
+        const ratio = assigned / lineTotal
+        debe = round2(debe * ratio)
+        haber = round2(haber * ratio)
+      }
+    }
+
     const current = map.get(cuenta) ?? { totalDebe: 0, totalHaber: 0 }
-    current.totalDebe += decimalToNumber(line.debe)
-    current.totalHaber += decimalToNumber(line.haber)
+    current.totalDebe += debe
+    current.totalHaber += haber
     map.set(cuenta, current)
   }
 

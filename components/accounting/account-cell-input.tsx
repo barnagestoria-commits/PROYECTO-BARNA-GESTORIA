@@ -28,6 +28,8 @@ interface AccountCellInputProps {
   onOpenAccountExtract?: (accountCode: string) => void
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
   onFocus?: () => void
+  onBlur?: () => void
+  onBeforeAdvance?: () => boolean | Promise<boolean>
   inputRef?: (el: HTMLInputElement | null) => void
   thirdParties: ThirdPartyAccountOption[]
   ledgerSubaccounts?: LedgerSubaccountOption[]
@@ -53,6 +55,8 @@ export function AccountCellInput({
   onOpenAccountExtract,
   onKeyDown,
   onFocus,
+  onBlur,
+  onBeforeAdvance,
   inputRef,
   thirdParties,
   ledgerSubaccounts = [],
@@ -116,7 +120,7 @@ export function AccountCellInput({
     return true
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = async (event: KeyboardEvent<HTMLInputElement>) => {
     const isConfirmKey =
       event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)
 
@@ -155,6 +159,15 @@ export function AccountCellInput({
       }
     }
 
+    if (isConfirmKey && onBeforeAdvance) {
+      event.preventDefault()
+      const canAdvance = await onBeforeAdvance()
+      if (canAdvance) {
+        onKeyDown?.(event)
+      }
+      return
+    }
+
     onKeyDown?.(event)
   }
 
@@ -171,7 +184,13 @@ export function AccountCellInput({
           onFocus?.()
           if (!isExtractCommand(value)) setOpen(true)
         }}
-        onKeyDown={handleKeyDown}
+        onBlur={() => {
+          setOpen(false)
+          void onBlur?.()
+        }}
+        onKeyDown={(event) => {
+          void handleKeyDown(event)
+        }}
         className={cn("h-9 font-mono", hasWarning && "border-amber-400")}
         placeholder="430 · 678+ · EX"
         aria-label={rowLabel}

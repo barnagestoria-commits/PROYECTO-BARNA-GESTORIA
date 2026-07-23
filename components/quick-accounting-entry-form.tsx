@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   FileSpreadsheet,
   Loader2,
+  PieChart,
   Plus,
   Scale,
   Trash2,
@@ -17,6 +18,25 @@ import {
 } from "lucide-react"
 import type { AccountingCommandCode, AccountingEntryLine, EntryCellField } from "@/lib/types/accounting-entry"
 import { ENTRY_CELL_FIELDS } from "@/lib/types/accounting-entry"
+import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
+import {
+  isAnalyticAccount,
+  lineAnalyticAmount,
+  type AnalyticDistributionInput,
+} from "@/lib/accounting/analytic-accounting-types"
+import { MissingAccountDialog } from "@/components/accounting/missing-account-dialog"
+import { AnalyticDistributionDialog } from "@/components/accounting/analytic-distribution-dialog"
+import {
+  isThirdPartyAccountPrefix,
+  parseNewAccountPrefix,
+  type NewAccountPrefix,
+} from "@/lib/accounting/new-account-prefix"
+import {
+  applyInvoiceConceptsToLines,
+  INVOICE_CONCEPT_PREFIX,
+  isInvoiceConceptAccountLine,
+  isInvoiceConceptCommand,
+} from "@/lib/accounting/invoice-entry-concepts"
 import {
   ACCOUNTING_COMMANDS,
   COMMAND_CODES,
@@ -36,16 +56,6 @@ import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-
 import {
   isEmitidaThirdPartyAccount,
 } from "@/lib/accounting/account-suggestions"
-import {
-  isThirdPartyAccountPrefix,
-  type NewAccountPrefix,
-} from "@/lib/accounting/new-account-prefix"
-import {
-  applyInvoiceConceptsToLines,
-  INVOICE_CONCEPT_PREFIX,
-  isInvoiceConceptAccountLine,
-  isInvoiceConceptCommand,
-} from "@/lib/accounting/invoice-entry-concepts"
 import {
   applyInvoiceAmountsToLines,
   applyTreatmentToEntryLines,
@@ -113,6 +123,17 @@ export function QuickAccountingEntryForm() {
   const [companyExtractOpen, setCompanyExtractOpen] = useState(false)
   const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const [movementsRefreshKey, setMovementsRefreshKey] = useState(0)
+  const [analyticEnabled, setAnalyticEnabled] = useState(false)
+  const [analyticByLineId, setAnalyticByLineId] = useState<Map<string, AnalyticDistributionInput[]>>(
+    () => new Map(),
+  )
+  const [missingAccountState, setMissingAccountState] = useState<{
+    row: number
+    year: number
+    account: AccountExistenceResult
+  } | null>(null)
+  const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
+  const [analyticDialog, setAnalyticDialog] = useState<{ lineId: string; row: number } | null>(null)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
@@ -342,6 +363,18 @@ export function QuickAccountingEntryForm() {
   }, [loadLedgerSubaccounts, loadThirdParties])
 
   useEffect(() => {
+    if (!activeCompany?.id) {
+      setAnalyticEnabled(false)
+      return
+    }
+    apiFetch<{ success: true; settings: { analyticAccountingEnabled: boolean } }>(
+      "/api/accounting/analytic-settings",
+    )
+      .then((data) => setAnalyticEnabled(data.settings.analyticAccountingEnabled))
+      .catch(() => setAnalyticEnabled(false))
+  }, [activeCompany?.id])
+
+  useEffect(() => {
     lines.forEach((line, index) => {
       if (isValidAccountValue(line.cuenta)) {
         lastAccountByRow.current.set(index, line.cuenta)
@@ -388,13 +421,60 @@ export function QuickAccountingEntryForm() {
     }))
   }, [fecha])
 
-  const handleCellKeyDown = (
+  const validateAccountBeforeAdvance = useCallback(
+    async (row: number): Promise<boolean> => {
+      const line = lines[row]
+      if (!line || !isValidAccountValue(line.cuenta) || parseNewAccountPrefix(line.cuenta)) {
+        return true
+      }
+
+      const year = Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()
+      try {
+        const data = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
+          `/api/accounting/accounts/exists?code=${encodeURIComponent(line.cuenta)}&year=${year}`,
+        )
+        if (data.exists) return true
+        setMissingAccountState({ row, year: data.year, account: data })
+        return false
+      } catch {
+        return true
+      }
+    },
+    [fecha, lines],
+  )
+
+  const maybePromptAnalytic = useCallback(
+    async (row: number): Promise<boolean> => {
+      if (!analyticEnabled) return true
+      const line = lines[row]
+      if (!line || !isAnalyticAccount(line.cuenta)) return true
+
+      const amount = lineAnalyticAmount(line.debe, line.haber)
+      if (amount <= 0) return true
+
+      const existing = analyticByLineId.get(line.id)
+      if (existing?.length) {
+        const assigned = existing.reduce((sum, item) => sum + item.amount, 0)
+        if (Math.abs(assigned - amount) < 0.02) return true
+      }
+
+      setAnalyticDialog({ lineId: line.id, row })
+      return false
+    },
+    [analyticByLineId, analyticEnabled, lines],
+  )
+
+  const handleCellKeyDown = async (
     event: KeyboardEvent<HTMLInputElement>,
     row: number,
     field: EntryCellField,
   ) => {
     if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
       event.preventDefault()
+      if (field === "debe" || field === "haber") {
+        const canAdvance = await maybePromptAnalytic(row)
+        if (!canAdvance) return
+      }
       focusNextCell(row, field)
     }
   }
@@ -482,6 +562,7 @@ export function QuickAccountingEntryForm() {
     setCommandHint(null)
     setSubmitError(null)
     setFocusedThirdParty(null)
+    setAnalyticByLineId(new Map())
   }, [])
 
   const handleSubmit = async () => {
@@ -508,11 +589,12 @@ export function QuickAccountingEntryForm() {
           operationDate: showInvoicePanel ? invoiceDetails.operationDate : null,
           invoiceNumber: showInvoicePanel ? invoiceDetails.invoiceNumber : null,
           invoiceDetails: showInvoicePanel ? invoiceDetails : null,
-          lines: lines.map(({ cuenta, concepto, debe, haber }) => ({
+          lines: lines.map(({ id, cuenta, concepto, debe, haber }) => ({
             cuenta,
             concepto,
             debe,
             haber,
+            analyticDistributions: analyticByLineId.get(id),
           })),
         }),
       })
@@ -539,7 +621,23 @@ export function QuickAccountingEntryForm() {
 
   const handleCreateAccountPrefix = (prefix: NewAccountPrefix, row: number) => {
     setActiveCell({ row, field: "cuenta" })
+    setFixedAccountCode(null)
     setNewSubaccountPrefix(prefix)
+  }
+
+  const handleMissingAccountConfirm = () => {
+    if (!missingAccountState?.account.parentCode) return
+    setActiveCell({ row: missingAccountState.row, field: "cuenta" })
+    setFixedAccountCode(missingAccountState.account.accountCode)
+    setNewSubaccountPrefix(missingAccountState.account.parentCode)
+    setMissingAccountState(null)
+  }
+
+  const handleMissingAccountCancel = () => {
+    if (!missingAccountState) return
+    const { row } = missingAccountState
+    setMissingAccountState(null)
+    requestAnimationFrame(() => focusCell(row, "cuenta"))
   }
 
   const handleSubaccountCreated = async (result: AccountCreationResult) => {
@@ -726,7 +824,11 @@ export function QuickAccountingEntryForm() {
                           }}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "cuenta" })}
                           inputRef={(el) => registerRef(rowIndex, "cuenta", el)}
-                          onKeyDown={(event) => handleCellKeyDown(event, rowIndex, "cuenta")}
+                          onBeforeAdvance={() => validateAccountBeforeAdvance(rowIndex)}
+                          onBlur={() => {
+                            void validateAccountBeforeAdvance(rowIndex)
+                          }}
+                          onKeyDown={(event) => void handleCellKeyDown(event, rowIndex, "cuenta")}
                           thirdParties={thirdParties}
                           ledgerSubaccounts={ledgerSubaccounts}
                           hasWarning={hasWarning}
@@ -739,7 +841,7 @@ export function QuickAccountingEntryForm() {
                           value={line.concepto}
                           onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
-                          onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "concepto")}
+                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "concepto")}
                           readOnly={invoiceConceptLocked}
                           tabIndex={invoiceConceptLocked ? -1 : undefined}
                           className={cn(
@@ -766,7 +868,7 @@ export function QuickAccountingEntryForm() {
                             updateLine(line.id, { debe: parseAmount(e.target.value) })
                           }
                           onFocus={() => setActiveCell({ row: rowIndex, field: "debe" })}
-                          onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "debe")}
+                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "debe")}
                           className="h-9 text-right font-mono tabular-nums"
                           placeholder="0,00"
                           aria-label={`Debe línea ${rowIndex + 1}`}
@@ -783,23 +885,41 @@ export function QuickAccountingEntryForm() {
                             updateLine(line.id, { haber: parseAmount(e.target.value) })
                           }
                           onFocus={() => setActiveCell({ row: rowIndex, field: "haber" })}
-                          onKeyDown={(e) => handleCellKeyDown(e, rowIndex, "haber")}
+                          onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "haber")}
                           className="h-9 text-right font-mono tabular-nums"
                           placeholder="0,00"
                           aria-label={`Haber línea ${rowIndex + 1}`}
                         />
                       </td>
                       <td className="px-1 py-1">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeLine(line.id)}
-                          disabled={lines.length <= 1}
-                          aria-label="Eliminar línea"
-                        >
-                          <Trash2 className="h-4 w-4 text-gray-400" />
-                        </Button>
+                        <div className="flex items-center gap-0.5">
+                          {analyticEnabled && isAnalyticAccount(line.cuenta) && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className={cn(
+                                "h-8 w-8 p-0",
+                                analyticByLineId.has(line.id) && "text-emerald-700",
+                              )}
+                              onClick={() => setAnalyticDialog({ lineId: line.id, row: rowIndex })}
+                              title="Distribución analítica"
+                              aria-label="Distribución analítica"
+                            >
+                              <PieChart className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeLine(line.id)}
+                            disabled={lines.length <= 1}
+                            aria-label="Eliminar línea"
+                          >
+                            <Trash2 className="h-4 w-4 text-gray-400" />
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -924,9 +1044,46 @@ export function QuickAccountingEntryForm() {
       <NewSubaccountDialog
         open={newSubaccountPrefix !== null}
         prefix={newSubaccountPrefix}
-        onClose={() => setNewSubaccountPrefix(null)}
+        fixedAccountCode={fixedAccountCode}
+        onClose={() => {
+          setNewSubaccountPrefix(null)
+          setFixedAccountCode(null)
+        }}
         onCreated={handleSubaccountCreated}
       />
+
+      <MissingAccountDialog
+        open={missingAccountState !== null}
+        year={missingAccountState?.year ?? new Date().getFullYear()}
+        account={missingAccountState?.account ?? null}
+        onConfirm={handleMissingAccountConfirm}
+        onCancel={handleMissingAccountCancel}
+      />
+
+      {analyticDialog && (() => {
+        const line = lines.find((item) => item.id === analyticDialog.lineId)
+        if (!line) return null
+        const amount = lineAnalyticAmount(line.debe, line.haber)
+        return (
+          <AnalyticDistributionDialog
+            open
+            accountCode={line.cuenta}
+            concepto={line.concepto}
+            totalAmount={amount}
+            initialDistributions={analyticByLineId.get(line.id)}
+            onClose={() => setAnalyticDialog(null)}
+            onSave={(distributions) => {
+              setAnalyticByLineId((prev) => {
+                const next = new Map(prev)
+                next.set(line.id, distributions)
+                return next
+              })
+              setAnalyticDialog(null)
+              requestAnimationFrame(() => focusCell(analyticDialog.row, "haber"))
+            }}
+          />
+        )
+      })()}
 
       <AccountMovementsDialog
         open={movementsDialogOpen}

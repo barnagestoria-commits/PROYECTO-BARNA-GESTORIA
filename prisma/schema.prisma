@@ -116,6 +116,8 @@ model Company {
   ledgerSubaccounts    LedgerSubaccount[]
   accountTreatments    AccountTreatmentConfig[]
   fiscalSettings       CompanyFiscalSettings?
+  accountingSettings   CompanyAccountingSettings?
+  accountAnalyticTemplates AccountAnalyticTemplate[]
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -187,6 +189,7 @@ model EntryLine {
   concepto  String          @default("")
   debe      Decimal         @default(0) @db.Decimal(14, 2)
   haber     Decimal         @default(0) @db.Decimal(14, 2)
+  analyticDistributions EntryLineAnalyticDistribution[]
 
   @@index([entryId, sortOrder])
 }
@@ -259,6 +262,8 @@ model CostCenter {
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
   assetDistributions FixedAssetCostDistribution[]
+  entryLineDistributions EntryLineAnalyticDistribution[]
+  accountAnalyticTemplates AccountAnalyticTemplate[]
 
   @@unique([companyId, code])
 }
@@ -374,4 +379,43 @@ model AccountTreatmentConfig {
 
   @@unique([companyId, accountCode])
   @@index([companyId])
+}
+
+/// Parametrización contable de la empresa (analítica, etc.)
+model CompanyAccountingSettings {
+  id                        String   @id @default(cuid())
+  companyId                 String   @unique
+  company                   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  analyticAccountingEnabled Boolean  @default(false)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+}
+
+/// Distribución analítica de una línea de asiento entre centros de coste
+model EntryLineAnalyticDistribution {
+  id           String     @id @default(cuid())
+  entryLineId  String
+  entryLine    EntryLine  @relation(fields: [entryLineId], references: [id], onDelete: Cascade)
+  costCenterId String
+  costCenter   CostCenter @relation(fields: [costCenterId], references: [id], onDelete: Cascade)
+  percentage   Decimal    @db.Decimal(5, 2)
+  amount       Decimal    @db.Decimal(14, 2)
+
+  @@unique([entryLineId, costCenterId])
+  @@index([costCenterId])
+}
+
+/// Última distribución analítica habitual por cuenta (para auto-asignación)
+model AccountAnalyticTemplate {
+  id           String     @id @default(cuid())
+  companyId    String
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accountCode  String
+  costCenterId String
+  costCenter   CostCenter @relation(fields: [costCenterId], references: [id], onDelete: Cascade)
+  percentage   Decimal    @db.Decimal(5, 2)
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([companyId, accountCode, costCenterId])
+  @@index([companyId, accountCode])
 }

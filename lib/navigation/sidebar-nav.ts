@@ -187,6 +187,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Contabilización estilo A3",
           },
           {
+            label: "Centros de coste",
+            href: "/dashboard/contabilidad/centros-coste",
+            description: "Contabilidad analítica y centros de coste",
+          },
+          {
             label: "Plan general contable",
             href: "/dashboard/contabilidad",
             description: "Consulta de cuentas PGC",
