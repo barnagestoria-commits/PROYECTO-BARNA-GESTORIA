@@ -154,23 +154,27 @@ export function EditAccountingEntryDialog({
         })
 
         return entry?.commandCode && isInvoiceConceptCommand(entry.commandCode)
-          ? applyInvoiceConceptsToLines(next, entry.commandCode, invoiceDetails?.invoiceNumber ?? "")
+          ? applyInvoiceConceptsToLines(next, entry.commandCode, {
+              invoiceNumber: invoiceDetails?.invoiceNumber ?? "",
+              thirdPartyLabel: invoiceDetails?.thirdPartyName ?? "",
+              invoiceMode: entry.commandCode === "17" ? "emitida" : "recibida",
+            })
           : next
       })
     },
-    [entry?.commandCode, invoiceDetails?.invoiceNumber],
+    [entry?.commandCode, invoiceDetails?.invoiceNumber, invoiceDetails?.thirdPartyName],
   )
 
   useEffect(() => {
     if (!entry?.commandCode || !isInvoiceConceptCommand(entry.commandCode)) return
     setLines((prev) =>
-      applyInvoiceConceptsToLines(
-        prev,
-        entry.commandCode as "17" | "34",
-        invoiceDetails?.invoiceNumber ?? "",
-      ),
+      applyInvoiceConceptsToLines(prev, entry.commandCode as "17" | "34", {
+        invoiceNumber: invoiceDetails?.invoiceNumber ?? "",
+        thirdPartyLabel: invoiceDetails?.thirdPartyName ?? "",
+        invoiceMode: entry.commandCode === "17" ? "emitida" : "recibida",
+      }),
     )
-  }, [entry?.commandCode, invoiceDetails?.invoiceNumber])
+  }, [entry?.commandCode, invoiceDetails?.invoiceNumber, invoiceDetails?.thirdPartyName])
 
   const handleDelete = async () => {
     if (!entryId || !entry || isDeleting) return

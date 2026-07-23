@@ -69,6 +69,7 @@ import {
   applyInvoiceAmountsToLines,
   applyTreatmentToEntryLines,
   applyTreatmentToInvoiceDetails,
+  buildFullInvoiceEntry,
   calculateInvoiceAmountsWithIrpf,
   ensureMinimumInvoiceLines,
 } from "@/lib/accounting/invoice-auto-fill"
@@ -183,6 +184,15 @@ export function QuickAccountingEntryForm() {
     [activeCommand, invoiceMode, invoiceDetails, showInvoicePanel, lines],
   )
 
+  const invoiceConceptOptions = useMemo(
+    () => ({
+      invoiceNumber: invoiceDetails.invoiceNumber,
+      thirdPartyLabel: invoiceDetails.thirdPartyName || focusedThirdParty || "",
+      invoiceMode,
+    }),
+    [focusedThirdParty, invoiceDetails.invoiceNumber, invoiceDetails.thirdPartyName, invoiceMode],
+  )
+
   const loadThirdParties = useCallback(async () => {
     if (!activeCompany?.id) {
       setThirdParties([])
@@ -246,12 +256,12 @@ export function QuickAccountingEntryForm() {
       })
 
       if (isInvoiceConceptCommand(activeCommand)) {
-        next = applyInvoiceConceptsToLines(next, activeCommand, invoiceDetails.invoiceNumber)
+        next = applyInvoiceConceptsToLines(next, activeCommand, invoiceConceptOptions)
       }
 
       return next
     },
-    [activeCommand, invoiceDetails],
+    [activeCommand, invoiceConceptOptions, invoiceDetails],
   )
 
   const prefillLineAmount = useCallback(
@@ -376,7 +386,7 @@ export function QuickAccountingEntryForm() {
         )
 
         if (isInvoiceConceptCommand(activeCommand)) {
-          next = applyInvoiceConceptsToLines(next, activeCommand, invoiceDetails.invoiceNumber)
+          next = applyInvoiceConceptsToLines(next, activeCommand, invoiceConceptOptions)
         }
 
         requestAnimationFrame(() => {
@@ -394,7 +404,7 @@ export function QuickAccountingEntryForm() {
         return next
       })
     },
-    [activeCommand, focusCell, invoiceDetails, invoiceMode],
+    [activeCommand, focusCell, invoiceConceptOptions, invoiceDetails, invoiceMode],
   )
 
   const applyCommand = useCallback(
@@ -502,10 +512,15 @@ export function QuickAccountingEntryForm() {
 
   useEffect(() => {
     if (!isInvoiceConceptCommand(activeCommand)) return
-    setLines((prev) =>
-      applyInvoiceConceptsToLines(prev, activeCommand, invoiceDetails.invoiceNumber),
-    )
-  }, [activeCommand, invoiceDetails.invoiceNumber])
+    setLines((prev) => {
+      let next = applyInvoiceConceptsToLines(prev, activeCommand, invoiceConceptOptions)
+      const doc = invoiceDetails.invoiceNumber.trim()
+      if (doc) {
+        next = next.map((line) => ({ ...line, documento: doc }))
+      }
+      return next
+    })
+  }, [activeCommand, invoiceConceptOptions, invoiceDetails.invoiceNumber])
 
   useEffect(() => {
     setInvoiceDetails((prev) => ({
@@ -644,6 +659,41 @@ export function QuickAccountingEntryForm() {
       }),
     )
   }
+
+  const handleLineAmountChange = useCallback(
+    (rowIndex: number, line: AccountingEntryLine, field: "debe" | "haber", amount: number) => {
+      const patch =
+        field === "debe" ? { debe: amount, haber: 0 } : { haber: amount, debe: 0 }
+
+      const isThirdPartyTotal =
+        isThirdPartyAccountPrefix(line.cuenta) &&
+        ((invoiceMode === "emitida" && field === "debe") ||
+          (invoiceMode === "recibida" && field === "haber"))
+
+      if (
+        amount > 0 &&
+        isThirdPartyTotal &&
+        (showInvoicePanel || isInvoiceCommand(activeCommand))
+      ) {
+        setLines((prev) => {
+          const withAmount = prev.map((item) =>
+            item.id === line.id ? { ...item, ...patch } : item,
+          )
+          const built = buildFullInvoiceEntry(withAmount, invoiceDetails, {
+            activeCommand,
+            invoiceMode,
+            total: amount,
+          })
+          setInvoiceDetails(built.details)
+          return built.lines
+        })
+        return
+      }
+
+      updateLine(line.id, patch)
+    },
+    [activeCommand, invoiceDetails, invoiceMode, showInvoicePanel],
+  )
 
   const openAccountExtract = useCallback((row: number, explicitAccount?: string) => {
     const account =
@@ -1066,7 +1116,12 @@ export function QuickAccountingEntryForm() {
                           min="0"
                           value={line.debe || ""}
                           onChange={(e) =>
-                            updateLine(line.id, { debe: parseAmount(e.target.value), haber: 0 })
+                            handleLineAmountChange(
+                              rowIndex,
+                              line,
+                              "debe",
+                              parseAmount(e.target.value),
+                            )
                           }
                           onFocus={() => setActiveCell({ row: rowIndex, field: "debe" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "debe")}
@@ -1088,7 +1143,12 @@ export function QuickAccountingEntryForm() {
                           min="0"
                           value={line.haber || ""}
                           onChange={(e) =>
-                            updateLine(line.id, { haber: parseAmount(e.target.value), debe: 0 })
+                            handleLineAmountChange(
+                              rowIndex,
+                              line,
+                              "haber",
+                              parseAmount(e.target.value),
+                            )
                           }
                           onFocus={() => setActiveCell({ row: rowIndex, field: "haber" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "haber")}

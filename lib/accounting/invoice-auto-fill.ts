@@ -1,8 +1,12 @@
-import type { AccountingEntryLine } from "@/lib/types/accounting-entry"
+import type { AccountingCommandCode, AccountingEntryLine } from "@/lib/types/accounting-entry"
 import type { InvoiceEntryDetails } from "@/lib/types/invoice-entry-details"
 import { createEmptyLine, createLineId } from "@/lib/accounting/command-templates"
 import { isEmitidaThirdPartyAccount } from "@/lib/accounting/account-suggestions"
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
+import {
+  applyInvoiceConceptsToLines,
+  isInvoiceConceptCommand,
+} from "@/lib/accounting/invoice-entry-concepts"
 import { findVatRateType } from "@/lib/accounting/vat-catalog"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
@@ -145,6 +149,78 @@ export function calculateInvoiceAmountsWithIrpf(
   const total = round2(roundedBase + roundedQuota - irpf)
 
   return { base: roundedBase, quota: roundedQuota, irpf, total }
+}
+
+/** Calcula base y cuota IVA a partir del total factura (flujo A3: importe en 430/400). */
+export function calculateAmountsFromTotal(
+  total: number,
+  details: InvoiceEntryDetails,
+): InvoiceAmountsWithIrpf {
+  if (total <= 0) {
+    return { base: 0, quota: 0, irpf: 0, total: 0 }
+  }
+
+  const vatPercent = details.vatLines[0]?.vatPercent ?? 21
+  const vatRate = vatPercent / 100
+  const irpfRate =
+    details.applyIrpf && details.irpfPercent > 0 ? details.irpfPercent / 100 : 0
+  const divisor = 1 + vatRate - irpfRate
+
+  const base = round2(total / divisor)
+  const quota = round2(base * vatRate)
+  const irpf = irpfRate > 0 ? round2(base * irpfRate) : 0
+  const reconciledTotal = round2(base + quota - irpf)
+
+  return { base, quota, irpf, total: reconciledTotal }
+}
+
+export function syncInvoiceDetailsFromAmounts(
+  details: InvoiceEntryDetails,
+  amounts: InvoiceAmountsWithIrpf,
+): InvoiceEntryDetails {
+  const vatLines = details.vatLines.map((line, index) =>
+    index === 0 ? recalculateVatQuota({ ...line, base: amounts.base }) : line,
+  )
+
+  return { ...details, vatLines }
+}
+
+export function buildFullInvoiceEntry(
+  lines: AccountingEntryLine[],
+  details: InvoiceEntryDetails,
+  options: {
+    activeCommand: AccountingCommandCode | null
+    invoiceMode: "emitida" | "recibida"
+    total: number
+  },
+): { lines: AccountingEntryLine[]; details: InvoiceEntryDetails } {
+  const amounts = calculateAmountsFromTotal(options.total, details)
+  const nextDetails = syncInvoiceDetailsFromAmounts(details, amounts)
+
+  let nextLines = ensureMinimumInvoiceLines(lines)
+  nextLines = applyInvoiceAmountsToLines(nextLines, amounts, {
+    activeCommand: options.activeCommand ?? undefined,
+  })
+
+  const conceptCode =
+    options.activeCommand && isInvoiceConceptCommand(options.activeCommand)
+      ? options.activeCommand
+      : options.invoiceMode === "emitida"
+        ? "17"
+        : "34"
+
+  nextLines = applyInvoiceConceptsToLines(nextLines, conceptCode, {
+    invoiceNumber: nextDetails.invoiceNumber,
+    thirdPartyLabel: nextDetails.thirdPartyName,
+    invoiceMode: options.invoiceMode,
+  })
+
+  const documento = nextDetails.invoiceNumber.trim()
+  if (documento) {
+    nextLines = nextLines.map((line) => ({ ...line, documento }))
+  }
+
+  return { lines: nextLines, details: nextDetails }
 }
 
 export function applyInvoiceAmountsToLines(

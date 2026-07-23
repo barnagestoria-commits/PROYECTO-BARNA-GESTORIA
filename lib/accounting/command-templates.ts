@@ -18,8 +18,8 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     description: "Factura de venta — Clientes, ingresos e IVA repercutido",
     lines: [
       { cuenta: "430", concepto: "Cliente", debe: 0, haber: 0 },
-      { cuenta: "477", concepto: "Nuestra factura N. ", debe: 0, haber: 0 },
-      { cuenta: "700", concepto: "Nuestra factura N. ", debe: 0, haber: 0 },
+      { cuenta: "477", concepto: "IVA R.", debe: 0, haber: 0 },
+      { cuenta: "705", concepto: "Ventas a", debe: 0, haber: 0 },
     ],
   },
   "34": {
@@ -28,8 +28,8 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     description: "Factura de compra — Gastos, IVA soportado y proveedor",
     lines: [
       { cuenta: "400", concepto: "Proveedor", debe: 0, haber: 0 },
-      { cuenta: "472", concepto: "Su factura N. ", debe: 0, haber: 0 },
-      { cuenta: "600", concepto: "Su factura N. ", debe: 0, haber: 0 },
+      { cuenta: "472", concepto: "IVA S.", debe: 0, haber: 0 },
+      { cuenta: "600", concepto: "Gasto a", debe: 0, haber: 0 },
     ],
   },
   "16": {
@@ -78,6 +78,7 @@ export function createEmptyLine(): AccountingEntryLine {
 export function linesFromTemplate(
   code: AccountingCommandCode,
   invoiceNumber = "",
+  thirdPartyLabel = "",
 ): AccountingEntryLine[] {
   const lines = ACCOUNTING_COMMANDS[code].lines.map((line) => ({
     ...line,
@@ -85,7 +86,11 @@ export function linesFromTemplate(
   }))
 
   if (isInvoiceConceptCommand(code)) {
-    return applyInvoiceConceptsToLines(lines, code, invoiceNumber)
+    return applyInvoiceConceptsToLines(lines, code, {
+      invoiceNumber,
+      thirdPartyLabel,
+      invoiceMode: code === "17" ? "emitida" : "recibida",
+    })
   }
 
   return lines
