@@ -114,6 +114,7 @@ model Company {
   accountingImports    AccountingDataImport[]
   thirdParties         ThirdParty[]
   ledgerSubaccounts    LedgerSubaccount[]
+  accountTreatments    AccountTreatmentConfig[]
   fiscalSettings       CompanyFiscalSettings?
 }
 
@@ -348,4 +349,27 @@ model LedgerSubaccount {
 
   @@unique([companyId, accountCode])
   @@index([companyId, parentCode])
+}
+
+/// Parametrización contable habitual (contrapartida, IVA, IRPF, impreso fiscal)
+model AccountTreatmentConfig {
+  id                        String   @id @default(cuid())
+  companyId                 String
+  company                   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  accountCode               String
+  defaultCounterpartAccount String?
+  defaultVatOperation       String?  @default("1")
+  defaultVatType            String?  @default("04")
+  defaultVatPercent         Decimal? @db.Decimal(5, 2)
+  defaultSurchargePercent   Decimal? @db.Decimal(5, 2)
+  applySurcharge            Boolean  @default(false)
+  defaultIrpfPercent        Decimal? @db.Decimal(5, 2)
+  defaultIrpfAccount        String?
+  defaultTaxForm            String?  @default("347")
+  documentAccumulationType  String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@unique([companyId, accountCode])
+  @@index([companyId])
 }

@@ -21,6 +21,7 @@ import {
   findVatOperation,
   findVatRateType,
 } from "@/lib/accounting/vat-catalog"
+import { IRPF_ACCOUNT_OPTIONS } from "@/lib/accounting/account-treatment-types"
 import { VatLookupDialog } from "@/components/accounting/vat-lookup-dialog"
 
 interface InvoiceEntryPanelProps {
@@ -29,7 +30,7 @@ interface InvoiceEntryPanelProps {
   invoiceConceptPrefix?: string | null
   details: InvoiceEntryDetails
   onChange: (details: InvoiceEntryDetails) => void
-  onApplyTotals: (totals: { base: number; quota: number; total: number }) => void
+  onApplyTotals: (totals: { base: number; quota: number; total: number; irpf?: number }) => void
   onOpenPgcChart: () => void
   onOpenNifLookup: () => void
 }
@@ -58,6 +59,11 @@ export function InvoiceEntryPanel({
   onOpenNifLookup,
 }: InvoiceEntryPanelProps) {
   const totals = sumInvoiceTotals(details.vatLines)
+  const irpfQuota =
+    details.applyIrpf && details.irpfPercent > 0
+      ? Math.round(totals.base * (details.irpfPercent / 100) * 100) / 100
+      : 0
+  const netTotal = Math.round((totals.total - irpfQuota) * 100) / 100
   const isReceived = invoiceMode === "recibida"
   const [operationDialogOpen, setOperationDialogOpen] = useState(false)
   const [vatTypeDialogOpen, setVatTypeDialogOpen] = useState(false)
@@ -199,6 +205,50 @@ export function InvoiceEntryPanel({
             />
             Rectificativa
           </label>
+          <label className="flex items-center gap-2 self-end rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={details.applyIrpf}
+              onChange={(event) => onChange({ ...details, applyIrpf: event.target.checked })}
+            />
+            Retención IRPF
+          </label>
+          {details.applyIrpf && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="invoice-irpf-percent">% IRPF</Label>
+                <Input
+                  id="invoice-irpf-percent"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={details.irpfPercent || ""}
+                  onChange={(event) =>
+                    onChange({
+                      ...details,
+                      irpfPercent: Number.parseFloat(event.target.value) || 0,
+                    })
+                  }
+                  className="text-right font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="invoice-irpf-account">Cuenta retención</Label>
+                <select
+                  id="invoice-irpf-account"
+                  value={details.irpfAccount}
+                  onChange={(event) => onChange({ ...details, irpfAccount: event.target.value })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {IRPF_ACCOUNT_OPTIONS.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-lg border border-sand-200 bg-white">
@@ -318,8 +368,13 @@ export function InvoiceEntryPanel({
               IVA: <strong>{formatEuro(totals.quota)}</strong>
             </span>
             <span>
-              Total: <strong>{formatEuro(totals.total)}</strong>
+              Total: <strong>{formatEuro(netTotal)}</strong>
             </span>
+            {details.applyIrpf && irpfQuota > 0 && (
+              <span>
+                IRPF: <strong>{formatEuro(irpfQuota)}</strong>
+              </span>
+            )}
           </div>
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" variant="outline" onClick={addVatLine}>
@@ -330,7 +385,14 @@ export function InvoiceEntryPanel({
               type="button"
               size="sm"
               className="bg-emerald-800 hover:bg-pine-900"
-              onClick={() => onApplyTotals(totals)}
+              onClick={() =>
+                onApplyTotals({
+                  base: totals.base,
+                  quota: totals.quota,
+                  total: netTotal,
+                  irpf: irpfQuota,
+                })
+              }
             >
               Aplicar al asiento
             </Button>

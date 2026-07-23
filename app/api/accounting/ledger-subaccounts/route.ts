@@ -5,6 +5,8 @@ import { resolveAccountParentCode } from "@/lib/accounting/new-account-prefix"
 import {
   resolveOrCreateLedgerSubaccount,
 } from "@/lib/accounting/ledger-subaccount-service"
+import { upsertAccountTreatment } from "@/lib/accounting/account-treatment-service"
+import type { AccountTreatmentConfigInput } from "@/lib/accounting/account-treatment-types"
 import { ledgerSubaccountToOption } from "@/lib/accounting/ledger-subaccount-types"
 
 export async function GET(request: Request) {
@@ -40,6 +42,7 @@ export async function POST(request: Request) {
       address?: string
       phone?: string
       email?: string
+      treatment?: AccountTreatmentConfigInput
     }
 
     const parentCode = body.parentCode?.trim() ?? ""
@@ -67,6 +70,10 @@ export async function POST(request: Request) {
       phone: body.phone,
       email: body.email,
     })
+
+    if (body.treatment) {
+      await upsertAccountTreatment(companyId, resolution.accountCode, body.treatment)
+    }
 
     return NextResponse.json({ success: true, resolution })
   } catch (error) {

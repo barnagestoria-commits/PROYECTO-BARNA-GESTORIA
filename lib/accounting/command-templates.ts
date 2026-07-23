@@ -52,6 +52,16 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
       { cuenta: "476", concepto: "Organismos de la Seguridad Social", debe: 0, haber: 0 },
     ],
   },
+  "303": {
+    code: "303",
+    label: "Liquidación IVA (303)",
+    description: "Regularización trimestral — saldo 477 vs 472 → 4750 o 4700",
+    lines: [
+      { cuenta: "477", concepto: "IVA repercutido", debe: 0, haber: 0 },
+      { cuenta: "472", concepto: "IVA soportado", debe: 0, haber: 0 },
+      { cuenta: "4750", concepto: "H.P. acreedora por IVA", debe: 0, haber: 0 },
+    ],
+  },
 }
 
 export const COMMAND_CODES = Object.keys(ACCOUNTING_COMMANDS) as AccountingCommandCode[]

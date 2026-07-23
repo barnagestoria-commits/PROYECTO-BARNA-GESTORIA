@@ -10,6 +10,8 @@ import {
 import {
   resolveOrCreateThirdPartyWithPrefix,
 } from "@/lib/accounting/third-party-service"
+import { upsertAccountTreatment } from "@/lib/accounting/account-treatment-service"
+import type { AccountTreatmentConfigInput } from "@/lib/accounting/account-treatment-types"
 
 export async function GET(request: Request) {
   try {
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
       accountPrefix?: string
       cif?: string
       name?: string
+      treatment?: AccountTreatmentConfigInput
     }
 
     const accountPrefix = body.accountPrefix?.trim() ?? ""
@@ -80,6 +83,10 @@ export async function POST(request: Request) {
       body.cif,
       body.name,
     )
+
+    if (body.treatment) {
+      await upsertAccountTreatment(companyId, resolution.accountCode, body.treatment)
+    }
 
     return NextResponse.json({ success: true, resolution })
   } catch (error) {

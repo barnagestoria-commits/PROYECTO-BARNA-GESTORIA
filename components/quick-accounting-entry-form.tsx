@@ -46,6 +46,12 @@ import {
   isInvoiceConceptAccountLine,
   isInvoiceConceptCommand,
 } from "@/lib/accounting/invoice-entry-concepts"
+import {
+  applyInvoiceAmountsToLines,
+  applyTreatmentToEntryLines,
+  applyTreatmentToInvoiceDetails,
+} from "@/lib/accounting/invoice-auto-fill"
+import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { apiFetch } from "@/lib/api-client"
 import { useAuth } from "@/components/auth-provider"
 import { AccountCellInput } from "@/components/accounting/account-cell-input"
@@ -198,9 +204,32 @@ export function QuickAccountingEntryForm() {
     [focusCell, lines.length],
   )
 
+  const applyAccountTreatment = useCallback(
+    async (accountCode: string, targetRow = 0) => {
+      try {
+        const data = await apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
+          `/api/accounting/account-treatment?accountCode=${encodeURIComponent(accountCode)}`,
+        )
+
+        if (!data.treatment) return
+
+        setInvoiceDetails((prev) => applyTreatmentToInvoiceDetails(prev, data.treatment!))
+        setLines((prev) =>
+          applyTreatmentToEntryLines(prev, data.treatment!, {
+            activeCommand,
+            thirdPartyRow: targetRow,
+          }),
+        )
+      } catch {
+        // Sin parametrización: se mantienen plantillas por defecto
+      }
+    },
+    [activeCommand],
+  )
+
   const applyAccountAssignment = useCallback(
     (
-      assignment: { formattedAccountCode: string; name: string; cif?: string },
+      assignment: { formattedAccountCode: string; name: string; cif?: string; accountCode?: string },
       targetRow = 0,
     ) => {
       lastAccountByRow.current.set(targetRow, assignment.formattedAccountCode)
@@ -223,43 +252,32 @@ export function QuickAccountingEntryForm() {
           thirdPartyName: assignment.name,
         }))
       }
+      void applyAccountTreatment(
+        assignment.accountCode ?? assignment.formattedAccountCode,
+        targetRow,
+      )
       requestAnimationFrame(() => focusCell(targetRow, "debe"))
     },
-    [focusCell],
+    [applyAccountTreatment, focusCell],
   )
 
   const applyInvoiceTotals = useCallback(
-    (amounts: { base: number; quota: number; total: number }) => {
+    (amounts: { base: number; quota: number; total: number; irpf?: number }) => {
       setLines((prev) => {
-        const thirdIdx = prev.findIndex((line) =>
-          isThirdPartyAccountPrefix(line.cuenta),
+        const withAmounts = applyInvoiceAmountsToLines(
+          prev,
+          {
+            base: amounts.base,
+            quota: amounts.quota,
+            irpf: amounts.irpf ?? 0,
+            total: amounts.total,
+          },
+          { activeCommand: activeCommand ?? undefined },
         )
-        const vatIdx = prev.findIndex((line) => /^47[27]/.test(line.cuenta.replace(/\D/g, "")))
-        const baseIdx = prev.findIndex((line) => /^[67]/.test(line.cuenta.replace(/\D/g, "")))
-
-        const thirdPartyIndex = thirdIdx >= 0 ? thirdIdx : 0
-        const vatIndex = vatIdx >= 0 ? vatIdx : 1
-        const baseIndex = baseIdx >= 0 ? baseIdx : 2
-        const emitida =
-          activeCommand === "17" ||
-          (activeCommand !== "34" && isEmitidaThirdPartyAccount(prev[thirdPartyIndex]?.cuenta ?? ""))
-
-        const next = prev.map((line, index) => {
-          if (emitida) {
-            if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
-            if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
-            if (index === baseIndex) return { ...line, debe: 0, haber: amounts.base }
-          } else {
-            if (index === thirdPartyIndex) return { ...line, debe: 0, haber: amounts.total }
-            if (index === vatIndex) return { ...line, debe: amounts.quota, haber: 0 }
-            if (index === baseIndex) return { ...line, debe: amounts.base, haber: 0 }
-          }
-          return line
-        })
 
         return isInvoiceConceptCommand(activeCommand)
-          ? applyInvoiceConceptsToLines(next, activeCommand, invoiceDetails.invoiceNumber)
-          : next
+          ? applyInvoiceConceptsToLines(withAmounts, activeCommand, invoiceDetails.invoiceNumber)
+          : withAmounts
       })
     },
     [activeCommand, invoiceDetails.invoiceNumber],
@@ -274,11 +292,44 @@ export function QuickAccountingEntryForm() {
   }, [fecha, focusCell])
 
   const applyCommand = useCallback(
-    (code: AccountingCommandCode) => {
+    async (code: AccountingCommandCode) => {
       setActiveCommand(code)
       setCommandHint(null)
-      setLines(linesFromTemplate(code))
-      setInvoiceDetails(createDefaultInvoiceDetails(fecha))
+
+      if (code === "303") {
+        const year = new Date(fecha).getFullYear()
+        const month = new Date(fecha).getMonth() + 1
+        const quarter = (Math.ceil(month / 3) as 1 | 2 | 3 | 4)
+
+        try {
+          const data = await apiFetch<{
+            success: true
+            liquidation: {
+              concept: string
+              resultType: "pagar" | "compensar"
+              settlementAccount: string
+              saldoRepercutido: number
+              saldoSoportado: number
+              difference: number
+            }
+            lines: AccountingEntryLine[]
+          }>(`/api/accounting/vat-liquidation?year=${year}&quarter=${quarter}`)
+
+          setLines(data.lines)
+          setCommandHint(
+            `Liquidación T${quarter} ${year}: ${data.liquidation.resultType === "pagar" ? "A pagar" : "A compensar"} ${formatEuro(Math.abs(data.liquidation.difference))} → cuenta ${data.liquidation.settlementAccount}`,
+          )
+        } catch (err) {
+          setLines(linesFromTemplate(code))
+          setCommandHint(
+            err instanceof Error ? err.message : "No se pudo calcular la liquidación de IVA.",
+          )
+        }
+      } else {
+        setLines(linesFromTemplate(code))
+        setInvoiceDetails(createDefaultInvoiceDetails(fecha))
+      }
+
       requestAnimationFrame(() => focusCell(0, "cuenta"))
     },
     [fecha, focusCell],
@@ -480,6 +531,7 @@ export function QuickAccountingEntryForm() {
     const line = lines[row]
     if (!line) return
     updateLine(line.id, { cuenta: accountCode, concepto: line.concepto || accountName })
+    void applyAccountTreatment(accountCode, row)
     requestAnimationFrame(() => focusCell(row, "concepto"))
   }
 
@@ -496,6 +548,7 @@ export function QuickAccountingEntryForm() {
           formattedAccountCode: result.resolution.formattedAccountCode,
           name: result.resolution.name,
           cif: result.resolution.cif,
+          accountCode: result.resolution.accountCode,
         },
         activeCell.row,
       )
@@ -507,6 +560,7 @@ export function QuickAccountingEntryForm() {
       {
         formattedAccountCode: result.resolution.formattedAccountCode,
         name: result.resolution.name,
+        accountCode: result.resolution.accountCode,
       },
       activeCell.row,
     )
@@ -659,6 +713,7 @@ export function QuickAccountingEntryForm() {
                               })
                               if (suggestion.source === "tercero") {
                                 setFocusedThirdParty(suggestion.subtitle.split(" · ")[0] ?? null)
+                                void applyAccountTreatment(suggestion.label, rowIndex)
                               }
                             }
                           }}
@@ -852,6 +907,7 @@ export function QuickAccountingEntryForm() {
               formattedAccountCode: resolution.formattedAccountCode,
               name: resolution.name,
               cif: resolution.cif,
+              accountCode: resolution.accountCode,
             },
             activeCell.row,
           )

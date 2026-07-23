@@ -2,6 +2,8 @@ import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { calculateTotals } from "@/lib/accounting/command-templates"
 import { buildInvoiceLineConcept } from "@/lib/accounting/invoice-entry-concepts"
+import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { resolveOrCreateThirdParty } from "@/lib/accounting/third-party-service"
 import { thirdPartyTypeFromDocumentType } from "@/lib/accounting/third-party-types"
 import { calculateTotalFromBreakdown, sumDesglose } from "@/lib/invoice-totals"
@@ -22,7 +24,11 @@ function parseInvoiceDate(fechaFactura: string): Date {
   return date
 }
 
-function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: string) {
+function buildReceivedInvoiceLines(
+  invoice: InvoiceOcrResult,
+  providerAccount: string,
+  expenseAccount = "600",
+) {
   const { baseImponible, iva } = sumDesglose(invoice.iva_desglose)
   const recargo = invoice.recargo_equivalencia?.cuota ?? 0
   const totalIva = Math.round((iva + recargo) * 100) / 100
@@ -51,7 +57,7 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
 
   lines.push({
     sortOrder: lines.length,
-    cuenta: "600",
+    cuenta: expenseAccount.replace(/\./g, ""),
     concepto: concept,
     debe: baseImponible,
     haber: 0,
@@ -60,7 +66,11 @@ function buildReceivedInvoiceLines(invoice: InvoiceOcrResult, providerAccount: s
   return lines
 }
 
-function buildIssuedInvoiceLines(invoice: InvoiceOcrResult, clientAccount: string) {
+function buildIssuedInvoiceLines(
+  invoice: InvoiceOcrResult,
+  clientAccount: string,
+  incomeAccount = "700",
+) {
   const { baseImponible, iva } = sumDesglose(invoice.iva_desglose)
   const total = calculateTotalFromBreakdown(invoice.iva_desglose, invoice.recargo_equivalencia)
   const concept = buildInvoiceLineConcept("17", invoice.numeroFactura)
@@ -87,7 +97,7 @@ function buildIssuedInvoiceLines(invoice: InvoiceOcrResult, clientAccount: strin
 
   lines.push({
     sortOrder: lines.length,
-    cuenta: "700",
+    cuenta: incomeAccount.replace(/\./g, ""),
     concepto: concept,
     debe: 0,
     haber: baseImponible,
@@ -111,11 +121,19 @@ export async function createInvoiceAccountingEntry(params: {
     params.invoice.proveedor,
   )
 
+  const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
+  const defaultExpenseAccount = treatment?.defaultCounterpartAccount
+    ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
+    : "600"
+  const defaultIncomeAccount = treatment?.defaultCounterpartAccount
+    ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
+    : "700"
+
   const commandCode = params.documentType === "factura-recibida" ? "34" : "17"
   const lines =
     params.documentType === "factura-recibida"
-      ? buildReceivedInvoiceLines(params.invoice, thirdParty.accountCode)
-      : buildIssuedInvoiceLines(params.invoice, thirdParty.accountCode)
+      ? buildReceivedInvoiceLines(params.invoice, thirdParty.accountCode, defaultExpenseAccount)
+      : buildIssuedInvoiceLines(params.invoice, thirdParty.accountCode, defaultIncomeAccount)
 
   const totals = calculateTotals(
     lines.map((line, index) => ({

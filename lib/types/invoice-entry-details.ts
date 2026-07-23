@@ -16,6 +16,9 @@ export interface InvoiceEntryDetails {
   nif: string
   isRectificativa: boolean
   vatLines: InvoiceVatLine[]
+  applyIrpf: boolean
+  irpfPercent: number
+  irpfAccount: string
 }
 
 export function createEmptyVatLine(): InvoiceVatLine {
@@ -39,6 +42,9 @@ export function createDefaultInvoiceDetails(fecha: string): InvoiceEntryDetails 
     nif: "",
     isRectificativa: false,
     vatLines: [createEmptyVatLine()],
+    applyIrpf: false,
+    irpfPercent: 0,
+    irpfAccount: "",
   }
 }
 

@@ -11,6 +11,11 @@ import { apiFetch } from "@/lib/api-client"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
 import type { LedgerSubaccountResolution } from "@/lib/accounting/ledger-subaccount-types"
 import {
+  emptyAccountTreatmentInput,
+  type AccountTreatmentConfigInput,
+} from "@/lib/accounting/account-treatment-types"
+import { AccountTreatmentFields } from "@/components/accounting/account-treatment-fields"
+import {
   isThirdPartyNewAccountPrefix,
   resolveAccountParentCode,
   THIRD_PARTY_PREFIX_CONFIG,
@@ -40,6 +45,9 @@ export function NewSubaccountDialog({
   const [phone, setPhone] = useState("")
   const [email, setEmail] = useState("")
   const [notes, setNotes] = useState("")
+  const [treatment, setTreatment] = useState<AccountTreatmentConfigInput>(() =>
+    emptyAccountTreatmentInput(),
+  )
   const [previewAccount, setPreviewAccount] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -104,6 +112,7 @@ export function NewSubaccountDialog({
       setPhone("")
       setEmail("")
       setNotes("")
+      setTreatment(emptyAccountTreatmentInput())
       setPreviewAccount(null)
       setError(null)
     }
@@ -129,6 +138,7 @@ export function NewSubaccountDialog({
               phone,
               email,
               notes,
+              treatment,
             }),
           },
         )
@@ -145,6 +155,7 @@ export function NewSubaccountDialog({
               phone,
               email,
               notes,
+              treatment,
             }),
           },
         )
@@ -266,6 +277,12 @@ export function NewSubaccountDialog({
             />
           </div>
         </div>
+
+        <AccountTreatmentFields
+          value={treatment}
+          onChange={setTreatment}
+          showCounterpart={isThirdParty}
+        />
 
         {error && (
           <p className="text-sm text-red-700" role="alert">

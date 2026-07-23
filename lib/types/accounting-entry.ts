@@ -1,6 +1,6 @@
 import type { InvoiceEntryDetails } from "@/lib/types/invoice-entry-details"
 
-export type AccountingCommandCode = "17" | "34" | "16" | "57"
+export type AccountingCommandCode = "17" | "34" | "16" | "57" | "303"
 
 export interface AccountingEntryLine {
   id: string
