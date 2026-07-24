@@ -8,6 +8,12 @@ export const INVOICE_CONCEPT_PREFIX: Record<InvoiceConceptCommand, string> = {
   "34": "Su factura N.",
 }
 
+/** Concepto de la línea de tercero (430/400) cuando aún no hay número de factura. */
+export const THIRD_PARTY_INVOICE_CONCEPT: Record<InvoiceConceptCommand, string> = {
+  "17": "Nuestra Factura",
+  "34": "Su Factura",
+}
+
 export interface InvoiceConceptOptions {
   invoiceNumber: string
   thirdPartyLabel?: string
@@ -40,7 +46,7 @@ export function resolveThirdPartyLabel(
 
   const thirdIdx = lines.findIndex((line) => isThirdPartyAccountPrefix(line.cuenta))
   const concept = lines[thirdIdx]?.concepto?.trim() ?? ""
-  if (concept && concept !== "Cliente" && concept !== "Proveedor") {
+  if (concept && concept !== "Cliente" && concept !== "Proveedor" && concept !== "Nuestra Factura" && concept !== "Su Factura") {
     const formatted = formatPartyLabel(concept)
     if (formatted && !concept.toLowerCase().startsWith("nuestra factura") && !concept.toLowerCase().startsWith("su factura")) {
       return formatted
@@ -54,9 +60,11 @@ export function buildInvoiceLineConcept(
   code: InvoiceConceptCommand,
   invoiceNumber: string,
 ): string {
-  const prefix = INVOICE_CONCEPT_PREFIX[code]
   const number = invoiceNumber.trim()
-  return number ? `${prefix} ${number}` : `${prefix} `
+  if (code === "17") {
+    return number ? `Nuestra factura N. ${number}` : THIRD_PARTY_INVOICE_CONCEPT["17"]
+  }
+  return number ? `Su factura N. ${number}` : THIRD_PARTY_INVOICE_CONCEPT["34"]
 }
 
 function accountDigits(cuenta: string): string {
@@ -73,12 +81,7 @@ function isVatAccountRecibida(cuenta: string): boolean {
 
 function isIncomeAccount(cuenta: string): boolean {
   const digits = accountDigits(cuenta)
-  return (
-    digits.startsWith("700") ||
-    digits.startsWith("705") ||
-    digits.startsWith("708") ||
-    digits.startsWith("75")
-  )
+  return digits.length > 0 && digits.startsWith("7")
 }
 
 function isExpenseAccount(cuenta: string): boolean {
@@ -130,12 +133,7 @@ export function isInvoiceConceptAccountLine(
   if (!digits) return false
 
   if (code === "17") {
-    return (
-      isVatAccountEmitida(cuenta) ||
-      digits.startsWith("700") ||
-      digits.startsWith("705") ||
-      digits.startsWith("708")
-    )
+    return isVatAccountEmitida(cuenta) || isIncomeAccount(cuenta)
   }
 
   return isVatAccountRecibida(cuenta) || isExpenseAccount(cuenta)

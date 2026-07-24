@@ -9,10 +9,12 @@ import {
   Loader2,
   Printer,
   Square,
+  UserPlus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRequireAuth } from "@/components/auth-provider"
+import { AddGestoriaClientDialog } from "@/components/contabilidad/add-gestoria-client-dialog"
 import { cn } from "@/lib/utils"
 import {
   EMPTY_GESTORIA_COMPANY_FILTERS,
@@ -45,13 +47,14 @@ function FilterCell({
 }
 
 export function GestoriaClientsAccountingPage() {
-  const { session, activeCompany, setActiveCompany } = useRequireAuth()
+  const { session, activeCompany, setActiveCompany, refreshSession } = useRequireAuth()
   const router = useRouter()
 
   const [filters, setFilters] = useState<GestoriaCompanyFilters>(EMPTY_GESTORIA_COMPANY_FILTERS)
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null)
   const [statusMessage, setStatusMessage] = useState("Seleccione una empresa de la lista.")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [addClientOpen, setAddClientOpen] = useState(false)
 
   const rows = useMemo(
     () => mapCompaniesToGestoriaRows(session?.companies ?? []),
@@ -132,6 +135,13 @@ export function GestoriaClientsAccountingPage() {
     setStatusMessage("Operación cancelada.")
   }
 
+  const handleClientCreated = async (companyId: string) => {
+    await refreshSession()
+    setSelectedCompanyId(companyId)
+    setFilters(EMPTY_GESTORIA_COMPANY_FILTERS)
+    setStatusMessage("Cliente creado correctamente. Selecciónelo y pulse Aceptar para continuar.")
+  }
+
   if (!session) {
     return null
   }
@@ -167,6 +177,11 @@ export function GestoriaClientsAccountingPage() {
             onClick={handleList}
           />
           <ToolbarIconButton label="Tarifas" icon={CircleDollarSign} disabled badge="Próx." />
+          <ToolbarTextButton
+            label="Agregar Persona Jurídica/Física"
+            icon={UserPlus}
+            onClick={() => setAddClientOpen(true)}
+          />
           <ToolbarIconButton
             label="Ayuda"
             icon={HelpCircle}
@@ -285,7 +300,43 @@ export function GestoriaClientsAccountingPage() {
           </div>
         </div>
       </div>
+
+      <AddGestoriaClientDialog
+        open={addClientOpen}
+        onClose={() => setAddClientOpen(false)}
+        onCreated={handleClientCreated}
+      />
     </div>
+  )
+}
+
+function ToolbarTextButton({
+  label,
+  icon: Icon,
+  onClick,
+  disabled,
+}: {
+  label: string
+  icon: typeof Square
+  onClick?: () => void
+  disabled?: boolean
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "flex h-9 max-w-[220px] items-center gap-1.5 rounded-md border border-sand-300 bg-white px-2.5 text-left text-[11px] font-medium text-graphite-700 shadow-sm transition-colors sm:max-w-none",
+        disabled
+          ? "cursor-not-allowed opacity-45"
+          : "hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800",
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" />
+      <span className="truncate">{label}</span>
+    </button>
   )
 }
 

@@ -17,7 +17,7 @@ export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingComman
     label: "Nuestra factura (emitida)",
     description: "Factura de venta — Clientes, ingresos e IVA repercutido",
     lines: [
-      { cuenta: "430", concepto: "Cliente", debe: 0, haber: 0 },
+      { cuenta: "430", concepto: "Nuestra Factura", debe: 0, haber: 0 },
       { cuenta: "477", concepto: "IVA R.", debe: 0, haber: 0 },
       { cuenta: "705", concepto: "Ventas a", debe: 0, haber: 0 },
     ],

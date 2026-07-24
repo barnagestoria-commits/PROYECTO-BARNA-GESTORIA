@@ -442,8 +442,20 @@ export function QuickAccountingEntryForm() {
           )
         }
       } else {
-        setLines(linesFromTemplate(code))
-        setInvoiceDetails(createDefaultInvoiceDetails(fecha))
+        const mergedDetails = {
+          ...createDefaultInvoiceDetails(fecha),
+          invoiceNumber: invoiceDetails.invoiceNumber,
+          thirdPartyName: invoiceDetails.thirdPartyName || focusedThirdParty || "",
+          nif: invoiceDetails.nif,
+        }
+        setInvoiceDetails(mergedDetails)
+        setLines(
+          linesFromTemplate(
+            code,
+            mergedDetails.invoiceNumber,
+            mergedDetails.thirdPartyName,
+          ),
+        )
       }
 
       requestAnimationFrame(() => {
@@ -451,7 +463,7 @@ export function QuickAccountingEntryForm() {
         focusCell(focus.row, focus.field)
       })
     },
-    [fecha, focusCell],
+    [fecha, focusCell, focusedThirdParty, invoiceDetails.invoiceNumber, invoiceDetails.nif, invoiceDetails.thirdPartyName],
   )
 
   useEffect(() => {
@@ -999,7 +1011,8 @@ export function QuickAccountingEntryForm() {
                   const isActiveRow = activeCell.row === rowIndex
                   const invoiceConceptLocked =
                     isInvoiceConceptCommand(activeCommand) &&
-                    isInvoiceConceptAccountLine(line.cuenta, activeCommand)
+                    (isInvoiceConceptAccountLine(line.cuenta, activeCommand) ||
+                      isThirdPartyAccountPrefix(line.cuenta))
                   const rowContext: EntryNavigationContext = {
                     ...navigationContext,
                     lines,

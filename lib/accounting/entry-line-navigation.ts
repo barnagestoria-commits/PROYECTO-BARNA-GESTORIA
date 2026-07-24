@@ -138,21 +138,14 @@ function isConceptFieldSkippable(
   activeCommand: AccountingCommandCode | null,
 ): boolean {
   if (activeCommand !== "17" && activeCommand !== "34") return false
+  if (isThirdPartyAccountPrefix(line.cuenta)) return true
+
   const digits = accountDigits(line.cuenta)
   if (!digits) return false
   if (activeCommand === "17") {
-    return (
-      digits.startsWith("477") ||
-      digits.startsWith("700") ||
-      digits.startsWith("705") ||
-      digits.startsWith("708")
-    )
+    return digits.startsWith("477") || digits.startsWith("7")
   }
-  return (
-    digits.startsWith("472") ||
-    digits.startsWith("600") ||
-    /^6[0-2]/.test(digits)
-  )
+  return digits.startsWith("472") || /^6/.test(digits)
 }
 
 /** Campos navegables con Tab, omitiendo Debe/Haber inactivos y conceptos bloqueados. */
