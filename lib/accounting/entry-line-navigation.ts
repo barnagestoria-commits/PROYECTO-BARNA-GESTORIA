@@ -50,7 +50,7 @@ export function findInvoiceLineIndices(lines: AccountingEntryLine[]) {
   }
 }
 
-/** Naturaleza contable del importe según cuenta y contexto de factura (estilo A3). */
+/** Naturaleza contable del importe según cuenta y contexto de factura. */
 export function getLineAmountSide(
   rowIndex: number,
   line: AccountingEntryLine,

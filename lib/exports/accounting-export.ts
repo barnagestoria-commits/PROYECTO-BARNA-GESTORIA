@@ -41,9 +41,9 @@ function buildExportRow(
   },
 ): string[] {
   switch (sourceFormat) {
-    case "a3":
+    case "wk-asesor":
       return [data.fecha, data.asiento, data.cuenta, data.concepto, data.debe, data.haber, data.documento]
-    case "holded":
+    case "cloud-diario":
       return [data.fecha, data.cuenta, data.concepto, data.debe, data.haber, data.asiento]
     case "sage":
       return [data.fecha, data.asiento, data.cuenta, data.concepto, data.debe, data.haber, data.documento]

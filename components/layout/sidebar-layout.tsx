@@ -9,7 +9,7 @@ import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer"
 import { CommandPalette, CommandPaletteTrigger } from "@/components/command-palette"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { DashboardOnboardingTour } from "@/components/dashboard-onboarding-tour"
-import { getPageTitle } from "@/lib/navigation/a3-toolbar"
+import { getPageTitle } from "@/lib/navigation/accounting-toolbar"
 
 interface SidebarLayoutProps {
   children: ReactNode

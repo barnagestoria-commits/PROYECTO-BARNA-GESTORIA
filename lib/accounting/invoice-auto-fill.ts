@@ -151,7 +151,7 @@ export function calculateInvoiceAmountsWithIrpf(
   return { base: roundedBase, quota: roundedQuota, irpf, total }
 }
 
-/** Calcula base y cuota IVA a partir del total factura (flujo A3: importe en 430/400). */
+/** Calcula base y cuota IVA a partir del total factura (importe en cuenta de tercero 430/400). */
 export function calculateAmountsFromTotal(
   total: number,
   details: InvoiceEntryDetails,

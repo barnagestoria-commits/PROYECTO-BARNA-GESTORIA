@@ -136,12 +136,12 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
           {
             label: "Importar datos contables",
             href: "/dashboard/utilidades/importar",
-            description: "A3, Holded, Sage y CSV/Excel genérico",
+            description: "Wolters Kluwer, Sage y CSV/Excel genérico",
           },
           {
             label: "Exportar asientos",
             href: "/dashboard/utilidades/importar?tab=exportar",
-            description: "Descargar diario compatible con A3 / Holded",
+            description: "Descargar diario en formatos compatibles con otros programas",
           },
           {
             label: "Historial de importaciones",
@@ -184,7 +184,7 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
           {
             label: "Libro diario / Asientos",
             href: "/dashboard/contabilidad",
-            description: "Contabilización estilo A3",
+            description: "Contabilización con flujo de teclado profesional",
           },
           {
             label: "Centros de coste",

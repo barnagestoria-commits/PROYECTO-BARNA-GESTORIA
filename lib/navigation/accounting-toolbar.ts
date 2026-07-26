@@ -1,7 +1,7 @@
 import type { LucideIcon } from "lucide-react"
 import type { ReportType } from "@/lib/reports/types"
 
-export interface A3ToolbarItem {
+export interface AccountingToolbarItem {
   id: string
   label: string
   description?: string
@@ -12,14 +12,14 @@ export interface A3ToolbarItem {
   external?: boolean
 }
 
-export interface A3ToolbarGroup {
+export interface AccountingToolbarGroup {
   id: string
   label: string
   shortLabel?: string
-  items: A3ToolbarItem[]
+  items: AccountingToolbarItem[]
 }
 
-export const A3_TOOLBAR_GROUPS: A3ToolbarGroup[] = [
+export const ACCOUNTING_TOOLBAR_GROUPS: AccountingToolbarGroup[] = [
   {
     id: "listados",
     label: "Listados Contables",

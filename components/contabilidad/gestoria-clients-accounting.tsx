@@ -7,15 +7,21 @@ import {
   FileSpreadsheet,
   HelpCircle,
   Loader2,
+  MoreVertical,
+  Pencil,
   Printer,
   Square,
+  Trash2,
   UserPlus,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRequireAuth } from "@/components/auth-provider"
 import { AddGestoriaClientDialog } from "@/components/contabilidad/add-gestoria-client-dialog"
+import { EditGestoriaClientDialog } from "@/components/contabilidad/edit-gestoria-client-dialog"
 import { cn } from "@/lib/utils"
+import { apiFetch } from "@/lib/api-client"
+import type { GestoriaClientProfileDto } from "@/lib/contabilidad/gestoria-client-profile-types"
 import {
   EMPTY_GESTORIA_COMPANY_FILTERS,
   filterGestoriaCompanyRows,
@@ -25,7 +31,7 @@ import {
 } from "@/lib/contabilidad/gestoria-companies"
 
 const GRID_COLUMNS =
-  "grid grid-cols-[72px_minmax(180px,1.4fr)_140px_56px_minmax(160px,1fr)]"
+  "grid grid-cols-[72px_minmax(180px,1.4fr)_140px_56px_minmax(160px,1fr)_40px]"
 
 function FilterCell({
   value,
@@ -55,11 +61,24 @@ export function GestoriaClientsAccountingPage() {
   const [statusMessage, setStatusMessage] = useState("Seleccione una empresa de la lista.")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [addClientOpen, setAddClientOpen] = useState(false)
+  const [editClientId, setEditClientId] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [profiles, setProfiles] = useState<Map<string, GestoriaClientProfileDto>>(new Map())
 
   const rows = useMemo(
-    () => mapCompaniesToGestoriaRows(session?.companies ?? []),
-    [session?.companies],
+    () => mapCompaniesToGestoriaRows(session?.companies ?? [], "cloud", profiles),
+    [profiles, session?.companies],
   )
+
+  useEffect(() => {
+    if (!session || session.user.accountType !== "GESTORIA") return
+
+    void apiFetch<{ success: true; profiles: Record<string, GestoriaClientProfileDto> }>(
+      "/api/companies/profiles",
+    )
+      .then((data) => setProfiles(new Map(Object.entries(data.profiles))))
+      .catch(() => setProfiles(new Map()))
+  }, [session])
 
   const filteredRows = useMemo(() => filterGestoriaCompanyRows(rows, filters), [rows, filters])
 
@@ -137,9 +156,52 @@ export function GestoriaClientsAccountingPage() {
 
   const handleClientCreated = async (companyId: string) => {
     await refreshSession()
+    await reloadProfiles()
     setSelectedCompanyId(companyId)
     setFilters(EMPTY_GESTORIA_COMPANY_FILTERS)
     setStatusMessage("Cliente creado correctamente. Selecciónelo y pulse Aceptar para continuar.")
+  }
+
+  const reloadProfiles = async () => {
+    try {
+      const data = await apiFetch<{ success: true; profiles: Record<string, GestoriaClientProfileDto> }>(
+        "/api/companies/profiles",
+      )
+      setProfiles(new Map(Object.entries(data.profiles)))
+    } catch {
+      setProfiles(new Map())
+    }
+  }
+
+  const handleEditClient = (companyId: string) => {
+    setOpenMenuId(null)
+    setEditClientId(companyId)
+  }
+
+  const handleDeleteClient = async (row: GestoriaCompanyRow) => {
+    setOpenMenuId(null)
+    const confirmed = window.confirm(
+      `¿Eliminar el cliente ${row.code} · ${row.name}? Esta acción no se puede deshacer.`,
+    )
+    if (!confirmed) return
+
+    try {
+      await apiFetch(`/api/companies/${row.id}`, { method: "DELETE" })
+      if (selectedCompanyId === row.id) {
+        setSelectedCompanyId(null)
+      }
+      await refreshSession()
+      await reloadProfiles()
+      setStatusMessage(`Cliente ${row.name} eliminado.`)
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : "No se pudo eliminar el cliente.")
+    }
+  }
+
+  const handleClientSaved = async () => {
+    await refreshSession()
+    await reloadProfiles()
+    setStatusMessage("Ficha de cliente actualizada correctamente.")
   }
 
   if (!session) {
@@ -187,7 +249,7 @@ export function GestoriaClientsAccountingPage() {
             icon={HelpCircle}
             onClick={() =>
               setStatusMessage(
-                "En modo nube la documentación se guarda en el repositorio de Barna Gestoría por cliente. En instalación de escritorio se usará ruta local tipo A3.",
+                "En modo nube la documentación se guarda en el repositorio de Barna Gestoría por cliente. En instalación de escritorio se usará una ruta local configurable por cliente.",
               )
             }
           />
@@ -201,6 +263,7 @@ export function GestoriaClientsAccountingPage() {
               <div className="border-r border-sand-300 px-2 py-2">Tipo</div>
               <div className="border-r border-sand-300 px-2 py-2">Res</div>
               <div className="px-2 py-2">Camino de Acceso</div>
+              <div />
             </div>
 
             <div className={cn(GRID_COLUMNS, "border-b border-sand-300 bg-sand-200/80")}>
@@ -229,6 +292,7 @@ export function GestoriaClientsAccountingPage() {
                 onChange={(value) => updateFilter("accessPath", value)}
                 aria-label="Filtrar por camino de acceso"
               />
+              <div />
             </div>
 
             <div className="max-h-[420px] overflow-auto bg-white">
@@ -246,8 +310,15 @@ export function GestoriaClientsAccountingPage() {
                     key={row.id}
                     row={row}
                     selected={row.id === selectedCompanyId}
+                    menuOpen={openMenuId === row.id}
+                    onToggleMenu={() =>
+                      setOpenMenuId((current) => (current === row.id ? null : row.id))
+                    }
+                    onCloseMenu={() => setOpenMenuId(null)}
                     onSelect={() => setSelectedCompanyId(row.id)}
                     onAccept={() => openCompanyWorkspace(row.id, "/dashboard/contabilidad")}
+                    onEdit={() => handleEditClient(row.id)}
+                    onDelete={() => void handleDeleteClient(row)}
                   />
                 ))
               )}
@@ -305,6 +376,13 @@ export function GestoriaClientsAccountingPage() {
         open={addClientOpen}
         onClose={() => setAddClientOpen(false)}
         onCreated={handleClientCreated}
+      />
+
+      <EditGestoriaClientDialog
+        open={editClientId !== null}
+        companyId={editClientId}
+        onClose={() => setEditClientId(null)}
+        onSaved={() => void handleClientSaved()}
       />
     </div>
   )
@@ -405,32 +483,84 @@ function SidebarActionButton({
 function CompanyGridRow({
   row,
   selected,
+  menuOpen,
+  onToggleMenu,
+  onCloseMenu,
   onSelect,
   onAccept,
+  onEdit,
+  onDelete,
 }: {
   row: GestoriaCompanyRow
   selected: boolean
+  menuOpen: boolean
+  onToggleMenu: () => void
+  onCloseMenu: () => void
   onSelect: () => void
   onAccept: () => void
+  onEdit: () => void
+  onDelete: () => void
 }) {
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      onDoubleClick={onAccept}
+    <div
       className={cn(
         GRID_COLUMNS,
-        "w-full border-b border-sand-200 text-left font-mono text-xs transition-colors",
-        selected
-          ? "bg-emerald-100 text-emerald-950"
-          : "bg-white text-graphite-800 hover:bg-sand-50",
+        "relative w-full border-b border-sand-200 text-left font-mono text-xs transition-colors",
+        selected ? "bg-emerald-100 text-emerald-950" : "bg-white text-graphite-800 hover:bg-sand-50",
       )}
     >
-      <span className="border-r border-sand-200 px-2 py-2">{row.code}</span>
-      <span className="truncate border-r border-sand-200 px-2 py-2 font-sans text-sm">{row.name}</span>
-      <span className="truncate border-r border-sand-200 px-2 py-2 font-sans">{row.type}</span>
-      <span className="border-r border-sand-200 px-2 py-2">{row.res}</span>
-      <span className="truncate px-2 py-2">{row.accessPath}</span>
-    </button>
+      <button type="button" onClick={onSelect} onDoubleClick={onAccept} className="contents">
+        <span className="border-r border-sand-200 px-2 py-2">{row.code}</span>
+        <span className="truncate border-r border-sand-200 px-2 py-2 font-sans text-sm">{row.name}</span>
+        <span className="truncate border-r border-sand-200 px-2 py-2 font-sans">{row.type}</span>
+        <span className="border-r border-sand-200 px-2 py-2">{row.res}</span>
+        <span className="truncate border-r border-sand-200 px-2 py-2">{row.accessPath}</span>
+      </button>
+      <div className="relative flex items-center justify-center px-1 py-1">
+        <button
+          type="button"
+          aria-label="Acciones del cliente"
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleMenu()
+          }}
+          className="rounded p-1 text-graphite-500 hover:bg-white hover:text-pine-900"
+        >
+          <MoreVertical className="h-4 w-4" />
+        </button>
+        {menuOpen && (
+          <>
+            <button
+              type="button"
+              className="fixed inset-0 z-10 cursor-default"
+              aria-label="Cerrar menú"
+              onClick={onCloseMenu}
+            />
+            <div className="absolute right-0 top-8 z-20 min-w-[140px] rounded-md border border-sand-200 bg-white py-1 shadow-lg">
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-emerald-50"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onEdit()
+                }}
+              >
+                <Pencil className="h-4 w-4" /> Editar
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onDelete()
+                }}
+              >
+                <Trash2 className="h-4 w-4" /> Eliminar
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   )
 }

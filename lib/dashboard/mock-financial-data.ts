@@ -144,7 +144,7 @@ const DATA_BY_RANGE: Record<DateRangeKey, FinancialDashboardData> = {
         description: "Extracto bancario de julio pendiente de revisión",
       },
       {
-        id: "a3",
+        id: "alert-cierre",
         severity: "info",
         title: "Cierre trimestral",
         description: "Revisa el balance de sumas y saldos antes del 25/07",

@@ -68,6 +68,17 @@ enum CompanyClientProfile {
   GRAN_EMPRESA
 }
 
+enum AccountingPlanType {
+  PGC_GENERAL
+  PGC_PYME
+  PGC_MICRO
+}
+
+enum GestoriaEntityType {
+  PERSONA_JURIDICA
+  PERSONA_FISICA
+}
+
 /// Cuenta raíz: despacho de gestoría o cliente final (autónomo/empresa)
 model Account {
   id          String      @id @default(cuid())
@@ -118,6 +129,7 @@ model Company {
   fiscalSettings       CompanyFiscalSettings?
   accountingSettings   CompanyAccountingSettings?
   accountAnalyticTemplates AccountAnalyticTemplate[]
+  gestoriaProfile      CompanyGestoriaProfile?
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -224,6 +236,46 @@ model CompanyFiscalSettings {
   model303Enabled  Boolean              @default(true)
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
+}
+
+/// Ficha ampliada de cliente de gestoría
+model CompanyGestoriaProfile {
+  id                     String             @id @default(cuid())
+  companyId              String             @unique
+  company                Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  clientCode             String
+  entityType             GestoriaEntityType @default(PERSONA_JURIDICA)
+  accountingPlanType     AccountingPlanType @default(PGC_PYME)
+  email                  String?
+  phone                  String?
+  fax                    String?
+  website                String?
+  streetType             String?
+  streetName             String?
+  streetNumber           String?
+  floor                  String?
+  door                   String?
+  postalCode             String?
+  city                   String?
+  province               String?
+  country                String?            @default("ES")
+  technicianName         String?
+  responsibleCode        String?
+  accessPath             String?
+  modulesJson            String?
+  feeBankJson            String?
+  bankAccountsJson       String?
+  activitiesJson         String?
+  relatedPersonsJson     String?
+  formalObligationsJson  String?
+  localesJson            String?
+  impresosJson           String?
+  inmovilizadoParamsJson String?
+  prorrataJson           String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([clientCode])
 }
 
 /// Ficha de inmovilizado (cuentas 21x / 281x / 681x)

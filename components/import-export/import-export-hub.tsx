@@ -57,7 +57,7 @@ export function ImportExportHub() {
   const [activeTab, setActiveTab] = useState<HubTab>(
     TAB_ITEMS.some((tab) => tab.id === initialTab) ? initialTab : "importar",
   )
-  const [selectedFormat, setSelectedFormat] = useState<AccountingSourceFormat>("a3")
+  const [selectedFormat, setSelectedFormat] = useState<AccountingSourceFormat>("wk-asesor")
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
@@ -181,7 +181,7 @@ export function ImportExportHub() {
           Importación y exportación
         </h1>
         <p className="mt-1 text-sm text-graphite-500">
-          Compatible con A3, Holded, Sage y plantillas CSV/Excel genéricas.
+          Compatible con Wolters Kluwer, Sage y plantillas CSV/Excel genéricas.
         </p>
       </div>
 

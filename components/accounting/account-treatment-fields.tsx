@@ -29,7 +29,7 @@ export function AccountTreatmentFields({
       <div>
         <h4 className="text-sm font-medium text-emerald-900">Tratamiento contable habitual</h4>
         <p className="text-xs text-graphite-600">
-          Parametrización A3CON: contrapartida, IVA, IRPF e impreso fiscal por defecto.
+          Parametrización habitual: contrapartida, IVA, IRPF e impreso fiscal por defecto.
         </p>
       </div>
 

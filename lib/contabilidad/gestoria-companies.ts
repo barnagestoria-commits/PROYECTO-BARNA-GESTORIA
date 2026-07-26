@@ -1,4 +1,5 @@
 import type { CompanySummary } from "@/lib/types/auth"
+import type { GestoriaClientProfileDto } from "@/lib/contabilidad/gestoria-client-profile-types"
 
 export interface GestoriaCompanyRow {
   id: string
@@ -71,7 +72,7 @@ export function resolveCompanyAccessPath(
   mode: DocumentStorageMode = "cloud",
 ): string {
   if (mode === "local") {
-    return `\\A3\\A3ECO\\E${code}\\`
+    return `\\BarnaGestoria\\Clientes\\E${code}\\`
   }
 
   return `Nube / Barna Gestoría / Clientes / E${code}`
@@ -81,16 +82,20 @@ export function mapCompanyToGestoriaRow(
   company: CompanySummary,
   index: number,
   storageMode: DocumentStorageMode = "cloud",
+  profile?: GestoriaClientProfileDto,
 ): GestoriaCompanyRow {
-  const code = buildGestoriaCompanyCode(index)
+  const code = profile?.clientCode ?? buildGestoriaCompanyCode(index)
 
   return {
     id: company.id,
     code,
     name: company.name,
-    type: inferCompanyTaxType(company.name, company.cif),
-    res: inferResCode(company.cif, index),
-    accessPath: resolveCompanyAccessPath(code, storageMode),
+    type:
+      profile?.entityType === "PERSONA_FISICA"
+        ? "Persona Física"
+        : inferCompanyTaxType(company.name, company.cif),
+    res: profile?.responsibleCode || inferResCode(company.cif, index),
+    accessPath: profile?.accessPath || resolveCompanyAccessPath(code, storageMode),
     cif: company.cif,
   }
 }
@@ -98,10 +103,18 @@ export function mapCompanyToGestoriaRow(
 export function mapCompaniesToGestoriaRows(
   companies: CompanySummary[],
   storageMode: DocumentStorageMode = "cloud",
+  profiles?: Map<string, GestoriaClientProfileDto>,
 ): GestoriaCompanyRow[] {
   return [...companies]
     .sort((a, b) => a.name.localeCompare(b.name, "es"))
-    .map((company, index) => mapCompanyToGestoriaRow(company, index, storageMode))
+    .map((company, index) =>
+      mapCompanyToGestoriaRow(
+        company,
+        index,
+        storageMode,
+        profiles?.get(company.id),
+      ),
+    )
 }
 
 function matchesFilter(value: string, filter: string): boolean {

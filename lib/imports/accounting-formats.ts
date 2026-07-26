@@ -1,4 +1,4 @@
-export type AccountingSourceFormat = "a3" | "holded" | "sage" | "generic"
+export type AccountingSourceFormat = "wk-asesor" | "cloud-diario" | "sage" | "generic"
 
 export interface AccountingFormatProfile {
   id: AccountingSourceFormat
@@ -22,11 +22,11 @@ export interface AccountingFormatProfile {
 
 export const ACCOUNTING_FORMAT_PROFILES: AccountingFormatProfile[] = [
   {
-    id: "a3",
-    name: "A3 Asesor / Wolters Kluwer",
-    vendor: "A3",
+    id: "wk-asesor",
+    name: "Wolters Kluwer Asesor",
+    vendor: "Wolters Kluwer",
     description:
-      "Diario y mayor exportados desde A3 eco/Asesor. Columnas habituales: Fecha, Cuenta, Concepto, Debe, Haber.",
+      "Diario y mayor exportados desde software de gestoría de escritorio. Columnas habituales: Fecha, Cuenta, Concepto, Debe, Haber.",
     extensions: [".csv", ".xlsx", ".xls", ".txt"],
     csvDelimiter: ";",
     columnAliases: {
@@ -41,11 +41,11 @@ export const ACCOUNTING_FORMAT_PROFILES: AccountingFormatProfile[] = [
     exportHeaders: ["Fecha", "Asiento", "Cuenta", "Concepto", "Debe", "Haber", "Documento"],
   },
   {
-    id: "holded",
-    name: "Holded",
-    vendor: "Holded",
+    id: "cloud-diario",
+    name: "Contabilidad en la nube",
+    vendor: "Estándar internacional",
     description:
-      "Libro diario y plan contable de Holded. Exportación estándar con date, account, description, debit, credit.",
+      "Libro diario exportado desde plataformas online. Columnas habituales: date, account, description, debit, credit.",
     extensions: [".csv", ".xlsx", ".xls"],
     csvDelimiter: ",",
     columnAliases: {

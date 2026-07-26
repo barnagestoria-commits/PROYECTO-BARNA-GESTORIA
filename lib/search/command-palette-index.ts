@@ -1,5 +1,5 @@
 import { ACCOUNTING_COMMANDS, COMMAND_CODES } from "@/lib/accounting/command-templates"
-import { A3_TOOLBAR_GROUPS } from "@/lib/navigation/a3-toolbar"
+import { ACCOUNTING_TOOLBAR_GROUPS } from "@/lib/navigation/accounting-toolbar"
 import type { CommandPaletteItem } from "@/lib/search/command-palette-types"
 
 function navItem(
@@ -80,10 +80,10 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
     "nav-importar",
     "Importar datos contables",
     "/dashboard/utilidades/importar",
-    "A3, Holded, Sage y CSV",
-    ["importar", "exportar", "csv", "excel", "a3", "holded", "importación"],
+    "Wolters Kluwer, Sage y CSV",
+    ["importar", "exportar", "csv", "excel", "diario", "importación"],
   ),
-  ...A3_TOOLBAR_GROUPS.flatMap((group) =>
+  ...ACCOUNTING_TOOLBAR_GROUPS.flatMap((group) =>
     group.items.map((item) =>
       navItem(
         `nav-${item.id}`,

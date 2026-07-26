@@ -14,7 +14,7 @@ import {
 } from "lucide-react"
 import { ReportExportButtons } from "@/components/report-export-buttons"
 import { cn } from "@/lib/utils"
-import { A3_TOOLBAR_GROUPS, type A3ToolbarGroup } from "@/lib/navigation/a3-toolbar"
+import { ACCOUNTING_TOOLBAR_GROUPS, type AccountingToolbarGroup } from "@/lib/navigation/accounting-toolbar"
 import { startOnboardingTour } from "@/lib/onboarding"
 
 const GROUP_ICONS: Record<string, typeof BarChart3> = {
@@ -31,7 +31,7 @@ const ITEM_ICONS: Record<string, typeof Download> = {
   pyg: BarChart3,
 }
 
-function isGroupActive(group: A3ToolbarGroup, pathname: string): boolean {
+function isGroupActive(group: AccountingToolbarGroup, pathname: string): boolean {
   return group.items.some(
     (item) => pathname === item.href || pathname.startsWith(`${item.href}/`),
   )
@@ -50,7 +50,7 @@ function ToolbarMenuItems({
   onNavigate,
   variant,
 }: {
-  group: A3ToolbarGroup
+  group: AccountingToolbarGroup
   pathname: string
   onNavigate: () => void
   variant: "mobile" | "desktop"
@@ -138,7 +138,7 @@ function ToolbarMenuItems({
   )
 }
 
-export function A3Toolbar() {
+export function AccountingToolbar() {
   const pathname = usePathname()
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
@@ -171,7 +171,7 @@ export function A3Toolbar() {
   return (
     <div
       ref={toolbarRef}
-      data-tour="a3-toolbar"
+      data-tour="accounting-toolbar"
       className="relative z-20 shrink-0 border-b border-emerald-950/30 bg-gradient-to-r from-emerald-950 via-emerald-900 to-emerald-950"
     >
       {/* Móvil: acordeón vertical — el menú empuja el contenido, no lo solapa */}
@@ -192,7 +192,7 @@ export function A3Toolbar() {
         </div>
 
         <div className="flex flex-col gap-1">
-          {A3_TOOLBAR_GROUPS.map((group) => {
+          {ACCOUNTING_TOOLBAR_GROUPS.map((group) => {
             const Icon = GROUP_ICONS[group.id] ?? FileSpreadsheet
             const active = isGroupActive(group, pathname)
             const isOpen = openGroupId === group.id
@@ -240,7 +240,7 @@ export function A3Toolbar() {
           className="flex flex-1 items-stretch gap-0.5 overflow-x-auto py-1 scrollbar-none"
           aria-label="Herramientas de consulta y descarga"
         >
-          {A3_TOOLBAR_GROUPS.map((group, index) => {
+          {ACCOUNTING_TOOLBAR_GROUPS.map((group, index) => {
             const Icon = GROUP_ICONS[group.id] ?? FileSpreadsheet
             const active = isGroupActive(group, pathname)
             const isOpen = openGroupId === group.id

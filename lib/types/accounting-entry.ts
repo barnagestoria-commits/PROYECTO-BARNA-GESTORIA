@@ -44,7 +44,7 @@ export type EntryCellField =
   | "haber"
   | "contrapartida"
 
-/** Orden de tabulación en la primera línea del asiento (estilo A3CON). */
+/** Orden de tabulación en la primera línea del asiento. */
 export const ENTRY_ROW0_CELL_FIELDS: EntryCellField[] = [
   "fecha",
   "codigo",
