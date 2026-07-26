@@ -1,6 +1,13 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react"
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FocusEvent,
+  type KeyboardEvent,
+} from "react"
 import { cn } from "@/lib/utils"
 
 type DateSegment = "day" | "month" | "year"
@@ -39,8 +46,8 @@ function buildIso(parts: DateParts, fallback: string): string {
   const prev = parseIsoParts(fallback)
   const day = (parts.day || prev.day).padStart(2, "0").slice(-2)
   const month = (parts.month || prev.month).padStart(2, "0").slice(-2)
-  const yearSource = parts.year || prev.year
-  const year = yearSource.padStart(4, "0").slice(-4)
+  // El año se escribe de izquierda a derecha; no rellenar con ceros a la izquierda mientras se edita.
+  const year = parts.year.length === 4 ? parts.year : prev.year
   return `${year}-${month}-${day}`
 }
 
@@ -80,13 +87,19 @@ export function SegmentedDateInput({
   })
 
   const [parts, setParts] = useState<DateParts>(() => parseIsoParts(value))
+  const skipExternalSync = useRef(false)
 
   useEffect(() => {
+    if (skipExternalSync.current) {
+      skipExternalSync.current = false
+      return
+    }
     setParts(parseIsoParts(value))
   }, [value])
 
   const emitChange = useCallback(
     (nextParts: DateParts) => {
+      skipExternalSync.current = true
       onChange(buildIso(nextParts, value))
     },
     [onChange, value],
@@ -140,6 +153,11 @@ export function SegmentedDateInput({
   const handleYearChange = (raw: string) => {
     const { value: year } = distributeDigits(raw, 4)
     applyParts({ ...parts, year })
+  }
+
+  const handleSegmentFocus = (_segment: DateSegment, event: FocusEvent<HTMLInputElement>) => {
+    onFocus?.()
+    event.target.select()
   }
 
   const handleSegmentKeyDown = (
@@ -237,7 +255,7 @@ export function SegmentedDateInput({
         inputMode="numeric"
         value={parts.day}
         onChange={(event) => handleDayChange(event.target.value)}
-        onFocus={onFocus}
+        onFocus={(event) => handleSegmentFocus("day", event)}
         onKeyDown={(event) => handleSegmentKeyDown("day", event)}
         className={cn(segmentInputClass, "w-6")}
         placeholder="dd"
@@ -251,7 +269,7 @@ export function SegmentedDateInput({
         inputMode="numeric"
         value={parts.month}
         onChange={(event) => handleMonthChange(event.target.value)}
-        onFocus={onFocus}
+        onFocus={(event) => handleSegmentFocus("month", event)}
         onKeyDown={(event) => handleSegmentKeyDown("month", event)}
         className={cn(segmentInputClass, "w-6")}
         placeholder="mm"
@@ -265,7 +283,7 @@ export function SegmentedDateInput({
         inputMode="numeric"
         value={parts.year}
         onChange={(event) => handleYearChange(event.target.value)}
-        onFocus={onFocus}
+        onFocus={(event) => handleSegmentFocus("year", event)}
         onKeyDown={(event) => handleSegmentKeyDown("year", event)}
         className={cn(segmentInputClass, "w-10")}
         placeholder="aaaa"
