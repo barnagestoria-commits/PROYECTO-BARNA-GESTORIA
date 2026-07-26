@@ -85,6 +85,7 @@ import { AccountMovementsDialog } from "@/components/accounting/account-movement
 import { CompanyExtractDialog } from "@/components/accounting/company-extract-dialog"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { EntryRefSearchBar } from "@/components/accounting/entry-ref-search-bar"
+import { SegmentedDateInput } from "@/components/accounting/segmented-date-input"
 import { normalizeCuenta } from "@/lib/reports/format"
 import { cn } from "@/lib/utils"
 
@@ -1035,14 +1036,12 @@ export function QuickAccountingEntryForm() {
                     >
                       <td className="px-1 py-1">
                         {rowIndex === 0 ? (
-                          <Input
-                            ref={(el) => registerRef(rowIndex, "fecha", el)}
-                            type="date"
+                          <SegmentedDateInput
                             value={fecha}
-                            onChange={(e) => setFecha(e.target.value)}
+                            onChange={setFecha}
                             onFocus={() => setActiveCell({ row: rowIndex, field: "fecha" })}
-                            onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "fecha")}
-                            className="h-9 px-2 text-xs"
+                            onAdvance={() => focusNextCell(rowIndex, "fecha")}
+                            inputRef={(el) => registerRef(rowIndex, "fecha", el)}
                             aria-label="Fecha contable"
                           />
                         ) : null}
