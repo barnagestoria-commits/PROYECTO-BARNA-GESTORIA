@@ -1,9 +1,10 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { PGC_ACCOUNTS, searchPgcAccounts } from "@/lib/accounting/pgc-accounts"
+import { searchChartAccounts } from "@/lib/accounting/pgc-accounts"
+import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { cn } from "@/lib/utils"
 
@@ -11,15 +12,33 @@ interface PgcChartDialogProps {
   open: boolean
   onClose: () => void
   onSelect: (accountCode: string, accountName: string) => void
+  ledgerSubaccounts?: LedgerSubaccountOption[]
 }
 
-export function PgcChartDialog({ open, onClose, onSelect }: PgcChartDialogProps) {
+export function PgcChartDialog({
+  open,
+  onClose,
+  onSelect,
+  ledgerSubaccounts = [],
+}: PgcChartDialogProps) {
   const [query, setQuery] = useState("")
 
+  useEffect(() => {
+    if (open) {
+      setQuery("")
+    }
+  }, [open])
+
   const accounts = useMemo(
-    () => (query.trim() ? searchPgcAccounts(query, 100) : PGC_ACCOUNTS),
-    [query],
+    () =>
+      searchChartAccounts(query, {
+        ledgerSubaccounts,
+        limit: 100,
+      }),
+    [ledgerSubaccounts, query],
   )
+
+  const showEmptyState = query.trim().length > 0 && accounts.length === 0
 
   return (
     <AccountingModal
@@ -29,7 +48,8 @@ export function PgcChartDialog({ open, onClose, onSelect }: PgcChartDialogProps)
       onClose={onClose}
       footer={
         <p className="text-xs text-graphite-500">
-          Pulsa Enter sobre una fila o haz clic para asignar la cuenta al asiento.
+          Busca por código (430) o por nombre (clientes, IVA, bancos…). Pulsa Enter o haz clic para
+          asignar la cuenta.
         </p>
       }
     >
@@ -49,29 +69,39 @@ export function PgcChartDialog({ open, onClose, onSelect }: PgcChartDialogProps)
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-sand-100 text-left text-xs uppercase tracking-wide text-graphite-600">
               <tr>
-                <th className="w-24 px-3 py-2">Cuenta</th>
+                <th className="w-28 px-3 py-2">Cuenta</th>
                 <th className="px-3 py-2">Descripción PGC</th>
               </tr>
             </thead>
             <tbody>
               {accounts.map((account) => (
                 <tr
-                  key={account.code}
+                  key={`${account.source}-${account.accountCode}`}
                   className="cursor-pointer border-t border-sand-100 hover:bg-emerald-50"
                   onClick={() => {
-                    onSelect(account.code, account.name)
+                    onSelect(account.accountCode, account.name)
                     onClose()
                   }}
                 >
                   <td className="px-3 py-2 font-mono font-semibold text-pine-900">{account.code}</td>
-                  <td className="px-3 py-2 text-graphite-700">{account.name}</td>
+                  <td className="px-3 py-2 text-graphite-700">
+                    {account.name}
+                    {account.source === "ledger" && (
+                      <span className="ml-2 text-xs text-graphite-400">Subcuenta</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {accounts.length === 0 && (
+          {showEmptyState && (
             <p className="px-4 py-8 text-center text-sm text-graphite-500">
               No hay cuentas que coincidan con la búsqueda.
+            </p>
+          )}
+          {!query.trim() && accounts.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-graphite-500">
+              No hay cuentas disponibles.
             </p>
           )}
         </div>
