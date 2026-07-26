@@ -14,6 +14,7 @@ interface SidebarFlyoutPanelProps {
   module: SidebarNavModule
   onNavigate?: () => void
   className?: string
+  variant?: "sidebar" | "dropdown"
 }
 
 function FlyoutLink({
@@ -57,7 +58,12 @@ function FlyoutLink({
   )
 }
 
-export function SidebarFlyoutPanel({ module, onNavigate, className }: SidebarFlyoutPanelProps) {
+export function SidebarFlyoutPanel({
+  module,
+  onNavigate,
+  className,
+  variant = "sidebar",
+}: SidebarFlyoutPanelProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
@@ -68,7 +74,9 @@ export function SidebarFlyoutPanel({ module, onNavigate, className }: SidebarFly
     <div
       className={cn(
         SIDEBAR_FLYOUT_WIDTH_CLASS,
-        "rounded-r-xl border border-sand-200 bg-white py-4 shadow-2xl",
+        variant === "dropdown"
+          ? "rounded-xl border border-sand-200 bg-white py-4 shadow-2xl"
+          : "rounded-r-xl border border-sand-200 bg-white py-4 shadow-2xl",
         className,
       )}
     >
