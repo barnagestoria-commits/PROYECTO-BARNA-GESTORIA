@@ -110,6 +110,23 @@ export function GestoriaClientsAccountingPage() {
     setFilters((current) => ({ ...current, [key]: value }))
   }
 
+  const openCompanyDashboard = useCallback(
+    async (companyId: string) => {
+      if (!session) return
+
+      setIsSubmitting(true)
+      try {
+        if (session.activeCompanyId !== companyId) {
+          await setActiveCompany(companyId)
+        }
+        router.push(`/dashboard/contabilidad/clientes-gestoria/${companyId}`)
+      } finally {
+        setIsSubmitting(false)
+      }
+    },
+    [router, session, setActiveCompany],
+  )
+
   const openCompanyWorkspace = useCallback(
     async (companyId: string, destination: "/dashboard/contabilidad" | "/dashboard/fiscal") => {
       if (!session) return
@@ -316,6 +333,7 @@ export function GestoriaClientsAccountingPage() {
                     }
                     onCloseMenu={() => setOpenMenuId(null)}
                     onSelect={() => setSelectedCompanyId(row.id)}
+                    onOpenDashboard={() => void openCompanyDashboard(row.id)}
                     onAccept={() => openCompanyWorkspace(row.id, "/dashboard/contabilidad")}
                     onEdit={() => handleEditClient(row.id)}
                     onDelete={() => void handleDeleteClient(row)}
@@ -487,6 +505,7 @@ function CompanyGridRow({
   onToggleMenu,
   onCloseMenu,
   onSelect,
+  onOpenDashboard,
   onAccept,
   onEdit,
   onDelete,
@@ -497,6 +516,7 @@ function CompanyGridRow({
   onToggleMenu: () => void
   onCloseMenu: () => void
   onSelect: () => void
+  onOpenDashboard: () => void
   onAccept: () => void
   onEdit: () => void
   onDelete: () => void
@@ -509,7 +529,7 @@ function CompanyGridRow({
         selected ? "bg-emerald-100 text-emerald-950" : "bg-white text-graphite-800 hover:bg-sand-50",
       )}
     >
-      <button type="button" onClick={onSelect} onDoubleClick={onAccept} className="contents">
+      <button type="button" onClick={onSelect} onDoubleClick={onOpenDashboard} className="contents">
         <span className="border-r border-sand-200 px-2 py-2">{row.code}</span>
         <span className="truncate border-r border-sand-200 px-2 py-2 font-sans text-sm">{row.name}</span>
         <span className="truncate border-r border-sand-200 px-2 py-2 font-sans">{row.type}</span>
