@@ -72,6 +72,7 @@ import {
   buildFullInvoiceEntry,
   calculateInvoiceAmountsWithIrpf,
   ensureMinimumInvoiceLines,
+  isInvoiceThirdPartyTotalAmount,
 } from "@/lib/accounting/invoice-auto-fill"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { apiFetch } from "@/lib/api-client"
@@ -608,6 +609,33 @@ export function QuickAccountingEntryForm() {
     [analyticByLineId, analyticEnabled, lines],
   )
 
+  const applyInvoiceTotalFromLine = useCallback(
+    (rowIndex: number, line: AccountingEntryLine, field: "debe" | "haber", amount: number) => {
+      if (
+        amount <= 0 ||
+        !isInvoiceThirdPartyTotalAmount(line, field, invoiceMode) ||
+        !(showInvoicePanel || isInvoiceCommand(activeCommand))
+      ) {
+        return false
+      }
+
+      setLines((prev) => {
+        const withAmount = prev.map((item, index) =>
+          index === rowIndex ? applyAmountToLineSide(item, field, amount) : item,
+        )
+        const built = buildFullInvoiceEntry(withAmount, invoiceDetails, {
+          activeCommand,
+          invoiceMode,
+          total: amount,
+        })
+        setInvoiceDetails(built.details)
+        return built.lines
+      })
+      return true
+    },
+    [activeCommand, invoiceDetails, invoiceMode, showInvoicePanel],
+  )
+
   const handleCellKeyDown = async (
     event: KeyboardEvent<HTMLInputElement>,
     row: number,
@@ -652,6 +680,12 @@ export function QuickAccountingEntryForm() {
       }
 
       if (field === "debe" || field === "haber") {
+        const line = lines[row]
+        const amount = field === "debe" ? line?.debe ?? 0 : line?.haber ?? 0
+        if (line && amount > 0) {
+          applyInvoiceTotalFromLine(row, line, field, amount)
+        }
+
         const canAdvance = await maybePromptAnalytic(row)
         if (!canAdvance) return
       }
@@ -675,37 +709,15 @@ export function QuickAccountingEntryForm() {
 
   const handleLineAmountChange = useCallback(
     (rowIndex: number, line: AccountingEntryLine, field: "debe" | "haber", amount: number) => {
-      const patch =
-        field === "debe" ? { debe: amount, haber: 0 } : { haber: amount, debe: 0 }
-
-      const isThirdPartyTotal =
-        isThirdPartyAccountPrefix(line.cuenta) &&
-        ((invoiceMode === "emitida" && field === "debe") ||
-          (invoiceMode === "recibida" && field === "haber"))
-
-      if (
-        amount > 0 &&
-        isThirdPartyTotal &&
-        (showInvoicePanel || isInvoiceCommand(activeCommand))
-      ) {
-        setLines((prev) => {
-          const withAmount = prev.map((item) =>
-            item.id === line.id ? { ...item, ...patch } : item,
-          )
-          const built = buildFullInvoiceEntry(withAmount, invoiceDetails, {
-            activeCommand,
-            invoiceMode,
-            total: amount,
-          })
-          setInvoiceDetails(built.details)
-          return built.lines
-        })
+      if (applyInvoiceTotalFromLine(rowIndex, line, field, amount)) {
         return
       }
 
+      const patch =
+        field === "debe" ? { debe: amount, haber: 0 } : { haber: amount, debe: 0 }
       updateLine(line.id, patch)
     },
-    [activeCommand, invoiceDetails, invoiceMode, showInvoicePanel],
+    [applyInvoiceTotalFromLine],
   )
 
   const openAccountExtract = useCallback((row: number, explicitAccount?: string) => {

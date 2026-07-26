@@ -161,5 +161,6 @@ export function inferThirdPartyTypeFromAccount(cuenta: string): "CLIENTE" | "PRO
 }
 
 export function isEmitidaThirdPartyAccount(cuenta: string): boolean {
-  return cuenta.replace(/\D/g, "").startsWith("430")
+  const digits = cuenta.replace(/\D/g, "")
+  return digits.startsWith("430") || digits === "43"
 }

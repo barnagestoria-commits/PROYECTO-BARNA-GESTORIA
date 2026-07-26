@@ -80,8 +80,8 @@ export function getLineAmountSide(
   if (digits.startsWith("473") || digits.startsWith("4751")) {
     return emitida ? "debe" : "haber"
   }
-  if (digits.startsWith("430")) return "debe"
-  if (digits.startsWith("400") || digits.startsWith("410")) return "haber"
+  if (digits.startsWith("430") || digits === "43") return "debe"
+  if (digits.startsWith("400") || digits.startsWith("410") || digits === "40") return "haber"
   if (group === 1 || group === 2 || group === 3) return "debe"
   if (group === 4 && !digits.startsWith("43")) return "haber"
 

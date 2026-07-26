@@ -87,13 +87,18 @@ export function getNewAccountPrefixHint(prefix: NewAccountPrefix): string {
   return `${prefix}+ · Nueva subcuenta de ${meta.label}`
 }
 
-export function isThirdPartyAccountPrefix(cuenta: string): boolean {
+export function isClienteAccountPrefix(cuenta: string): boolean {
   const digits = cuenta.replace(/\D/g, "")
-  return (
-    digits.startsWith("430") ||
-    digits.startsWith("400") ||
-    digits.startsWith("410")
-  )
+  return digits.startsWith("430") || digits === "43"
+}
+
+export function isProveedorAccountPrefix(cuenta: string): boolean {
+  const digits = cuenta.replace(/\D/g, "")
+  return digits.startsWith("400") || digits.startsWith("410") || digits === "40"
+}
+
+export function isThirdPartyAccountPrefix(cuenta: string): boolean {
+  return isClienteAccountPrefix(cuenta) || isProveedorAccountPrefix(cuenta)
 }
 
 export function isThirdPartyNewAccountPrefix(prefix: string): prefix is ThirdPartyAccountPrefix {

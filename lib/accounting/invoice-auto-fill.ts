@@ -223,6 +223,16 @@ export function buildFullInvoiceEntry(
   return { lines: nextLines, details: nextDetails }
 }
 
+/** Importe total en la línea de tercero (430/43 debe · 400/40 haber). */
+export function isInvoiceThirdPartyTotalAmount(
+  line: AccountingEntryLine,
+  field: "debe" | "haber",
+  invoiceMode: "emitida" | "recibida",
+): boolean {
+  if (!isThirdPartyAccountPrefix(line.cuenta)) return false
+  return invoiceMode === "emitida" ? field === "debe" : field === "haber"
+}
+
 export function applyInvoiceAmountsToLines(
   lines: AccountingEntryLine[],
   amounts: InvoiceAmountsWithIrpf,
