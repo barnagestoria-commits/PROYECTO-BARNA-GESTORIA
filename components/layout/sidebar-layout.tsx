@@ -4,9 +4,10 @@ import { Suspense, useCallback, useState, type ReactNode } from "react"
 import { usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { AppTopNav } from "@/components/layout/app-top-nav"
-import { CommandPalette, CommandPaletteTrigger } from "@/components/command-palette"
+import { CommandPalette } from "@/components/command-palette"
 import { DashboardOnboardingTour } from "@/components/dashboard-onboarding-tour"
 import { getPageTitle } from "@/lib/navigation/accounting-toolbar"
+import { getPageBreadcrumb } from "@/lib/navigation/page-meta"
 
 interface SidebarLayoutProps {
   children: ReactNode
@@ -20,8 +21,6 @@ interface SidebarLayoutProps {
 function SidebarLayoutInner({
   children,
   userName,
-  roleLabel,
-  companyName,
   panelTitle,
   onLogout,
 }: SidebarLayoutProps) {
@@ -30,6 +29,7 @@ function SidebarLayoutInner({
   const openCommandPalette = useCallback(() => setCommandPaletteOpen(true), [])
 
   const pageTitle = getPageTitle(pathname)
+  const breadcrumb = getPageBreadcrumb(pathname)
   const isDashboardHome = pathname === "/dashboard"
 
   return (
@@ -43,17 +43,11 @@ function SidebarLayoutInner({
       </Suspense>
 
       <header className="shrink-0 border-b border-sand-200 bg-white">
-        <div className="flex flex-col gap-3 px-4 py-4 sm:px-6">
-          <div className="min-w-0">
-            <h1 className="text-xl font-bold text-pine-900">
-              {isDashboardHome ? panelTitle : pageTitle}
-            </h1>
-            <p className="mt-0.5 text-sm text-graphite-500">
-              {userName} · {roleLabel}
-              {companyName && ` · ${companyName}`}
-            </p>
-          </div>
-          <CommandPaletteTrigger onOpen={openCommandPalette} />
+        <div className="px-4 py-4 sm:px-6">
+          <h1 className="text-xl font-bold text-pine-900">
+            {isDashboardHome ? panelTitle : pageTitle}
+          </h1>
+          <p className="mt-1 text-sm text-graphite-500">{breadcrumb}</p>
         </div>
       </header>
 

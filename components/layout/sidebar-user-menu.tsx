@@ -12,7 +12,17 @@ interface SidebarUserMenuProps {
   variant?: "desktop" | "mobile"
   /** top = debajo del logo; footer = pie del sidebar (legacy) */
   placement?: "top" | "footer"
+  compact?: boolean
   onNavigate?: () => void
+}
+
+function getUserInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
 }
 
 const USER_LINKS = [
@@ -42,6 +52,7 @@ export function SidebarUserMenu({
   onLogout,
   variant = "desktop",
   placement = "footer",
+  compact = false,
   onNavigate,
 }: SidebarUserMenuProps) {
   const pathname = usePathname()
@@ -81,28 +92,45 @@ export function SidebarUserMenu({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition-colors",
-          placement === "top"
-            ? "border border-white/10 bg-white/5 text-white hover:border-emerald-500/30 hover:bg-white/10"
-            : open || isActive
-              ? "bg-white/10 text-white"
-              : "text-white/80 hover:bg-white/5 hover:text-white",
-          (open || isActive) && placement === "top" && "border-emerald-500/40 bg-white/10",
+          "flex items-center text-left text-sm transition-colors",
+          compact
+            ? "h-9 gap-1 rounded-full border border-white/10 bg-white/5 pl-1 pr-1.5 hover:border-emerald-500/30 hover:bg-white/10"
+            : "w-full gap-3 rounded-lg px-3 py-2.5",
+          !compact &&
+            (placement === "top"
+              ? "border border-white/10 bg-white/5 text-white hover:border-emerald-500/30 hover:bg-white/10"
+              : open || isActive
+                ? "bg-white/10 text-white"
+                : "text-white/80 hover:bg-white/5 hover:text-white"),
+          !compact && (open || isActive) && placement === "top" && "border-emerald-500/40 bg-white/10",
         )}
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label="Menú de cuenta y configuración"
       >
-        <User className="h-4 w-4 shrink-0 text-emerald-300/80" />
-        <span className="min-w-0 flex-1 truncate font-medium">{userName}</span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/50 transition-transform", open && "rotate-180")} />
+        {compact ? (
+          <>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-800 text-[11px] font-bold text-white">
+              {getUserInitials(userName)}
+            </span>
+            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-white/50 transition-transform", open && "rotate-180")} />
+          </>
+        ) : (
+          <>
+            <User className="h-4 w-4 shrink-0 text-emerald-300/80" />
+            <span className="min-w-0 flex-1 truncate font-medium">{userName}</span>
+            <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/50 transition-transform", open && "rotate-180")} />
+          </>
+        )}
       </button>
 
       {open && (
         <div
           className={cn(
-            "absolute left-0 z-[110] w-full min-w-[260px] overflow-hidden rounded-xl border border-white/10 bg-[#1c221f] py-1 shadow-2xl",
-            opensUpward ? "bottom-full mb-2" : "top-full mt-2",
+            "absolute z-[110] min-w-[260px] overflow-hidden rounded-xl border border-white/10 bg-[#1c221f] py-1 shadow-2xl",
+            compact
+              ? "right-0 top-full mt-2"
+              : cn("left-0 w-full", opensUpward ? "bottom-full mb-2" : "top-full mt-2"),
           )}
           role="menu"
         >

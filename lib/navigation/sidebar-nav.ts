@@ -364,7 +364,7 @@ export function isNavLinkActive(href: string, pathname: string, searchParams?: s
     return pathname === "/dashboard/utilidades/importar"
   }
   if (path === "/dashboard/contabilidad/clientes-gestoria") {
-    return pathname === "/dashboard/contabilidad/clientes-gestoria"
+    return pathname.startsWith("/dashboard/contabilidad/clientes-gestoria")
   }
   if (path === "/dashboard/contabilidad/conciliacion-bancaria") {
     return pathname === "/dashboard/contabilidad/conciliacion-bancaria"
