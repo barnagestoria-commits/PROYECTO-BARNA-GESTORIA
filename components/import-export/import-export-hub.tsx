@@ -45,6 +45,36 @@ interface ImportResult {
   sourceFormat: AccountingSourceFormat
 }
 
+interface A3ZipPreview {
+  versionLabel: string
+  companyCode: string | null
+  fiscalYear: number | null
+  entryCount: number
+  subaccountCount: number
+  newSubaccountCount: number
+  thirdPartyCount: number
+  newThirdPartyCount: number
+  recordTypes: string[]
+  contents: {
+    fileNames: string[]
+    subaccountSource: string | null
+    journalSource: string | null
+    linkFormat: string
+    importMode?: "native-export" | "suenlace-matrix" | "ascii-text"
+  }
+  warnings: string[]
+}
+
+function describeImportMode(mode?: A3ZipPreview["contents"]["importMode"]): string {
+  if (mode === "native-export") {
+    return "Exportación nativa A3 (menú Exportar, carpeta E00xxx)"
+  }
+  if (mode === "suenlace-matrix") {
+    return "Enlace contable SUENLACE (Matrix Form / carpetas DAT)"
+  }
+  return "Texto / CSV"
+}
+
 const TAB_ITEMS: { id: HubTab; label: string; icon: typeof Upload }[] = [
   { id: "importar", label: "Importar", icon: ArrowDownToLine },
   { id: "exportar", label: "Exportar", icon: ArrowUpFromLine },
@@ -68,6 +98,10 @@ export function ImportExportHub() {
   const [exportFrom, setExportFrom] = useState("")
   const [exportTo, setExportTo] = useState("")
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [pendingZipFile, setPendingZipFile] = useState<File | null>(null)
+  const [a3Preview, setA3Preview] = useState<A3ZipPreview | null>(null)
+  const [isPreviewingZip, setIsPreviewingZip] = useState(false)
+  const [isConfirmingZip, setIsConfirmingZip] = useState(false)
 
   const activeProfile = useMemo(
     () => ACCOUNTING_FORMAT_PROFILES.find((profile) => profile.id === selectedFormat)!,
@@ -94,9 +128,83 @@ export function ImportExportHub() {
     }
   }, [activeTab, loadHistory])
 
+  const resetZipImport = () => {
+    setPendingZipFile(null)
+    setA3Preview(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const handleZipPreview = async (file: File) => {
+    setIsPreviewingZip(true)
+    setImportError(null)
+    setImportMessage(null)
+    setA3Preview(null)
+    setPendingZipFile(file)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const data = await apiFormFetch<{ success: true; preview: A3ZipPreview }>(
+        "/api/imports/a3/preview",
+        formData,
+      )
+
+      setA3Preview(data.preview)
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Error al leer el archivo ZIP.")
+      setPendingZipFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    } finally {
+      setIsPreviewingZip(false)
+    }
+  }
+
+  const handleZipConfirm = async () => {
+    if (!pendingZipFile || isConfirmingZip) return
+
+    setIsConfirmingZip(true)
+    setImportError(null)
+    setImportMessage(null)
+
+    try {
+      const formData = new FormData()
+      formData.append("file", pendingZipFile)
+
+      const data = await apiFormFetch<{
+        success: true
+        import: {
+          entriesCreated: number
+          subaccountsCreated: number
+          thirdPartiesCreated: number
+          linesImported: number
+          fileName: string
+        }
+      }>("/api/imports/a3/confirm", formData)
+
+      setImportMessage(
+        `Importación Wolters Kluwer completada: ${data.import.entriesCreated} asientos, ${data.import.subaccountsCreated} subcuentas y ${data.import.thirdPartiesCreated} proveedores/clientes nuevos (${data.import.linesImported} líneas).`,
+      )
+      resetZipImport()
+      if (activeTab === "historial") await loadHistory()
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Error al confirmar la importación.")
+    } finally {
+      setIsConfirmingZip(false)
+    }
+  }
+
   const handleImport = async (fileList: FileList | null) => {
     const file = fileList?.[0]
-    if (!file || isImporting) return
+    if (!file || isImporting || isPreviewingZip) return
+
+    const isZip = file.name.toLowerCase().endsWith(".zip")
+    if (selectedFormat === "wk-asesor" && isZip) {
+      await handleZipPreview(file)
+      return
+    }
+
+    resetZipImport()
 
     setIsImporting(true)
     setImportError(null)
@@ -246,6 +354,8 @@ export function ImportExportHub() {
             <CardDescription>
               Arrastra un archivo exportado desde {activeProfile.name}. Extensiones:{" "}
               {activeProfile.extensions.join(", ")}.
+              {selectedFormat === "wk-asesor" &&
+                " Los paquetes .zip muestran un resumen previo antes de importar."}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -263,7 +373,7 @@ export function ImportExportHub() {
             <div
               className={cn(
                 "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-10 text-center",
-                isImporting
+                isImporting || isPreviewingZip
                   ? "border-emerald-300 bg-emerald-50/40"
                   : "border-sand-300 bg-sand-50/40 hover:border-emerald-300",
               )}
@@ -275,26 +385,116 @@ export function ImportExportHub() {
                 className="hidden"
                 onChange={(event) => handleImport(event.target.files)}
               />
-              {isImporting ? (
+              {isImporting || isPreviewingZip ? (
                 <Loader2 className="mb-3 h-8 w-8 animate-spin text-emerald-700" />
               ) : (
                 <FileSpreadsheet className="mb-3 h-8 w-8 text-emerald-700" />
               )}
               <p className="text-sm font-medium text-pine-900">
-                {isImporting ? "Procesando archivo..." : "Arrastra tu archivo o selecciónalo"}
+                {isImporting
+                  ? "Procesando archivo..."
+                  : isPreviewingZip
+                    ? "Analizando paquete ZIP..."
+                    : "Arrastra tu archivo o selecciónalo"}
               </p>
               <p className="mt-1 text-xs text-graphite-500">
-                Columnas detectadas automáticamente según {activeProfile.name}
+                {selectedFormat === "wk-asesor"
+                  ? "ZIP de exportación A3 (menú Exportar) o SUENLACE.DAT de Matrix Form / enlace contable"
+                  : `Columnas detectadas automáticamente según ${activeProfile.name}`}
               </p>
               <Button
                 type="button"
                 className="mt-4 bg-emerald-800 hover:bg-pine-900"
-                disabled={isImporting}
+                disabled={isImporting || isPreviewingZip}
                 onClick={() => fileInputRef.current?.click()}
               >
                 Seleccionar archivo
               </Button>
             </div>
+
+            {a3Preview && (
+              <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
+                <div>
+                  <p className="text-sm font-semibold text-pine-900">
+                    Detectados {a3Preview.entryCount} asientos contables y {a3Preview.subaccountCount}{" "}
+                    subcuentas de Wolters Kluwer Asesor (Versión {a3Preview.versionLabel})
+                  </p>
+                  <p className="mt-1 text-xs text-graphite-600">
+                    {describeImportMode(a3Preview.contents.importMode)}
+                    {a3Preview.thirdPartyCount > 0 &&
+                      ` · ${a3Preview.thirdPartyCount} proveedores/clientes detectados`}
+                  </p>
+                  <p className="mt-1 text-xs text-graphite-600">
+                    {a3Preview.newSubaccountCount > 0
+                      ? `${a3Preview.newSubaccountCount} subcuentas`
+                      : "Sin subcuentas nuevas"}
+                    {a3Preview.newThirdPartyCount > 0
+                      ? ` y ${a3Preview.newThirdPartyCount} proveedores/clientes se darán de alta antes de volcar el diario.`
+                      : a3Preview.newSubaccountCount > 0
+                        ? " se darán de alta antes de volcar el diario."
+                        : " · Los terceros detectados ya existen en tu base de datos."}
+                  </p>
+                </div>
+
+                <dl className="grid gap-2 text-xs text-graphite-600 sm:grid-cols-2">
+                  {a3Preview.companyCode && (
+                    <div>
+                      <dt className="font-medium text-graphite-700">Código empresa</dt>
+                      <dd>{a3Preview.companyCode}</dd>
+                    </div>
+                  )}
+                  {a3Preview.fiscalYear && (
+                    <div>
+                      <dt className="font-medium text-graphite-700">Ejercicio contable</dt>
+                      <dd>{a3Preview.fiscalYear}</dd>
+                    </div>
+                  )}
+                  {a3Preview.recordTypes.length > 0 && (
+                    <div className="sm:col-span-2">
+                      <dt className="font-medium text-graphite-700">Tipos de apunte detectados</dt>
+                      <dd>{a3Preview.recordTypes.join(" · ")}</dd>
+                    </div>
+                  )}
+                  <div className="sm:col-span-2">
+                    <dt className="font-medium text-graphite-700">Ficheros en el ZIP</dt>
+                    <dd className="break-all">{a3Preview.contents.fileNames.join(", ")}</dd>
+                  </div>
+                </dl>
+
+                {a3Preview.warnings.map((warning) => (
+                  <p
+                    key={warning}
+                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
+                  >
+                    {warning}
+                  </p>
+                ))}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    className="bg-emerald-800 hover:bg-pine-900"
+                    disabled={isConfirmingZip || a3Preview.entryCount === 0}
+                    onClick={handleZipConfirm}
+                  >
+                    {isConfirmingZip ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                    )}
+                    Confirmar e Importar todo a la Contabilidad
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isConfirmingZip}
+                    onClick={resetZipImport}
+                  >
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

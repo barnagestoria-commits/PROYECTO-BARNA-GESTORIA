@@ -26,8 +26,8 @@ export const ACCOUNTING_FORMAT_PROFILES: AccountingFormatProfile[] = [
     name: "Wolters Kluwer Asesor",
     vendor: "Wolters Kluwer",
     description:
-      "Diario y mayor exportados desde software de gestoría de escritorio. Columnas habituales: Fecha, Cuenta, Concepto, Debe, Haber.",
-    extensions: [".csv", ".xlsx", ".xls", ".txt"],
+      "Soporta exportación nativa A3 (ZIP/carpeta E00xxx), enlace SUENLACE de Matrix Form (.DAT) y CSV/Excel.",
+    extensions: [".csv", ".xlsx", ".xls", ".txt", ".zip"],
     csvDelimiter: ";",
     columnAliases: {
       fecha: ["fecha", "date", "f. operacion", "f operacion"],
