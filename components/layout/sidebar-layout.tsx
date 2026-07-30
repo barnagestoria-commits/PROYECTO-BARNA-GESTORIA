@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { AppTopNav } from "@/components/layout/app-top-nav"
 import { CommandPalette } from "@/components/command-palette"
-import { DashboardOnboardingTour } from "@/components/dashboard-onboarding-tour"
 import { getPageTitle } from "@/lib/navigation/accounting-toolbar"
 import { getPageBreadcrumb } from "@/lib/navigation/page-meta"
 
@@ -50,8 +49,6 @@ function SidebarLayoutInner({
           <p className="mt-1 text-sm text-graphite-500">{breadcrumb}</p>
         </div>
       </header>
-
-      <DashboardOnboardingTour enabled={pathname === "/dashboard"} />
 
       <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
         {children}

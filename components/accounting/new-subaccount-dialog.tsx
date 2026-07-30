@@ -291,11 +291,13 @@ export function NewSubaccountDialog({
           </div>
         </div>
 
-        <AccountTreatmentFields
-          value={treatment}
-          onChange={setTreatment}
-          showCounterpart={isThirdParty}
-        />
+        <div data-tour="onboarding-new-account">
+          <AccountTreatmentFields
+            value={treatment}
+            onChange={setTreatment}
+            showCounterpart={isThirdParty}
+          />
+        </div>
 
         {error && (
           <p className="text-sm text-red-700" role="alert">

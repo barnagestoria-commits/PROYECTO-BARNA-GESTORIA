@@ -260,6 +260,7 @@ export function GestoriaClientsAccountingPage() {
             label="Agregar Persona Jurídica/Física"
             icon={UserPlus}
             onClick={() => setAddClientOpen(true)}
+            dataTour="onboarding-new-account"
           />
           <ToolbarIconButton
             label="Ayuda"
@@ -411,11 +412,13 @@ function ToolbarTextButton({
   icon: Icon,
   onClick,
   disabled,
+  dataTour,
 }: {
   label: string
   icon: typeof Square
   onClick?: () => void
   disabled?: boolean
+  dataTour?: string
 }) {
   return (
     <button
@@ -423,6 +426,7 @@ function ToolbarTextButton({
       title={label}
       disabled={disabled}
       onClick={onClick}
+      data-tour={dataTour}
       className={cn(
         "flex h-9 max-w-[220px] items-center gap-1.5 rounded-md border border-sand-300 bg-white px-2.5 text-left text-[11px] font-medium text-graphite-700 shadow-sm transition-colors sm:max-w-none",
         disabled

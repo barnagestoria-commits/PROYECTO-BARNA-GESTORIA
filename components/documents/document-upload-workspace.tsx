@@ -232,6 +232,18 @@ function DocumentUploadWorkspaceContent({
 
   return (
     <Tabs defaultValue={defaultTab} className="space-y-6">
+      {documentType === "factura-emitida" && (
+        <Card className="border-emerald-200 bg-emerald-50/60" data-tour="onboarding-verifactu">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base text-pine-900">Verifactu · Registro inalterable</CardTitle>
+            <CardDescription>
+              Al emitir facturas, se generará el código QR oficial y la huella de registro para la AEAT. Previsualiza
+              el PDF antes de enviar.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
       <TabsList className="flex h-auto w-full flex-col gap-1 p-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-row">
         <TabsTrigger value="upload" className="w-full sm:w-auto">
           Subir documentos

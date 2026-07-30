@@ -1,14 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { Command, HelpCircle, MessageCircle, Search } from "lucide-react"
+import { Command, MessageCircle, Search } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useAuth } from "@/components/auth-provider"
 import { ModuleNavBar } from "@/components/layout/module-nav-bar"
 import { SidebarCompanySelector } from "@/components/layout/sidebar-company-selector"
 import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu"
+import { OnboardingHelpMenu } from "@/components/onboarding/onboarding-help-menu"
 import { cn } from "@/lib/utils"
-import { startOnboardingTour } from "@/lib/onboarding"
 import { getSidebarNavModules } from "@/lib/navigation/sidebar-nav"
 
 interface AppTopNavProps {
@@ -67,15 +67,7 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
             compact
           />
 
-          <button
-            type="button"
-            onClick={() => startOnboardingTour()}
-            className="rounded-lg p-2 text-white/65 transition-colors hover:bg-white/10 hover:text-white"
-            title="Ayuda"
-            aria-label="Ayuda"
-          >
-            <HelpCircle className="h-4 w-4" />
-          </button>
+            <OnboardingHelpMenu />
 
           <Link
             href="/contact"

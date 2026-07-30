@@ -122,6 +122,7 @@ export function ContactsPage() {
         <Button
           className="h-11 shrink-0 rounded-xl bg-emerald-800 px-5 hover:bg-pine-900"
           onClick={openCreateModal}
+          data-tour="onboarding-new-account"
         >
           <Plus className="mr-2 h-4 w-4" />
           Nuevo contacto

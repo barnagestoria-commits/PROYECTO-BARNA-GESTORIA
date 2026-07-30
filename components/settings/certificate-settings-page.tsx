@@ -88,7 +88,7 @@ export function CertificateSettingsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6" data-tour="onboarding-certificate">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="mb-1 flex items-center gap-2 text-sm font-medium text-emerald-700">

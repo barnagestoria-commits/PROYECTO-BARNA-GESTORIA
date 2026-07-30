@@ -935,7 +935,7 @@ export function QuickAccountingEntryForm() {
 
   return (
     <div className="space-y-4">
-      <Card className="overflow-hidden border-emerald-200">
+      <Card className="overflow-hidden border-emerald-200" data-tour="onboarding-entry-form">
         <CardHeader className="px-4 pb-2 sm:px-6">
           <CardTitle className="flex items-center gap-2 text-lg text-emerald-900 sm:text-xl">
             <Zap className="h-5 w-5 shrink-0" />
@@ -1000,8 +1000,17 @@ export function QuickAccountingEntryForm() {
         />
       )}
 
-      <Card>
+      <Card data-tour="onboarding-entry-grid">
         <CardContent className="p-0">
+          <div
+            className="flex items-center justify-between gap-2 border-b bg-sand-50 px-3 py-2 text-xs text-graphite-600"
+            data-tour="onboarding-analytic"
+          >
+            <span>
+              📊 Centros de coste: activa la analítica en cuentas 6/7 y reparte importes con el icono{" "}
+              <PieChart className="inline h-3.5 w-3.5 text-emerald-700" /> de cada línea.
+            </span>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[960px] text-sm">
               <thead>
