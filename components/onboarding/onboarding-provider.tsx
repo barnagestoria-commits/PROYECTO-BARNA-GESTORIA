@@ -85,7 +85,7 @@ function toJoyrideSteps(definitions: OnboardingTourStepDefinition[]): Step[] {
     title: step.title,
     content: step.content,
     placement: step.placement ?? "bottom",
-    disableBeacon: true,
+    skipBeacon: true,
     data: { stepId: step.id, route: step.route },
   }))
 }
@@ -296,8 +296,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           stepIndex={stepIndex}
           continuous
           scrollToFirstStep
-          disableScrolling={false}
-          callback={handleJoyrideCallback}
+          onEvent={handleJoyrideCallback}
           tooltipComponent={(props) => (
             <OnboardingTooltip
               {...props}
@@ -313,14 +312,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
             next: "Siguiente",
             skip: "Saltar tour",
           }}
-          styles={{
-            options: {
-              primaryColor: "#145A32",
-              textColor: "#2C2C2C",
-              arrowColor: "#ffffff",
-              zIndex: 10000,
-            },
-            overlay: { backgroundColor: "rgba(15, 61, 46, 0.45)" },
+          options={{
+            primaryColor: "#145A32",
+            textColor: "#2C2C2C",
+            arrowColor: "#ffffff",
+            zIndex: 10000,
+            overlayColor: "rgba(15, 61, 46, 0.45)",
           }}
         />
       )}
