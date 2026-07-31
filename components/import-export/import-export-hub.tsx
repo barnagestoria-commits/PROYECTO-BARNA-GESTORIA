@@ -1,16 +1,18 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import {
-  ArrowDownToLine,
   ArrowUpFromLine,
+  Building2,
   CheckCircle2,
   Clock3,
   FileSpreadsheet,
   History,
+  Landmark,
   Loader2,
   Upload,
+  Users,
   XCircle,
 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -18,14 +20,22 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { apiFetch, apiFormFetch } from "@/lib/api-client"
+import { useRequireAuth } from "@/components/auth-provider"
+import { A3CompanyImportPanel } from "@/components/import-export/a3-company-import-panel"
+import { PortfolioImportPanel } from "@/components/import-export/portfolio-import-panel"
+import { apiFetch } from "@/lib/api-client"
 import {
   ACCOUNTING_FORMAT_PROFILES,
   type AccountingSourceFormat,
 } from "@/lib/imports/accounting-formats"
 import { cn } from "@/lib/utils"
 
-type HubTab = "importar" | "exportar" | "historial"
+type HubTab =
+  | "empresa-cliente"
+  | "cartera"
+  | "contabilidad-interna"
+  | "exportar"
+  | "historial"
 
 interface ImportHistoryItem {
   id: string
@@ -38,70 +48,89 @@ interface ImportHistoryItem {
   createdAt: string
 }
 
-interface ImportResult {
-  rowsImported: number
-  entriesCreated: number
-  fileName: string
-  sourceFormat: AccountingSourceFormat
-}
-
-interface A3ZipPreview {
-  versionLabel: string
-  companyCode: string | null
-  fiscalYear: number | null
-  entryCount: number
-  subaccountCount: number
-  newSubaccountCount: number
-  thirdPartyCount: number
-  newThirdPartyCount: number
-  recordTypes: string[]
-  contents: {
-    fileNames: string[]
-    subaccountSource: string | null
-    journalSource: string | null
-    linkFormat: string
-    importMode?: "native-export" | "suenlace-matrix" | "ascii-text"
-  }
-  warnings: string[]
-}
-
-function describeImportMode(mode?: A3ZipPreview["contents"]["importMode"]): string {
-  if (mode === "native-export") {
-    return "Exportación nativa A3 (menú Exportar, carpeta E00xxx)"
-  }
-  if (mode === "suenlace-matrix") {
-    return "Enlace contable SUENLACE (Matrix Form / carpetas DAT)"
-  }
-  return "Texto / CSV"
-}
-
-const TAB_ITEMS: { id: HubTab; label: string; icon: typeof Upload }[] = [
-  { id: "importar", label: "Importar", icon: ArrowDownToLine },
-  { id: "exportar", label: "Exportar", icon: ArrowUpFromLine },
-  { id: "historial", label: "Historial", icon: History },
+const PRIMARY_TABS: { id: HubTab; label: string; icon: typeof Upload; description: string }[] = [
+  {
+    id: "empresa-cliente",
+    label: "Importar a Empresa Cliente",
+    icon: Building2,
+    description: "Volcar diario y subcuentas en una empresa concreta de la cartera",
+  },
+  {
+    id: "cartera",
+    label: "Fichero General de Clientes",
+    icon: Users,
+    description: "Migrar la cartera completa desde Wolters Kluwer o Sage",
+  },
+  {
+    id: "contabilidad-interna",
+    label: "Contabilidad Interna de la Gestoría",
+    icon: Landmark,
+    description: "Libros diarios propios de la gestoría (no clientes)",
+  },
 ]
+
+const LEGACY_TAB_MAP: Record<string, HubTab> = {
+  importar: "empresa-cliente",
+  exportar: "exportar",
+  historial: "historial",
+}
+
+function resolveInitialTab(raw: string | null): HubTab {
+  if (!raw) return "empresa-cliente"
+  const mapped = LEGACY_TAB_MAP[raw] ?? raw
+  const allTabs: HubTab[] = [
+    "empresa-cliente",
+    "cartera",
+    "contabilidad-interna",
+    "exportar",
+    "historial",
+  ]
+  return allTabs.includes(mapped as HubTab) ? (mapped as HubTab) : "empresa-cliente"
+}
 
 export function ImportExportHub() {
   const searchParams = useSearchParams()
-  const initialTab = (searchParams.get("tab") as HubTab) ?? "importar"
-  const [activeTab, setActiveTab] = useState<HubTab>(
-    TAB_ITEMS.some((tab) => tab.id === initialTab) ? initialTab : "importar",
-  )
+  const { session } = useRequireAuth()
+  const initialTab = resolveInitialTab(searchParams.get("tab"))
+  const [activeTab, setActiveTab] = useState<HubTab>(initialTab)
+
+  const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedFormat, setSelectedFormat] = useState<AccountingSourceFormat>("wk-asesor")
-  const [importMessage, setImportMessage] = useState<string | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [isImporting, setIsImporting] = useState(false)
-  const [isExporting, setIsExporting] = useState(false)
-  const [exportMessage, setExportMessage] = useState<string | null>(null)
   const [history, setHistory] = useState<ImportHistoryItem[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyCompanyId, setHistoryCompanyId] = useState<string>("")
   const [exportFrom, setExportFrom] = useState("")
   const [exportTo, setExportTo] = useState("")
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [pendingZipFile, setPendingZipFile] = useState<File | null>(null)
-  const [a3Preview, setA3Preview] = useState<A3ZipPreview | null>(null)
-  const [isPreviewingZip, setIsPreviewingZip] = useState(false)
-  const [isConfirmingZip, setIsConfirmingZip] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportMessage, setExportMessage] = useState<string | null>(null)
+
+  const clientCompanies = useMemo(() => {
+    if (!session) return []
+    return session.companies
+  }, [session])
+
+  const gestoriaOwnCompany = useMemo(() => {
+    if (!session || clientCompanies.length === 0) return null
+    const byAccountName = clientCompanies.find(
+      (company) => company.name.trim().toLowerCase() === session.user.accountName.trim().toLowerCase(),
+    )
+    return byAccountName ?? clientCompanies[0]
+  }, [clientCompanies, session])
+
+  const selectedClient = useMemo(
+    () => clientCompanies.find((company) => company.id === selectedClientId) ?? null,
+    [clientCompanies, selectedClientId],
+  )
+
+  useEffect(() => {
+    if (selectedClientId || clientCompanies.length === 0) return
+    setSelectedClientId(clientCompanies[0].id)
+  }, [clientCompanies, selectedClientId])
+
+  useEffect(() => {
+    if (historyCompanyId || clientCompanies.length === 0) return
+    setHistoryCompanyId(clientCompanies[0].id)
+  }, [clientCompanies, historyCompanyId])
 
   const activeProfile = useMemo(
     () => ACCOUNTING_FORMAT_PROFILES.find((profile) => profile.id === selectedFormat)!,
@@ -109,10 +138,11 @@ export function ImportExportHub() {
   )
 
   const loadHistory = useCallback(async () => {
+    if (!historyCompanyId) return
     setHistoryLoading(true)
     try {
       const data = await apiFetch<{ success: true; imports: ImportHistoryItem[] }>(
-        "/api/imports/history",
+        `/api/imports/history?companyId=${encodeURIComponent(historyCompanyId)}`,
       )
       setHistory(data.imports)
     } catch {
@@ -120,117 +150,13 @@ export function ImportExportHub() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [])
+  }, [historyCompanyId])
 
   useEffect(() => {
     if (activeTab === "historial") {
-      loadHistory()
+      void loadHistory()
     }
   }, [activeTab, loadHistory])
-
-  const resetZipImport = () => {
-    setPendingZipFile(null)
-    setA3Preview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ""
-  }
-
-  const handleZipPreview = async (file: File) => {
-    setIsPreviewingZip(true)
-    setImportError(null)
-    setImportMessage(null)
-    setA3Preview(null)
-    setPendingZipFile(file)
-
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-
-      const data = await apiFormFetch<{ success: true; preview: A3ZipPreview }>(
-        "/api/imports/a3/preview",
-        formData,
-      )
-
-      setA3Preview(data.preview)
-    } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Error al leer el archivo ZIP.")
-      setPendingZipFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-    } finally {
-      setIsPreviewingZip(false)
-    }
-  }
-
-  const handleZipConfirm = async () => {
-    if (!pendingZipFile || isConfirmingZip) return
-
-    setIsConfirmingZip(true)
-    setImportError(null)
-    setImportMessage(null)
-
-    try {
-      const formData = new FormData()
-      formData.append("file", pendingZipFile)
-
-      const data = await apiFormFetch<{
-        success: true
-        import: {
-          entriesCreated: number
-          subaccountsCreated: number
-          thirdPartiesCreated: number
-          linesImported: number
-          fileName: string
-        }
-      }>("/api/imports/a3/confirm", formData)
-
-      setImportMessage(
-        `Importación Wolters Kluwer completada: ${data.import.entriesCreated} asientos, ${data.import.subaccountsCreated} subcuentas y ${data.import.thirdPartiesCreated} proveedores/clientes nuevos (${data.import.linesImported} líneas).`,
-      )
-      resetZipImport()
-      if (activeTab === "historial") await loadHistory()
-    } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Error al confirmar la importación.")
-    } finally {
-      setIsConfirmingZip(false)
-    }
-  }
-
-  const handleImport = async (fileList: FileList | null) => {
-    const file = fileList?.[0]
-    if (!file || isImporting || isPreviewingZip) return
-
-    const isZip = file.name.toLowerCase().endsWith(".zip")
-    if (selectedFormat === "wk-asesor" && isZip) {
-      await handleZipPreview(file)
-      return
-    }
-
-    resetZipImport()
-
-    setIsImporting(true)
-    setImportError(null)
-    setImportMessage(null)
-
-    try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("sourceFormat", selectedFormat)
-
-      const data = await apiFormFetch<{ success: true; import: ImportResult }>(
-        "/api/imports/accounting",
-        formData,
-      )
-
-      setImportMessage(
-        `Importación desde ${activeProfile.name} completada: ${data.import.rowsImported} líneas → ${data.import.entriesCreated} asientos.`,
-      )
-      if (activeTab === "historial") await loadHistory()
-    } catch (error) {
-      setImportError(error instanceof Error ? error.message : "Error al importar el archivo.")
-    } finally {
-      setIsImporting(false)
-      if (fileInputRef.current) fileInputRef.current.value = ""
-    }
-  }
 
   const handleExport = async (fileType: "csv" | "xlsx") => {
     setIsExporting(true)
@@ -278,222 +204,183 @@ export function ImportExportHub() {
     }
   }
 
+  if (!session) return null
+
+  const isGestoria = session.user.accountType === "GESTORIA"
+
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <div>
         <div className="mb-1 flex items-center gap-2 text-sm font-medium text-emerald-700">
           <FileSpreadsheet className="h-4 w-4" />
-          Intercambio contable
+          {isGestoria ? "Panel de importación de la gestoría" : "Intercambio contable"}
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-pine-900 sm:text-3xl">
-          Importación y exportación
+          Importación
         </h1>
         <p className="mt-1 text-sm text-graphite-500">
-          Compatible con Wolters Kluwer, Sage y plantillas CSV/Excel genéricas.
+          {isGestoria
+            ? "Importa contabilidad de clientes, migra carteras completas o gestiona los libros internos de la gestoría."
+            : "Compatible con Wolters Kluwer, Sage y plantillas CSV/Excel genéricas."}
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {TAB_ITEMS.map((tab) => {
-          const Icon = tab.icon
-          return (
-            <Button
-              key={tab.id}
-              type="button"
-              variant={activeTab === tab.id ? "default" : "outline"}
-              className={activeTab === tab.id ? "bg-emerald-800 hover:bg-pine-900" : ""}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <Icon className="mr-2 h-4 w-4" />
-              {tab.label}
-            </Button>
-          )
-        })}
-      </div>
-
-      <Card className="border-sand-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-lg text-pine-900">Origen / destino del software</CardTitle>
-          <CardDescription>
-            Selecciona el programa contable para mapear columnas al importar y generar el layout
-            correcto al exportar.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {ACCOUNTING_FORMAT_PROFILES.map((profile) => (
+      {isGestoria ? (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {PRIMARY_TABS.map((tab) => {
+            const Icon = tab.icon
+            return (
               <button
-                key={profile.id}
+                key={tab.id}
                 type="button"
-                onClick={() => setSelectedFormat(profile.id)}
+                onClick={() => setActiveTab(tab.id)}
                 className={cn(
                   "rounded-xl border p-4 text-left transition-colors",
-                  selectedFormat === profile.id
+                  activeTab === tab.id
                     ? "border-emerald-400 bg-emerald-50/70 shadow-sm"
                     : "border-sand-200 bg-white hover:border-emerald-200",
                 )}
               >
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  {profile.vendor}
-                </p>
-                <p className="mt-1 font-medium text-pine-900">{profile.name}</p>
-                <p className="mt-2 text-xs text-graphite-500">{profile.description}</p>
+                <Icon
+                  className={cn(
+                    "mb-2 h-5 w-5",
+                    activeTab === tab.id ? "text-emerald-800" : "text-graphite-500",
+                  )}
+                />
+                <p className="text-sm font-semibold text-pine-900">{tab.label}</p>
+                <p className="mt-1 text-xs text-graphite-500">{tab.description}</p>
               </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant={activeTab === "empresa-cliente" ? "default" : "outline"}
+            className={activeTab === "empresa-cliente" ? "bg-emerald-800 hover:bg-pine-900" : ""}
+            onClick={() => setActiveTab("empresa-cliente")}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Importar
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "exportar" ? "default" : "outline"}
+            className={activeTab === "exportar" ? "bg-emerald-800 hover:bg-pine-900" : ""}
+            onClick={() => setActiveTab("exportar")}
+          >
+            <ArrowUpFromLine className="mr-2 h-4 w-4" />
+            Exportar
+          </Button>
+          <Button
+            type="button"
+            variant={activeTab === "historial" ? "default" : "outline"}
+            className={activeTab === "historial" ? "bg-emerald-800 hover:bg-pine-900" : ""}
+            onClick={() => setActiveTab("historial")}
+          >
+            <History className="mr-2 h-4 w-4" />
+            Historial
+          </Button>
+        </div>
+      )}
 
-      {activeTab === "importar" && (
+      {activeTab === "empresa-cliente" && (
         <Card className="border-sand-200 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg text-pine-900">
-              <Upload className="h-5 w-5 text-emerald-700" />
-              Importar asientos contables
+              <Building2 className="h-5 w-5 text-emerald-700" />
+              Importar a Empresa Cliente
             </CardTitle>
             <CardDescription>
-              Arrastra un archivo exportado desde {activeProfile.name}. Extensiones:{" "}
-              {activeProfile.extensions.join(", ")}.
-              {selectedFormat === "wk-asesor" &&
-                " Los paquetes .zip muestran un resumen previo antes de importar."}
+              Selecciona la empresa destino y sube el paquete ZIP exportado desde Wolters Kluwer
+              Asesor. Todos los asientos quedarán aislados en esa empresa.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {importMessage && (
-              <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                {importMessage}
+            {clientCompanies.length === 0 ? (
+              <p className="text-sm text-graphite-500">
+                No hay empresas disponibles. Da de alta clientes en la cartera antes de importar.
               </p>
-            )}
-            {importError && (
-              <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {importError}
-              </p>
-            )}
-
-            <div
-              className={cn(
-                "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-10 text-center",
-                isImporting || isPreviewingZip
-                  ? "border-emerald-300 bg-emerald-50/40"
-                  : "border-sand-300 bg-sand-50/40 hover:border-emerald-300",
-              )}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept={activeProfile.extensions.join(",")}
-                className="hidden"
-                onChange={(event) => handleImport(event.target.files)}
-              />
-              {isImporting || isPreviewingZip ? (
-                <Loader2 className="mb-3 h-8 w-8 animate-spin text-emerald-700" />
-              ) : (
-                <FileSpreadsheet className="mb-3 h-8 w-8 text-emerald-700" />
-              )}
-              <p className="text-sm font-medium text-pine-900">
-                {isImporting
-                  ? "Procesando archivo..."
-                  : isPreviewingZip
-                    ? "Analizando paquete ZIP..."
-                    : "Arrastra tu archivo o selecciónalo"}
-              </p>
-              <p className="mt-1 text-xs text-graphite-500">
-                {selectedFormat === "wk-asesor"
-                  ? "ZIP de exportación A3 (menú Exportar) o SUENLACE.DAT de Matrix Form / enlace contable"
-                  : `Columnas detectadas automáticamente según ${activeProfile.name}`}
-              </p>
-              <Button
-                type="button"
-                className="mt-4 bg-emerald-800 hover:bg-pine-900"
-                disabled={isImporting || isPreviewingZip}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                Seleccionar archivo
-              </Button>
-            </div>
-
-            {a3Preview && (
-              <div className="space-y-4 rounded-xl border border-emerald-200 bg-emerald-50/50 p-4">
-                <div>
-                  <p className="text-sm font-semibold text-pine-900">
-                    Detectados {a3Preview.entryCount} asientos contables y {a3Preview.subaccountCount}{" "}
-                    subcuentas de Wolters Kluwer Asesor (Versión {a3Preview.versionLabel})
-                  </p>
-                  <p className="mt-1 text-xs text-graphite-600">
-                    {describeImportMode(a3Preview.contents.importMode)}
-                    {a3Preview.thirdPartyCount > 0 &&
-                      ` · ${a3Preview.thirdPartyCount} proveedores/clientes detectados`}
-                  </p>
-                  <p className="mt-1 text-xs text-graphite-600">
-                    {a3Preview.newSubaccountCount > 0
-                      ? `${a3Preview.newSubaccountCount} subcuentas`
-                      : "Sin subcuentas nuevas"}
-                    {a3Preview.newThirdPartyCount > 0
-                      ? ` y ${a3Preview.newThirdPartyCount} proveedores/clientes se darán de alta antes de volcar el diario.`
-                      : a3Preview.newSubaccountCount > 0
-                        ? " se darán de alta antes de volcar el diario."
-                        : " · Los terceros detectados ya existen en tu base de datos."}
-                  </p>
+            ) : (
+              <>
+                <div className="space-y-1.5">
+                  <Label htmlFor="import-client-select">Empresa cliente destino</Label>
+                  <select
+                    id="import-client-select"
+                    value={selectedClientId}
+                    onChange={(event) => setSelectedClientId(event.target.value)}
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm sm:max-w-md"
+                  >
+                    {clientCompanies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                        {company.cif ? ` · ${company.cif}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <dl className="grid gap-2 text-xs text-graphite-600 sm:grid-cols-2">
-                  {a3Preview.companyCode && (
-                    <div>
-                      <dt className="font-medium text-graphite-700">Código empresa</dt>
-                      <dd>{a3Preview.companyCode}</dd>
-                    </div>
-                  )}
-                  {a3Preview.fiscalYear && (
-                    <div>
-                      <dt className="font-medium text-graphite-700">Ejercicio contable</dt>
-                      <dd>{a3Preview.fiscalYear}</dd>
-                    </div>
-                  )}
-                  {a3Preview.recordTypes.length > 0 && (
-                    <div className="sm:col-span-2">
-                      <dt className="font-medium text-graphite-700">Tipos de apunte detectados</dt>
-                      <dd>{a3Preview.recordTypes.join(" · ")}</dd>
-                    </div>
-                  )}
-                  <div className="sm:col-span-2">
-                    <dt className="font-medium text-graphite-700">Ficheros en el ZIP</dt>
-                    <dd className="break-all">{a3Preview.contents.fileNames.join(", ")}</dd>
-                  </div>
-                </dl>
+                {selectedClient && (
+                  <A3CompanyImportPanel
+                    key={selectedClient.id}
+                    companyId={selectedClient.id}
+                    companyName={selectedClient.name}
+                  />
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-                {a3Preview.warnings.map((warning) => (
-                  <p
-                    key={warning}
-                    className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800"
-                  >
-                    {warning}
-                  </p>
-                ))}
+      {activeTab === "cartera" && (
+        <Card className="border-sand-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg text-pine-900">
+              <Users className="h-5 w-5 text-emerald-700" />
+              Importar Fichero General de Clientes / Empresas
+            </CardTitle>
+            <CardDescription>
+              Migración masiva de la cartera desde Wolters Kluwer Asesor: da de alta las empresas
+              y vuelca automáticamente la contabilidad de cada carpeta E00xxx detectada.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <PortfolioImportPanel />
+          </CardContent>
+        </Card>
+      )}
 
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    className="bg-emerald-800 hover:bg-pine-900"
-                    disabled={isConfirmingZip || a3Preview.entryCount === 0}
-                    onClick={handleZipConfirm}
-                  >
-                    {isConfirmingZip ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="mr-2 h-4 w-4" />
-                    )}
-                    Confirmar e Importar todo a la Contabilidad
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={isConfirmingZip}
-                    onClick={resetZipImport}
-                  >
-                    Cancelar
-                  </Button>
+      {activeTab === "contabilidad-interna" && (
+        <Card className="border-sand-200 shadow-sm">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg text-pine-900">
+              <Landmark className="h-5 w-5 text-emerald-700" />
+              Contabilidad Interna de la Gestoría
+            </CardTitle>
+            <CardDescription>
+              Importa los libros diarios propios de la gestoría (honorarios, gastos internos, etc.).
+              No afecta a la contabilidad de empresas cliente.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {gestoriaOwnCompany ? (
+              <>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 px-4 py-3 text-sm text-emerald-900">
+                  <span className="font-medium">Empresa gestora:</span> {gestoriaOwnCompany.name}
+                  {gestoriaOwnCompany.cif ? ` · NIF ${gestoriaOwnCompany.cif}` : ""}
                 </div>
-              </div>
+                <A3CompanyImportPanel
+                  key={gestoriaOwnCompany.id}
+                  companyId={gestoriaOwnCompany.id}
+                  companyName={gestoriaOwnCompany.name}
+                />
+              </>
+            ) : (
+              <p className="text-sm text-graphite-500">
+                No se encontró la empresa interna de la gestoría.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -507,10 +394,32 @@ export function ImportExportHub() {
               Exportar asientos contables
             </CardTitle>
             <CardDescription>
-              Genera un fichero compatible con {activeProfile.name} a partir del diario actual.
+              Genera un fichero compatible con {activeProfile.name} a partir del diario de la
+              empresa activa.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {ACCOUNTING_FORMAT_PROFILES.map((profile) => (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => setSelectedFormat(profile.id)}
+                  className={cn(
+                    "rounded-xl border p-4 text-left transition-colors",
+                    selectedFormat === profile.id
+                      ? "border-emerald-400 bg-emerald-50/70 shadow-sm"
+                      : "border-sand-200 bg-white hover:border-emerald-200",
+                  )}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                    {profile.vendor}
+                  </p>
+                  <p className="mt-1 font-medium text-pine-900">{profile.name}</p>
+                </button>
+              ))}
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <Label htmlFor="export-from">Desde (opcional)</Label>
@@ -543,16 +452,21 @@ export function ImportExportHub() {
                 type="button"
                 className="bg-emerald-800 hover:bg-pine-900"
                 disabled={isExporting}
-                onClick={() => handleExport("csv")}
+                onClick={() => void handleExport("csv")}
               >
                 {isExporting ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 ) : (
                   <ArrowUpFromLine className="mr-2 h-4 w-4" />
                 )}
-                Descargar CSV ({activeProfile.csvDelimiter === ";" ? ";" : ","})
+                Descargar CSV
               </Button>
-              <Button type="button" variant="outline" disabled={isExporting} onClick={() => handleExport("xlsx")}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isExporting}
+                onClick={() => void handleExport("xlsx")}
+              >
                 Descargar Excel (.xlsx)
               </Button>
             </div>
@@ -567,16 +481,37 @@ export function ImportExportHub() {
               <History className="h-5 w-5 text-emerald-700" />
               Historial de importaciones
             </CardTitle>
-            <CardDescription>Últimos ficheros procesados para la empresa activa.</CardDescription>
+            <CardDescription>
+              Ficheros procesados por empresa. Selecciona la empresa para filtrar el historial.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            {clientCompanies.length > 0 && (
+              <div className="space-y-1.5">
+                <Label htmlFor="history-company-select">Empresa</Label>
+                <select
+                  id="history-company-select"
+                  value={historyCompanyId}
+                  onChange={(event) => setHistoryCompanyId(event.target.value)}
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm sm:max-w-md"
+                >
+                  {clientCompanies.map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name}
+                      {company.cif ? ` · ${company.cif}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {historyLoading ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-6 w-6 animate-spin text-emerald-700" />
               </div>
             ) : history.length === 0 ? (
               <p className="py-8 text-center text-sm text-graphite-500">
-                Todavía no hay importaciones registradas.
+                Todavía no hay importaciones registradas para esta empresa.
               </p>
             ) : (
               <ul className="divide-y divide-sand-100 rounded-xl border border-sand-200">
@@ -599,6 +534,19 @@ export function ImportExportHub() {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {isGestoria && activeTab !== "exportar" && activeTab !== "historial" && (
+        <div className="flex flex-wrap gap-2 border-t border-sand-200 pt-4">
+          <Button type="button" variant="ghost" size="sm" onClick={() => setActiveTab("exportar")}>
+            <ArrowUpFromLine className="mr-1.5 h-4 w-4" />
+            Exportar asientos
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setActiveTab("historial")}>
+            <History className="mr-1.5 h-4 w-4" />
+            Ver historial
+          </Button>
+        </div>
       )}
     </div>
   )

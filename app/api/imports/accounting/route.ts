@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { authErrorResponse, resolveImportCompany } from "@/lib/auth/api-auth"
 import { importAccountingFile } from "@/lib/imports/accounting-import"
 import {
   ACCOUNTING_FORMAT_PROFILES,
@@ -21,8 +21,8 @@ function parseSourceFormat(value: FormDataEntryValue | null): AccountingSourceFo
 
 export async function POST(request: Request) {
   try {
-    const { session, companyId } = await requireActiveCompany(request)
     const formData = await request.formData()
+    const { session, companyId } = await resolveImportCompany(request, formData)
     const file = formData.get("file")
     const sourceFormat = parseSourceFormat(formData.get("sourceFormat"))
 

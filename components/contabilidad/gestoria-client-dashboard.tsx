@@ -11,9 +11,11 @@ import {
   FileSpreadsheet,
   Landmark,
   Loader2,
+  Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
+import { ClientA3ImportDialog } from "@/components/contabilidad/client-a3-import-dialog"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
 import { mapCompaniesToGestoriaRows } from "@/lib/contabilidad/gestoria-companies"
@@ -22,11 +24,13 @@ import type { FiscalPanoramaResponse } from "@/lib/types/fiscal-panorama"
 import { cn } from "@/lib/utils"
 
 const WORKSPACE_TABS = [
-  { id: "resumen", label: "Resumen", icon: FileSpreadsheet, active: true },
-  { id: "apuntes", label: "Apuntes / Movimientos", icon: BookOpen, active: false },
-  { id: "iva", label: "Resumen de IVA", icon: Landmark, active: false },
-  { id: "plan", label: "Plan Contable", icon: Calculator, active: false },
+  { id: "resumen", label: "Resumen", icon: FileSpreadsheet },
+  { id: "apuntes", label: "Apuntes / Movimientos", icon: BookOpen },
+  { id: "iva", label: "Resumen de IVA", icon: Landmark },
+  { id: "plan", label: "Plan Contable", icon: Calculator },
 ] as const
+
+type WorkspaceTabId = (typeof WORKSPACE_TABS)[number]["id"]
 
 interface GestoriaClientDashboardProps {
   companyId: string
@@ -47,6 +51,8 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isSwitchingCompany, setIsSwitchingCompany] = useState(false)
+  const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [activeTab, setActiveTab] = useState<WorkspaceTabId>("resumen")
 
   const company = useMemo(
     () => session?.companies.find((item) => item.id === companyId) ?? null,
@@ -98,10 +104,10 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
   }, [company, ensureActiveCompany, session, year])
 
   useEffect(() => {
-    if (company) {
+    if (company && activeTab === "resumen") {
       void loadPanorama()
     }
-  }, [company, loadPanorama])
+  }, [activeTab, company, loadPanorama])
 
   const openWorkspace = async (destination: "/dashboard/contabilidad" | "/dashboard/fiscal") => {
     await ensureActiveCompany()
@@ -155,6 +161,14 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
         <div className="flex flex-wrap gap-2">
           <Button
             type="button"
+            className="bg-emerald-800 hover:bg-pine-900"
+            onClick={() => setImportDialogOpen(true)}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            Importar Contabilidad / A3 (ZIP/TXT)
+          </Button>
+          <Button
+            type="button"
             variant="outline"
             disabled={isSwitchingCompany}
             onClick={() => void openWorkspace("/dashboard/contabilidad")}
@@ -171,6 +185,14 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
           </Button>
         </div>
       </div>
+
+      <ClientA3ImportDialog
+        open={importDialogOpen}
+        companyId={companyId}
+        companyName={company.name}
+        companyCif={company.cif ?? row?.cif}
+        onClose={() => setImportDialogOpen(false)}
+      />
 
       <div className="overflow-hidden rounded-lg border border-sand-300 bg-white shadow-sm">
         <div className="border-b border-sand-200 bg-gradient-to-r from-emerald-900 to-emerald-800 px-4 py-3 text-white">
@@ -196,19 +218,22 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-1 border-b border-sand-200 bg-sand-50 px-2 py-2">
+        <div className="flex flex-wrap gap-1 border-b border-sand-200 bg-sand-50 px-2 py-2" role="tablist">
           {WORKSPACE_TABS.map((tab) => {
             const Icon = tab.icon
+            const isActive = activeTab === tab.id
             return (
               <button
                 key={tab.id}
                 type="button"
-                disabled={!tab.active}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors",
-                  tab.active
-                    ? "bg-emerald-800 text-white shadow-sm"
-                    : "cursor-not-allowed bg-white text-graphite-400",
+                  "inline-flex items-center gap-1.5 rounded-md border-b-2 px-3 py-2 text-xs font-semibold uppercase tracking-wide transition-colors",
+                  isActive
+                    ? "border-emerald-800 bg-emerald-800 text-white shadow-sm"
+                    : "border-transparent bg-white text-pine-900 hover:border-emerald-300 hover:bg-emerald-50/60",
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -219,45 +244,70 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <CalendarRange className="h-4 w-4 text-graphite-500" />
-            <label htmlFor="gestoria-client-year" className="text-sm font-medium text-graphite-700">
-              Ejercicio
-            </label>
-            <select
-              id="gestoria-client-year"
-              value={year}
-              onChange={(event) => setYear(Number.parseInt(event.target.value, 10))}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-            <div className="flex flex-wrap gap-2 text-xs text-graphite-600">
-              <span className="rounded border border-emerald-300 bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
-                Presentado
-              </span>
-              <span className="rounded border border-red-300 bg-red-100 px-2 py-1 font-semibold text-red-800">
-                Pendiente / SD
-              </span>
-            </div>
-          </div>
+          {activeTab === "resumen" && (
+            <>
+              <div className="flex flex-wrap items-center gap-3">
+                <CalendarRange className="h-4 w-4 text-graphite-500" />
+                <label htmlFor="gestoria-client-year" className="text-sm font-medium text-graphite-700">
+                  Ejercicio
+                </label>
+                <select
+                  id="gestoria-client-year"
+                  value={year}
+                  onChange={(event) => setYear(Number.parseInt(event.target.value, 10))}
+                  className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+                <div className="flex flex-wrap gap-2 text-xs text-graphite-600">
+                  <span className="rounded border border-emerald-300 bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
+                    Presentado
+                  </span>
+                  <span className="rounded border border-red-300 bg-red-100 px-2 py-1 font-semibold text-red-800">
+                    Pendiente / SD
+                  </span>
+                </div>
+              </div>
 
-          {isLoading ? (
-            <div className="flex items-center justify-center py-16 text-emerald-800">
-              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Cargando resumen fiscal...
+              {isLoading ? (
+                <div className="flex items-center justify-center py-16 text-emerald-800">
+                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                  Cargando resumen fiscal...
+                </div>
+              ) : error ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-800">
+                  {error}
+                </div>
+              ) : panorama ? (
+                <FiscalPanoramaMatrix panorama={panorama} />
+              ) : null}
+            </>
+          )}
+
+          {activeTab === "apuntes" && (
+            <div className="flex items-center justify-center py-16 text-sm text-graphite-600">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-700" />
+              Cargando libro diario de la empresa...
             </div>
-          ) : error ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-sm text-red-800">
-              {error}
+          )}
+
+          {activeTab === "iva" && (
+            <div className="flex items-center justify-center py-16 text-sm text-graphite-600">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-700" />
+              Cargando modelos de IVA de la empresa...
             </div>
-          ) : panorama ? (
-            <FiscalPanoramaMatrix panorama={panorama} />
-          ) : null}
+          )}
+
+          {activeTab === "plan" && (
+            <div className="flex items-center justify-center py-16 text-sm text-graphite-600">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin text-emerald-700" />
+              Cargando plan de cuentas de la empresa...
+            </div>
+          )}
         </div>
       </div>
     </div>

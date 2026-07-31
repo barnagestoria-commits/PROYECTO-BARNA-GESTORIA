@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { authErrorResponse, resolveImportCompanyFromQuery } from "@/lib/auth/api-auth"
 import { prisma } from "@/lib/db"
 import {
   decodeImportFormatLabel,
@@ -8,8 +8,8 @@ import {
 
 export async function GET(request: Request) {
   try {
-    const { companyId } = await requireActiveCompany(request)
     const { searchParams } = new URL(request.url)
+    const { companyId } = await resolveImportCompanyFromQuery(request, searchParams)
     const limit = Math.min(Number(searchParams.get("limit") ?? 20), 50)
 
     const imports = await prisma.accountingDataImport.findMany({

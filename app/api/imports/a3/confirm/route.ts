@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
-import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { authErrorResponse, resolveImportCompany } from "@/lib/auth/api-auth"
 import { confirmA3ZipImport } from "@/lib/imports/a3/a3-import-service"
 
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
-    const { session, companyId } = await requireActiveCompany(request)
     const formData = await request.formData()
+    const { session, companyId } = await resolveImportCompany(request, formData)
     const file = formData.get("file")
 
     if (!(file instanceof File)) {

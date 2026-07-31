@@ -36,6 +36,61 @@ export async function requireActiveCompany(request: Request): Promise<{
   return { session, companyId }
 }
 
+export async function requireCompanyAccess(
+  request: Request,
+  companyId: string | null | undefined,
+): Promise<{ session: AuthSession; companyId: string }> {
+  const session = await requireRequestSession(request)
+  const normalizedId = companyId?.trim()
+
+  if (!normalizedId) {
+    throw new AuthApiError("No se ha indicado la empresa destino.", 400)
+  }
+
+  if (!session.companies.some((company) => company.id === normalizedId)) {
+    throw new AuthApiError("No tienes acceso a la empresa indicada.", 403)
+  }
+
+  return { session, companyId: normalizedId }
+}
+
+/** Usa companyId del FormData si viene informado; si no, la empresa activa en sesión. */
+export async function resolveImportCompany(
+  request: Request,
+  formData: FormData,
+): Promise<{ session: AuthSession; companyId: string }> {
+  const raw = formData.get("companyId")
+  const explicitId = typeof raw === "string" ? raw.trim() : ""
+
+  if (explicitId) {
+    return requireCompanyAccess(request, explicitId)
+  }
+
+  return requireActiveCompany(request)
+}
+
+/** Usa companyId de query string si viene informado; si no, la empresa activa en sesión. */
+export async function resolveImportCompanyFromQuery(
+  request: Request,
+  searchParams: URLSearchParams,
+): Promise<{ session: AuthSession; companyId: string }> {
+  const explicitId = searchParams.get("companyId")?.trim()
+
+  if (explicitId) {
+    return requireCompanyAccess(request, explicitId)
+  }
+
+  return requireActiveCompany(request)
+}
+
+export async function requireGestoriaSession(request: Request): Promise<AuthSession> {
+  const session = await requireRequestSession(request)
+  if (session.user.accountType !== "GESTORIA") {
+    throw new AuthApiError("Solo las cuentas de gestoría pueden realizar esta operación.", 403)
+  }
+  return session
+}
+
 export class AuthApiError extends Error {
   constructor(
     message: string,
