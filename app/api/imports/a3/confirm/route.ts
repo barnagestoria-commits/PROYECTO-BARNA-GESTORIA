@@ -3,6 +3,8 @@ import { authErrorResponse, resolveImportCompany } from "@/lib/auth/api-auth"
 import { confirmA3ZipImport } from "@/lib/imports/a3/a3-import-service"
 
 export const runtime = "nodejs"
+export const maxDuration = 60
+export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
   try {

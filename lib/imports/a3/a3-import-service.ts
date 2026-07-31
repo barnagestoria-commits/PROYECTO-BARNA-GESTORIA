@@ -1,5 +1,8 @@
 import { normalizeCif } from "@/lib/accounting/third-party-types"
-import { checkAccountExists } from "@/lib/accounting/account-exists-service"
+import {
+  checkAccountExists,
+  countMissingImportSubaccounts,
+} from "@/lib/accounting/account-exists-service"
 import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { createLedgerSubaccountWithFixedCode } from "@/lib/accounting/ledger-subaccount-service"
 import { findThirdPartyByCif, resolveOrCreateThirdParty } from "@/lib/accounting/third-party-service"
@@ -44,12 +47,10 @@ function thirdPartiesFromSubaccounts(subaccounts: A3Subaccount[]): A3ThirdParty[
 }
 
 async function countMissingSubaccounts(companyId: string, subaccounts: A3Subaccount[]): Promise<number> {
-  let missing = 0
-  for (const subaccount of subaccounts) {
-    const check = await checkAccountExists(companyId, subaccount.accountCode)
-    if (!check.exists && check.canQuickCreate) missing += 1
-  }
-  return missing
+  return countMissingImportSubaccounts(
+    companyId,
+    subaccounts.filter((sub) => !sub.nif).map((sub) => sub.accountCode),
+  )
 }
 
 async function countMissingThirdParties(
@@ -61,20 +62,31 @@ async function countMissingThirdParties(
   const merged = new Map<string, A3ThirdParty>()
 
   for (const party of thirdParties) {
-    merged.set(party.cif, party)
+    merged.set(`${party.type}:${party.cif}`, party)
   }
   for (const [cif, name] of fromLines) {
-    if (!merged.has(cif)) {
-      merged.set(cif, { cif, name, type: "PROVEEDOR" })
+    const key = `PROVEEDOR:${cif}`
+    if (!merged.has(key)) {
+      merged.set(key, { cif, name, type: "PROVEEDOR" })
     }
   }
 
-  let missing = 0
-  for (const party of merged.values()) {
-    const existing = await findThirdPartyByCif(companyId, party.type, party.cif)
-    if (!existing) missing += 1
-  }
-  return missing
+  const parties = [...merged.values()]
+  if (parties.length === 0) return 0
+
+  const existing = await prisma.thirdParty.findMany({
+    where: {
+      companyId,
+      OR: parties.map((party) => ({
+        type: party.type,
+        cif: party.cif,
+      })),
+    },
+    select: { cif: true, type: true },
+  })
+
+  const existingKeys = new Set(existing.map((row) => `${row.type}:${row.cif}`))
+  return parties.filter((party) => !existingKeys.has(`${party.type}:${party.cif}`)).length
 }
 
 async function enrichPreview(parsed: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">) {

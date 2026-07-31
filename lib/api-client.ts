@@ -1,5 +1,39 @@
 import type { AuthSession } from "@/lib/types/auth"
 
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get("content-type") ?? ""
+  const raw = await response.text()
+
+  if (!raw) {
+    if (!response.ok) {
+      throw new Error(`Error del servidor (${response.status}).`)
+    }
+    return {} as T
+  }
+
+  if (contentType.includes("application/json") || raw.trimStart().startsWith("{")) {
+    try {
+      return JSON.parse(raw) as T
+    } catch {
+      throw new Error(
+        response.ok
+          ? "La respuesta del servidor no es JSON válido."
+          : `Error del servidor (${response.status}): ${raw.slice(0, 180)}`,
+      )
+    }
+  }
+
+  if (!response.ok) {
+    const snippet = raw.replace(/\s+/g, " ").trim().slice(0, 180)
+    if (response.status === 413) {
+      throw new Error("El archivo ZIP es demasiado grande para subirlo. Prueba con un export más pequeño.")
+    }
+    throw new Error(snippet || `Error del servidor (${response.status}).`)
+  }
+
+  throw new Error("Respuesta inesperada del servidor.")
+}
+
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -10,7 +44,7 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     },
   })
 
-  const data = await response.json()
+  const data = await parseApiResponse<{ error?: string; success?: boolean } & T>(response)
 
   if (!response.ok) {
     throw new Error(data.error ?? "Error en la solicitud.")
@@ -26,7 +60,7 @@ export async function apiFormFetch<T>(url: string, formData: FormData): Promise<
     credentials: "include",
   })
 
-  const data = await response.json()
+  const data = await parseApiResponse<{ error?: string; success?: boolean } & T>(response)
 
   if (!response.ok) {
     throw new Error(data.error ?? "Error en la solicitud.")

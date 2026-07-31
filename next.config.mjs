@@ -47,6 +47,9 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    middlewareClientMaxBodySize: "50mb",
+  },
   serverExternalPackages: [
     "pdf-parse",
     "pdfjs-dist",

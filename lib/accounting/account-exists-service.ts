@@ -43,6 +43,42 @@ function requiresSubaccountRegistration(digits: string): boolean {
   return digits.length > parent.length
 }
 
+export async function countMissingImportSubaccounts(
+  companyId: string,
+  rawCodes: string[],
+): Promise<number> {
+  const codes = [...new Set(rawCodes.map((code) => normalizeCuenta(code)).filter((code) => code.length >= 2))]
+  if (codes.length === 0) return 0
+
+  const [ledgerRows, thirdPartyRows] = await Promise.all([
+    prisma.ledgerSubaccount.findMany({
+      where: { companyId, accountCode: { in: codes } },
+      select: { accountCode: true },
+    }),
+    prisma.thirdParty.findMany({
+      where: { companyId, accountCode: { in: codes } },
+      select: { accountCode: true },
+    }),
+  ])
+
+  const existing = new Set([
+    ...ledgerRows.map((row) => row.accountCode),
+    ...thirdPartyRows.map((row) => row.accountCode),
+  ])
+
+  let missing = 0
+  for (const digits of codes) {
+    if (existing.has(digits)) continue
+    if (isExactPgcAccount(digits)) continue
+    if (!requiresSubaccountRegistration(digits)) continue
+    const parentCode = inferParentCodeFromAccount(digits)
+    const parentMeta = parentCode ? resolveAccountParentCode(parentCode) : null
+    if (parentMeta) missing += 1
+  }
+
+  return missing
+}
+
 export async function checkAccountExists(
   companyId: string,
   rawCode: string,
