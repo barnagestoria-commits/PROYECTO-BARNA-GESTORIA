@@ -50,6 +50,18 @@ enum DataImportStatus {
   ERROR
 }
 
+enum BankMovementStatus {
+  PENDIENTE
+  CONCILIADO
+  IGNORADO
+}
+
+enum BankStatementSource {
+  CSV
+  XLSX
+  OCR
+}
+
 enum ThirdPartyType {
   PROVEEDOR
   CLIENTE
@@ -131,6 +143,8 @@ model Company {
   accountingSettings   CompanyAccountingSettings?
   accountAnalyticTemplates AccountAnalyticTemplate[]
   gestoriaProfile      CompanyGestoriaProfile?
+  bankStatementImports BankStatementImport[]
+  bankMovements        BankMovement[]
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -187,6 +201,7 @@ model AccountingEntry {
   updatedAt   DateTime    @updatedAt
   lines       EntryLine[]
   fiscalDocument FiscalDocument?
+  bankMovements BankMovement[]
 
   @@unique([companyId, refNumber])
   @@index([companyId, fecha])
@@ -203,6 +218,7 @@ model EntryLine {
   debe      Decimal         @default(0) @db.Decimal(14, 2)
   haber     Decimal         @default(0) @db.Decimal(14, 2)
   analyticDistributions EntryLineAnalyticDistribution[]
+  bankMovement BankMovement?
 
   @@index([entryId, sortOrder])
 }
@@ -471,4 +487,48 @@ model AccountAnalyticTemplate {
 
   @@unique([companyId, accountCode, costCenterId])
   @@index([companyId, accountCode])
+}
+
+/// Importación de extracto bancario (CSV, Excel u OCR)
+model BankStatementImport {
+  id              String              @id @default(cuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fileName        String
+  source          BankStatementSource
+  bankAccountCode String?
+  movementCount   Int                 @default(0)
+  uploadedById    String?
+  createdAt       DateTime            @default(now())
+  movements       BankMovement[]
+
+  @@index([companyId, createdAt])
+}
+
+/// Movimiento bancario importado pendiente de conciliar con contabilidad
+model BankMovement {
+  id             String              @id @default(cuid())
+  companyId      String
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  importId       String?
+  import         BankStatementImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
+  movementDate   DateTime            @db.Date
+  valueDate      DateTime?           @db.Date
+  concept        String              @default("")
+  reference      String?
+  amount         Decimal             @db.Decimal(14, 2)
+  balance        Decimal?            @db.Decimal(14, 2)
+  status         BankMovementStatus  @default(PENDIENTE)
+  dedupeKey      String
+  matchedEntryId String?
+  matchedEntry   AccountingEntry?    @relation(fields: [matchedEntryId], references: [id], onDelete: SetNull)
+  matchedLineId  String?             @unique
+  matchedLine    EntryLine?          @relation(fields: [matchedLineId], references: [id], onDelete: SetNull)
+  matchedAt      DateTime?
+  matchedById    String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([companyId, dedupeKey])
+  @@index([companyId, status, movementDate])
 }
