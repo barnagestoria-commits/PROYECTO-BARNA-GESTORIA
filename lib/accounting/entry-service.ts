@@ -301,6 +301,62 @@ export async function deleteAccountingEntry(companyId: string, entryId: string):
   })
 }
 
+export interface CompanyAccountingVolume {
+  entryCount: number
+  lineCount: number
+  importCount: number
+  matchedBankMovementCount: number
+}
+
+export async function getCompanyAccountingVolume(
+  companyId: string,
+): Promise<CompanyAccountingVolume> {
+  const [entryCount, lineCount, importCount, matchedBankMovementCount] = await Promise.all([
+    prisma.accountingEntry.count({ where: { companyId } }),
+    prisma.entryLine.count({ where: { entry: { companyId } } }),
+    prisma.accountingDataImport.count({ where: { companyId } }),
+    prisma.bankMovement.count({ where: { companyId, matchedEntryId: { not: null } } }),
+  ])
+
+  return { entryCount, lineCount, importCount, matchedBankMovementCount }
+}
+
+export interface DeleteAllAccountingEntriesResult {
+  entriesDeleted: number
+  importsDeleted: number
+  bankMovementsReset: number
+}
+
+/**
+ * Vacía la contabilidad de una empresa para poder reimportarla desde cero.
+ * Las líneas se borran en cascada; las conciliaciones bancarias vuelven a pendiente
+ * para que no queden apuntando a asientos inexistentes.
+ */
+export async function deleteAllAccountingEntries(
+  companyId: string,
+): Promise<DeleteAllAccountingEntriesResult> {
+  const [bankMovements, imports, entries] = await prisma.$transaction([
+    prisma.bankMovement.updateMany({
+      where: { companyId, matchedEntryId: { not: null } },
+      data: {
+        status: "PENDIENTE",
+        matchedEntryId: null,
+        matchedLineId: null,
+        matchedAt: null,
+        matchedById: null,
+      },
+    }),
+    prisma.accountingDataImport.deleteMany({ where: { companyId } }),
+    prisma.accountingEntry.deleteMany({ where: { companyId } }),
+  ])
+
+  return {
+    entriesDeleted: entries.count,
+    importsDeleted: imports.count,
+    bankMovementsReset: bankMovements.count,
+  }
+}
+
 export function hasInvoiceData(entry: AccountingEntryDetail): boolean {
   return Boolean(
     entry.invoiceDetails ||

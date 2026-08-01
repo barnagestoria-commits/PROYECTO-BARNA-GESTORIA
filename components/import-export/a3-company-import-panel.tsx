@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { CheckCircle2, FileSpreadsheet, Loader2, Upload } from "lucide-react"
+import { PurgeAccountingEntriesPanel } from "@/components/accounting/purge-accounting-entries-panel"
 import { Button } from "@/components/ui/button"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
 import {
@@ -72,6 +73,7 @@ export function A3CompanyImportPanel({
   const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [accountingVersion, setAccountingVersion] = useState(0)
 
   const resetZipImport = () => {
     setPendingZipFile(null)
@@ -265,6 +267,7 @@ export function A3CompanyImportPanel({
       const message = `Importación completada en ${companyName}: ${data.import.entriesCreated} asientos, ${data.import.subaccountsCreated} subcuentas y ${data.import.thirdPartiesCreated} terceros nuevos (${data.import.linesImported} líneas).`
       setImportMessage(message)
       resetZipImport()
+      setAccountingVersion((version) => version + 1)
       onSuccess?.(message)
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Error al confirmar la importación.")
@@ -470,6 +473,15 @@ export function A3CompanyImportPanel({
             </Button>
           </div>
         </div>
+      )}
+
+      {!isConfirmingZip && (
+        <PurgeAccountingEntriesPanel
+          companyId={companyId}
+          companyName={companyName}
+          refreshKey={accountingVersion}
+          onPurged={() => onSuccess?.(`Contabilidad de ${companyName} vaciada.`)}
+        />
       )}
     </div>
   )
