@@ -2,9 +2,9 @@
 
 export const A3_RECORD_LENGTH = 512
 
-export function decodeLatin1(buffer: Buffer): string {
-  return buffer.toString("latin1")
-}
+import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+
+export { decodeLatin1 }
 
 export function sliceField(record: string, start: number, length: number): string {
   // Posiciones del manual A3 son 1-indexed.
@@ -44,7 +44,7 @@ export function formatA3Date(raw: string): string | null {
   return `${year}-${month}-${day}`
 }
 
-export function splitFixedRecords(buffer: Buffer): string[] {
+export function splitFixedRecords(buffer: ImportBytes): string[] {
   const text = decodeLatin1(buffer)
   const records: string[] = []
 

@@ -3,7 +3,15 @@
 import { useRef, useState } from "react"
 import { CheckCircle2, FileSpreadsheet, Loader2, Upload } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { apiFormFetch } from "@/lib/api-client"
+import { apiFetch, apiFormFetch } from "@/lib/api-client"
+import {
+  A3_DIRECT_UPLOAD_MAX_BYTES,
+  chunkA3Entries,
+  extractVendorRefsFromEntries,
+  shouldUseClientSideA3Import,
+} from "@/lib/imports/a3/a3-client-import"
+import { parseA3ZipBytes } from "@/lib/imports/a3/parse-a3-zip"
+import type { A3ImportPreview, A3JournalEntry } from "@/lib/imports/a3/types"
 import { cn } from "@/lib/utils"
 
 export interface A3ZipPreview {
@@ -36,6 +44,12 @@ function describeImportMode(mode?: A3ZipPreview["contents"]["importMode"]): stri
   return "Texto / CSV"
 }
 
+interface ParsedA3State {
+  fileName: string
+  entries: A3JournalEntry[]
+  meta: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount" | "entries">
+}
+
 interface A3CompanyImportPanelProps {
   companyId: string
   companyName: string
@@ -51,16 +65,73 @@ export function A3CompanyImportPanel({
 }: A3CompanyImportPanelProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingZipFile, setPendingZipFile] = useState<File | null>(null)
+  const [parsedState, setParsedState] = useState<ParsedA3State | null>(null)
   const [a3Preview, setA3Preview] = useState<A3ZipPreview | null>(null)
   const [isPreviewingZip, setIsPreviewingZip] = useState(false)
   const [isConfirmingZip, setIsConfirmingZip] = useState(false)
+  const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
 
   const resetZipImport = () => {
     setPendingZipFile(null)
+    setParsedState(null)
     setA3Preview(null)
+    setConfirmProgress(null)
     if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const buildPreviewFromParsed = (
+    parsed: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">,
+    counts: { newSubaccountCount: number; newThirdPartyCount: number },
+  ): A3ZipPreview => ({
+    versionLabel: parsed.versionLabel,
+    companyCode: parsed.companyCode,
+    fiscalYear: parsed.fiscalYear,
+    entryCount: parsed.entryCount,
+    subaccountCount: parsed.subaccountCount,
+    newSubaccountCount: counts.newSubaccountCount,
+    thirdPartyCount: parsed.thirdPartyCount,
+    newThirdPartyCount: counts.newThirdPartyCount,
+    recordTypes: parsed.recordTypes,
+    contents: parsed.contents,
+    warnings: parsed.warnings,
+  })
+
+  const previewViaServerUpload = async (file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("companyId", companyId)
+
+    const data = await apiFormFetch<{ success: true; preview: A3ZipPreview }>(
+      "/api/imports/a3/preview",
+      formData,
+    )
+
+    setA3Preview(data.preview)
+  }
+
+  const previewViaClientParse = async (file: File) => {
+    const arrayBuffer = await file.arrayBuffer()
+    const parsed = await parseA3ZipBytes(arrayBuffer, file.name)
+    const vendorRefs = extractVendorRefsFromEntries(parsed.entries)
+
+    const { counts } = await apiFetch<{ success: true; counts: { newSubaccountCount: number; newThirdPartyCount: number } }>(
+      "/api/imports/a3/preview-counts",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          companyId,
+          subaccounts: parsed.subaccounts,
+          thirdParties: parsed.thirdParties,
+          vendorRefs,
+        }),
+      },
+    )
+
+    const { entries, ...meta } = parsed
+    setParsedState({ fileName: file.name, entries, meta })
+    setA3Preview(buildPreviewFromParsed(parsed, counts))
   }
 
   const handleZipPreview = async (file: File) => {
@@ -68,19 +139,15 @@ export function A3CompanyImportPanel({
     setImportError(null)
     setImportMessage(null)
     setA3Preview(null)
+    setParsedState(null)
     setPendingZipFile(file)
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("companyId", companyId)
-
-      const data = await apiFormFetch<{ success: true; preview: A3ZipPreview }>(
-        "/api/imports/a3/preview",
-        formData,
-      )
-
-      setA3Preview(data.preview)
+      if (shouldUseClientSideA3Import(file)) {
+        await previewViaClientParse(file)
+      } else {
+        await previewViaServerUpload(file)
+      }
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Error al leer el archivo ZIP.")
       setPendingZipFile(null)
@@ -90,28 +157,112 @@ export function A3CompanyImportPanel({
     }
   }
 
+  const confirmViaServerUpload = async (file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("companyId", companyId)
+
+    return apiFormFetch<{
+      success: true
+      import: {
+        entriesCreated: number
+        subaccountsCreated: number
+        thirdPartiesCreated: number
+        linesImported: number
+        fileName: string
+      }
+    }>("/api/imports/a3/confirm", formData)
+  }
+
+  const confirmViaClientParse = async (state: ParsedA3State) => {
+    const vendorRefs = extractVendorRefsFromEntries(state.entries)
+    const { entries, ...meta } = state
+
+    const start = await apiFetch<{
+      success: true
+      importId: string
+      subaccountsCreated: number
+      thirdPartiesCreated: number
+    }>("/api/imports/a3/confirm-parsed/start", {
+      method: "POST",
+      body: JSON.stringify({
+        companyId,
+        fileName: state.fileName,
+        meta,
+        vendorRefs,
+      }),
+    })
+
+    const batches = chunkA3Entries(entries)
+    let entriesCreated = 0
+    let linesImported = 0
+
+    for (let index = 0; index < batches.length; index += 1) {
+      setConfirmProgress(
+        batches.length > 1
+          ? `Importando asientos (${index + 1}/${batches.length})...`
+          : "Importando asientos...",
+      )
+
+      const { batch } = await apiFetch<{
+        success: true
+        batch: { entriesCreated: number; linesImported: number }
+      }>("/api/imports/a3/confirm-parsed/batch", {
+        method: "POST",
+        body: JSON.stringify({
+          companyId,
+          importId: start.importId,
+          entries: batches[index],
+        }),
+      })
+
+      entriesCreated += batch.entriesCreated
+      linesImported += batch.linesImported
+    }
+
+    setConfirmProgress("Finalizando importación...")
+
+    return apiFetch<{
+      success: true
+      import: {
+        entriesCreated: number
+        subaccountsCreated: number
+        thirdPartiesCreated: number
+        linesImported: number
+        fileName: string
+      }
+    }>("/api/imports/a3/confirm-parsed/finish", {
+      method: "POST",
+      body: JSON.stringify({
+        companyId,
+        importId: start.importId,
+        totals: {
+          entriesCreated,
+          subaccountsCreated: start.subaccountsCreated,
+          thirdPartiesCreated: start.thirdPartiesCreated,
+          linesImported,
+        },
+      }),
+    })
+  }
+
   const handleZipConfirm = async () => {
-    if (!pendingZipFile || isConfirmingZip) return
+    if (isConfirmingZip) return
+    if (!parsedState && !pendingZipFile) return
 
     setIsConfirmingZip(true)
     setImportError(null)
     setImportMessage(null)
+    setConfirmProgress(null)
 
     try {
-      const formData = new FormData()
-      formData.append("file", pendingZipFile)
-      formData.append("companyId", companyId)
+      const data = parsedState
+        ? await confirmViaClientParse(parsedState)
+        : pendingZipFile
+          ? await confirmViaServerUpload(pendingZipFile)
+          : null
 
-      const data = await apiFormFetch<{
-        success: true
-        import: {
-          entriesCreated: number
-          subaccountsCreated: number
-          thirdPartiesCreated: number
-          linesImported: number
-          fileName: string
-        }
-      }>("/api/imports/a3/confirm", formData)
+      if (!data) return
 
       const message = `Importación completada en ${companyName}: ${data.import.entriesCreated} asientos, ${data.import.subaccountsCreated} subcuentas y ${data.import.thirdPartiesCreated} terceros nuevos (${data.import.linesImported} líneas).`
       setImportMessage(message)
@@ -121,6 +272,7 @@ export function A3CompanyImportPanel({
       setImportError(error instanceof Error ? error.message : "Error al confirmar la importación.")
     } finally {
       setIsConfirmingZip(false)
+      setConfirmProgress(null)
     }
   }
 
@@ -135,6 +287,8 @@ export function A3CompanyImportPanel({
 
     await handleZipPreview(file)
   }
+
+  const usesClientParse = pendingZipFile ? shouldUseClientSideA3Import(pendingZipFile) : Boolean(parsedState)
 
   return (
     <div className={cn("space-y-4", compact && "space-y-3")}>
@@ -177,6 +331,9 @@ export function A3CompanyImportPanel({
           <p className="mt-1 text-xs text-graphite-500">
             ZIP con DIARIO.TXT, SUBCUENT.TXT o exportación nativa (carpeta E00xxx)
           </p>
+          <p className="mt-1 text-xs text-graphite-500">
+            Archivos grandes se analizan en tu navegador (sin subir el ZIP completo)
+          </p>
           <p className="mt-2 text-xs font-medium text-emerald-800">
             Destino: {companyName}
           </p>
@@ -204,6 +361,14 @@ export function A3CompanyImportPanel({
               {a3Preview.thirdPartyCount > 0 &&
                 ` · ${a3Preview.thirdPartyCount} proveedores/clientes`}
             </p>
+            {usesClientParse && (
+              <p className="mt-1 text-xs text-emerald-700">
+                Análisis local completado
+                {pendingZipFile && pendingZipFile.size > A3_DIRECT_UPLOAD_MAX_BYTES
+                  ? ` (${(pendingZipFile.size / (1024 * 1024)).toFixed(1)} MB — sin subir el ZIP a Vercel)`
+                  : null}
+              </p>
+            )}
             {(a3Preview.newSubaccountCount > 0 || a3Preview.newThirdPartyCount > 0) && (
               <p className="mt-1 text-xs text-graphite-600">
                 {a3Preview.newSubaccountCount > 0
@@ -245,6 +410,10 @@ export function A3CompanyImportPanel({
               {warning}
             </p>
           ))}
+
+          {confirmProgress && (
+            <p className="text-xs text-emerald-800">{confirmProgress}</p>
+          )}
 
           <div className="flex flex-wrap gap-2">
             <Button

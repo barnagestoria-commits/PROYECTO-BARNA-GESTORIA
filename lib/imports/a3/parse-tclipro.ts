@@ -6,9 +6,7 @@ const NIF_PATTERN =
 
 const ADDRESS_MARKERS = [/\x0b\.CL/i, /\x0b\.AV/i, /\x0b\.A\./i, /^\s*CL\s+/i, /^\s*AV\s+/i]
 
-function decodeLatin1(buffer: Buffer): string {
-  return buffer.toString("latin1")
-}
+import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 
 function cleanVendorName(raw: string): string {
   return raw
@@ -50,7 +48,7 @@ function extractNameAfterNif(text: string, nifEndIndex: number): string {
   return cleanVendorName(raw)
 }
 
-export function parseTcliproBuffer(buffer: Buffer): A3ThirdParty[] {
+export function parseTcliproBuffer(buffer: ImportBytes): A3ThirdParty[] {
   const text = decodeLatin1(buffer)
   const vendors: A3ThirdParty[] = []
   const seen = new Set<string>()

@@ -1,4 +1,5 @@
 import { parseTcliproBuffer } from "@/lib/imports/a3/parse-tclipro"
+import { bytesToHex, decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import type { A3JournalEntry, A3JournalLine, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
 import { applyVendorMatchingToEntries, extractVendorNameFromConcept } from "@/lib/imports/a3/vendor-matching"
 
@@ -19,10 +20,6 @@ export interface A3NativeParseResult {
   fiscalYear: number | null
   recordTypes: string[]
   warnings: string[]
-}
-
-function decodeLatin1(buffer: Buffer): string {
-  return buffer.toString("latin1")
 }
 
 function parseAmountFromMatch(raw: string): number {
@@ -83,9 +80,9 @@ function inferAccountCode(subtype: number, dh: "D" | "H", concept: string): stri
   return "555000000000"
 }
 
-function detectLineRecordStart(buffer: Buffer): number {
+function detectLineRecordStart(buffer: ImportBytes): number {
   const searchStart = NATIVE_HEADER
-  const firstMatch = buffer.slice(searchStart).toString("latin1").match(/[DH]\d{11,14}/)
+  const firstMatch = decodeLatin1(buffer.subarray(searchStart)).match(/[DH]\d{11,14}/)
   if (!firstMatch || firstMatch.index === undefined) {
     return searchStart
   }
@@ -100,7 +97,7 @@ function detectLineRecordStart(buffer: Buffer): number {
 
     let count = 0
     for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
-      const rec = buffer.slice(pos, pos + NATIVE_LINE_RECORD).toString("latin1")
+      const rec = decodeLatin1(buffer.subarray(pos, pos + NATIVE_LINE_RECORD))
       if (/[DH]\d{11,14}/.test(rec)) count += 1
     }
 
@@ -114,7 +111,7 @@ function detectLineRecordStart(buffer: Buffer): number {
 }
 
 function parseNativeJournalFile(
-  buffer: Buffer,
+  buffer: ImportBytes,
   fileName: string,
   month: number,
   fiscalYear: number,
@@ -125,7 +122,7 @@ function parseNativeJournalFile(
   const groupMeta = new Map<string, { concept: string; documento: string }>()
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
-    const rec = buffer.slice(pos, pos + NATIVE_LINE_RECORD)
+    const rec = buffer.subarray(pos, pos + NATIVE_LINE_RECORD)
     const text = decodeLatin1(rec)
     const dhMatch = text.match(/([DH])(\d{11,14})/)
     if (!dhMatch) continue
@@ -139,7 +136,7 @@ function parseNativeJournalFile(
     const documento = extractDocument(conceptRaw)
     const concept = documento ? conceptRaw.replace(new RegExp(`${documento}\\s*$`), "").trim() : conceptRaw
     const subtype = rec[10] ?? 0
-    const entryKey = rec.subarray(0, 10).toString("hex")
+    const entryKey = bytesToHex(rec.subarray(0, 10))
     const cuenta = inferAccountCode(subtype, dh, conceptRaw)
 
     const day = Math.min(Math.max(((rec[8] ?? 1) % 28) + 1, 1), 28)
@@ -198,7 +195,7 @@ function parseExpManifest(content: string): A3NativeExportManifest | null {
   return { companyFolder: "", files }
 }
 
-function parseTcliproFromFiles(files: Map<string, Buffer>): A3ThirdParty[] {
+function parseTcliproFromFiles(files: Map<string, ImportBytes>): A3ThirdParty[] {
   for (const [name, buffer] of files) {
     const base = name.split("/").pop()?.toUpperCase() ?? ""
     if (base === "TCLIPRO.DAT") {
@@ -214,7 +211,7 @@ function padAccountCode(raw: string): string {
   return digits.padEnd(12, "0")
 }
 
-function parseDaCuSubaccounts(buffer: Buffer): A3Subaccount[] {
+function parseDaCuSubaccounts(buffer: ImportBytes): A3Subaccount[] {
   const text = decodeLatin1(buffer)
   const subaccounts: A3Subaccount[] = []
   const seen = new Set<string>()
@@ -231,7 +228,7 @@ function parseDaCuSubaccounts(buffer: Buffer): A3Subaccount[] {
   return subaccounts
 }
 
-function inferFiscalYearFromBuffers(buffers: Buffer[]): number {
+function inferFiscalYearFromBuffers(buffers: ImportBytes[]): number {
   for (const buffer of buffers) {
     const head = decodeLatin1(buffer.slice(0, 64))
     const explicit = head.match(/(20[2-9]\d)/)
@@ -266,7 +263,7 @@ export function isNativeA3ExportFileMap(fileNames: string[]): boolean {
 }
 
 export function parseNativeA3ExportFiles(
-  files: Map<string, Buffer>,
+  files: Map<string, ImportBytes>,
   folderName = "export",
 ): A3NativeParseResult {
   const warnings: string[] = []
@@ -342,6 +339,6 @@ export function parseNativeA3ExportFiles(
   }
 }
 
-export function isNativeA3BinaryHeader(buffer: Buffer): boolean {
+export function isNativeA3BinaryHeader(buffer: ImportBytes): boolean {
   return decodeLatin1(buffer.slice(0, 2)) === NATIVE_FILE_HEADER_MAGIC
 }

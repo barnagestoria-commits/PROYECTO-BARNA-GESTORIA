@@ -6,10 +6,11 @@ import {
 import { parseDiarioTxtBuffer } from "@/lib/imports/a3/parse-diario-txt"
 import { parseSubcuentTxtBuffer } from "@/lib/imports/a3/parse-subcuent-txt"
 import { parseSuenlaceBuffer } from "@/lib/imports/a3/parse-suenlace-buffer"
+import { decodeLatin1, toUint8Array, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import type { A3ImportPreview, A3JournalEntry, A3Subaccount, A3ThirdParty, A3ZipContents } from "@/lib/imports/a3/types"
 import { normalizeCif } from "@/lib/accounting/third-party-types"
 
-type ZipFileMap = Map<string, Buffer>
+type ZipFileMap = Map<string, ImportBytes>
 
 const SUBACCOUNT_FILE_ALIASES = ["subcuent.txt", "subcue.dat", "subcue.txt", "plan.txt"]
 const JOURNAL_FILE_ALIASES = [
@@ -25,22 +26,23 @@ function basename(path: string): string {
   return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
 }
 
-async function extractZipFiles(buffer: Buffer): Promise<{ byBase: ZipFileMap; paths: string[] }> {
-  const zip = await JSZip.loadAsync(buffer)
-  const byBase = new Map<string, Buffer>()
+async function extractZipFiles(data: ArrayBuffer | ImportBytes): Promise<{ byBase: ZipFileMap; paths: string[] }> {
+  const bytes = toUint8Array(data)
+  const zip = await JSZip.loadAsync(bytes)
+  const byBase = new Map<string, ImportBytes>()
   const paths: string[] = []
 
   for (const [path, entry] of Object.entries(zip.files)) {
     if (entry.dir) continue
     paths.push(path)
-    const content = await entry.async("nodebuffer")
+    const content = await entry.async("uint8array")
     byBase.set(basename(path), content)
   }
 
   return { byBase, paths }
 }
 
-function pickFile(files: ZipFileMap, aliases: string[]): { name: string; buffer: Buffer } | null {
+function pickFile(files: ZipFileMap, aliases: string[]): { name: string; buffer: ImportBytes } | null {
   for (const alias of aliases) {
     const buffer = files.get(alias)
     if (buffer) return { name: alias, buffer }
@@ -97,7 +99,7 @@ function detectVersionLabel(files: ZipFileMap, recordTypes: string[]): string {
   for (const alias of VERSION_FILE_ALIASES) {
     const buffer = files.get(alias)
     if (!buffer) continue
-    const text = buffer.toString("latin1")
+    const text = decodeLatin1(buffer)
     const match = text.match(/9\.(\d{2})/)
     if (match) return `9.${match[1]}`
   }
@@ -161,11 +163,11 @@ function attachSuenlaceVendorRefs(entries: A3JournalEntry[], subaccounts: A3Suba
   }))
 }
 
-export async function parseA3ZipBuffer(
-  buffer: Buffer,
+async function parseA3ZipFileMap(
+  files: ZipFileMap,
+  paths: string[],
   fileName: string,
 ): Promise<Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">> {
-  const { byBase: files, paths } = await extractZipFiles(buffer)
   const fileNames = paths.map((path) => basename(path))
   const warnings: string[] = []
 
@@ -176,7 +178,7 @@ export async function parseA3ZipBuffer(
   if (isNativeA3ExportFileMap(paths)) {
     const folderMatch = paths[0]?.match(/([^/]+)\//)
     const folderName = folderMatch?.[1] ?? fileName.replace(/\.zip$/i, "")
-    const nativeFiles = new Map<string, Buffer>()
+    const nativeFiles = new Map<string, ImportBytes>()
     for (const path of paths) {
       nativeFiles.set(path, files.get(basename(path))!)
     }
@@ -328,6 +330,21 @@ export async function parseA3ZipBuffer(
     thirdParties,
     warnings,
   }
+}
+
+export async function parseA3ZipBytes(
+  data: ArrayBuffer | ImportBytes,
+  fileName: string,
+): Promise<Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">> {
+  const { byBase, paths } = await extractZipFiles(data)
+  return parseA3ZipFileMap(byBase, paths, fileName)
+}
+
+export async function parseA3ZipBuffer(
+  buffer: Buffer,
+  fileName: string,
+): Promise<Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">> {
+  return parseA3ZipBytes(buffer, fileName)
 }
 
 export { recordTypeLabel }

@@ -1,4 +1,5 @@
 import { formatA3Date, normalizeAccountCode, parseA3Amount } from "@/lib/imports/a3/fixed-record"
+import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import type { A3JournalEntry, A3JournalLine } from "@/lib/imports/a3/types"
 
 function normalizeFecha(value: string): string | null {
@@ -141,6 +142,6 @@ export function parseDiarioTxtContent(content: string): A3JournalEntry[] {
   return groupLinesIntoEntries(parsedLines)
 }
 
-export function parseDiarioTxtBuffer(buffer: Buffer): A3JournalEntry[] {
-  return parseDiarioTxtContent(buffer.toString("latin1"))
+export function parseDiarioTxtBuffer(buffer: ImportBytes): A3JournalEntry[] {
+  return parseDiarioTxtContent(decodeLatin1(buffer))
 }

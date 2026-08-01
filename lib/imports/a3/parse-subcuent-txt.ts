@@ -1,4 +1,5 @@
 import { normalizeAccountCode } from "@/lib/imports/a3/fixed-record"
+import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import type { A3Subaccount } from "@/lib/imports/a3/types"
 
 function parseFixedWidthLine(line: string): A3Subaccount | null {
@@ -56,6 +57,6 @@ export function parseSubcuentTxtContent(content: string): A3Subaccount[] {
   return subaccounts
 }
 
-export function parseSubcuentTxtBuffer(buffer: Buffer): A3Subaccount[] {
-  return parseSubcuentTxtContent(buffer.toString("latin1"))
+export function parseSubcuentTxtBuffer(buffer: ImportBytes): A3Subaccount[] {
+  return parseSubcuentTxtContent(decodeLatin1(buffer))
 }

@@ -69,6 +69,20 @@ export async function resolveImportCompany(
   return requireActiveCompany(request)
 }
 
+/** Usa companyId del cuerpo JSON si viene informado; si no, la empresa activa en sesión. */
+export async function resolveImportCompanyFromBody(
+  request: Request,
+  body: { companyId?: string | null },
+): Promise<{ session: AuthSession; companyId: string }> {
+  const explicitId = typeof body.companyId === "string" ? body.companyId.trim() : ""
+
+  if (explicitId) {
+    return requireCompanyAccess(request, explicitId)
+  }
+
+  return requireActiveCompany(request)
+}
+
 /** Usa companyId de query string si viene informado; si no, la empresa activa en sesión. */
 export async function resolveImportCompanyFromQuery(
   request: Request,

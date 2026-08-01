@@ -6,6 +6,7 @@ import {
   sliceField,
   splitFixedRecords,
 } from "@/lib/imports/a3/fixed-record"
+import type { ImportBytes } from "@/lib/imports/a3/import-bytes"
 import type { A3JournalEntry, A3JournalLine, A3Subaccount } from "@/lib/imports/a3/types"
 
 const JOURNAL_RECORD_TYPES = new Set(["0", "1", "2", "9"])
@@ -140,7 +141,7 @@ function groupLinesIntoEntries(lines: Array<A3JournalLine & { recordType: string
   return entries
 }
 
-export function parseSuenlaceBuffer(buffer: Buffer): {
+export function parseSuenlaceBuffer(buffer: ImportBytes): {
   entries: A3JournalEntry[]
   subaccounts: A3Subaccount[]
   companyCode: string | null
