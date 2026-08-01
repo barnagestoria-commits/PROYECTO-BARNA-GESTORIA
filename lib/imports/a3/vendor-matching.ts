@@ -28,9 +28,35 @@ export function extractVendorNameFromConcept(concept: string): string | null {
     /Gasto a\s+(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
     /IVA S\.\/?(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
     /IVA R\.\/?(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
-    /Su Fra\.\s*N[ºo°.]?\s*(.+?)(?:\s{2,}|$)/i,
+    /Su Fra\.\s*N[ºo°.]?\s*(?:.+?\s+)?(.+?)(?:\s{2,}|$)/i,
+    /Pago Fra\.\s*(?:\d+\s+)?(?:DE\s+)?(.+?)(?:\s{2,}|$)/i,
+    /Traspaso Fra\.\s+(.+?)(?:\s{2,}|$)/i,
+    /Transferencias\s+-\s+FR\s+[\d.]+\s+(.+?)(?:\s{2,}|$)/i,
     /Gasto a\s+(.+?)$/i,
     /IVA S\.\/?(.+?)$/i,
+  ]
+
+  for (const pattern of patterns) {
+    const match = cleaned.match(pattern)
+    if (match?.[1]) {
+      const name = match[1].trim().replace(/\s+\d{4}[-/].*$/, "").trim()
+      if (name.length >= 4) return name.slice(0, 60)
+    }
+  }
+
+  return null
+}
+
+export function extractClientNameFromConcept(concept: string): string | null {
+  const cleaned = concept
+    .replace(/[^\x20-\x7E\u00C0-\u00FF.,\-/()&]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+
+  const patterns = [
+    /Ventas a\s+(.+?)(?:\s+\d{4}[-/]|F\d{2}\s|\s{2,}|$)/i,
+    /IVA R\.\/?(.+?)(?:\s+\d{4}[-/]|F\d{2}\s|\s{2,}|$)/i,
+    /Reten\.\/?(.+?)(?:\s+\d{4}[-/]|\s+\d+\s|\s{2,}|$)/i,
   ]
 
   for (const pattern of patterns) {

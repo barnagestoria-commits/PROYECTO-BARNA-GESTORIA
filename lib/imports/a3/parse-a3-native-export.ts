@@ -1,25 +1,41 @@
 import { parseTcliproBuffer } from "@/lib/imports/a3/parse-tclipro"
 import { bytesToHex, decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
-import { isGenericProviderCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
+import { isGenericProviderCode, isProviderAccountCode, isValidPgcAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
 import {
   buildNativePlanRegistry,
-  lookupVendorAccount,
   parseAacDatSubaccounts,
   parseCuDatBinarySubaccounts,
   parseDaCuDottedSubaccounts,
+  parseTpPredefiDefaults,
+  type NativePlanDefaults,
   type NativePlanRegistry,
 } from "@/lib/imports/a3/parse-native-plan"
+import {
+  buildUniqueVendorAccountMap,
+  ensureVendorAccount,
+  lookupUniqueVendorAccount,
+  subaccountsFromVendorRegistry,
+} from "@/lib/imports/a3/native-vendor-accounts"
 import type { A3JournalEntry, A3JournalLine, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
-import { applyVendorMatchingToEntries, extractVendorNameFromConcept } from "@/lib/imports/a3/vendor-matching"
+import {
+  applyVendorMatchingToEntries,
+  extractClientNameFromConcept,
+  extractVendorNameFromConcept,
+  normalizeVendorKey,
+} from "@/lib/imports/a3/vendor-matching"
 
 const GENERIC_FALLBACK = {
   provider: "400000000000",
+  client: "430000000000",
   iva: "472000000000",
+  ivaRepercutido: "477000000000",
+  retencion: "473000000000",
   expense: "629000000000",
   payroll: "640000000000",
   bank: "572000000000",
   bridge: "555000000000",
   payrollPayable: "465000000000",
+  sales: "705000000000",
 } as const
 
 const NATIVE_HEADER = 512
@@ -62,61 +78,144 @@ function extractDocument(concept: string): string {
   return match?.[1]?.trim() ?? ""
 }
 
-export { extractVendorNameFromConcept as extractVendorName }
+function conceptLinkSignature(rawConcept: string): string {
+  const bytes = Buffer.from(rawConcept, "latin1")
+  if (bytes.length < 4) return ""
+  return bytes.subarray(bytes.length - 4).toString("hex")
+}
 
-function resolveNativeLineAccount(
-  subtype: number,
-  dh: "D" | "H",
-  concept: string,
-  registry: NativePlanRegistry,
-): string {
+function isPaymentConcept(concept: string): boolean {
   const upper = concept.toUpperCase()
-  const vendor = extractVendorNameFromConcept(concept)
-
-  if (vendor) {
-    const vendorAccount = lookupVendorAccount(registry, vendor)
-    if (vendorAccount && (subtype === 2 || (dh === "H" && (upper.includes("GASTO A") || upper.includes("SU FRA"))))) {
-      return vendorAccount
-    }
-  }
-
-  if (subtype === 3 || upper.includes("IVA S.") || upper.includes("IVA S/") || upper.includes("IVA R.")) {
-    return registry.defaultIvaAccount ?? GENERIC_FALLBACK.iva
-  }
-
-  if (dh === "D" && (subtype === 6 || upper.startsWith("GASTO A") || upper.includes("GASTO A "))) {
-    if (upper.includes("SUELDO") || upper.includes("NÓMINA") || upper.includes("NOMINA")) {
-      return GENERIC_FALLBACK.payroll
-    }
-    return registry.defaultExpenseAccount ?? GENERIC_FALLBACK.expense
-  }
-
-  if (dh === "H" && (subtype === 2 || upper.includes("GASTO A") || upper.includes("SU FRA"))) {
-    return vendor ? (lookupVendorAccount(registry, vendor) ?? GENERIC_FALLBACK.provider) : GENERIC_FALLBACK.provider
-  }
-
-  if (
+  return (
     upper.includes("PAGO FRA") ||
     upper.includes("ADEUDO") ||
     upper.includes("TRANSFERENCIA") ||
     upper.includes("RECIBO") ||
     upper.includes("TARJETA") ||
     upper.includes("TRASPASO")
-  ) {
-    return dh === "H" ? (registry.defaultBankAccount ?? GENERIC_FALLBACK.bank) : GENERIC_FALLBACK.provider
+  )
+}
+
+function isPayrollConcept(concept: string): boolean {
+  const upper = concept.toUpperCase()
+  return (
+    upper.includes("SUELDO") ||
+    upper.includes("NÓMINA") ||
+    upper.includes("NOMINA") ||
+    upper.includes("LIQUIDO A PAGAR") ||
+    upper.includes("S.S.")
+  )
+}
+
+function resolveNativeLineAccount(
+  seq: number,
+  dh: "D" | "H",
+  concept: string,
+  registry: NativePlanRegistry,
+  vendorAccounts: Map<string, string>,
+  tailVendorMap: Map<string, string>,
+  vendorDisplayNames: Map<string, string>,
+): string {
+  const upper = concept.toUpperCase()
+  const vendor = extractVendorNameFromConcept(concept)
+  const client = extractClientNameFromConcept(concept)
+
+  const vendorAccount = vendor
+    ? ensureVendorAccount(vendorAccounts, vendor, "400", vendorDisplayNames)
+    : null
+  const clientAccount = client
+    ? ensureVendorAccount(vendorAccounts, client, "430", vendorDisplayNames)
+    : null
+
+  if (seq === 1) {
+    if (dh === "H") {
+      return registry.defaultBankAccount ?? GENERIC_FALLBACK.bank
+    }
+
+    if (vendorAccount) return vendorAccount
+    if (clientAccount) return clientAccount
+
+    const linkedVendor = tailVendorMap.get(conceptLinkSignature(concept))
+    if (linkedVendor) {
+      return ensureVendorAccount(vendorAccounts, linkedVendor, "400", vendorDisplayNames)
+    }
+
+    if (upper.includes("NOMINA") || upper.includes("NÓMINA")) {
+      return GENERIC_FALLBACK.payroll
+    }
+    if (upper.includes("GLOVO")) {
+      return registry.defaultExpenseAccount ?? GENERIC_FALLBACK.expense
+    }
+    if (upper.includes("RECIBO") && (upper.includes("TARJETA") || upper.includes("SEGUROS") || upper.includes("AGUAS"))) {
+      return registry.defaultExpenseAccount ?? GENERIC_FALLBACK.expense
+    }
+    if (upper.includes("LIQUIDACION") || upper.includes("BONUS")) {
+      return GENERIC_FALLBACK.bridge
+    }
+    if (upper.includes("TRASPASO") || upper.includes("TRANSFERENCIA")) {
+      return clientAccount ?? vendorAccount ?? GENERIC_FALLBACK.bridge
+    }
+    if (isPaymentConcept(concept)) {
+      return GENERIC_FALLBACK.provider
+    }
+    return GENERIC_FALLBACK.bridge
   }
 
-  if (upper.includes("LIQUIDO A PAGAR") || upper.includes("S.S.")) {
-    return GENERIC_FALLBACK.payrollPayable
+  if (seq === 2 && dh === "H") {
+    if (vendor) return ensureVendorAccount(vendorAccounts, vendor, "400", vendorDisplayNames)
+    return GENERIC_FALLBACK.provider
+  }
+
+  if (seq === 2 && dh === "D") {
+    return clientAccount ?? registry.defaultClientAccount ?? GENERIC_FALLBACK.client
+  }
+
+  if (seq === 3 && dh === "D") {
+    return registry.defaultIvaAccount ?? GENERIC_FALLBACK.iva
+  }
+
+  if (seq === 3 && dh === "H") {
+    return registry.defaultIvaRepercutidoAccount ?? GENERIC_FALLBACK.ivaRepercutido
+  }
+
+  if (seq === 5 && dh === "H") {
+    return registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
+  }
+
+  if (seq === 6 && dh === "D") {
+    if (isPayrollConcept(concept)) {
+      return GENERIC_FALLBACK.payroll
+    }
+    return registry.defaultExpenseAccount ?? GENERIC_FALLBACK.expense
+  }
+
+  if (seq === 6 && dh === "H") {
+    return registry.defaultSalesAccount ?? GENERIC_FALLBACK.sales
+  }
+
+  if (isPayrollConcept(concept)) {
+    return upper.includes("LIQUIDO") || upper.includes("S.S.")
+      ? GENERIC_FALLBACK.payrollPayable
+      : GENERIC_FALLBACK.payroll
+  }
+
+  if (isPaymentConcept(concept)) {
+    return dh === "H" ? (registry.defaultBankAccount ?? GENERIC_FALLBACK.bank) : GENERIC_FALLBACK.provider
   }
 
   if (dh === "H") return registry.defaultBankAccount ?? GENERIC_FALLBACK.bank
   return GENERIC_FALLBACK.bridge
 }
 
+function recordHasAmountField(rec: ImportBytes): boolean {
+  return /[DH]\d{11,14}/.test(decodeLatin1(rec))
+}
+
 function detectLineRecordStart(buffer: ImportBytes): number {
   const searchStart = NATIVE_HEADER
-  const firstMatch = decodeLatin1(buffer.subarray(searchStart)).match(/[DH]\d{11,14}/)
+  const head = buffer.subarray(searchStart)
+  const amountPattern = /[DH]\d{11,14}/
+  const firstMatch = decodeLatin1(head).match(amountPattern)
   if (!firstMatch || firstMatch.index === undefined) {
     return searchStart
   }
@@ -131,8 +230,7 @@ function detectLineRecordStart(buffer: ImportBytes): number {
 
     let count = 0
     for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
-      const rec = decodeLatin1(buffer.subarray(pos, pos + NATIVE_LINE_RECORD))
-      if (/[DH]\d{11,14}/.test(rec)) count += 1
+      if (recordHasAmountField(buffer.subarray(pos, pos + NATIVE_LINE_RECORD))) count += 1
     }
 
     if (count > bestCount) {
@@ -141,7 +239,101 @@ function detectLineRecordStart(buffer: ImportBytes): number {
     }
   }
 
+  // Desempate: la alineación correcta coloca el tipo de línea A3 en rec[11].
+  for (let trial = 0; trial < NATIVE_LINE_RECORD; trial += 1) {
+    const start = absPos - trial
+    if (start < NATIVE_HEADER) continue
+
+    let count = 0
+    for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
+      if (recordHasAmountField(buffer.subarray(pos, pos + NATIVE_LINE_RECORD))) count += 1
+    }
+
+    if (count !== bestCount) continue
+
+    const rec = buffer.subarray(start, start + NATIVE_LINE_RECORD)
+    const seq = rec[11] ?? 0
+    if (seq >= 1 && seq <= 6) {
+      return start
+    }
+  }
+
   return absPos - bestOffset
+}
+
+interface ParsedNativeLine {
+  entryKey: string
+  line: A3JournalLine
+  seq: number
+  rawConcept: string
+}
+
+function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConcept: string }> {
+  const start = detectLineRecordStart(buffer)
+  const lines: Array<{ seq: number; rawConcept: string }> = []
+
+  for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
+    const rec = buffer.subarray(pos, pos + NATIVE_LINE_RECORD)
+    const text = decodeLatin1(rec)
+    const dhMatch = text.match(/([DH])(\d{11,14})/)
+    if (!dhMatch) continue
+
+    const dhIndex = dhMatch.index ?? 0
+    lines.push({
+      seq: rec[11] ?? 0,
+      rawConcept: text.slice(15, dhIndex),
+    })
+  }
+
+  return lines
+}
+
+function buildGlobalTailVendorMap(
+  files: Map<string, ImportBytes>,
+  journalFiles: string[],
+): Map<string, string> {
+  const tailVendorMap = new Map<string, string>()
+
+  for (const journalFile of journalFiles) {
+    for (const parsed of scanRawJournalLines(files.get(journalFile)!)) {
+      if (parsed.seq !== 2 && parsed.seq !== 6) continue
+      const vendor = extractVendorNameFromConcept(parsed.rawConcept)
+      if (!vendor) continue
+      tailVendorMap.set(conceptLinkSignature(parsed.rawConcept), vendor)
+    }
+  }
+
+  return tailVendorMap
+}
+
+function propagateEntryVendorAccounts(entries: A3JournalEntry[]): A3JournalEntry[] {
+  return entries.map((entry) => {
+    const providerAccounts = entry.lines
+      .map((line) => line.cuenta.replace(/\D/g, ""))
+      .filter((cuenta) => isProviderAccountCode(cuenta) && !isGenericProviderCode(cuenta))
+
+    const clientAccounts = entry.lines
+      .map((line) => line.cuenta.replace(/\D/g, ""))
+      .filter((cuenta) => cuenta.startsWith("430"))
+
+    const providerAccount = providerAccounts[0]
+    const clientAccount = clientAccounts[0]
+
+    if (!providerAccount && !clientAccount) return entry
+
+    const lines = entry.lines.map((line) => {
+      const digits = line.cuenta.replace(/\D/g, "")
+      if (providerAccount && isGenericProviderCode(digits)) {
+        return { ...line, cuenta: providerAccount }
+      }
+      if (clientAccount && digits === GENERIC_FALLBACK.client) {
+        return { ...line, cuenta: clientAccount }
+      }
+      return line
+    })
+
+    return { ...entry, lines }
+  })
 }
 
 function parseNativeJournalFile(
@@ -150,11 +342,13 @@ function parseNativeJournalFile(
   month: number,
   fiscalYear: number,
   registry: NativePlanRegistry,
+  vendorAccounts: Map<string, string>,
+  tailVendorMap: Map<string, string>,
+  vendorDisplayNames: Map<string, string>,
 ): { entries: A3JournalEntry[]; warnings: string[] } {
   const warnings: string[] = []
   const start = detectLineRecordStart(buffer)
-  const grouped = new Map<string, A3JournalLine[]>()
-  const groupMeta = new Map<string, { concept: string; documento: string }>()
+  const parsedLines: ParsedNativeLine[] = []
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
     const rec = buffer.subarray(pos, pos + NATIVE_LINE_RECORD)
@@ -167,31 +361,55 @@ function parseNativeJournalFile(
     if (amount <= 0) continue
 
     const dhIndex = dhMatch.index ?? 0
-    const conceptRaw = cleanConcept(text.slice(15, dhIndex))
-    const documento = extractDocument(conceptRaw)
-    const concept = documento ? conceptRaw.replace(new RegExp(`${documento}\\s*$`), "").trim() : conceptRaw
-    const subtype = rec[10] ?? 0
+    const conceptRaw = text.slice(15, dhIndex)
+    const conceptClean = cleanConcept(conceptRaw)
+    const documento = extractDocument(conceptClean)
+    const concept = documento ? conceptClean.replace(new RegExp(`${documento}\\s*$`), "").trim() : conceptClean
+    const seq = rec[11] ?? 0
     const entryKey = bytesToHex(rec.subarray(0, 10))
-    const cuenta = resolveNativeLineAccount(subtype, dh, conceptRaw, registry)
 
     const day = Math.min(Math.max(((rec[8] ?? 1) % 28) + 1, 1), 28)
     const fecha = `${fiscalYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
 
-    const line: A3JournalLine = {
-      fecha,
-      cuenta,
-      concepto: concept || conceptRaw,
-      debe: dh === "D" ? amount : 0,
-      haber: dh === "H" ? amount : 0,
-      documento: documento || undefined,
-    }
+    parsedLines.push({
+      entryKey,
+      seq,
+      rawConcept: conceptRaw,
+      line: {
+        fecha,
+        cuenta: "",
+        concepto: concept || conceptClean,
+        debe: dh === "D" ? amount : 0,
+        haber: dh === "H" ? amount : 0,
+        documento: documento || undefined,
+      },
+    })
+  }
 
-    const existing = grouped.get(entryKey) ?? []
-    existing.push(line)
-    grouped.set(entryKey, existing)
+  const grouped = new Map<string, A3JournalLine[]>()
+  const groupMeta = new Map<string, { concept: string; documento: string }>()
 
-    if (!groupMeta.has(entryKey)) {
-      groupMeta.set(entryKey, { concept: line.concepto, documento: documento || "" })
+  for (const parsed of parsedLines) {
+    const dh = parsed.line.debe > 0 ? "D" : "H"
+    parsed.line.cuenta = resolveNativeLineAccount(
+      parsed.seq,
+      dh,
+      parsed.rawConcept,
+      registry,
+      vendorAccounts,
+      tailVendorMap,
+      vendorDisplayNames,
+    )
+
+    const existing = grouped.get(parsed.entryKey) ?? []
+    existing.push(parsed.line)
+    grouped.set(parsed.entryKey, existing)
+
+    if (!groupMeta.has(parsed.entryKey)) {
+      groupMeta.set(parsed.entryKey, {
+        concept: parsed.line.concepto,
+        documento: parsed.line.documento ?? "",
+      })
     }
   }
 
@@ -212,7 +430,7 @@ function parseNativeJournalFile(
     warnings.push(`No se pudieron leer asientos de ${fileName}.`)
   }
 
-  return { entries, warnings }
+  return { entries: propagateEntryVendorAccounts(entries), warnings }
 }
 
 function parseExpManifest(content: string): A3NativeExportManifest | null {
@@ -242,26 +460,43 @@ function parseTcliproFromFiles(files: Map<string, ImportBytes>): A3ThirdParty[] 
 
 function enrichThirdPartiesWithRegistry(
   thirdParties: A3ThirdParty[],
-  registry: NativePlanRegistry,
+  vendorAccounts: Map<string, string>,
 ): A3ThirdParty[] {
   return thirdParties.map((party) => {
-    const accountCode = lookupVendorAccount(registry, party.name)
+    const accountCode = lookupUniqueVendorAccount(vendorAccounts, party.name)
     if (!accountCode || isGenericProviderCode(accountCode)) return party
     return { ...party, accountCode }
   })
 }
 
 function mergeSubaccountLists(...lists: A3Subaccount[][]): A3Subaccount[] {
-  const map = new Map<string, A3Subaccount>()
+  const byCode = new Map<string, A3Subaccount>()
+  const vendorsByName = new Map<string, A3Subaccount>()
+
   for (const list of lists) {
     for (const item of list) {
       const code = padAccountCode12(item.accountCode)
-      if (!map.has(code)) {
-        map.set(code, { ...item, accountCode: code })
+      const digits = code.replace(/\D/g, "")
+      if (!isValidPgcAccountCode(digits)) continue
+
+      const isThirdParty = isProviderAccountCode(digits) || digits.startsWith("430")
+
+      if (isThirdParty) {
+        const nameKey = normalizeVendorKey(item.name)
+        if (!nameKey) continue
+        if (!vendorsByName.has(nameKey)) {
+          vendorsByName.set(nameKey, { ...item, accountCode: code })
+        }
+        continue
+      }
+
+      if (!byCode.has(code)) {
+        byCode.set(code, { ...item, accountCode: code })
       }
     }
   }
-  return [...map.values()]
+
+  return [...byCode.values(), ...vendorsByName.values()]
 }
 
 function inferFiscalYearFromBuffers(buffers: ImportBytes[]): number {
@@ -281,14 +516,17 @@ function inferCompanyCode(manifest: A3NativeExportManifest | null, folderName: s
 }
 
 function monthFromJournalFileName(fileName: string): number | null {
-  const match = fileName.match(/004586(\d)A\.DAT/i)
+  const match = fileName.match(/004586(\d{1,2})A\.DAT/i)
   if (!match) return null
-  return Number(match[1])
+  const month = Number(match[1])
+  return month >= 1 && month <= 12 ? month : null
 }
 
 function fileBaseName(path: string): string {
   return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
 }
+
+export { extractVendorNameFromConcept as extractVendorName }
 
 export function isNativeA3ExportFileMap(fileNames: string[]): boolean {
   const lower = fileNames.map((name) => fileBaseName(name))
@@ -310,7 +548,7 @@ export function parseNativeA3ExportFiles(
 
   const journalFiles = fileNames.filter((name) => {
     const base = name.split("/").pop()?.toUpperCase() ?? ""
-    return /^004586\dA\.DAT$/.test(base)
+    return /^004586(\d{1,2})A\.DAT$/.test(base)
   })
 
   const sampleBuffers = journalFiles.slice(0, 3).map((name) => files.get(name)!)
@@ -318,6 +556,7 @@ export function parseNativeA3ExportFiles(
   const companyCode = inferCompanyCode(manifest, folderName)
 
   const subaccountLists: A3Subaccount[][] = []
+  let tpDefaults: NativePlanDefaults = {}
 
   for (const [name, buffer] of files) {
     const base = name.split("/").pop()?.toUpperCase() ?? ""
@@ -330,16 +569,23 @@ export function parseNativeA3ExportFiles(
     if (base.endsWith("DC.DAT")) {
       subaccountLists.push(parseDaCuDottedSubaccounts(buffer))
     }
+    if (base === "TPREDEFI.DAT") {
+      tpDefaults = parseTpPredefiDefaults(buffer)
+    }
   }
 
-  const subaccounts = mergeSubaccountLists(...subaccountLists)
-  const registry = buildNativePlanRegistry(subaccounts)
+  const rawSubaccounts = mergeSubaccountLists(...subaccountLists)
+  const vendorAccounts = buildUniqueVendorAccountMap(rawSubaccounts)
+  const vendorDisplayNames = new Map<string, string>()
+  const subaccounts = subaccountsFromVendorRegistry(rawSubaccounts, vendorAccounts, vendorDisplayNames)
+  const registry = buildNativePlanRegistry(subaccounts, tpDefaults)
 
   if (subaccounts.length === 0) {
     warnings.push("No se pudieron leer subcuentas del plan nativo (CU.DAT / DA.DAT).")
   }
 
-  let thirdParties = enrichThirdPartiesWithRegistry(parseTcliproFromFiles(files), registry)
+  let thirdParties = enrichThirdPartiesWithRegistry(parseTcliproFromFiles(files), vendorAccounts)
+  const tailVendorMap = buildGlobalTailVendorMap(files, journalFiles)
   let entries: A3JournalEntry[] = []
 
   for (const journalFile of journalFiles.sort()) {
@@ -347,7 +593,16 @@ export function parseNativeA3ExportFiles(
     const month = monthFromJournalFileName(base)
     if (!month) continue
 
-    const parsed = parseNativeJournalFile(files.get(journalFile)!, base, month, fiscalYear, registry)
+    const parsed = parseNativeJournalFile(
+      files.get(journalFile)!,
+      base,
+      month,
+      fiscalYear,
+      registry,
+      vendorAccounts,
+      tailVendorMap,
+      vendorDisplayNames,
+    )
     entries.push(...parsed.entries)
     warnings.push(...parsed.warnings)
   }
@@ -361,6 +616,11 @@ export function parseNativeA3ExportFiles(
       )
     }
   }
+
+  entries = propagateEntryVendorAccounts(entries)
+
+  // Actualizar subcuentas con proveedores descubiertos al parsear apuntes.
+  const finalSubaccounts = subaccountsFromVendorRegistry(subaccounts, vendorAccounts, vendorDisplayNames)
 
   if (entries.length === 0) {
     const daFile = fileNames.find((name) => (name.split("/").pop()?.toUpperCase() ?? "").endsWith("DA.DAT"))
@@ -376,7 +636,7 @@ export function parseNativeA3ExportFiles(
 
   return {
     entries,
-    subaccounts,
+    subaccounts: finalSubaccounts,
     thirdParties,
     companyCode,
     fiscalYear,

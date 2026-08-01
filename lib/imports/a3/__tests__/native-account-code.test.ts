@@ -2,9 +2,42 @@ import { describe, expect, it } from "vitest"
 import {
   decodeNativeNineDigitAccountField,
   decodeSnnsAccountField,
+  formatA3ProviderAccount,
   isGenericProviderCode,
+  isProviderAccountCode,
+  isResolvedProviderAccountCode,
+  isValidPgcAccountCode,
   padAccountCode12,
 } from "@/lib/imports/a3/native-account-code"
+
+describe("formatA3ProviderAccount", () => {
+  it("formats native A3 provider subaccounts", () => {
+    expect(formatA3ProviderAccount(248)).toBe("410002480000")
+    expect(formatA3ProviderAccount(98)).toBe("410000980000")
+  })
+})
+
+describe("isProviderAccountCode", () => {
+  it("accepts grupos 400, 410 y subplan 4100", () => {
+    expect(isProviderAccountCode("410002480000")).toBe(true)
+    expect(isProviderAccountCode("400000000523")).toBe(true)
+    expect(isProviderAccountCode("410000000123")).toBe(true)
+    expect(isProviderAccountCode("400000000000")).toBe(false)
+  })
+
+  it("rejects grupos PGC inválidos como 800", () => {
+    expect(isProviderAccountCode("800000000000")).toBe(false)
+    expect(isValidPgcAccountCode("800000000000")).toBe(false)
+    expect(decodeNativeNineDigitAccountField("100800000")).toBeNull()
+  })
+})
+
+describe("isResolvedProviderAccountCode", () => {
+  it("detects real provider codes from native export", () => {
+    expect(isResolvedProviderAccountCode("410002480000")).toBe(true)
+    expect(isResolvedProviderAccountCode("400000000300")).toBe(true)
+  })
+})
 
 describe("decodeNativeNineDigitAccountField", () => {
   it("decodes vendor subaccounts from CU.DAT nine-digit fields", () => {
