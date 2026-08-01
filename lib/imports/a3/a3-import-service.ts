@@ -4,7 +4,7 @@ import { normalizeCif } from "@/lib/accounting/third-party-types"
 import { countMissingImportSubaccounts } from "@/lib/accounting/account-exists-service"
 import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { bulkCreateLedgerSubaccountsWithFixedCodes } from "@/lib/accounting/ledger-subaccount-service"
-import { bulkResolveOrCreateThirdParties } from "@/lib/accounting/third-party-service"
+import { bulkResolveOrCreateThirdParties, type BulkThirdPartyInput } from "@/lib/accounting/third-party-service"
 import { encodeImportFormatLabel } from "@/lib/imports/accounting-formats"
 import { parseA3ZipBuffer, parseA3ZipBytes } from "@/lib/imports/a3/parse-a3-zip"
 import type { A3VendorRef } from "@/lib/imports/a3/a3-client-import"
@@ -160,11 +160,20 @@ export async function previewA3ZipImport(
 function mergeThirdParties(
   thirdParties: A3ThirdParty[],
   extra: Iterable<A3VendorRef>,
-): A3ThirdParty[] {
-  const merged = new Map<string, A3ThirdParty>()
-  for (const party of thirdParties) merged.set(party.cif, party)
+): BulkThirdPartyInput[] {
+  const merged = new Map<string, BulkThirdPartyInput>()
+  for (const party of thirdParties) {
+    merged.set(party.cif, {
+      cif: party.cif,
+      name: party.name,
+      type: party.type,
+      accountCode: party.accountCode,
+    })
+  }
   for (const ref of extra) {
-    if (!merged.has(ref.cif)) merged.set(ref.cif, { cif: ref.cif, name: ref.name, type: "PROVEEDOR" })
+    if (!merged.has(ref.cif)) {
+      merged.set(ref.cif, { cif: ref.cif, name: ref.name, type: "PROVEEDOR" })
+    }
   }
   return [...merged.values()]
 }

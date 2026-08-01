@@ -1,7 +1,26 @@
 import { parseTcliproBuffer } from "@/lib/imports/a3/parse-tclipro"
 import { bytesToHex, decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import { isGenericProviderCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
+import {
+  buildNativePlanRegistry,
+  lookupVendorAccount,
+  parseAacDatSubaccounts,
+  parseCuDatBinarySubaccounts,
+  parseDaCuDottedSubaccounts,
+  type NativePlanRegistry,
+} from "@/lib/imports/a3/parse-native-plan"
 import type { A3JournalEntry, A3JournalLine, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
 import { applyVendorMatchingToEntries, extractVendorNameFromConcept } from "@/lib/imports/a3/vendor-matching"
+
+const GENERIC_FALLBACK = {
+  provider: "400000000000",
+  iva: "472000000000",
+  expense: "629000000000",
+  payroll: "640000000000",
+  bank: "572000000000",
+  bridge: "555000000000",
+  payrollPayable: "465000000000",
+} as const
 
 const NATIVE_HEADER = 512
 const NATIVE_LINE_RECORD = 132
@@ -45,20 +64,35 @@ function extractDocument(concept: string): string {
 
 export { extractVendorNameFromConcept as extractVendorName }
 
-function inferAccountCode(subtype: number, dh: "D" | "H", concept: string): string {
+function resolveNativeLineAccount(
+  subtype: number,
+  dh: "D" | "H",
+  concept: string,
+  registry: NativePlanRegistry,
+): string {
   const upper = concept.toUpperCase()
+  const vendor = extractVendorNameFromConcept(concept)
 
-  if (dh === "H" && (subtype === 2 || upper.includes("GASTO A") || upper.includes("SU FRA"))) {
-    return "400000000000"
+  if (vendor) {
+    const vendorAccount = lookupVendorAccount(registry, vendor)
+    if (vendorAccount && (subtype === 2 || (dh === "H" && (upper.includes("GASTO A") || upper.includes("SU FRA"))))) {
+      return vendorAccount
+    }
   }
 
   if (subtype === 3 || upper.includes("IVA S.") || upper.includes("IVA S/") || upper.includes("IVA R.")) {
-    return "472000000000"
+    return registry.defaultIvaAccount ?? GENERIC_FALLBACK.iva
   }
 
   if (dh === "D" && (subtype === 6 || upper.startsWith("GASTO A") || upper.includes("GASTO A "))) {
-    if (upper.includes("SUELDO") || upper.includes("NÓMINA") || upper.includes("NOMINA")) return "640000000000"
-    return "629000000000"
+    if (upper.includes("SUELDO") || upper.includes("NÓMINA") || upper.includes("NOMINA")) {
+      return GENERIC_FALLBACK.payroll
+    }
+    return registry.defaultExpenseAccount ?? GENERIC_FALLBACK.expense
+  }
+
+  if (dh === "H" && (subtype === 2 || upper.includes("GASTO A") || upper.includes("SU FRA"))) {
+    return vendor ? (lookupVendorAccount(registry, vendor) ?? GENERIC_FALLBACK.provider) : GENERIC_FALLBACK.provider
   }
 
   if (
@@ -69,15 +103,15 @@ function inferAccountCode(subtype: number, dh: "D" | "H", concept: string): stri
     upper.includes("TARJETA") ||
     upper.includes("TRASPASO")
   ) {
-    return dh === "H" ? "572000000000" : "400000000000"
+    return dh === "H" ? (registry.defaultBankAccount ?? GENERIC_FALLBACK.bank) : GENERIC_FALLBACK.provider
   }
 
   if (upper.includes("LIQUIDO A PAGAR") || upper.includes("S.S.")) {
-    return "465000000000"
+    return GENERIC_FALLBACK.payrollPayable
   }
 
-  if (dh === "H") return "572000000000"
-  return "555000000000"
+  if (dh === "H") return registry.defaultBankAccount ?? GENERIC_FALLBACK.bank
+  return GENERIC_FALLBACK.bridge
 }
 
 function detectLineRecordStart(buffer: ImportBytes): number {
@@ -115,6 +149,7 @@ function parseNativeJournalFile(
   fileName: string,
   month: number,
   fiscalYear: number,
+  registry: NativePlanRegistry,
 ): { entries: A3JournalEntry[]; warnings: string[] } {
   const warnings: string[] = []
   const start = detectLineRecordStart(buffer)
@@ -137,7 +172,7 @@ function parseNativeJournalFile(
     const concept = documento ? conceptRaw.replace(new RegExp(`${documento}\\s*$`), "").trim() : conceptRaw
     const subtype = rec[10] ?? 0
     const entryKey = bytesToHex(rec.subarray(0, 10))
-    const cuenta = inferAccountCode(subtype, dh, conceptRaw)
+    const cuenta = resolveNativeLineAccount(subtype, dh, conceptRaw, registry)
 
     const day = Math.min(Math.max(((rec[8] ?? 1) % 28) + 1, 1), 28)
     const fecha = `${fiscalYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
@@ -205,27 +240,28 @@ function parseTcliproFromFiles(files: Map<string, ImportBytes>): A3ThirdParty[] 
   return []
 }
 
-function padAccountCode(raw: string): string {
-  const digits = raw.replace(/\D/g, "")
-  if (digits.length >= 12) return digits.slice(0, 12)
-  return digits.padEnd(12, "0")
+function enrichThirdPartiesWithRegistry(
+  thirdParties: A3ThirdParty[],
+  registry: NativePlanRegistry,
+): A3ThirdParty[] {
+  return thirdParties.map((party) => {
+    const accountCode = lookupVendorAccount(registry, party.name)
+    if (!accountCode || isGenericProviderCode(accountCode)) return party
+    return { ...party, accountCode }
+  })
 }
 
-function parseDaCuSubaccounts(buffer: ImportBytes): A3Subaccount[] {
-  const text = decodeLatin1(buffer)
-  const subaccounts: A3Subaccount[] = []
-  const seen = new Set<string>()
-
-  for (const match of text.matchAll(/(\d{3}\.\d{1,4})\s{1,3}([\x20-\x7E\u00C0-\u00FF]{4,40})/g)) {
-    const accountCode = padAccountCode(match[1])
-    const name = match[2].trim()
-    if (!seen.has(accountCode)) {
-      seen.add(accountCode)
-      subaccounts.push({ accountCode, name })
+function mergeSubaccountLists(...lists: A3Subaccount[][]): A3Subaccount[] {
+  const map = new Map<string, A3Subaccount>()
+  for (const list of lists) {
+    for (const item of list) {
+      const code = padAccountCode12(item.accountCode)
+      if (!map.has(code)) {
+        map.set(code, { ...item, accountCode: code })
+      }
     }
   }
-
-  return subaccounts
+  return [...map.values()]
 }
 
 function inferFiscalYearFromBuffers(buffers: ImportBytes[]): number {
@@ -281,24 +317,29 @@ export function parseNativeA3ExportFiles(
   const fiscalYear = inferFiscalYearFromBuffers(sampleBuffers.length > 0 ? sampleBuffers : [...files.values()])
   const companyCode = inferCompanyCode(manifest, folderName)
 
-  const subaccounts: A3Subaccount[] = []
-  const subSeen = new Set<string>()
-
-  const mergeSubaccounts = (list: A3Subaccount[]) => {
-    for (const item of list) {
-      if (!subSeen.has(item.accountCode)) {
-        subSeen.add(item.accountCode)
-        subaccounts.push(item)
-      }
-    }
-  }
+  const subaccountLists: A3Subaccount[][] = []
 
   for (const [name, buffer] of files) {
     const base = name.split("/").pop()?.toUpperCase() ?? ""
-    if (base.endsWith("CU.DAT") || base.endsWith("DA.DAT")) mergeSubaccounts(parseDaCuSubaccounts(buffer))
+    if (base.endsWith("CU.DAT") || base.endsWith("DA.DAT")) {
+      subaccountLists.push(parseCuDatBinarySubaccounts(buffer), parseDaCuDottedSubaccounts(buffer))
+    }
+    if (base.endsWith("AAC.DAT")) {
+      subaccountLists.push(parseAacDatSubaccounts(buffer))
+    }
+    if (base.endsWith("DC.DAT")) {
+      subaccountLists.push(parseDaCuDottedSubaccounts(buffer))
+    }
   }
 
-  const thirdParties = parseTcliproFromFiles(files)
+  const subaccounts = mergeSubaccountLists(...subaccountLists)
+  const registry = buildNativePlanRegistry(subaccounts)
+
+  if (subaccounts.length === 0) {
+    warnings.push("No se pudieron leer subcuentas del plan nativo (CU.DAT / DA.DAT).")
+  }
+
+  let thirdParties = enrichThirdPartiesWithRegistry(parseTcliproFromFiles(files), registry)
   let entries: A3JournalEntry[] = []
 
   for (const journalFile of journalFiles.sort()) {
@@ -306,7 +347,7 @@ export function parseNativeA3ExportFiles(
     const month = monthFromJournalFileName(base)
     if (!month) continue
 
-    const parsed = parseNativeJournalFile(files.get(journalFile)!, base, month, fiscalYear)
+    const parsed = parseNativeJournalFile(files.get(journalFile)!, base, month, fiscalYear, registry)
     entries.push(...parsed.entries)
     warnings.push(...parsed.warnings)
   }
@@ -326,6 +367,11 @@ export function parseNativeA3ExportFiles(
     if (daFile) {
       warnings.push("No se encontraron ficheros mensuales *A.DAT; el diario nativo puede estar incompleto.")
     }
+  }
+
+  const genericLines = entries.flatMap((e) => e.lines).filter((l) => isGenericProviderCode(l.cuenta)).length
+  if (genericLines > 0) {
+    warnings.push(`${genericLines} líneas siguen usando cuentas genéricas tras resolver el plan nativo.`)
   }
 
   return {

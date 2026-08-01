@@ -1,6 +1,12 @@
+import { isGenericProviderCode } from "@/lib/imports/a3/native-account-code"
 import type { A3JournalEntry, A3JournalLine, A3ThirdParty } from "@/lib/imports/a3/types"
 
 const GENERIC_PROVIDER = "400000000000"
+
+function needsProviderResolution(cuenta: string): boolean {
+  const digits = cuenta.replace(/\D/g, "")
+  return digits === GENERIC_PROVIDER || isGenericProviderCode(digits)
+}
 
 export function normalizeVendorKey(name: string): string {
   return name
@@ -98,7 +104,7 @@ function mapLineVendor(
   entryVendor: A3ThirdParty | null,
   matchedVendorCifs: Set<string>,
 ): A3JournalLine {
-  const needsProvider = line.cuenta === GENERIC_PROVIDER
+  const needsProvider = needsProviderResolution(line.cuenta)
 
   if (!needsProvider) return line
 
@@ -108,7 +114,7 @@ function mapLineVendor(
   matchedVendorCifs.add(vendor.cif)
   return {
     ...line,
-    cuenta: GENERIC_PROVIDER,
+    cuenta: vendor.accountCode && !isGenericProviderCode(vendor.accountCode) ? vendor.accountCode : line.cuenta,
     vendorCif: vendor.cif,
     vendorName: vendor.name,
   }
@@ -122,6 +128,7 @@ export function resolveVendorAccountCodes(
     ...entry,
     lines: entry.lines.map((line) => {
       if (!line.vendorCif) return line
+      if (!needsProviderResolution(line.cuenta)) return line
       const accountCode = accountByCif.get(line.vendorCif)
       if (!accountCode) return line
       return { ...line, cuenta: accountCode }

@@ -175,6 +175,7 @@ export interface BulkThirdPartyInput {
   cif: string
   name: string
   type: ThirdPartyType
+  accountCode?: string
 }
 
 /**
@@ -193,8 +194,21 @@ export async function bulkResolveOrCreateThirdParties(
     const cif = normalizeCif(party.cif)
     if (!cif) continue
     const key = `${party.type}:${cif}`
-    if (normalized.has(key)) continue
-    normalized.set(key, { type: party.type, cif, name: party.name.trim() || cif })
+    const accountCode = party.accountCode?.replace(/\D/g, "")
+    const next: BulkThirdPartyInput = {
+      type: party.type,
+      cif,
+      name: party.name.trim() || cif,
+      accountCode,
+    }
+    const existing = normalized.get(key)
+    if (!existing) {
+      normalized.set(key, next)
+      continue
+    }
+    if (accountCode && !existing.accountCode) {
+      normalized.set(key, next)
+    }
   }
 
   if (normalized.size === 0) return { accountByCif, created: 0 }
@@ -226,16 +240,24 @@ export async function bulkResolveOrCreateThirdParties(
 
   const rows = pending.map((party) => {
     const prefix = THIRD_PARTY_PREFIX[party.type]
-    let sequence = nextSequenceByPrefix.get(prefix) ?? 1
-    let accountCode = buildAccountCode(prefix, sequence)
+    const preferred = party.accountCode?.replace(/\D/g, "")
+    let accountCode: string
 
-    while (usedAccountCodes.has(accountCode)) {
-      sequence += 1
+    if (preferred && preferred.startsWith(prefix) && !usedAccountCodes.has(preferred)) {
+      accountCode = preferred
+    } else {
+      let sequence = nextSequenceByPrefix.get(prefix) ?? 1
       accountCode = buildAccountCode(prefix, sequence)
+
+      while (usedAccountCodes.has(accountCode)) {
+        sequence += 1
+        accountCode = buildAccountCode(prefix, sequence)
+      }
+
+      nextSequenceByPrefix.set(prefix, sequence + 1)
     }
 
     usedAccountCodes.add(accountCode)
-    nextSequenceByPrefix.set(prefix, sequence + 1)
     accountByCif.set(party.cif, accountCode)
 
     return {
