@@ -1,11 +1,10 @@
+import { randomUUID } from "node:crypto"
+import type { Prisma } from "@prisma/client"
 import { normalizeCif } from "@/lib/accounting/third-party-types"
-import {
-  checkAccountExists,
-  countMissingImportSubaccounts,
-} from "@/lib/accounting/account-exists-service"
+import { countMissingImportSubaccounts } from "@/lib/accounting/account-exists-service"
 import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
-import { createLedgerSubaccountWithFixedCode } from "@/lib/accounting/ledger-subaccount-service"
-import { findThirdPartyByCif, resolveOrCreateThirdParty } from "@/lib/accounting/third-party-service"
+import { bulkCreateLedgerSubaccountsWithFixedCodes } from "@/lib/accounting/ledger-subaccount-service"
+import { bulkResolveOrCreateThirdParties } from "@/lib/accounting/third-party-service"
 import { encodeImportFormatLabel } from "@/lib/imports/accounting-formats"
 import { parseA3ZipBuffer, parseA3ZipBytes } from "@/lib/imports/a3/parse-a3-zip"
 import type { A3VendorRef } from "@/lib/imports/a3/a3-client-import"
@@ -158,35 +157,24 @@ export async function previewA3ZipImport(
   }
 }
 
+function mergeThirdParties(
+  thirdParties: A3ThirdParty[],
+  extra: Iterable<A3VendorRef>,
+): A3ThirdParty[] {
+  const merged = new Map<string, A3ThirdParty>()
+  for (const party of thirdParties) merged.set(party.cif, party)
+  for (const ref of extra) {
+    if (!merged.has(ref.cif)) merged.set(ref.cif, { cif: ref.cif, name: ref.name, type: "PROVEEDOR" })
+  }
+  return [...merged.values()]
+}
+
 async function ensureThirdPartiesFromRefs(
   companyId: string,
   thirdParties: A3ThirdParty[],
   vendorRefs: A3VendorRef[],
 ): Promise<{ accountByCif: Map<string, string>; created: number }> {
-  const accountByCif = new Map<string, string>()
-  let created = 0
-
-  const merged = new Map<string, A3ThirdParty>()
-  for (const party of thirdParties) merged.set(party.cif, party)
-  for (const ref of vendorRefs) {
-    if (!merged.has(ref.cif)) merged.set(ref.cif, { cif: ref.cif, name: ref.name, type: "PROVEEDOR" })
-  }
-
-  for (const party of merged.values()) {
-    if (party.accountCode?.startsWith("400") || party.accountCode?.startsWith("430")) {
-      const existing = await findThirdPartyByCif(companyId, party.type, party.cif)
-      if (existing) {
-        accountByCif.set(party.cif, existing.accountCode)
-        continue
-      }
-    }
-
-    const resolved = await resolveOrCreateThirdParty(companyId, party.type, party.cif, party.name)
-    accountByCif.set(party.cif, resolved.accountCode)
-    if (resolved.isNew) created += 1
-  }
-
-  return { accountByCif, created }
+  return bulkResolveOrCreateThirdParties(companyId, mergeThirdParties(thirdParties, vendorRefs))
 }
 
 async function ensureThirdParties(
@@ -194,31 +182,70 @@ async function ensureThirdParties(
   thirdParties: A3ThirdParty[],
   entries: A3JournalEntry[],
 ): Promise<{ accountByCif: Map<string, string>; created: number }> {
-  const accountByCif = new Map<string, string>()
-  let created = 0
+  const fromLines = [...uniqueVendorCifs(entries)].map(([cif, name]) => ({ cif, name }))
+  return bulkResolveOrCreateThirdParties(companyId, mergeThirdParties(thirdParties, fromLines))
+}
 
-  const fromLines = uniqueVendorCifs(entries)
-  const merged = new Map<string, A3ThirdParty>()
-  for (const party of thirdParties) merged.set(party.cif, party)
-  for (const [cif, name] of fromLines) {
-    if (!merged.has(cif)) merged.set(cif, { cif, name, type: "PROVEEDOR" })
+/** Postgres limita los parámetros por sentencia; insertamos en tandas. */
+const DB_INSERT_CHUNK_SIZE = 1000
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size))
+  }
+  return chunks
+}
+
+async function createEntriesInBulk(
+  companyId: string,
+  entries: A3JournalEntry[],
+  startRefNumber: number,
+  uploadedById?: string,
+): Promise<{ entriesCreated: number; linesImported: number }> {
+  const entryRows: Prisma.AccountingEntryCreateManyInput[] = []
+  const lineRows: Prisma.EntryLineCreateManyInput[] = []
+  let refNumber = startRefNumber
+
+  for (const entry of entries) {
+    const date = new Date(`${entry.fecha}T00:00:00.000Z`)
+    if (Number.isNaN(date.getTime())) continue
+
+    const entryId = randomUUID()
+    entryRows.push({
+      id: entryId,
+      companyId,
+      refNumber,
+      fecha: date,
+      commandCode: entry.documento.trim() || null,
+      createdById: uploadedById,
+    })
+    refNumber += 1
+
+    entry.lines.forEach((line, index) => {
+      lineRows.push({
+        entryId,
+        sortOrder: index,
+        cuenta: line.cuenta,
+        concepto: line.concepto || entry.concepto,
+        debe: line.debe,
+        haber: line.haber,
+      })
+    })
   }
 
-  for (const party of merged.values()) {
-    if (party.accountCode?.startsWith("400") || party.accountCode?.startsWith("430")) {
-      const existing = await findThirdPartyByCif(companyId, party.type, party.cif)
-      if (existing) {
-        accountByCif.set(party.cif, existing.accountCode)
-        continue
-      }
-    }
+  if (entryRows.length === 0) return { entriesCreated: 0, linesImported: 0 }
 
-    const resolved = await resolveOrCreateThirdParty(companyId, party.type, party.cif, party.name)
-    accountByCif.set(party.cif, resolved.accountCode)
-    if (resolved.isNew) created += 1
-  }
+  await prisma.$transaction([
+    ...chunk(entryRows, DB_INSERT_CHUNK_SIZE).map((rows) =>
+      prisma.accountingEntry.createMany({ data: rows }),
+    ),
+    ...chunk(lineRows, DB_INSERT_CHUNK_SIZE).map((rows) =>
+      prisma.entryLine.createMany({ data: rows }),
+    ),
+  ])
 
-  return { accountByCif, created }
+  return { entriesCreated: entryRows.length, linesImported: lineRows.length }
 }
 
 export async function confirmA3ZipImport(
@@ -240,24 +267,7 @@ export async function confirmA3ZipImport(
   })
 
   try {
-    let subaccountsCreated = 0
-
-    for (const subaccount of parsed.subaccounts) {
-      if (subaccount.nif) continue
-      const check = await checkAccountExists(companyId, subaccount.accountCode)
-      if (check.exists || !check.canQuickCreate) continue
-
-      try {
-        const result = await createLedgerSubaccountWithFixedCode(
-          companyId,
-          subaccount.accountCode,
-          subaccount.name,
-        )
-        if (result.isNew) subaccountsCreated += 1
-      } catch {
-        // Cuenta PGC estándar: se omite.
-      }
-    }
+    const subaccountsCreated = await createSubaccountsFromParsed(companyId, parsed.subaccounts)
 
     const { accountByCif, created: thirdPartiesCreated } = await ensureThirdParties(
       companyId,
@@ -266,38 +276,13 @@ export async function confirmA3ZipImport(
     )
 
     const entries = resolveVendorAccountCodes(parsed.entries, accountByCif)
-
-    let entriesCreated = 0
-    let linesImported = 0
-
-    for (const entry of entries) {
-      const date = new Date(`${entry.fecha}T00:00:00.000Z`)
-      if (Number.isNaN(date.getTime())) continue
-
-      const refNumber = await getNextEntryRefNumber(companyId)
-
-      await prisma.accountingEntry.create({
-        data: {
-          companyId,
-          refNumber,
-          fecha: date,
-          commandCode: entry.documento.trim() || null,
-          createdById: uploadedById,
-          lines: {
-            create: entry.lines.map((line, index) => ({
-              sortOrder: index,
-              cuenta: line.cuenta,
-              concepto: line.concepto || entry.concepto,
-              debe: line.debe,
-              haber: line.haber,
-            })),
-          },
-        },
-      })
-
-      entriesCreated += 1
-      linesImported += entry.lines.length
-    }
+    const startRefNumber = await getNextEntryRefNumber(companyId)
+    const { entriesCreated, linesImported } = await createEntriesInBulk(
+      companyId,
+      entries,
+      startRefNumber,
+      uploadedById,
+    )
 
     await prisma.accountingDataImport.update({
       where: { id: importRecord.id },
@@ -354,26 +339,12 @@ async function createSubaccountsFromParsed(
   companyId: string,
   subaccounts: A3Subaccount[],
 ): Promise<number> {
-  let subaccountsCreated = 0
-
-  for (const subaccount of subaccounts) {
-    if (subaccount.nif) continue
-    const check = await checkAccountExists(companyId, subaccount.accountCode)
-    if (check.exists || !check.canQuickCreate) continue
-
-    try {
-      const result = await createLedgerSubaccountWithFixedCode(
-        companyId,
-        subaccount.accountCode,
-        subaccount.name,
-      )
-      if (result.isNew) subaccountsCreated += 1
-    } catch {
-      // Cuenta PGC estándar: se omite.
-    }
-  }
-
-  return subaccountsCreated
+  return bulkCreateLedgerSubaccountsWithFixedCodes(
+    companyId,
+    subaccounts
+      .filter((subaccount) => !subaccount.nif)
+      .map((subaccount) => ({ accountCode: subaccount.accountCode, name: subaccount.name })),
+  )
 }
 
 export async function startParsedA3Import(
@@ -440,11 +411,18 @@ async function buildAccountByCifForEntries(
     }
   }
 
-  for (const cif of cifs) {
-    const existing =
-      (await findThirdPartyByCif(companyId, "PROVEEDOR", cif)) ??
-      (await findThirdPartyByCif(companyId, "CLIENTE", cif))
-    if (existing) accountByCif.set(cif, existing.accountCode)
+  if (cifs.size === 0) return accountByCif
+
+  const rows = await prisma.thirdParty.findMany({
+    where: { companyId, cif: { in: [...cifs] } },
+    select: { cif: true, type: true, accountCode: true },
+  })
+
+  for (const row of rows) {
+    // El proveedor tiene prioridad cuando el mismo NIF existe como cliente y proveedor.
+    if (row.type === "PROVEEDOR" || !accountByCif.has(row.cif)) {
+      accountByCif.set(row.cif, row.accountCode)
+    }
   }
 
   return accountByCif
@@ -466,38 +444,14 @@ export async function importParsedA3EntryBatch(
 
   const accountByCif = await buildAccountByCifForEntries(companyId, entries)
   const resolvedEntries = resolveVendorAccountCodes(entries, accountByCif)
+  const startRefNumber = await getNextEntryRefNumber(companyId)
 
-  let entriesCreated = 0
-  let linesImported = 0
-
-  for (const entry of resolvedEntries) {
-    const date = new Date(`${entry.fecha}T00:00:00.000Z`)
-    if (Number.isNaN(date.getTime())) continue
-
-    const refNumber = await getNextEntryRefNumber(companyId)
-
-    await prisma.accountingEntry.create({
-      data: {
-        companyId,
-        refNumber,
-        fecha: date,
-        commandCode: entry.documento.trim() || null,
-        createdById: uploadedById,
-        lines: {
-          create: entry.lines.map((line, index) => ({
-            sortOrder: index,
-            cuenta: line.cuenta,
-            concepto: line.concepto || entry.concepto,
-            debe: line.debe,
-            haber: line.haber,
-          })),
-        },
-      },
-    })
-
-    entriesCreated += 1
-    linesImported += entry.lines.length
-  }
+  const { entriesCreated, linesImported } = await createEntriesInBulk(
+    companyId,
+    resolvedEntries,
+    startRefNumber,
+    uploadedById,
+  )
 
   if (linesImported > 0) {
     await prisma.accountingDataImport.update({

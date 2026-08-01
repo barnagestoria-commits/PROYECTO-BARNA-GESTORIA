@@ -28,6 +28,11 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
     if (response.status === 413) {
       throw new Error("El archivo ZIP es demasiado grande para subirlo. Prueba con un export más pequeño.")
     }
+    if (response.status === 504 || snippet.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+      throw new Error(
+        "La operación tardó demasiado y el servidor la interrumpió. Vuelve a intentarlo; si el fichero es muy grande, divídelo por ejercicios.",
+      )
+    }
     throw new Error(snippet || `Error del servidor (${response.status}).`)
   }
 

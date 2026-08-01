@@ -99,6 +99,65 @@ export async function createLedgerSubaccountWithFixedCode(
   }
 }
 
+/**
+ * Alta masiva de subcuentas con código fijo usando dos consultas en total.
+ * Los códigos ya existentes o que no admiten alta rápida se descartan.
+ */
+export async function bulkCreateLedgerSubaccountsWithFixedCodes(
+  companyId: string,
+  subaccounts: Array<{ accountCode: string; name: string }>,
+): Promise<number> {
+  const candidates = new Map<string, { accountCode: string; parentCode: string; name: string }>()
+
+  for (const subaccount of subaccounts) {
+    const digits = subaccount.accountCode.replace(/\D/g, "")
+    const name = subaccount.name.trim()
+    if (!digits || !name || candidates.has(digits)) continue
+
+    const parentCode = inferParentCodeFromAccount(digits)
+    if (!parentCode) continue
+
+    const meta = resolveAccountParentCode(parentCode)
+    if (!meta || meta.isThirdParty) continue
+    if (!digits.startsWith(parentCode) || digits.length <= parentCode.length) continue
+
+    candidates.set(digits, { accountCode: digits, parentCode: meta.code, name })
+  }
+
+  if (candidates.size === 0) return 0
+
+  const codes = [...candidates.keys()]
+  const [ledgerRows, thirdPartyRows] = await Promise.all([
+    prisma.ledgerSubaccount.findMany({
+      where: { companyId, accountCode: { in: codes } },
+      select: { accountCode: true },
+    }),
+    prisma.thirdParty.findMany({
+      where: { companyId, accountCode: { in: codes } },
+      select: { accountCode: true },
+    }),
+  ])
+
+  const taken = new Set([
+    ...ledgerRows.map((row) => row.accountCode),
+    ...thirdPartyRows.map((row) => row.accountCode),
+  ])
+
+  const rows = [...candidates.values()]
+    .filter((candidate) => !taken.has(candidate.accountCode))
+    .map((candidate) => ({
+      companyId,
+      parentCode: candidate.parentCode,
+      accountCode: candidate.accountCode,
+      name: candidate.name,
+    }))
+
+  if (rows.length === 0) return 0
+
+  const result = await prisma.ledgerSubaccount.createMany({ data: rows, skipDuplicates: true })
+  return result.count
+}
+
 export async function resolveOrCreateLedgerSubaccount(
   companyId: string,
   parentCode: string,

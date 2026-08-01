@@ -18,7 +18,7 @@ export function extractVendorRefsFromEntries(entries: A3JournalEntry[]): A3Vendo
   return [...map.entries()].map(([cif, name]) => ({ cif, name }))
 }
 
-export const A3_IMPORT_ENTRY_BATCH_SIZE = 150
+export const A3_IMPORT_ENTRY_BATCH_SIZE = 400
 
 /** ZIPs por debajo de este tamaño pueden usar el flujo clásico (subida directa). */
 export const A3_DIRECT_UPLOAD_MAX_BYTES = 3 * 1024 * 1024
