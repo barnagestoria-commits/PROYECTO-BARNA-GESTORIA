@@ -86,16 +86,46 @@ export function isGarbagePlanRef(value: number): boolean {
 }
 
 /**
- * Campo de 9 dígitos con grupo PGC embebido: p.ej. 100400100 → 400000000100.
- * Las cuentas 4100XXXX de proveedor se leen preferentemente desde CU.DAT (u168/u156).
+ * Plantilla A3 de proveedor sin subcuenta en este campo (p.ej. 100400000, 300400000).
+ * La subcuenta real está en u168/u156 del registro CU o en el sufijo XXX400YYY (YYY≠000).
+ */
+export function isCuProviderTemplateField(field: string): boolean {
+  const digits = field.replace(/\D/g, "")
+  return digits.length === 9 && digits.slice(3, 6) === "400" && digits.slice(6, 9) === "000"
+}
+
+/**
+ * Campo XXX400YYY del maestro CU: YYY → subcuenta 4100YYYY (plan extendido A3).
+ * XXX400000 es plantilla y devuelve null.
+ */
+export function decodeCuProviderNineDigitField(field: string): string | null {
+  const digits = field.replace(/\D/g, "")
+  if (digits.length !== 9 || digits.slice(3, 6) !== "400") return null
+  if (isCuProviderTemplateField(digits)) return null
+
+  const tail = Number.parseInt(digits.slice(6, 9), 10)
+  if (!Number.isFinite(tail) || tail <= 0) return null
+
+  return formatA3ProviderAccount(tail)
+}
+
+/**
+ * Campo de 9 dígitos con grupo PGC embebido para cuentas no-proveedor (472, 572, 629…).
+ * Para proveedores (400/410) usar decodeCuProviderNineDigitField + u168/u156.
  */
 export function decodeNativeNineDigitAccountField(field: string): string | null {
   const digits = field.replace(/\D/g, "")
   if (digits.length !== 9) return null
   if (digits === "400000000") return "400000000000"
+  if (isCuProviderTemplateField(digits)) return null
 
   const middle = digits.slice(3, 6)
   if (INVALID_PGC_GROUPS.has(middle) || middle.startsWith("8")) return null
+
+  // Proveedor con subcuenta en el sufijo → plan 4100XXXX
+  if (middle === "400" || middle === "410") {
+    return decodeCuProviderNineDigitField(digits)
+  }
 
   const prefix = PGC_MIDDLE[middle]
   if (!prefix) return null

@@ -1,5 +1,6 @@
 import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import {
+  decodeCuProviderNineDigitField,
   decodeNativeNineDigitAccountField,
   decodeSnnsAccountField,
   formatA3ProviderAccount,
@@ -71,20 +72,39 @@ export function resolveCuProviderSubaccount(record: ImportBytes): number | null 
   return null
 }
 
-function pickNineDigitAccountField(preWindow: string): string | null {
-  const candidates = preWindow.match(/\d{9}/g) ?? []
-  for (let i = candidates.length - 1; i >= 0; i -= 1) {
-    const field = candidates[i]
-    if (field === "400000000") return field
-    if (PGC_MIDDLE_IN_NINE.has(field.slice(3, 6))) return field
+function nineDigitFieldsInRecord(record: ImportBytes): string[] {
+  const window = decodeLatin1(record.subarray(0, Math.min(record.length, 280)))
+  return window.match(/\d{9}/g) ?? []
+}
+
+function resolveAccountFromCuRecord(record: ImportBytes): { accountCode: string; priority: number } | null {
+  const providerSub = resolveCuProviderSubaccount(record)
+  if (providerSub !== null) {
+    return { accountCode: formatA3ProviderAccount(providerSub), priority: 3 }
   }
+
+  for (const field of nineDigitFieldsInRecord(record)) {
+    const middle = field.slice(3, 6)
+    if (middle === "400" || middle === "410") {
+      const fromProvider = decodeCuProviderNineDigitField(field)
+      if (fromProvider && isProviderAccountCode(fromProvider)) {
+        return { accountCode: fromProvider, priority: 2 }
+      }
+      continue
+    }
+    if (!PGC_MIDDLE_IN_NINE.has(middle)) continue
+    const decoded = decodeNativeNineDigitAccountField(field)
+    if (decoded && isProviderAccountCode(decoded)) {
+      return { accountCode: decoded, priority: 1 }
+    }
+  }
+
   return null
 }
 
 export function parseCuDatBinarySubaccounts(buffer: ImportBytes): A3Subaccount[] {
   const text = decodeLatin1(buffer)
-  const subaccounts: A3Subaccount[] = []
-  const seenVendors = new Set<string>()
+  const bestByVendor = new Map<string, { accountCode: string; name: string; priority: number }>()
 
   for (const marker of CU_MARKERS) {
     for (const match of text.matchAll(marker)) {
@@ -92,20 +112,8 @@ export function parseCuDatBinarySubaccounts(buffer: ImportBytes): A3Subaccount[]
       const recordStart = Math.floor(pos / CU_RECORD_SIZE) * CU_RECORD_SIZE
       const record = buffer.subarray(recordStart, recordStart + CU_RECORD_SIZE)
 
-      const providerSub = resolveCuProviderSubaccount(record)
-      let accountCode: string | null = null
-
-      if (providerSub !== null) {
-        accountCode = formatA3ProviderAccount(providerSub)
-      } else {
-        const pre = text.slice(Math.max(0, pos - 80), pos)
-        const field = pickNineDigitAccountField(pre)
-        if (field) {
-          accountCode = decodeNativeNineDigitAccountField(field)
-        }
-      }
-
-      if (!accountCode || !isValidPgcAccountCode(accountCode)) continue
+      const resolved = resolveAccountFromCuRecord(record)
+      if (!resolved || !isValidPgcAccountCode(resolved.accountCode)) continue
 
       const skip = match[0].length
       const after = text.slice(pos + skip, pos + skip + 60)
@@ -116,14 +124,16 @@ export function parseCuDatBinarySubaccounts(buffer: ImportBytes): A3Subaccount[]
       if (name.length < 4) continue
 
       const vendorKey = normalizeVendorKey(name)
-      if (!vendorKey || seenVendors.has(vendorKey)) continue
-      seenVendors.add(vendorKey)
+      if (!vendorKey) continue
 
-      subaccounts.push({ accountCode, name })
+      const existing = bestByVendor.get(vendorKey)
+      if (!existing || resolved.priority > existing.priority) {
+        bestByVendor.set(vendorKey, { accountCode: resolved.accountCode, name, priority: resolved.priority })
+      }
     }
   }
 
-  return subaccounts
+  return [...bestByVendor.values()].map(({ accountCode, name }) => ({ accountCode, name }))
 }
 
 export function parseAacDatSubaccounts(buffer: ImportBytes): A3Subaccount[] {

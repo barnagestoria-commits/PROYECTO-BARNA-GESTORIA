@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  decodeCuProviderNineDigitField,
   decodeNativeNineDigitAccountField,
   decodeSnnsAccountField,
   formatA3ProviderAccount,
@@ -39,11 +40,22 @@ describe("isResolvedProviderAccountCode", () => {
   })
 })
 
+describe("decodeCuProviderNineDigitField", () => {
+  it("decodes 4100XXXX from XXX400YYY when YYY is not 000", () => {
+    expect(decodeCuProviderNineDigitField("100400100")).toBe("410001000000")
+    expect(decodeCuProviderNineDigitField("100400248")).toBe("410002480000")
+  })
+
+  it("returns null for provider templates XXX400000", () => {
+    expect(decodeCuProviderNineDigitField("100400000")).toBeNull()
+    expect(decodeCuProviderNineDigitField("300400000")).toBeNull()
+  })
+})
+
 describe("decodeNativeNineDigitAccountField", () => {
-  it("decodes vendor subaccounts from CU.DAT nine-digit fields", () => {
-    expect(decodeNativeNineDigitAccountField("100400100")).toBe("400000000100")
-    expect(decodeNativeNineDigitAccountField("300400000")).toBe("400000000300")
-    expect(decodeNativeNineDigitAccountField("100400000")).toBe("400000000100")
+  it("does not treat XXX400000 templates as subaccount 100", () => {
+    expect(decodeNativeNineDigitAccountField("100400000")).toBeNull()
+    expect(decodeNativeNineDigitAccountField("300400000")).toBeNull()
   })
 
   it("decodes IVA accounts from nine-digit fields", () => {
