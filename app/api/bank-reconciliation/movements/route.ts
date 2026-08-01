@@ -12,7 +12,10 @@ export async function GET(request: Request) {
     const { companyId } = await resolveImportCompanyFromQuery(request, url.searchParams)
     const statusParam = url.searchParams.get("status")?.toUpperCase()
     const status =
-      statusParam === "PENDIENTE" || statusParam === "CONCILIADO" || statusParam === "IGNORADO"
+      statusParam === "PENDIENTE" ||
+      statusParam === "CONCILIADO" ||
+      statusParam === "REVISADO" ||
+      statusParam === "IGNORADO"
         ? (statusParam as BankMovementStatus)
         : undefined
 

@@ -23,12 +23,16 @@ export interface BankMovementView {
   reference: string | null
   amount: number
   balance: number | null
-  status: "PENDIENTE" | "CONCILIADO" | "IGNORADO"
+  status: "PENDIENTE" | "CONCILIADO" | "REVISADO" | "IGNORADO"
   importFileName: string | null
   matchedEntryId: string | null
   matchedEntryRef: number | null
   matchedLineId: string | null
+  matchedAccountCode: string | null
+  matchedCounterpartyCode: string | null
+  matchedConcept: string | null
   matchedAt: string | null
+  accumulated: number | null
 }
 
 export interface ReconciliationCandidate {
@@ -47,6 +51,10 @@ export interface ReconciliationCandidate {
 export interface BankReconciliationSummary {
   pendingCount: number
   reconciledCount: number
+  reviewedCount: number
   ignoredCount: number
   pendingAmount: number
+  totalCount: number
+  openingBalance: number | null
+  closingBalance: number | null
 }

@@ -1,21 +1,21 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, resolveImportCompanyFromBody } from "@/lib/auth/api-auth"
-import { autoReconcileBankMovements } from "@/lib/bank-reconciliation/reconciliation-service"
+import { deleteBankMovement } from "@/lib/bank-reconciliation/reconciliation-service"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as { companyId?: string; movementId?: string }
-    const { session, companyId } = await resolveImportCompanyFromBody(request, body)
-    const result = await autoReconcileBankMovements(companyId, session.user.id, body.movementId)
+    const { companyId } = await resolveImportCompanyFromBody(request, body)
 
-    return NextResponse.json({
-      success: true,
-      result,
-    })
+    if (!body.movementId) {
+      return NextResponse.json({ success: false, error: "Movimiento no indicado." }, { status: 400 })
+    }
+
+    await deleteBankMovement(companyId, body.movementId)
+    return NextResponse.json({ success: true })
   } catch (error) {
     return authErrorResponse(error)
   }

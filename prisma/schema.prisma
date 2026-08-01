@@ -53,6 +53,7 @@ enum DataImportStatus {
 enum BankMovementStatus {
   PENDIENTE
   CONCILIADO
+  REVISADO
   IGNORADO
 }
 

@@ -1,19 +1,22 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   CheckCircle2,
-  FileSpreadsheet,
   Loader2,
   RefreshCw,
+  Trash2,
   Upload,
   Wand2,
   XCircle,
 } from "lucide-react"
 import { useRequireAuth } from "@/components/auth-provider"
-import { Badge } from "@/components/ui/badge"
+import {
+  BANK_MOVEMENT_STATUS_LABELS,
+  BankMovementStatusIcon,
+} from "@/components/bank-reconciliation/bank-movement-status"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
 import type {
@@ -41,10 +44,8 @@ export function BankReconciliationWorkspace() {
 
   const [summary, setSummary] = useState<BankReconciliationSummary | null>(null)
   const [movements, setMovements] = useState<BankMovementView[]>([])
-  const [activeTab, setActiveTab] = useState<"PENDIENTE" | "CONCILIADO" | "IGNORADO">("PENDIENTE")
-  const [candidatesByMovement, setCandidatesByMovement] = useState<
-    Record<string, ReconciliationCandidate[]>
-  >({})
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [candidates, setCandidates] = useState<ReconciliationCandidate[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
@@ -55,6 +56,21 @@ export function BankReconciliationWorkspace() {
   const [busyMovementId, setBusyMovementId] = useState<string | null>(null)
 
   const companyId = session?.activeCompanyId ?? ""
+  const selectedMovement = useMemo(
+    () => movements.find((movement) => movement.id === selectedId) ?? null,
+    [movements, selectedId],
+  )
+
+  const loadCandidates = useCallback(
+    async (movementId: string) => {
+      if (!companyId) return
+      const data = await apiFetch<{ success: true; candidates: ReconciliationCandidate[] }>(
+        `/api/bank-reconciliation/candidates?companyId=${encodeURIComponent(companyId)}&movementId=${movementId}`,
+      )
+      setCandidates(data.candidates)
+    },
+    [companyId],
+  )
 
   const loadData = useCallback(async () => {
     if (!companyId) return
@@ -66,36 +82,50 @@ export function BankReconciliationWorkspace() {
           `/api/bank-reconciliation/summary?companyId=${encodeURIComponent(companyId)}`,
         ),
         apiFetch<{ success: true; movements: BankMovementView[] }>(
-          `/api/bank-reconciliation/movements?companyId=${encodeURIComponent(companyId)}&status=${activeTab}`,
+          `/api/bank-reconciliation/movements?companyId=${encodeURIComponent(companyId)}`,
         ),
       ])
 
       setSummary(summaryRes.summary)
       setMovements(movementsRes.movements)
-
-      if (activeTab === "PENDIENTE") {
-        const candidateEntries = await Promise.all(
-          movementsRes.movements.slice(0, 30).map(async (movement) => {
-            const data = await apiFetch<{ success: true; candidates: ReconciliationCandidate[] }>(
-              `/api/bank-reconciliation/candidates?companyId=${encodeURIComponent(companyId)}&movementId=${movement.id}`,
-            )
-            return [movement.id, data.candidates] as const
-          }),
-        )
-        setCandidatesByMovement(Object.fromEntries(candidateEntries))
-      } else {
-        setCandidatesByMovement({})
-      }
+      setSelectedId((prev) => {
+        if (prev && movementsRes.movements.some((movement) => movement.id === prev)) return prev
+        return movementsRes.movements[0]?.id ?? null
+      })
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al cargar la conciliación.")
     } finally {
       setIsLoading(false)
     }
-  }, [activeTab, companyId])
+  }, [companyId])
 
   useEffect(() => {
     void loadData()
   }, [loadData])
+
+  useEffect(() => {
+    if (!selectedId) return
+    const selected = movements.find((movement) => movement.id === selectedId)
+    if (!selected) return
+    if (selected.status === "PENDIENTE") {
+      void loadCandidates(selectedId).catch(() => setCandidates([]))
+    } else {
+      setCandidates([])
+    }
+  }, [loadCandidates, movements, selectedId])
+
+  const handleSelectMovement = async (movement: BankMovementView) => {
+    setSelectedId(movement.id)
+    if (movement.status === "PENDIENTE") {
+      try {
+        await loadCandidates(movement.id)
+      } catch {
+        setCandidates([])
+      }
+    } else {
+      setCandidates([])
+    }
+  }
 
   const handleFileSelect = async (fileList: FileList | null) => {
     const file = fileList?.[0]
@@ -113,7 +143,7 @@ export function BankReconciliationWorkspace() {
 
       const data = await apiFormFetch<{
         success: true
-        preview: BankImportPreview & { movementCount: number; sample: BankImportPreview["movements"] }
+        preview: BankImportPreview & { movementCount: number }
       }>("/api/bank-reconciliation/preview", formData)
 
       setPendingPreview({
@@ -132,7 +162,6 @@ export function BankReconciliationWorkspace() {
 
   const handleConfirmImport = async () => {
     if (!pendingPreview || !companyId || isImporting) return
-
     setIsImporting(true)
     setError(null)
 
@@ -142,10 +171,7 @@ export function BankReconciliationWorkspace() {
         result: { imported: number; duplicatesSkipped: number }
       }>("/api/bank-reconciliation/import", {
         method: "POST",
-        body: JSON.stringify({
-          companyId,
-          preview: pendingPreview,
-        }),
+        body: JSON.stringify({ companyId, preview: pendingPreview }),
       })
 
       setMessage(
@@ -165,19 +191,27 @@ export function BankReconciliationWorkspace() {
 
   const handleAutoMatch = async () => {
     if (!companyId || isAutoMatching) return
-
     setIsAutoMatching(true)
     setError(null)
-
     try {
+      const targetId =
+        selectedId && selectedMovement?.status === "PENDIENTE" ? selectedId : undefined
       const data = await apiFetch<{ success: true; result: { matched: number } }>(
         "/api/bank-reconciliation/auto-match",
         {
           method: "POST",
-          body: JSON.stringify({ companyId }),
+          body: JSON.stringify({ companyId, ...(targetId ? { movementId: targetId } : {}) }),
         },
       )
-      setMessage(`Conciliación automática: ${data.result.matched} movimientos vinculados.`)
+      if (targetId) {
+        setMessage(
+          data.result.matched > 0
+            ? "Movimiento interpretado automáticamente."
+            : "Sin coincidencia automática para este movimiento. Revisa las propuestas.",
+        )
+      } else {
+        setMessage(`Interpretados automáticamente: ${data.result.matched} movimientos.`)
+      }
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error en conciliación automática.")
@@ -189,14 +223,12 @@ export function BankReconciliationWorkspace() {
   const handleMatch = async (movementId: string, entryLineId: string) => {
     if (!companyId) return
     setBusyMovementId(movementId)
-    setError(null)
-
     try {
       await apiFetch("/api/bank-reconciliation/match", {
         method: "POST",
         body: JSON.stringify({ companyId, movementId, entryLineId }),
       })
-      setMessage("Movimiento conciliado correctamente.")
+      setMessage("Movimiento interpretado (vinculado al asiento).")
       await loadData()
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo conciliar.")
@@ -205,17 +237,37 @@ export function BankReconciliationWorkspace() {
     }
   }
 
+  const handleReview = async (movementId: string) => {
+    if (!companyId) return
+    setBusyMovementId(movementId)
+    setError(null)
+    try {
+      await apiFetch("/api/bank-reconciliation/review", {
+        method: "POST",
+        body: JSON.stringify({ companyId, movementId }),
+      })
+      setMessage("Movimiento marcado como revisado.")
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo marcar como revisado.")
+    } finally {
+      setBusyMovementId(null)
+    }
+  }
+
   const handleUnmatch = async (movementId: string) => {
     if (!companyId) return
     setBusyMovementId(movementId)
+    setError(null)
     try {
       await apiFetch("/api/bank-reconciliation/unmatch", {
         method: "POST",
         body: JSON.stringify({ companyId, movementId }),
       })
+      setMessage("Movimiento desvinculado. Vuelve a estado pendiente.")
       await loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo deshacer la conciliación.")
+      setError(err instanceof Error ? err.message : "No se pudo desvincular el movimiento.")
     } finally {
       setBusyMovementId(null)
     }
@@ -224,14 +276,55 @@ export function BankReconciliationWorkspace() {
   const handleIgnore = async (movementId: string) => {
     if (!companyId) return
     setBusyMovementId(movementId)
+    setError(null)
     try {
       await apiFetch("/api/bank-reconciliation/ignore", {
         method: "POST",
         body: JSON.stringify({ companyId, movementId }),
       })
+      setMessage("Movimiento marcado como no contabilizable.")
       await loadData()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo ignorar el movimiento.")
+      setError(err instanceof Error ? err.message : "No se pudo marcar como no contabilizable.")
+    } finally {
+      setBusyMovementId(null)
+    }
+  }
+
+  const handleResetPending = async (movementId: string) => {
+    if (!companyId) return
+    setBusyMovementId(movementId)
+    setError(null)
+    try {
+      await apiFetch("/api/bank-reconciliation/reset-pending", {
+        method: "POST",
+        body: JSON.stringify({ companyId, movementId }),
+      })
+      setMessage("Movimiento restaurado a pendiente.")
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo restaurar el movimiento.")
+    } finally {
+      setBusyMovementId(null)
+    }
+  }
+
+  const handleDelete = async (movementId: string) => {
+    if (!companyId) return
+    if (!window.confirm("¿Eliminar este movimiento del extracto importado?")) return
+
+    setBusyMovementId(movementId)
+    setError(null)
+    try {
+      await apiFetch("/api/bank-reconciliation/delete", {
+        method: "POST",
+        body: JSON.stringify({ companyId, movementId }),
+      })
+      setMessage("Movimiento eliminado.")
+      setSelectedId(null)
+      await loadData()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se pudo eliminar el movimiento.")
     } finally {
       setBusyMovementId(null)
     }
@@ -240,331 +333,348 @@ export function BankReconciliationWorkspace() {
   if (!session) return null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {message && (
-        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-800">
           {message}
         </p>
       )}
       {error && (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>
+        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</p>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Pendientes</CardDescription>
-            <CardTitle className="text-2xl">{summary?.pendingCount ?? "—"}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Conciliados</CardDescription>
-            <CardTitle className="text-2xl">{summary?.reconciledCount ?? "—"}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Ignorados</CardDescription>
-            <CardTitle className="text-2xl">{summary?.ignoredCount ?? "—"}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Saldo pendiente</CardDescription>
-            <CardTitle className="text-xl">{summary ? formatEuro(summary.pendingAmount) : "—"}</CardTitle>
-          </CardHeader>
-        </Card>
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-sand-200 bg-sand-50/80 px-3 py-2">
+        <Button
+          type="button"
+          size="sm"
+          className="bg-emerald-800 hover:bg-pine-900"
+          disabled={isPreviewing}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {isPreviewing ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Upload className="mr-1 h-4 w-4" />}
+          Importar
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={isAutoMatching || movements.length === 0}
+          onClick={() => void handleAutoMatch()}
+        >
+          {isAutoMatching ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <Wand2 className="mr-1 h-4 w-4" />}
+          {selectedMovement?.status === "PENDIENTE" ? "Analizar seleccionado" : "Analizar todos"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={isLoading} onClick={() => void loadData()}>
+          <RefreshCw className="mr-1 h-4 w-4" />
+          Actualizar
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".csv,.txt,.xlsx,.xls,.pdf"
+          className="hidden"
+          onChange={(event) => void handleFileSelect(event.target.files)}
+        />
       </div>
 
-      <Card className="border-amber-200">
-        <CardHeader>
-          <CardTitle className="text-lg text-pine-900">Importar extracto bancario</CardTitle>
-          <CardDescription>
-            CSV, Excel (.xlsx) o PDF (OCR con DeepSeek). Empresa activa: {activeCompany?.name}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv,.txt,.xlsx,.xls,.pdf"
-            className="hidden"
-            onChange={(event) => void handleFileSelect(event.target.files)}
-          />
-
-          {!pendingPreview && (
-            <div className="flex flex-wrap gap-2">
-              <Button
-                type="button"
-                className="bg-emerald-800 hover:bg-pine-900"
-                disabled={isPreviewing}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                {isPreviewing ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Upload className="mr-2 h-4 w-4" />
-                )}
-                Seleccionar extracto
+      {pendingPreview && (
+        <Card className="border-emerald-200 bg-emerald-50/50">
+          <CardContent className="space-y-3 p-4">
+            <p className="text-sm font-medium">
+              Vista previa: {pendingPreview.movements.length} movimientos ({pendingPreview.source})
+            </p>
+            <div className="flex gap-2">
+              <Button size="sm" disabled={isImporting} onClick={() => void handleConfirmImport()}>
+                {isImporting ? <Loader2 className="mr-1 h-4 w-4 animate-spin" /> : <CheckCircle2 className="mr-1 h-4 w-4" />}
+                Confirmar importación
               </Button>
-              <Button type="button" variant="outline" disabled={isLoading} onClick={() => void loadData()}>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Actualizar
+              <Button size="sm" variant="outline" onClick={() => setPendingPreview(null)}>
+                Cancelar
               </Button>
             </div>
-          )}
+          </CardContent>
+        </Card>
+      )}
 
-          {pendingPreview && (
-            <div className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
-              <p className="text-sm font-medium text-pine-900">
-                {pendingPreview.movements.length} movimientos detectados en {pendingPreview.fileName} (
-                {pendingPreview.source})
-              </p>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs">
-                  <thead>
-                    <tr className="text-left text-graphite-600">
-                      <th className="px-2 py-1">Fecha</th>
-                      <th className="px-2 py-1">Concepto</th>
-                      <th className="px-2 py-1 text-right">Importe</th>
+      <div className="rounded-lg border border-sand-200 bg-white px-4 py-3 text-xs text-graphite-700">
+        <p className="font-semibold text-pine-900">{activeCompany?.name}</p>
+        <p className="mt-1">
+          {summary?.totalCount ?? 0} movimientos · {summary?.reviewedCount ?? 0} revisados ·{" "}
+          {summary?.pendingCount ?? 0} pendientes
+        </p>
+        {summary && (summary.openingBalance !== null || summary.closingBalance !== null) && (
+          <p className="mt-1">
+            Saldo inicial: {summary.openingBalance !== null ? formatEuro(summary.openingBalance) : "—"} · Saldo final:{" "}
+            {summary.closingBalance !== null ? formatEuro(summary.closingBalance) : "—"}
+          </p>
+        )}
+      </div>
+
+      <Card className="overflow-hidden border-sand-300">
+        <div className="max-h-[420px] overflow-auto">
+          <table className="min-w-full border-collapse text-xs">
+            <thead className="sticky top-0 z-10 bg-sand-100 text-graphite-700">
+              <tr>
+                <th className="w-10 border-b border-sand-200 px-2 py-2 text-left">Est.</th>
+                <th className="border-b border-sand-200 px-2 py-2 text-left">Fecha</th>
+                <th className="border-b border-sand-200 px-2 py-2 text-left">Descripción</th>
+                <th className="border-b border-sand-200 px-2 py-2 text-left">Contrapartida</th>
+                <th className="border-b border-sand-200 px-2 py-2 text-left">Concepto (Asiento)</th>
+                <th className="border-b border-sand-200 px-2 py-2 text-right">Importe</th>
+                <th className="border-b border-sand-200 px-2 py-2 text-right">Acumulado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center">
+                    <Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-700" />
+                  </td>
+                </tr>
+              ) : movements.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-12 text-center text-graphite-500">
+                    Importa un extracto bancario para ver los movimientos aquí.
+                  </td>
+                </tr>
+              ) : (
+                movements.map((movement) => {
+                  const isSelected = movement.id === selectedId
+                  return (
+                    <tr
+                      key={movement.id}
+                      className={cn(
+                        "cursor-pointer border-b border-sand-100 hover:bg-emerald-50/40",
+                        isSelected && "bg-emerald-100/60",
+                      )}
+                      onClick={() => void handleSelectMovement(movement)}
+                    >
+                      <td className="px-2 py-1.5">
+                        <BankMovementStatusIcon status={movement.status} />
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5">{formatDate(movement.movementDate)}</td>
+                      <td className="max-w-[240px] truncate px-2 py-1.5" title={movement.concept}>
+                        {movement.concept}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 font-mono text-[11px]">
+                        {movement.matchedCounterpartyCode ?? "—"}
+                      </td>
+                      <td className="max-w-[180px] truncate px-2 py-1.5" title={movement.matchedConcept ?? undefined}>
+                        {movement.matchedConcept ?? "—"}
+                      </td>
+                      <td
+                        className={cn(
+                          "whitespace-nowrap px-2 py-1.5 text-right font-medium",
+                          movement.amount >= 0 ? "text-emerald-800" : "text-red-700",
+                        )}
+                      >
+                        {formatEuro(movement.amount)}
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                        {movement.accumulated !== null ? formatEuro(movement.accumulated) : "—"}
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {pendingPreview.movements.slice(0, 8).map((movement, index) => (
-                      <tr key={`${movement.movementDate}-${index}`} className="border-t border-emerald-100">
-                        <td className="px-2 py-1">{formatDate(movement.movementDate)}</td>
-                        <td className="px-2 py-1">{movement.concept}</td>
-                        <td
-                          className={cn(
-                            "px-2 py-1 text-right font-medium",
-                            movement.amount >= 0 ? "text-emerald-800" : "text-red-700",
-                          )}
-                        >
-                          {formatEuro(movement.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  )
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {selectedMovement && (
+        <Card className="border-sand-300">
+          <CardContent className="space-y-4 p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-pine-900">Movimiento seleccionado</p>
+                <p className="text-xs text-graphite-600">{selectedMovement.concept}</p>
               </div>
-              {pendingPreview.warnings.slice(0, 3).map((warning) => (
-                <p key={warning} className="text-xs text-amber-800">
-                  {warning}
+              <div className="flex items-center gap-2 text-xs">
+                <BankMovementStatusIcon status={selectedMovement.status} />
+                <span>{BANK_MOVEMENT_STATUS_LABELS[selectedMovement.status].label}</span>
+              </div>
+            </div>
+
+            <div className="grid gap-3 text-xs sm:grid-cols-4">
+              <div>
+                <p className="text-graphite-500">F. Valor</p>
+                <p>{selectedMovement.valueDate ? formatDate(selectedMovement.valueDate) : formatDate(selectedMovement.movementDate)}</p>
+              </div>
+              <div>
+                <p className="text-graphite-500">Importe</p>
+                <p className={selectedMovement.amount >= 0 ? "text-emerald-800" : "text-red-700"}>
+                  {formatEuro(selectedMovement.amount)}
                 </p>
-              ))}
-              <div className="flex flex-wrap gap-2">
+              </div>
+              <div>
+                <p className="text-graphite-500">Saldo</p>
+                <p>{selectedMovement.accumulated !== null ? formatEuro(selectedMovement.accumulated) : "—"}</p>
+              </div>
+              <div>
+                <p className="text-graphite-500">Asiento</p>
+                <p>{selectedMovement.matchedEntryRef ? `Nº ${selectedMovement.matchedEntryRef}` : "—"}</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {selectedMovement.status === "PENDIENTE" && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busyMovementId === selectedMovement.id || isAutoMatching}
+                    onClick={() => void handleAutoMatch()}
+                  >
+                    {isAutoMatching ? (
+                      <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Wand2 className="mr-1 h-4 w-4" />
+                    )}
+                    Interpretar (auto)
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busyMovementId === selectedMovement.id}
+                    onClick={() => void handleIgnore(selectedMovement.id)}
+                  >
+                    <XCircle className="mr-1 h-4 w-4" />
+                    No contabilizable
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busyMovementId === selectedMovement.id}
+                    onClick={() => void handleDelete(selectedMovement.id)}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </>
+              )}
+              {selectedMovement.status === "CONCILIADO" && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={busyMovementId === selectedMovement.id}
+                    onClick={() => void handleReview(selectedMovement.id)}
+                  >
+                    <CheckCircle2 className="mr-1 h-4 w-4" />
+                    Marcar revisado
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busyMovementId === selectedMovement.id}
+                    onClick={() => void handleUnmatch(selectedMovement.id)}
+                  >
+                    Desvincular
+                  </Button>
+                </>
+              )}
+              {selectedMovement.status === "REVISADO" && (
                 <Button
                   type="button"
-                  className="bg-emerald-800 hover:bg-pine-900"
-                  disabled={isImporting}
-                  onClick={() => void handleConfirmImport()}
+                  size="sm"
+                  variant="outline"
+                  disabled={busyMovementId === selectedMovement.id}
+                  onClick={() => void handleUnmatch(selectedMovement.id)}
                 >
-                  {isImporting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="mr-2 h-4 w-4" />
-                  )}
-                  Confirmar importación
+                  Desvincular
                 </Button>
-                <Button type="button" variant="outline" disabled={isImporting} onClick={() => setPendingPreview(null)}>
-                  Cancelar
-                </Button>
-              </div>
+              )}
+              {selectedMovement.status === "IGNORADO" && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busyMovementId === selectedMovement.id}
+                    onClick={() => void handleResetPending(selectedMovement.id)}
+                  >
+                    Restaurar
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={busyMovementId === selectedMovement.id}
+                    onClick={() => void handleDelete(selectedMovement.id)}
+                  >
+                    <Trash2 className="mr-1 h-4 w-4" />
+                    Eliminar
+                  </Button>
+                </>
+              )}
             </div>
-          )}
 
-          <p className="text-xs text-graphite-500">
-            Columnas admitidas: fecha + importe, o fecha + cargo/abono (debe/haber). La conciliación busca líneas de
-            cuentas 572/570 en el diario.
-          </p>
-        </CardContent>
-      </Card>
+            <Tabs defaultValue="propuestas">
+              <TabsList>
+                <TabsTrigger value="asiento">Asiento a contabilizar</TabsTrigger>
+                <TabsTrigger value="datos">Ampliación datos extracto</TabsTrigger>
+                <TabsTrigger value="propuestas">Propuestas</TabsTrigger>
+              </TabsList>
+              <TabsContent value="asiento" className="mt-3 text-xs text-graphite-700">
+                {selectedMovement.status === "PENDIENTE" ? (
+                  <p>Vincula este movimiento con una línea 572/570 del diario usando las propuestas o el botón Analizar.</p>
+                ) : (
+                  <p>
+                    Cuenta {selectedMovement.matchedAccountCode ?? "—"} · Contrapartida{" "}
+                    {selectedMovement.matchedCounterpartyCode ?? "—"} · Asiento nº{" "}
+                    {selectedMovement.matchedEntryRef ?? "—"}
+                  </p>
+                )}
+              </TabsContent>
+              <TabsContent value="datos" className="mt-3 text-xs text-graphite-700">
+                <p>Referencia: {selectedMovement.reference ?? "—"}</p>
+                <p className="mt-1">Origen: {selectedMovement.importFileName ?? "—"}</p>
+              </TabsContent>
+              <TabsContent value="propuestas" className="mt-3 space-y-2">
+                {selectedMovement.status !== "PENDIENTE" ? (
+                  <p className="text-xs text-graphite-600">Este movimiento ya está interpretado o cerrado.</p>
+                ) : candidates.length === 0 ? (
+                  <p className="text-xs text-amber-700">
+                    Sin propuestas. Comprueba que exista un asiento en 572/570 con el mismo importe y fecha cercana.
+                  </p>
+                ) : (
+                  candidates.map((candidate) => (
+                    <button
+                      key={candidate.entryLineId}
+                      type="button"
+                      disabled={busyMovementId === selectedMovement.id}
+                      onClick={() => void handleMatch(selectedMovement.id, candidate.entryLineId)}
+                      className="flex w-full items-center justify-between rounded border border-sand-200 px-3 py-2 text-left text-xs hover:border-emerald-300 hover:bg-emerald-50/50"
+                    >
+                      <span>
+                        Asiento {candidate.entryRef} · {formatDate(candidate.entryDate)} · {candidate.cuenta} ·{" "}
+                        {candidate.concepto || "Sin concepto"}
+                      </span>
+                      <span className="text-graphite-500">{candidate.reason}</span>
+                    </button>
+                  ))
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      )}
 
-      <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="text-lg">Movimientos bancarios</CardTitle>
-            <CardDescription>Concilia con asientos contables de tesorería (572/570)</CardDescription>
-          </div>
-          {activeTab === "PENDIENTE" && (
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isAutoMatching || isLoading}
-              onClick={() => void handleAutoMatch()}
-            >
-              {isAutoMatching ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Wand2 className="mr-2 h-4 w-4" />
-              )}
-              Conciliar automáticamente
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={activeTab}
-            onValueChange={(value) => setActiveTab(value as typeof activeTab)}
-          >
-            <TabsList>
-              <TabsTrigger value="PENDIENTE">Pendientes</TabsTrigger>
-              <TabsTrigger value="CONCILIADO">Conciliados</TabsTrigger>
-              <TabsTrigger value="IGNORADO">Ignorados</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value={activeTab} className="mt-4">
-              {isLoading ? (
-                <div className="flex justify-center py-10">
-                  <Loader2 className="h-8 w-8 animate-spin text-emerald-700" />
-                </div>
-              ) : movements.length === 0 ? (
-                <p className="py-10 text-center text-sm text-graphite-500">
-                  No hay movimientos en este estado. Importa un extracto para empezar.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {movements.map((movement) => {
-                    const candidates = candidatesByMovement[movement.id] ?? []
-                    const isBusy = busyMovementId === movement.id
-
-                    return (
-                      <div
-                        key={movement.id}
-                        className="rounded-xl border border-sand-200 bg-white p-4 shadow-sm"
-                      >
-                        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                          <div className="min-w-0 space-y-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="font-medium text-pine-900">{formatDate(movement.movementDate)}</p>
-                              <Badge variant={movement.status === "CONCILIADO" ? "default" : "secondary"}>
-                                {movement.status === "PENDIENTE"
-                                  ? "Pendiente"
-                                  : movement.status === "CONCILIADO"
-                                    ? "Conciliado"
-                                    : "Ignorado"}
-                              </Badge>
-                              {movement.matchedEntryRef && (
-                                <span className="text-xs text-emerald-700">
-                                  Asiento nº {movement.matchedEntryRef}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-graphite-700">{movement.concept}</p>
-                            {movement.reference && (
-                              <p className="text-xs text-graphite-500">Ref: {movement.reference}</p>
-                            )}
-                            {movement.importFileName && (
-                              <p className="text-xs text-graphite-400">{movement.importFileName}</p>
-                            )}
-                          </div>
-
-                          <div className="flex shrink-0 flex-col items-end gap-2">
-                            <p
-                              className={cn(
-                                "text-lg font-semibold",
-                                movement.amount >= 0 ? "text-emerald-800" : "text-red-700",
-                              )}
-                            >
-                              {formatEuro(movement.amount)}
-                            </p>
-
-                            {movement.status === "PENDIENTE" && (
-                              <div className="flex flex-wrap justify-end gap-2">
-                                {candidates[0] && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={isBusy}
-                                    onClick={() => void handleMatch(movement.id, candidates[0]!.entryLineId)}
-                                  >
-                                    {isBusy ? (
-                                      <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                                    ) : (
-                                      <CheckCircle2 className="mr-1 h-3 w-3" />
-                                    )}
-                                    Conciliar asiento {candidates[0].entryRef}
-                                  </Button>
-                                )}
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={isBusy}
-                                  onClick={() => void handleIgnore(movement.id)}
-                                >
-                                  Ignorar
-                                </Button>
-                              </div>
-                            )}
-
-                            {movement.status === "CONCILIADO" && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                disabled={isBusy}
-                                onClick={() => void handleUnmatch(movement.id)}
-                              >
-                                <XCircle className="mr-1 h-3 w-3" />
-                                Deshacer
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-
-                        {movement.status === "PENDIENTE" && candidates.length > 0 && (
-                          <div className="mt-3 border-t border-sand-100 pt-3">
-                            <p className="mb-2 text-xs font-medium text-graphite-600">Coincidencias sugeridas</p>
-                            <div className="space-y-2">
-                              {candidates.map((candidate) => (
-                                <button
-                                  key={candidate.entryLineId}
-                                  type="button"
-                                  disabled={isBusy}
-                                  onClick={() => void handleMatch(movement.id, candidate.entryLineId)}
-                                  className="flex w-full items-center justify-between rounded-lg border border-sand-200 px-3 py-2 text-left text-xs hover:border-emerald-300 hover:bg-emerald-50/50"
-                                >
-                                  <span>
-                                    Asiento {candidate.entryRef} · {formatDate(candidate.entryDate)} ·{" "}
-                                    {candidate.cuenta} · {candidate.concepto || "Sin concepto"}
-                                  </span>
-                                  <span className="text-graphite-500">{candidate.reason}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {movement.status === "PENDIENTE" && candidates.length === 0 && (
-                          <p className="mt-3 border-t border-sand-100 pt-3 text-xs text-amber-700">
-                            Sin coincidencias en cuentas 572/570. Comprueba que el asiento bancario esté contabilizado.
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
-
-      <Card className="border-sand-200 bg-sand-50/40">
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <FileSpreadsheet className="h-4 w-4 text-emerald-700" />
-            Formato recomendado del banco
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-graphite-600">
-          Exporta desde tu banco un CSV o Excel con columnas como{" "}
-          <strong>Fecha</strong>, <strong>Concepto</strong>, <strong>Importe</strong> (o Cargo/Abono). Para PDF,
-          se usará OCR sobre el texto del extracto.
-        </CardContent>
-      </Card>
+      <div className="rounded-lg border border-sand-200 bg-sand-50/60 px-4 py-3 text-[11px] text-graphite-600">
+        <p className="mb-2 font-medium text-graphite-700">Leyenda de estados (estilo A3Bank)</p>
+        <div className="flex flex-wrap gap-4">
+          {(Object.keys(BANK_MOVEMENT_STATUS_LABELS) as BankMovementView["status"][]).map((status) => (
+            <span key={status} className="inline-flex items-center gap-1.5">
+              <BankMovementStatusIcon status={status} />
+              {BANK_MOVEMENT_STATUS_LABELS[status].label}
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

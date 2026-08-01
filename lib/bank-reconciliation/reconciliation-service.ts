@@ -25,9 +25,21 @@ function mapMovement(row: {
   matchedEntryId: string | null
   matchedLineId: string | null
   matchedAt: Date | null
-  matchedEntry: { refNumber: number } | null
+  matchedEntry: {
+    refNumber: number
+    lines: Array<{ id: string; cuenta: string; concepto: string }>
+  } | null
+  matchedLine: { cuenta: string; concepto: string } | null
   import: { fileName: string } | null
 }): BankMovementView {
+  let matchedCounterpartyCode: string | null = null
+  if (row.matchedEntry && row.matchedLineId) {
+    const other = row.matchedEntry.lines.find(
+      (line) => line.id !== row.matchedLineId && !isTreasuryAccount(line.cuenta),
+    )
+    matchedCounterpartyCode = other?.cuenta ?? null
+  }
+
   return {
     id: row.id,
     movementDate: row.movementDate.toISOString().slice(0, 10),
@@ -41,8 +53,48 @@ function mapMovement(row: {
     matchedEntryId: row.matchedEntryId,
     matchedEntryRef: row.matchedEntry?.refNumber ?? null,
     matchedLineId: row.matchedLineId,
+    matchedAccountCode: row.matchedLine?.cuenta ?? null,
+    matchedCounterpartyCode,
+    matchedConcept: row.matchedLine?.concepto ?? null,
     matchedAt: row.matchedAt?.toISOString() ?? null,
+    accumulated: row.balance !== null ? decimalToNumber(row.balance) : null,
   }
+}
+
+function attachAccumulatedBalances(movements: BankMovementView[]): BankMovementView[] {
+  const sorted = [...movements].sort((a, b) => {
+    const dateCmp = a.movementDate.localeCompare(b.movementDate)
+    if (dateCmp !== 0) return dateCmp
+    return a.id.localeCompare(b.id)
+  })
+
+  let running = 0
+  const accumulatedById = new Map<string, number>()
+
+  for (const movement of sorted) {
+    if (movement.balance !== null) {
+      accumulatedById.set(movement.id, movement.balance)
+    } else {
+      running += movement.amount
+      accumulatedById.set(movement.id, running)
+    }
+  }
+
+  return movements.map((movement) => ({
+    ...movement,
+    accumulated: movement.accumulated ?? accumulatedById.get(movement.id) ?? null,
+  }))
+}
+
+const movementInclude = {
+  import: { select: { fileName: true } },
+  matchedLine: { select: { cuenta: true, concepto: true } },
+  matchedEntry: {
+    select: {
+      refNumber: true,
+      lines: { select: { id: true, cuenta: true, concepto: true } },
+    },
+  },
 }
 
 function isTreasuryAccount(cuenta: string): boolean {
@@ -53,21 +105,42 @@ function isTreasuryAccount(cuenta: string): boolean {
 export async function getBankReconciliationSummary(
   companyId: string,
 ): Promise<BankReconciliationSummary> {
-  const [pending, reconciled, ignored] = await Promise.all([
+  const [pending, reconciled, reviewed, ignored, total, balanceRows] = await Promise.all([
     prisma.bankMovement.aggregate({
       where: { companyId, status: "PENDIENTE" },
       _count: true,
       _sum: { amount: true },
     }),
     prisma.bankMovement.count({ where: { companyId, status: "CONCILIADO" } }),
+    prisma.bankMovement.count({ where: { companyId, status: "REVISADO" } }),
     prisma.bankMovement.count({ where: { companyId, status: "IGNORADO" } }),
+    prisma.bankMovement.count({ where: { companyId } }),
+    prisma.bankMovement.findMany({
+      where: { companyId, balance: { not: null } },
+      orderBy: [{ movementDate: "asc" }, { createdAt: "asc" }],
+      select: { balance: true, amount: true, movementDate: true },
+      take: 500,
+    }),
   ])
+
+  let openingBalance: number | null = null
+  let closingBalance: number | null = null
+
+  if (balanceRows.length > 0) {
+    const first = balanceRows[0]!
+    openingBalance = decimalToNumber(first.balance) - decimalToNumber(first.amount)
+    closingBalance = decimalToNumber(balanceRows[balanceRows.length - 1]!.balance)
+  }
 
   return {
     pendingCount: pending._count,
     reconciledCount: reconciled,
+    reviewedCount: reviewed,
     ignoredCount: ignored,
     pendingAmount: decimalToNumber(pending._sum.amount),
+    totalCount: total,
+    openingBalance,
+    closingBalance,
   }
 }
 
@@ -80,15 +153,12 @@ export async function listBankMovements(
       companyId,
       ...(status ? { status } : {}),
     },
-    include: {
-      import: { select: { fileName: true } },
-      matchedEntry: { select: { refNumber: true } },
-    },
-    orderBy: [{ movementDate: "desc" }, { createdAt: "desc" }],
+    include: movementInclude,
+    orderBy: [{ movementDate: "asc" }, { createdAt: "asc" }],
     take: 500,
   })
 
-  return rows.map(mapMovement)
+  return attachAccumulatedBalances(rows.map(mapMovement))
 }
 
 async function getMatchedLineIds(companyId: string): Promise<Set<string>> {
@@ -225,10 +295,7 @@ export async function matchBankMovement(
       matchedAt: new Date(),
       matchedById: userId,
     },
-    include: {
-      import: { select: { fileName: true } },
-      matchedEntry: { select: { refNumber: true } },
-    },
+    include: movementInclude,
   })
 
   return mapMovement(updated)
@@ -239,7 +306,11 @@ export async function unmatchBankMovement(
   movementId: string,
 ): Promise<BankMovementView> {
   const movement = await prisma.bankMovement.findFirst({
-    where: { id: movementId, companyId, status: "CONCILIADO" },
+    where: {
+      id: movementId,
+      companyId,
+      status: { in: ["CONCILIADO", "REVISADO"] },
+    },
   })
   if (!movement) throw new Error("Movimiento conciliado no encontrado.")
 
@@ -252,10 +323,7 @@ export async function unmatchBankMovement(
       matchedAt: null,
       matchedById: null,
     },
-    include: {
-      import: { select: { fileName: true } },
-      matchedEntry: { select: { refNumber: true } },
-    },
+    include: movementInclude,
   })
 
   return mapMovement(updated)
@@ -274,19 +342,116 @@ export async function ignoreBankMovement(
       matchedAt: null,
       matchedById: null,
     },
-    include: {
-      import: { select: { fileName: true } },
-      matchedEntry: { select: { refNumber: true } },
-    },
+    include: movementInclude,
   })
 
   return mapMovement(updated)
 }
 
+export async function reviewBankMovement(
+  companyId: string,
+  movementId: string,
+  userId?: string,
+): Promise<BankMovementView> {
+  const movement = await prisma.bankMovement.findFirst({
+    where: { id: movementId, companyId, status: "CONCILIADO" },
+  })
+  if (!movement) throw new Error("Solo se pueden revisar movimientos interpretados.")
+
+  const updated = await prisma.bankMovement.update({
+    where: { id: movementId },
+    data: {
+      status: "REVISADO",
+      matchedById: userId ?? movement.matchedById,
+    },
+    include: movementInclude,
+  })
+
+  return mapMovement(updated)
+}
+
+export async function resetBankMovementToPending(
+  companyId: string,
+  movementId: string,
+): Promise<BankMovementView> {
+  const updated = await prisma.bankMovement.update({
+    where: { id: movementId, companyId },
+    data: {
+      status: "PENDIENTE",
+      matchedEntryId: null,
+      matchedLineId: null,
+      matchedAt: null,
+      matchedById: null,
+    },
+    include: movementInclude,
+  })
+
+  return mapMovement(updated)
+}
+
+const AUTO_MATCH_MIN_SCORE = 85
+
+async function tryAutoMatchMovement(
+  companyId: string,
+  movementId: string,
+  userId?: string,
+): Promise<boolean> {
+  const candidates = await findReconciliationCandidates(companyId, movementId)
+  const best = candidates[0]
+  if (!best || best.score < AUTO_MATCH_MIN_SCORE) return false
+
+  try {
+    await matchBankMovement(companyId, movementId, best.entryLineId, userId)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function analyzeBankMovement(
+  companyId: string,
+  movementId: string,
+  userId?: string,
+): Promise<{ matched: boolean; movement?: BankMovementView }> {
+  const movement = await prisma.bankMovement.findFirst({
+    where: { id: movementId, companyId, status: "PENDIENTE" },
+  })
+  if (!movement) throw new Error("Solo se pueden analizar movimientos pendientes.")
+
+  const matched = await tryAutoMatchMovement(companyId, movementId, userId)
+  if (!matched) return { matched: false }
+
+  const updated = await prisma.bankMovement.findFirst({
+    where: { id: movementId, companyId },
+    include: movementInclude,
+  })
+  if (!updated) return { matched: true }
+
+  return { matched: true, movement: mapMovement(updated) }
+}
+
+export async function deleteBankMovement(companyId: string, movementId: string): Promise<void> {
+  const movement = await prisma.bankMovement.findFirst({
+    where: { id: movementId, companyId },
+  })
+  if (!movement) throw new Error("Movimiento bancario no encontrado.")
+  if (movement.status === "CONCILIADO" || movement.status === "REVISADO") {
+    throw new Error("Desvincula el movimiento antes de eliminarlo.")
+  }
+
+  await prisma.bankMovement.delete({ where: { id: movementId } })
+}
+
 export async function autoReconcileBankMovements(
   companyId: string,
   userId?: string,
+  movementId?: string,
 ): Promise<{ matched: number }> {
+  if (movementId) {
+    const matched = await tryAutoMatchMovement(companyId, movementId, userId)
+    return { matched: matched ? 1 : 0 }
+  }
+
   const pending = await prisma.bankMovement.findMany({
     where: { companyId, status: "PENDIENTE" },
     orderBy: { movementDate: "asc" },
@@ -296,16 +461,8 @@ export async function autoReconcileBankMovements(
   let matched = 0
 
   for (const movement of pending) {
-    const candidates = await findReconciliationCandidates(companyId, movement.id)
-    const best = candidates[0]
-    if (!best || best.score < 85) continue
-
-    try {
-      await matchBankMovement(companyId, movement.id, best.entryLineId, userId)
-      matched += 1
-    } catch {
-      // Siguiente movimiento si hay conflicto de concurrencia.
-    }
+    const didMatch = await tryAutoMatchMovement(companyId, movement.id, userId)
+    if (didMatch) matched += 1
   }
 
   return { matched }
