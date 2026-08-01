@@ -217,7 +217,9 @@ export function compareAccountTotals(
   return issues
 }
 
-export function validateA3ImportPreview(preview: A3ImportPreview): ImportValidationIssue[] {
+export type A3ImportValidationInput = Pick<A3ImportPreview, "entries" | "subaccounts">
+
+export function validateA3ImportPreview(preview: A3ImportValidationInput): ImportValidationIssue[] {
   return [
     ...validateAllEntriesBalanced(preview.entries),
     ...detectGenericAccountUsage(preview.entries),
