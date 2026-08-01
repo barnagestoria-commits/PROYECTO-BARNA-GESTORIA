@@ -204,7 +204,7 @@ function parseNativeJournalFile(
       documento: meta?.documento ?? lines[0].documento ?? "",
       concepto: meta?.concept ?? lines[0].concepto,
       lines,
-      recordTypes: ["Apunte nativo A3"],
+      recordTypes: ["Apunte nativo (.DAT)"],
     })
   }
 
@@ -380,7 +380,7 @@ export function parseNativeA3ExportFiles(
     thirdParties,
     companyCode,
     fiscalYear,
-    recordTypes: ["Exportación nativa Wolters Kluwer (v9.50+)", "Apuntes mensuales *A.DAT"],
+    recordTypes: ["Exportación nativa ZIP (v9.50+)", "Apuntes mensuales *A.DAT"],
     warnings,
   }
 }

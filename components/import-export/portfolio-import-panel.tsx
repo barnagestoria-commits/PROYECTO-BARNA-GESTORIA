@@ -195,7 +195,7 @@ export function PortfolioImportPanel() {
             Arrastra el fichero aquí o haz clic en el botón para seleccionarlo
           </p>
           <p className="mt-1 max-w-md text-xs text-graphite-500">
-            ZIP con carpetas E00xxx (exportación Wolters Kluwer — alta + contabilidad automática), CSV
+            ZIP con carpetas E00xxx (alta + contabilidad automática), CSV
             o Excel con columnas <strong>nombre</strong> y <strong>NIF</strong>
           </p>
           <Button

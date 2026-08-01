@@ -275,14 +275,14 @@ export async function parsePortfolioFile(
 
     if (isTcliproOnlyZip(fileNames)) {
       throw new Error(
-        "TCLIPRO.DAT contiene proveedores/clientes contables, no empresas de la cartera. Usa un ZIP con carpetas E00xxx (exportación A3) o un CSV con nombre y NIF.",
+        "TCLIPRO.DAT contiene proveedores/clientes contables, no empresas de la cartera. Usa un ZIP con carpetas E00xxx o un CSV con nombre y NIF.",
       )
     }
 
     const candidates = await parseMultiFolderZip(buffer)
     if (candidates.length === 0) {
       throw new Error(
-        "No se detectaron empresas en el ZIP. Usa carpetas E00xxx de exportación Wolters Kluwer o un CSV/Excel con columnas nombre y NIF.",
+        "No se detectaron empresas en el ZIP. Usa carpetas E00xxx o un CSV/Excel con columnas nombre y NIF.",
       )
     }
 

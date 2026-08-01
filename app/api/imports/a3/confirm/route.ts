@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const extension = file.name.toLowerCase().split(".").pop() ?? ""
     if (extension !== "zip") {
       return NextResponse.json(
-        { success: false, error: "Esta ruta solo acepta archivos .zip de Wolters Kluwer." },
+        { success: false, error: "Esta ruta solo acepta archivos .zip con contabilidad." },
         { status: 400 },
       )
     }

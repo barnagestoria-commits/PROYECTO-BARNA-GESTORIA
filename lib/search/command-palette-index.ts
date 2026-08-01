@@ -80,8 +80,8 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
     "nav-importar",
     "Importar datos contables",
     "/dashboard/utilidades/importar",
-    "Wolters Kluwer, Sage y CSV",
-    ["importar", "exportar", "csv", "excel", "diario", "importación"],
+    "ZIP, DAT, TXT, CSV y Excel",
+    ["importar", "exportar", "zip", "dat", "txt", "csv", "excel", "diario"],
   ),
   ...ACCOUNTING_TOOLBAR_GROUPS.flatMap((group) =>
     group.items.map((item) =>

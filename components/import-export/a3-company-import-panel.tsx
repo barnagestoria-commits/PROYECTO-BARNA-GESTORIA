@@ -38,12 +38,12 @@ export interface A3ZipPreview {
 
 function describeImportMode(mode?: A3ZipPreview["contents"]["importMode"]): string {
   if (mode === "native-export") {
-    return "Exportación nativa Wolters Kluwer (menú Exportar, carpeta E00xxx)"
+    return "ZIP nativo (carpeta E00xxx, ficheros .DAT)"
   }
   if (mode === "suenlace-matrix") {
-    return "Enlace contable SUENLACE (Matrix Form / carpetas DAT)"
+    return "Enlace contable (.DAT / SUENLACE)"
   }
-  return "Texto / CSV"
+  return "Texto (DIARIO.TXT / CSV)"
 }
 
 interface ParsedA3State {
@@ -283,7 +283,7 @@ export function A3CompanyImportPanel({
       if (!file || isPreviewingZip || isConfirmingZip) return
 
       if (!file.name.toLowerCase().endsWith(".zip")) {
-        setImportError("Selecciona un archivo .zip exportado desde Wolters Kluwer Asesor.")
+        setImportError("Selecciona un archivo .zip con diario y subcuentas.")
         return
       }
 
@@ -311,7 +311,7 @@ export function A3CompanyImportPanel({
       return null
     },
     onDropRejected: () => {
-      setImportError("Selecciona un archivo .zip exportado desde Wolters Kluwer Asesor.")
+      setImportError("Selecciona un archivo .zip con diario y subcuentas.")
     },
   })
 
@@ -354,13 +354,13 @@ export function A3CompanyImportPanel({
               ? "Analizando paquete ZIP..."
               : isDragActive
                 ? "Suelta el archivo ZIP aquí"
-                : "Importar contabilidad de Wolters Kluwer"}
+                : "Importar contabilidad (ZIP/TXT)"}
           </p>
           <p className="mt-1 text-xs text-graphite-500">
             Arrastra un ZIP aquí o haz clic en el botón para seleccionarlo
           </p>
           <p className="mt-1 text-xs text-graphite-500">
-            ZIP con DIARIO.TXT, SUBCUENT.TXT o exportación nativa (carpeta E00xxx)
+            ZIP con DIARIO.TXT, SUBCUENT.TXT, SUENLACE.DAT o exportación nativa (carpeta E00xxx)
           </p>
           <p className="mt-1 text-xs text-graphite-500">
             Archivos grandes se analizan en tu navegador (sin subir el ZIP completo)

@@ -165,7 +165,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
             onClick={() => setImportDialogOpen(true)}
           >
             <Upload className="mr-2 h-4 w-4" />
-            Importar Contabilidad / A3 (ZIP/TXT)
+            Importar contabilidad (ZIP/TXT)
           </Button>
           <Button
             type="button"

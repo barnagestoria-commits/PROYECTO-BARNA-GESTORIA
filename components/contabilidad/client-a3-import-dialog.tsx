@@ -53,7 +53,7 @@ export function ClientA3ImportDialog({
               Importación contable
             </p>
             <h2 id="client-a3-import-title" className="text-lg font-semibold text-pine-900">
-              Importar Contabilidad / Wolters Kluwer (ZIP)
+              Importar contabilidad (ZIP/TXT)
             </h2>
             <p className="mt-0.5 text-sm text-graphite-500">
               {companyName}

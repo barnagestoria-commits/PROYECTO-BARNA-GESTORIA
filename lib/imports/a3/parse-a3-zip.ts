@@ -184,7 +184,7 @@ async function parseA3ZipFileMap(
     }
     const native = parseNativeA3ExportFiles(nativeFiles, folderName)
     if (native.entries.length === 0 && native.subaccounts.length === 0) {
-      throw new Error("No se pudieron leer asientos del paquete nativo de Wolters Kluwer.")
+      throw new Error("No se pudieron leer asientos del paquete ZIP nativo.")
     }
 
     return {
@@ -288,7 +288,7 @@ async function parseA3ZipFileMap(
 
   if (entries.length === 0 && subaccounts.length === 0) {
     throw new Error(
-      "No se encontraron asientos ni subcuentas. Usa un ZIP de exportación A3 (menú Exportar) o un SUENLACE.DAT de Matrix Form / enlace contable.",
+      "No se encontraron asientos ni subcuentas. Usa un ZIP con diario (.DAT, SUENLACE.DAT o DIARIO.TXT) y plan de cuentas.",
     )
   }
 

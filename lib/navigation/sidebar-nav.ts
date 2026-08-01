@@ -136,7 +136,7 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
           {
             label: "Importar datos contables",
             href: "/dashboard/utilidades/importar",
-            description: "Wolters Kluwer, Sage y CSV/Excel genérico",
+            description: "ZIP, DAT, TXT, CSV y Excel",
           },
           {
             label: "Exportar asientos",

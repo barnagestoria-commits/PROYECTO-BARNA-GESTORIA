@@ -59,7 +59,7 @@ const PRIMARY_TABS: { id: HubTab; label: string; icon: typeof Upload; descriptio
     id: "cartera",
     label: "Fichero General de Clientes",
     icon: Users,
-    description: "Migrar la cartera completa desde Wolters Kluwer o Sage",
+    description: "Migrar la cartera completa (ZIP, CSV o Excel)",
   },
   {
     id: "contabilidad-interna",
@@ -221,7 +221,7 @@ export function ImportExportHub() {
         <p className="mt-1 text-sm text-graphite-500">
           {isGestoria
             ? "Importa contabilidad de clientes, migra carteras completas o gestiona los libros internos de la gestoría."
-            : "Compatible con Wolters Kluwer, Sage y plantillas CSV/Excel genéricas."}
+            : "Compatible con ZIP, DAT, TXT, CSV y Excel."}
         </p>
       </div>
 
@@ -293,8 +293,8 @@ export function ImportExportHub() {
               Importar a Empresa Cliente
             </CardTitle>
             <CardDescription>
-              Selecciona la empresa destino y sube el paquete ZIP exportado desde Wolters Kluwer
-              Asesor. Todos los asientos quedarán aislados en esa empresa.
+              Selecciona la empresa destino y sube un paquete ZIP con diario y subcuentas.
+              Todos los asientos quedarán aislados en esa empresa.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -342,8 +342,8 @@ export function ImportExportHub() {
               Importar Fichero General de Clientes / Empresas
             </CardTitle>
             <CardDescription>
-              Migración masiva de la cartera desde Wolters Kluwer Asesor: da de alta las empresas
-              y vuelca automáticamente la contabilidad de cada carpeta E00xxx detectada.
+              Migración masiva de cartera: da de alta las empresas y vuelca automáticamente
+              la contabilidad de cada carpeta E00xxx detectada en el ZIP.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

@@ -23,10 +23,10 @@ export interface AccountingFormatProfile {
 export const ACCOUNTING_FORMAT_PROFILES: AccountingFormatProfile[] = [
   {
     id: "wk-asesor",
-    name: "Wolters Kluwer Asesor",
-    vendor: "Wolters Kluwer",
+    name: "ZIP / DAT / TXT",
+    vendor: "Enlace y export nativo",
     description:
-      "Soporta exportación nativa A3 (ZIP/carpeta E00xxx), enlace SUENLACE de Matrix Form (.DAT) y CSV/Excel.",
+      "ZIP con carpeta E00xxx, ficheros .DAT (SUENLACE, ASIENT, SUBCUE), DIARIO.TXT y CSV/Excel.",
     extensions: [".csv", ".xlsx", ".xls", ".txt", ".zip"],
     csvDelimiter: ";",
     columnAliases: {
@@ -61,9 +61,9 @@ export const ACCOUNTING_FORMAT_PROFILES: AccountingFormatProfile[] = [
   },
   {
     id: "sage",
-    name: "Sage / ContaPlus",
-    vendor: "Sage",
-    description: "Asientos exportados desde Sage 50, ContaPlus u otros ERP compatibles PGC.",
+    name: "CSV / TXT (PGC)",
+    vendor: "Separador ;",
+    description: "Diario delimitado con columnas fecha, cuenta, concepto, debe y haber.",
     extensions: [".csv", ".xlsx", ".xls", ".txt"],
     csvDelimiter: ";",
     columnAliases: {
