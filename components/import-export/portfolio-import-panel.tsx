@@ -1,6 +1,7 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useCallback, useState } from "react"
+import { useDropzone } from "react-dropzone"
 import { CheckCircle2, FileSpreadsheet, Loader2, Upload, Users } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -33,7 +34,6 @@ interface PortfolioPreview {
 }
 
 export function PortfolioImportPanel() {
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<PortfolioPreview | null>(null)
   const [isPreviewing, setIsPreviewing] = useState(false)
@@ -44,7 +44,6 @@ export function PortfolioImportPanel() {
   const reset = () => {
     setPendingFile(null)
     setPreview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ""
   }
 
   const handlePreview = async (file: File) => {
@@ -67,7 +66,6 @@ export function PortfolioImportPanel() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al analizar el fichero.")
       setPendingFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ""
     } finally {
       setIsPreviewing(false)
     }
@@ -121,11 +119,39 @@ export function PortfolioImportPanel() {
     }
   }
 
-  const handleFileSelect = async (fileList: FileList | null) => {
-    const file = fileList?.[0]
-    if (!file || isPreviewing) return
-    await handlePreview(file)
-  }
+  const onDrop = useCallback(
+    (accepted: File[]) => {
+      const file = accepted[0]
+      if (!file || isPreviewing || isConfirming) return
+      void handlePreview(file)
+    },
+    // handlePreview uses setters; busy flags prevent re-entry.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isConfirming, isPreviewing],
+  )
+
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop,
+    multiple: false,
+    noClick: true,
+    disabled: isPreviewing || isConfirming,
+    // Validamos por extensión: en macOS el MIME al arrastrar a veces no es fiable.
+    accept: undefined,
+    validator: (file) => {
+      const name = file.name.toLowerCase()
+      const ok = [".zip", ".csv", ".txt", ".xlsx", ".xls"].some((ext) => name.endsWith(ext))
+      if (!ok) {
+        return {
+          code: "invalid-extension",
+          message: "Formato no válido",
+        }
+      }
+      return null
+    },
+    onDropRejected: () => {
+      setError("Formato no válido. Usa ZIP, CSV, TXT, XLSX o XLS.")
+    },
+  })
 
   return (
     <div className="space-y-4">
@@ -142,27 +168,31 @@ export function PortfolioImportPanel() {
 
       {!preview && (
         <div
+          {...getRootProps()}
           className={cn(
-            "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-10 text-center",
+            "flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-10 text-center transition-colors",
             isPreviewing
               ? "border-emerald-300 bg-emerald-50/40"
-              : "border-sand-300 bg-sand-50/40 hover:border-emerald-300",
+              : isDragActive
+                ? "border-emerald-500 bg-emerald-50"
+                : "border-sand-300 bg-sand-50/40 hover:border-emerald-300",
           )}
         >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".zip,.csv,.txt,.xlsx,.xls"
-            className="hidden"
-            onChange={(event) => void handleFileSelect(event.target.files)}
-          />
+          <input {...getInputProps({ accept: ".zip,.csv,.txt,.xlsx,.xls" })} />
           {isPreviewing ? (
             <Loader2 className="mb-3 h-8 w-8 animate-spin text-emerald-700" />
           ) : (
             <Users className="mb-3 h-8 w-8 text-emerald-700" />
           )}
           <p className="text-sm font-medium text-pine-900">
-            {isPreviewing ? "Analizando fichero de cartera..." : "Migrar cartera de clientes / empresas"}
+            {isPreviewing
+              ? "Analizando fichero de cartera..."
+              : isDragActive
+                ? "Suelta el fichero aquí"
+                : "Migrar cartera de clientes / empresas"}
+          </p>
+          <p className="mt-1 max-w-md text-xs text-graphite-500">
+            Arrastra el fichero aquí o haz clic en el botón para seleccionarlo
           </p>
           <p className="mt-1 max-w-md text-xs text-graphite-500">
             ZIP con carpetas E00xxx (exportación Wolters Kluwer — alta + contabilidad automática), CSV
@@ -172,7 +202,10 @@ export function PortfolioImportPanel() {
             type="button"
             className="mt-4 bg-emerald-800 hover:bg-pine-900"
             disabled={isPreviewing}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={(event) => {
+              event.stopPropagation()
+              open()
+            }}
           >
             <Upload className="mr-2 h-4 w-4" />
             Seleccionar fichero
