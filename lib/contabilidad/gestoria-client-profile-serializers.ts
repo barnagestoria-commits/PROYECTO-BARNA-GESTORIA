@@ -1,5 +1,11 @@
 import type { CompanyGestoriaProfile } from "@prisma/client"
 import type { CompanyFiscalSettingsDto } from "@/lib/fiscal/fiscal-settings"
+import type { GestoriaPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
+import {
+  createDefaultPresentationConfig,
+  syncPresentationWithAccountingPlan,
+} from "@/lib/contabilidad/gestoria-presentation-config"
+import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
 import {
   createEmptyGestoriaProfile,
   type GestoriaActivity,
@@ -24,12 +30,23 @@ function parseJson<T>(value: string | null | undefined, fallback: T): T {
   }
 }
 
+function mapGestoriaEntityToClientType(
+  entityType: CompanyGestoriaProfile["entityType"],
+): GestoriaClientEntityType {
+  return entityType === "PERSONA_FISICA" ? "fisica" : "juridica"
+}
+
 export function profileRecordToDto(
   record: CompanyGestoriaProfile,
   fiscalSettings: CompanyFiscalSettingsDto,
 ): GestoriaClientProfileDto {
-  const base = createEmptyGestoriaProfile(record.clientCode)
+  const entityType = mapGestoriaEntityToClientType(record.entityType)
+  const base = createEmptyGestoriaProfile(record.clientCode, entityType)
   const impresosFromJson = parseJson<GestoriaImpresosConfig>(record.impresosJson, {})
+  const presentationFromJson = parseJson<GestoriaPresentationConfig>(
+    record.presentationConfigJson,
+    base.presentation,
+  )
 
   return {
     ...base,
@@ -66,6 +83,7 @@ export function profileRecordToDto(
     impresos: {
       ...base.impresos,
       ...impresosFromJson,
+      model232: impresosFromJson.model232 ?? presentationFromJson.model232Enabled,
       model111: fiscalSettings.model111Enabled,
       model115: fiscalSettings.model115Enabled,
       model180: fiscalSettings.model180Enabled,
@@ -76,6 +94,7 @@ export function profileRecordToDto(
       base.inmovilizadoParams,
     ),
     prorrata: parseJson<GestoriaProrrataConfig>(record.prorrataJson, base.prorrata),
+    presentation: presentationFromJson,
   }
 }
 
@@ -111,6 +130,7 @@ export function profileDtoToRecordData(profile: GestoriaClientProfileDto) {
     localesJson: JSON.stringify(profile.locales),
     impresosJson: JSON.stringify({
       model123: impresos.model123,
+      model232: impresos.model232 ?? profile.presentation.model232Enabled,
       model347: impresos.model347,
       model349: impresos.model349,
       model390: impresos.model390,
@@ -120,6 +140,7 @@ export function profileDtoToRecordData(profile: GestoriaClientProfileDto) {
     }),
     inmovilizadoParamsJson: JSON.stringify(profile.inmovilizadoParams),
     prorrataJson: JSON.stringify(profile.prorrata),
+    presentationConfigJson: JSON.stringify(profile.presentation),
   }
 }
 

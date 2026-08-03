@@ -290,6 +290,7 @@ model CompanyGestoriaProfile {
   impresosJson           String?
   inmovilizadoParamsJson String?
   prorrataJson           String?
+  presentationConfigJson String?
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 

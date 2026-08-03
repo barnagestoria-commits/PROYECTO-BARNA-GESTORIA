@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api-client"
+import { GestoriaPresentationConfigForm } from "@/components/contabilidad/gestoria-presentation-config-form"
 import {
-  ACCOUNTING_PLAN_OPTIONS,
   createEmptyGestoriaProfile,
   createId,
   ENTITY_TYPE_OPTIONS,
@@ -20,6 +20,10 @@ import {
   type GestoriaLocale,
   type GestoriaRelatedPerson,
 } from "@/lib/contabilidad/gestoria-client-profile-types"
+import {
+  createDefaultPresentationConfig,
+  syncPresentationWithAccountingPlan,
+} from "@/lib/contabilidad/gestoria-presentation-config"
 import { cn } from "@/lib/utils"
 
 interface EditGestoriaClientDialogProps {
@@ -115,6 +119,52 @@ export function EditGestoriaClientDialog({
     setProfile((current) => ({ ...current, ...patch }))
   }
 
+  const clientEntityType =
+    profile.entityType === "PERSONA_FISICA" ? ("fisica" as const) : ("juridica" as const)
+
+  const handleEntityTypeChange = (entityType: GestoriaClientProfileDto["entityType"]) => {
+    const nextClientType = entityType === "PERSONA_FISICA" ? "fisica" : "juridica"
+    const nextPlan =
+      nextClientType === "fisica" ? "PGC_MICRO" : profile.accountingPlanType
+    setProfile((current) => ({
+      ...current,
+      entityType,
+      accountingPlanType: nextClientType === "fisica" ? "PGC_MICRO" : current.accountingPlanType,
+      presentation: syncPresentationWithAccountingPlan(
+        createDefaultPresentationConfig(nextClientType),
+        nextPlan,
+        nextClientType,
+      ),
+    }))
+  }
+
+  const handleAccountingPlanChange = (
+    accountingPlanType: GestoriaClientProfileDto["accountingPlanType"],
+  ) => {
+    setProfile((current) => ({
+      ...current,
+      accountingPlanType,
+      presentation: syncPresentationWithAccountingPlan(
+        current.presentation,
+        accountingPlanType,
+        clientEntityType,
+      ),
+    }))
+  }
+
+  const handlePresentationChange = (
+    presentation: GestoriaClientProfileDto["presentation"],
+  ) => {
+    setProfile((current) => ({
+      ...current,
+      presentation,
+      impresos: {
+        ...current.impresos,
+        model232: presentation.model232Enabled,
+      },
+    }))
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError(null)
@@ -174,6 +224,7 @@ export function EditGestoriaClientDialog({
             <Tabs defaultValue="general" className="space-y-4">
               <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-sand-100 p-1">
                 <TabsTrigger value="general">Datos generales</TabsTrigger>
+                <TabsTrigger value="presentacion">Presentación fiscal</TabsTrigger>
                 <TabsTrigger value="impresos">Impresos</TabsTrigger>
                 <TabsTrigger value="bancos">Bancos</TabsTrigger>
                 <TabsTrigger value="actividades">Actividades</TabsTrigger>
@@ -198,31 +249,13 @@ export function EditGestoriaClientDialog({
                     <select
                       value={profile.entityType}
                       onChange={(e) =>
-                        updateProfile({
-                          entityType: e.target.value as GestoriaClientProfileDto["entityType"],
-                        })
+                        handleEntityTypeChange(
+                          e.target.value as GestoriaClientProfileDto["entityType"],
+                        )
                       }
                       className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                     >
                       {ENTITY_TYPE_OPTIONS.map((option) => (
-                        <option key={option.id} value={option.id}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="Plan contable">
-                    <select
-                      value={profile.accountingPlanType}
-                      onChange={(e) =>
-                        updateProfile({
-                          accountingPlanType:
-                            e.target.value as GestoriaClientProfileDto["accountingPlanType"],
-                        })
-                      }
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                    >
-                      {ACCOUNTING_PLAN_OPTIONS.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.label}
                         </option>
@@ -351,6 +384,16 @@ export function EditGestoriaClientDialog({
                 </div>
               </TabsContent>
 
+              <TabsContent value="presentacion" className="space-y-4">
+                <GestoriaPresentationConfigForm
+                  entityType={clientEntityType}
+                  accountingPlanType={profile.accountingPlanType}
+                  presentation={profile.presentation}
+                  onAccountingPlanChange={handleAccountingPlanChange}
+                  onPresentationChange={handlePresentationChange}
+                />
+              </TabsContent>
+
               <TabsContent value="impresos" className="space-y-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {[
@@ -358,6 +401,7 @@ export function EditGestoriaClientDialog({
                     ["model115", "Modelo 115"],
                     ["model123", "Modelo 123"],
                     ["model180", "Modelo 180"],
+                    ["model232", "Modelo 232"],
                     ["model303", "Modelo 303"],
                     ["model347", "Modelo 347"],
                     ["model349", "Modelo 349"],

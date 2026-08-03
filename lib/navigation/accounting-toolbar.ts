@@ -170,6 +170,7 @@ export function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/compras/facturas-recibidas")) return "Facturas recibidas"
   if (pathname.startsWith("/dashboard/contabilidad/clientes-gestoria/")) return "Situación de la empresa"
   if (pathname.startsWith("/dashboard/contabilidad/clientes-gestoria")) return "Contabilidad Clientes Gestoría"
+  if (pathname.startsWith("/dashboard/contabilidad/presentacion-fiscal")) return "Presentación fiscal"
   if (pathname.startsWith("/dashboard/contabilidad/conciliacion-bancaria")) return "Conciliación bancaria"
   if (pathname.startsWith("/dashboard/compras/extractos")) return "Conciliación bancaria"
   if (pathname.startsWith("/dashboard/contactos")) return "Clientes y Proveedores"

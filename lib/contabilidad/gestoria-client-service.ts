@@ -1,4 +1,4 @@
-import type { CompanyClientProfile } from "@prisma/client"
+import type { AccountingPlanType, CompanyClientProfile } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { DEFAULT_SETTINGS_BY_PROFILE } from "@/lib/fiscal/fiscal-settings"
 import { buildGestoriaCompanyCode, resolveCompanyAccessPath } from "@/lib/contabilidad/gestoria-companies"
@@ -7,6 +7,12 @@ import {
   type GestoriaClientDetailDto,
   type GestoriaClientProfileDto,
 } from "@/lib/contabilidad/gestoria-client-profile-types"
+import {
+  createDefaultPresentationConfig,
+  defaultAccountingPlanForEntity,
+  syncPresentationWithAccountingPlan,
+  type GestoriaPresentationConfig,
+} from "@/lib/contabilidad/gestoria-presentation-config"
 import {
   fiscalSettingsFromProfileImpresos,
   profileDtoToRecordData,
@@ -20,6 +26,8 @@ export interface CreateGestoriaClientInput {
   name: string
   cif?: string
   entityType: GestoriaClientEntityType
+  accountingPlanType?: AccountingPlanType
+  presentation?: GestoriaPresentationConfig
 }
 
 export interface UpdateGestoriaClientInput {
@@ -112,9 +120,21 @@ export async function createGestoriaClientCompany(
   const fiscalDefaults = DEFAULT_SETTINGS_BY_PROFILE[profile]
   const clientCode = await allocateClientCode(accountId)
   const gestoriaEntityType = mapEntityTypeToGestoria(input.entityType)
-  const emptyProfile = createEmptyGestoriaProfile(clientCode)
+  const emptyProfile = createEmptyGestoriaProfile(clientCode, input.entityType)
   emptyProfile.entityType = gestoriaEntityType
   emptyProfile.accessPath = resolveCompanyAccessPath(clientCode, "cloud")
+  emptyProfile.accountingPlanType =
+    input.accountingPlanType ?? defaultAccountingPlanForEntity(input.entityType)
+  emptyProfile.presentation =
+    input.presentation ??
+    syncPresentationWithAccountingPlan(
+      createDefaultPresentationConfig(input.entityType),
+      emptyProfile.accountingPlanType,
+      input.entityType,
+    )
+  if (emptyProfile.presentation.model232Enabled) {
+    emptyProfile.impresos.model232 = true
+  }
 
   const company = await prisma.$transaction(async (tx) => {
     const created = await tx.company.create({

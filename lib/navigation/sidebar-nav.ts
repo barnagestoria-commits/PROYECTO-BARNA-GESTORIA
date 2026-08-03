@@ -182,6 +182,12 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             accountTypes: ["GESTORIA"],
           },
           {
+            label: "Presentación fiscal",
+            href: "/dashboard/contabilidad/presentacion-fiscal",
+            description: "Plan contable, balances, IS, cuentas anuales y legalización de libros",
+            accountTypes: ["GESTORIA"],
+          },
+          {
             label: "Libro diario / Asientos",
             href: "/dashboard/contabilidad",
             description: "Contabilización con flujo de teclado profesional",
@@ -263,6 +269,17 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Modelo 115 — Alquileres",
             href: "/dashboard/fiscal/115",
             description: "Retenciones arrendamientos",
+          },
+        ],
+      },
+      {
+        title: "Sociedades y cuentas anuales",
+        items: [
+          {
+            label: "Presentación fiscal (IS / CA)",
+            href: "/dashboard/contabilidad/presentacion-fiscal",
+            description: "Balances Pymes, modelo 200, 202, 232 y depósito de cuentas",
+            accountTypes: ["GESTORIA"],
           },
         ],
       },
@@ -365,6 +382,9 @@ export function isNavLinkActive(href: string, pathname: string, searchParams?: s
   }
   if (path === "/dashboard/contabilidad/clientes-gestoria") {
     return pathname.startsWith("/dashboard/contabilidad/clientes-gestoria")
+  }
+  if (path === "/dashboard/contabilidad/presentacion-fiscal") {
+    return pathname.startsWith("/dashboard/contabilidad/presentacion-fiscal")
   }
   if (path === "/dashboard/contabilidad/conciliacion-bancaria") {
     return pathname === "/dashboard/contabilidad/conciliacion-bancaria"

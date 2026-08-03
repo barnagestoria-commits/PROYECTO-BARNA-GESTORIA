@@ -1,13 +1,21 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import type { AccountingPlanType } from "@prisma/client"
 import { Building2, Loader2, UserRound, Wand2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { GestoriaPresentationConfigForm } from "@/components/contabilidad/gestoria-presentation-config-form"
 import { apiFetch } from "@/lib/api-client"
 import type { CifLookupResult } from "@/lib/contacts/cif-lookup"
 import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
+import {
+  createDefaultPresentationConfig,
+  defaultAccountingPlanForEntity,
+  syncPresentationWithAccountingPlan,
+  type GestoriaPresentationConfig,
+} from "@/lib/contabilidad/gestoria-presentation-config"
 import { cn } from "@/lib/utils"
 
 interface AddGestoriaClientDialogProps {
@@ -42,15 +50,32 @@ export function AddGestoriaClientDialog({
   onCreated,
 }: AddGestoriaClientDialogProps) {
   const [entityType, setEntityType] = useState<GestoriaClientEntityType>("juridica")
+  const [accountingPlanType, setAccountingPlanType] = useState<AccountingPlanType>("PGC_PYME")
+  const [presentation, setPresentation] = useState<GestoriaPresentationConfig>(
+    createDefaultPresentationConfig("juridica"),
+  )
   const [name, setName] = useState("")
   const [cif, setCif] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  const applyEntityType = (nextEntityType: GestoriaClientEntityType) => {
+    const nextPlan = defaultAccountingPlanForEntity(nextEntityType)
+    setEntityType(nextEntityType)
+    setAccountingPlanType(nextPlan)
+    setPresentation(
+      syncPresentationWithAccountingPlan(
+        createDefaultPresentationConfig(nextEntityType),
+        nextPlan,
+        nextEntityType,
+      ),
+    )
+  }
+
   useEffect(() => {
     if (!open) return
-    setEntityType("juridica")
+    applyEntityType("juridica")
     setName("")
     setCif("")
     setError(null)
@@ -83,9 +108,9 @@ export function AddGestoriaClientDialog({
       setName(result.data.razonSocial)
       const first = normalized[0]?.toUpperCase()
       if (first && "XYZ0123456789".includes(first)) {
-        setEntityType("fisica")
+        applyEntityType("fisica")
       } else if (first && "ABCFGJHNPQRSUVW".includes(first)) {
-        setEntityType("juridica")
+        applyEntityType("juridica")
       }
     } catch (lookupError) {
       setError(
@@ -96,6 +121,13 @@ export function AddGestoriaClientDialog({
     } finally {
       setIsLookingUp(false)
     }
+  }
+
+  const handleAccountingPlanChange = (plan: AccountingPlanType) => {
+    setAccountingPlanType(plan)
+    setPresentation((current) =>
+      syncPresentationWithAccountingPlan(current, plan, entityType),
+    )
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -115,6 +147,8 @@ export function AddGestoriaClientDialog({
           name: name.trim(),
           cif: cif.trim() || undefined,
           entityType,
+          accountingPlanType,
+          presentation,
         }),
       })
       onCreated(data.company.id)
@@ -143,7 +177,7 @@ export function AddGestoriaClientDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-gestoria-client-title"
-        className="relative z-10 flex max-h-[92vh] w-full max-w-xl flex-col overflow-hidden rounded-t-2xl border border-sand-200 bg-white shadow-2xl sm:rounded-2xl"
+        className="relative z-10 flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl border border-sand-200 bg-white shadow-2xl sm:rounded-2xl"
       >
         <div className="flex items-center justify-between border-b border-sand-200 px-5 py-4">
           <div>
@@ -151,7 +185,7 @@ export function AddGestoriaClientDialog({
               Agregar Persona Jurídica/Física
             </h2>
             <p className="text-sm text-graphite-500">
-              Alta de empresa cliente en la cartera de la gestoría
+              Alta de empresa cliente con plan contable y presentación fiscal
             </p>
           </div>
           <button
@@ -175,7 +209,7 @@ export function AddGestoriaClientDialog({
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setEntityType(option.value)}
+                    onClick={() => applyEntityType(option.value)}
                     className={cn(
                       "flex flex-col items-start rounded-xl border-2 p-4 text-left transition-all",
                       selected
@@ -241,6 +275,17 @@ export function AddGestoriaClientDialog({
                 required
               />
             </div>
+          </div>
+
+          <div className="mt-6 border-t border-sand-200 pt-5">
+            <GestoriaPresentationConfigForm
+              entityType={entityType}
+              accountingPlanType={accountingPlanType}
+              presentation={presentation}
+              onAccountingPlanChange={handleAccountingPlanChange}
+              onPresentationChange={setPresentation}
+              compact
+            />
           </div>
 
           <div className="mt-6 flex flex-col-reverse gap-2 border-t border-sand-200 pt-4 sm:flex-row sm:justify-end">

@@ -1,5 +1,8 @@
 import type { AccountingPlanType, GestoriaEntityType } from "@prisma/client"
 import type { CompanyFiscalSettingsDto } from "@/lib/fiscal/fiscal-settings"
+import type { GestoriaPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
+import { createDefaultPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
+import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
 
 export interface GestoriaBankAccount {
   id: string
@@ -75,6 +78,7 @@ export interface GestoriaImpresosConfig {
   model115?: boolean
   model123?: boolean
   model180?: boolean
+  model232?: boolean
   model303?: boolean
   model347?: boolean
   model349?: boolean
@@ -139,6 +143,7 @@ export interface GestoriaClientProfileDto {
   impresos: GestoriaImpresosConfig
   inmovilizadoParams: GestoriaInmovilizadoParams
   prorrata: GestoriaProrrataConfig
+  presentation: GestoriaPresentationConfig
 }
 
 export interface GestoriaClientDetailDto {
@@ -160,11 +165,19 @@ export const ENTITY_TYPE_OPTIONS: Array<{ id: GestoriaEntityType; label: string 
   { id: "PERSONA_FISICA", label: "Persona Física · IRPF" },
 ]
 
-export function createEmptyGestoriaProfile(clientCode: string): GestoriaClientProfileDto {
+export function createEmptyGestoriaProfile(
+  clientCode: string,
+  entityType: GestoriaClientEntityType = "juridica",
+): GestoriaClientProfileDto {
+  const gestoriaEntityType: GestoriaEntityType =
+    entityType === "fisica" ? "PERSONA_FISICA" : "PERSONA_JURIDICA"
+  const accountingPlanType: AccountingPlanType =
+    entityType === "fisica" ? "PGC_MICRO" : "PGC_PYME"
+
   return {
     clientCode,
-    entityType: "PERSONA_JURIDICA",
-    accountingPlanType: "PGC_PYME",
+    entityType: gestoriaEntityType,
+    accountingPlanType,
     email: "",
     phone: "",
     fax: "",
@@ -204,6 +217,7 @@ export function createEmptyGestoriaProfile(clientCode: string): GestoriaClientPr
       issuesB2BInvoices: true,
     },
     prorrata: { enabled: false, type: "General", percent: 0 },
+    presentation: createDefaultPresentationConfig(entityType),
   }
 }
 
