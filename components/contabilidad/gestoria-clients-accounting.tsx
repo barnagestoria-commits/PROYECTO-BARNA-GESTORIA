@@ -1,7 +1,8 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import {
   CircleDollarSign,
   FileSpreadsheet,
@@ -247,7 +248,7 @@ export function GestoriaClientsAccountingPage() {
           <p className="text-sm font-semibold text-pine-900">Empresas</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-1 border-b border-sand-300 bg-sand-50 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 overflow-x-auto border-b border-sand-300 bg-sand-50 px-2 py-1.5">
           <ToolbarIconButton label="Selección" icon={Square} disabled />
           <ToolbarIconButton label="Imprimir listado" icon={Printer} onClick={() => window.print()} />
           <ToolbarIconButton
@@ -313,7 +314,14 @@ export function GestoriaClientsAccountingPage() {
               <div />
             </div>
 
-            <div className="max-h-[420px] overflow-auto bg-white">
+            <div
+              className={cn(
+                "bg-white",
+                filteredRows.length > 12
+                  ? "max-h-[min(70vh,560px)] overflow-y-auto"
+                  : "overflow-visible",
+              )}
+            >
               {rows.length === 0 ? (
                 <p className="px-4 py-10 text-center text-sm text-graphite-500">
                   Aún no tienes empresas clientes asignadas a tu gestoría.
@@ -428,14 +436,14 @@ function ToolbarTextButton({
       onClick={onClick}
       data-tour={dataTour}
       className={cn(
-        "flex h-9 max-w-[220px] items-center gap-1.5 rounded-md border border-sand-300 bg-white px-2.5 text-left text-[11px] font-medium text-graphite-700 shadow-sm transition-colors sm:max-w-none",
+        "flex h-9 items-center gap-1.5 rounded-md border border-sand-300 bg-white px-2.5 text-left text-[11px] font-medium text-graphite-700 shadow-sm transition-colors",
         disabled
           ? "cursor-not-allowed opacity-45"
           : "hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800",
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      <span className="truncate">{label}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   )
 }
@@ -525,6 +533,34 @@ function CompanyGridRow({
   onEdit: () => void
   onDelete: () => void
 }) {
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+
+  const openMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    if (menuOpen) {
+      onCloseMenu()
+      setMenuPosition(null)
+      return
+    }
+
+    const rect = menuButtonRef.current?.getBoundingClientRect()
+    if (rect) {
+      const menuWidth = 148
+      setMenuPosition({
+        top: rect.bottom + 4,
+        left: Math.max(8, rect.right - menuWidth),
+      })
+    }
+    onToggleMenu()
+  }
+
+  useEffect(() => {
+    if (!menuOpen) {
+      setMenuPosition(null)
+    }
+  }, [menuOpen])
+
   return (
     <div
       className={cn(
@@ -542,48 +578,54 @@ function CompanyGridRow({
       </button>
       <div className="relative flex items-center justify-center px-1 py-1">
         <button
+          ref={menuButtonRef}
           type="button"
           aria-label="Acciones del cliente"
-          onClick={(event) => {
-            event.stopPropagation()
-            onToggleMenu()
-          }}
+          aria-expanded={menuOpen}
+          onClick={openMenu}
           className="rounded p-1 text-graphite-500 hover:bg-white hover:text-pine-900"
         >
           <MoreVertical className="h-4 w-4" />
         </button>
-        {menuOpen && (
-          <>
-            <button
-              type="button"
-              className="fixed inset-0 z-10 cursor-default"
-              aria-label="Cerrar menú"
-              onClick={onCloseMenu}
-            />
-            <div className="absolute right-0 top-8 z-20 min-w-[140px] rounded-md border border-sand-200 bg-white py-1 shadow-lg">
+        {menuOpen &&
+          menuPosition &&
+          typeof document !== "undefined" &&
+          createPortal(
+            <>
               <button
                 type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-emerald-50"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onEdit()
-                }}
+                className="fixed inset-0 z-[100] cursor-default"
+                aria-label="Cerrar menú"
+                onClick={onCloseMenu}
+              />
+              <div
+                className="fixed z-[101] min-w-[148px] rounded-md border border-sand-200 bg-white py-1 shadow-lg"
+                style={{ top: menuPosition.top, left: menuPosition.left }}
               >
-                <Pencil className="h-4 w-4" /> Editar
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onDelete()
-                }}
-              >
-                <Trash2 className="h-4 w-4" /> Eliminar
-              </button>
-            </div>
-          </>
-        )}
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-emerald-50"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onEdit()
+                  }}
+                >
+                  <Pencil className="h-4 w-4" /> Editar
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onDelete()
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" /> Eliminar
+                </button>
+              </div>
+            </>,
+            document.body,
+          )}
       </div>
     </div>
   )

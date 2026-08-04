@@ -109,6 +109,23 @@ function isInvoiceCommand(code: AccountingCommandCode | null): code is "17" | "3
   return code === "17" || code === "34"
 }
 
+interface CommittedEntryLine {
+  concepto: string
+  documento?: string
+  cuenta: string
+  debe: number
+  haber: number
+  contrapartida?: string
+}
+
+interface CommittedEntry {
+  id: string
+  refNumber: number
+  fecha: string
+  commandCode: AccountingCommandCode | null
+  lines: CommittedEntryLine[]
+}
+
 export function QuickAccountingEntryForm() {
   const { activeCompany } = useAuth()
   const searchParams = useSearchParams()
@@ -138,6 +155,8 @@ export function QuickAccountingEntryForm() {
   const [companyExtractOpen, setCompanyExtractOpen] = useState(false)
   const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const [movementsRefreshKey, setMovementsRefreshKey] = useState(0)
+  const [committedEntries, setCommittedEntries] = useState<CommittedEntry[]>([])
+  const [selectedCommittedEntryId, setSelectedCommittedEntryId] = useState<string | null>(null)
   const [analyticEnabled, setAnalyticEnabled] = useState(false)
   const [analyticByLineId, setAnalyticByLineId] = useState<Map<string, AnalyticDistributionInput[]>>(
     () => new Map(),
@@ -152,6 +171,8 @@ export function QuickAccountingEntryForm() {
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
+  const committedEntryRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
+  const committedListRef = useRef<HTMLDivElement>(null)
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -237,11 +258,99 @@ export function QuickAccountingEntryForm() {
   }, [])
 
   const focusCell = useCallback((row: number, field: EntryCellField) => {
+    setSelectedCommittedEntryId(null)
     setActiveCell({ row, field })
     const el = inputRefs.current.get(cellKey(row, field))
     el?.focus()
     el?.select()
   }, [])
+
+  const selectedCommittedIndex = useMemo(() => {
+    if (!selectedCommittedEntryId) return -1
+    return committedEntries.findIndex((entry) => entry.id === selectedCommittedEntryId)
+  }, [committedEntries, selectedCommittedEntryId])
+
+  const selectedCommittedEntry = useMemo(() => {
+    if (selectedCommittedIndex < 0) return null
+    return committedEntries[selectedCommittedIndex] ?? null
+  }, [committedEntries, selectedCommittedIndex])
+
+  const scrollCommittedEntryIntoView = useCallback((entryId: string) => {
+    requestAnimationFrame(() => {
+      committedEntryRowRefs.current.get(entryId)?.scrollIntoView({ block: "nearest" })
+    })
+  }, [])
+
+  const selectCommittedEntry = useCallback(
+    (entryId: string | null) => {
+      setSelectedCommittedEntryId(entryId)
+      if (entryId) {
+        if (document.activeElement instanceof HTMLElement) {
+          document.activeElement.blur()
+        }
+        scrollCommittedEntryIntoView(entryId)
+      }
+    },
+    [scrollCommittedEntryIntoView],
+  )
+
+  const navigateCommittedEntry = useCallback(
+    (direction: "up" | "down") => {
+      if (committedEntries.length === 0) return
+
+      if (selectedCommittedIndex < 0) {
+        if (direction === "up") {
+          selectCommittedEntry(committedEntries[committedEntries.length - 1].id)
+        }
+        return
+      }
+
+      if (direction === "up") {
+        if (selectedCommittedIndex <= 0) {
+          selectCommittedEntry(committedEntries[0].id)
+          return
+        }
+        selectCommittedEntry(committedEntries[selectedCommittedIndex - 1].id)
+        return
+      }
+
+      if (selectedCommittedIndex >= committedEntries.length - 1) {
+        selectCommittedEntry(null)
+        requestAnimationFrame(() => focusCell(0, "fecha"))
+        return
+      }
+
+      selectCommittedEntry(committedEntries[selectedCommittedIndex + 1].id)
+    },
+    [committedEntries, focusCell, selectCommittedEntry, selectedCommittedIndex],
+  )
+
+  const openSelectedCommittedEntry = useCallback(() => {
+    if (!selectedCommittedEntryId) return
+    setEditEntryId(selectedCommittedEntryId)
+  }, [selectedCommittedEntryId])
+
+  const isEntryNavigationBlocked = useCallback(() => {
+    return (
+      pgcDialogOpen ||
+      nifDialogOpen ||
+      editEntryId !== null ||
+      movementsDialogOpen ||
+      companyExtractOpen ||
+      newSubaccountPrefix !== null ||
+      missingAccountState !== null ||
+      analyticDialog !== null
+    )
+  }, [
+    analyticDialog,
+    companyExtractOpen,
+    editEntryId,
+    missingAccountState,
+    movementsDialogOpen,
+    newSubaccountPrefix,
+    nifDialogOpen,
+    pgcDialogOpen,
+  ])
 
   const syncInvoiceAmountsToLines = useCallback(
     (sourceLines: AccountingEntryLine[]) => {
@@ -641,6 +750,38 @@ export function QuickAccountingEntryForm() {
     row: number,
     field: EntryCellField,
   ) => {
+    if (!isEntryNavigationBlocked()) {
+      if (event.key === "ArrowUp") {
+        if (committedEntries.length > 0 && row === 0) {
+          event.preventDefault()
+          if (selectedCommittedEntryId) {
+            navigateCommittedEntry("up")
+          } else {
+            selectCommittedEntry(committedEntries[committedEntries.length - 1].id)
+          }
+          return
+        }
+        if (row > 0) {
+          event.preventDefault()
+          focusCell(row - 1, field)
+          return
+        }
+      }
+
+      if (event.key === "ArrowDown") {
+        if (selectedCommittedEntryId) {
+          event.preventDefault()
+          navigateCommittedEntry("down")
+          return
+        }
+        if (row < lines.length - 1) {
+          event.preventDefault()
+          focusCell(row + 1, field)
+          return
+        }
+      }
+    }
+
     if (event.key === "Enter" || (event.key === "Tab" && !event.shiftKey)) {
       event.preventDefault()
 
@@ -767,11 +908,50 @@ export function QuickAccountingEntryForm() {
         event.preventDefault()
         openAccountExtract(activeCell.row)
       }
+
+      if (isEntryNavigationBlocked()) return
+
+      const target = event.target
+      const inDraftInput =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        if (committedEntries.length === 0) return
+        if (inDraftInput && !selectedCommittedEntryId) return
+
+        event.preventDefault()
+        navigateCommittedEntry(event.key === "ArrowUp" ? "up" : "down")
+        return
+      }
+
+      if (event.key === "Enter" && selectedCommittedEntryId && !inDraftInput) {
+        event.preventDefault()
+        openSelectedCommittedEntry()
+        return
+      }
+
+      if (event.key === "Escape" && selectedCommittedEntryId) {
+        event.preventDefault()
+        selectCommittedEntry(null)
+        focusCell(0, "fecha")
+      }
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [activeCell.row, openAccountExtract])
+  }, [
+    activeCell.row,
+    committedEntries.length,
+    focusCell,
+    isEntryNavigationBlocked,
+    navigateCommittedEntry,
+    openAccountExtract,
+    openSelectedCommittedEntry,
+    selectCommittedEntry,
+    selectedCommittedEntryId,
+  ])
 
   const removeLine = (lineId: string) => {
     setLines((prev) => (prev.length > 1 ? prev.filter((line) => line.id !== lineId) : prev))
@@ -816,6 +996,12 @@ export function QuickAccountingEntryForm() {
   )
 
   const entryStatusHint = useMemo((): string => {
+    if (selectedCommittedEntry) {
+      return `Asiento Ref. ${selectedCommittedEntry.refNumber} — ↑↓ navegar · Enter editar · Esc nuevo asiento`
+    }
+    if (committedEntries.length > 0) {
+      return "↑ desde la primera línea para ir al último asiento grabado · Tab para avanzar entre campos"
+    }
     if (activeCell.field === "codigo") {
       return "Indique el Código de Predefinido o Pulse F4"
     }
@@ -826,7 +1012,7 @@ export function QuickAccountingEntryForm() {
       return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
     }
     return "Apunte manual — Tab para avanzar entre campos"
-  }, [activeCell.field, activeCommand])
+  }, [activeCell.field, activeCommand, committedEntries.length, selectedCommittedEntry])
 
   const handleSubmit = async () => {
     if (!totals.isBalanced || isSubmitting) return
@@ -863,6 +1049,23 @@ export function QuickAccountingEntryForm() {
       })
 
       setSubmitSuccess(`Asiento ${data.entry.refNumber} guardado correctamente (${data.entry.fecha}).`)
+      setCommittedEntries((prev) => [
+        ...prev,
+        {
+          id: data.entry.id,
+          refNumber: data.entry.refNumber,
+          fecha: data.entry.fecha,
+          commandCode: activeCommand,
+          lines: lines.map(({ concepto, documento, cuenta, debe, haber, contrapartida }) => ({
+            concepto,
+            documento,
+            cuenta,
+            debe,
+            haber,
+            contrapartida,
+          })),
+        },
+      ])
       setMovementsRefreshKey((value) => value + 1)
       resetForm()
       requestAnimationFrame(() => focusCell(0, "fecha"))
@@ -1002,8 +1205,32 @@ export function QuickAccountingEntryForm() {
 
       <Card data-tour="onboarding-entry-grid">
         <CardContent className="p-0">
-          <div
-            className="flex items-center justify-between gap-2 border-b bg-sand-50 px-3 py-2 text-xs text-graphite-600"
+          {committedEntries.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-sand-100 px-4 py-2 text-xs text-graphite-700">
+              <span>
+                Sesión de alta:{" "}
+                <strong className="text-emerald-900">
+                  {committedEntries.length} asiento{committedEntries.length === 1 ? "" : "s"}
+                </strong>{" "}
+                · {committedEntries.reduce((sum, entry) => sum + entry.lines.length, 0)} líneas
+                visibles · <span className="text-graphite-500">↑↓ navegar · Enter editar</span>
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 border-sand-300 bg-white text-xs"
+                onClick={() => {
+                  setCommittedEntries([])
+                  setSelectedCommittedEntryId(null)
+                }}
+              >
+                Limpiar vista
+              </Button>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2 border-b bg-sand-50 px-3 py-2 text-xs text-graphite-600"
             data-tour="onboarding-analytic"
           >
             <span>
@@ -1011,22 +1238,127 @@ export function QuickAccountingEntryForm() {
               <PieChart className="inline h-3.5 w-3.5 text-emerald-700" /> de cada línea.
             </span>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-                  <th className="w-[108px] px-2 py-2 font-medium">Fecha</th>
-                  <th className="w-14 px-2 py-2 font-medium">Cód.</th>
-                  <th className="min-w-[140px] px-2 py-2 font-medium">Concepto</th>
-                  <th className="w-24 px-2 py-2 font-medium">Documen.</th>
-                  <th className="w-28 px-2 py-2 font-medium">Cuenta</th>
-                  <th className="w-28 px-2 py-2 font-medium text-right">Debe</th>
-                  <th className="w-28 px-2 py-2 font-medium text-right">Haber</th>
-                  <th className="w-28 px-2 py-2 font-medium">Contrapartida</th>
-                  <th className="w-10 px-1 py-2" />
-                </tr>
-              </thead>
-              <tbody>
+
+          <div className="flex max-h-[min(72vh,720px)] flex-col">
+            {committedEntries.length > 0 && (
+              <div
+                ref={committedListRef}
+                tabIndex={0}
+                role="listbox"
+                aria-label="Asientos grabados en la sesión"
+                aria-activedescendant={
+                  selectedCommittedEntryId ? `committed-entry-${selectedCommittedEntryId}` : undefined
+                }
+                className="min-h-0 flex-1 overflow-y-auto overflow-x-auto border-b border-sand-200 bg-sand-50/40 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400"
+                onKeyDown={(event) => {
+                  if (isEntryNavigationBlocked()) return
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault()
+                    navigateCommittedEntry("up")
+                  }
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault()
+                    navigateCommittedEntry("down")
+                  }
+                  if (event.key === "Enter" && selectedCommittedEntryId) {
+                    event.preventDefault()
+                    openSelectedCommittedEntry()
+                  }
+                  if (event.key === "Escape") {
+                    event.preventDefault()
+                    selectCommittedEntry(null)
+                    focusCell(0, "fecha")
+                  }
+                }}
+                onFocus={() => {
+                  if (!selectedCommittedEntryId && committedEntries.length > 0) {
+                    selectCommittedEntry(committedEntries[committedEntries.length - 1].id)
+                  }
+                }}
+              >
+                <table className="w-full min-w-[960px] text-sm">
+                  <thead className="sticky top-0 z-10 bg-sand-100 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="w-[108px] px-2 py-2 font-medium">Fecha</th>
+                      <th className="w-14 px-2 py-2 font-medium">Ref.</th>
+                      <th className="min-w-[140px] px-2 py-2 font-medium">Concepto</th>
+                      <th className="w-24 px-2 py-2 font-medium">Documen.</th>
+                      <th className="w-28 px-2 py-2 font-medium">Cuenta</th>
+                      <th className="w-28 px-2 py-2 font-medium text-right">Debe</th>
+                      <th className="w-28 px-2 py-2 font-medium text-right">Haber</th>
+                      <th className="w-28 px-2 py-2 font-medium">Contrapartida</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {committedEntries.map((entry) =>
+                      entry.lines.map((line, lineIndex) => {
+                        const isSelected = selectedCommittedEntryId === entry.id
+                        return (
+                        <tr
+                          key={`${entry.id}-${lineIndex}`}
+                          id={lineIndex === 0 ? `committed-entry-${entry.id}` : undefined}
+                          ref={(element) => {
+                            if (lineIndex === 0) {
+                              if (element) {
+                                committedEntryRowRefs.current.set(entry.id, element)
+                              } else {
+                                committedEntryRowRefs.current.delete(entry.id)
+                              }
+                            }
+                          }}
+                          role="option"
+                          aria-selected={isSelected}
+                          className={cn(
+                            "cursor-pointer border-b border-sand-200/80 text-graphite-700",
+                            isSelected
+                              ? "bg-emerald-100/90 text-emerald-950"
+                              : "hover:bg-emerald-50/60",
+                          )}
+                          onClick={() => selectCommittedEntry(entry.id)}
+                          onDoubleClick={() => setEditEntryId(entry.id)}
+                          title={`Asiento ${entry.refNumber} — clic seleccionar · doble clic o Enter editar`}
+                        >
+                          <td className="px-2 py-1.5 font-mono text-xs">
+                            {lineIndex === 0 ? entry.fecha : ""}
+                          </td>
+                          <td className="px-2 py-1.5 font-mono text-xs font-semibold text-emerald-800">
+                            {lineIndex === 0 ? entry.refNumber : ""}
+                          </td>
+                          <td className="px-2 py-1.5">{line.concepto || "—"}</td>
+                          <td className="px-2 py-1.5 font-mono text-xs">{line.documento || "—"}</td>
+                          <td className="px-2 py-1.5 font-mono text-xs">{line.cuenta || "—"}</td>
+                          <td className="px-2 py-1.5 text-right font-mono tabular-nums">
+                            {line.debe > 0 ? formatEuro(line.debe) : ""}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono tabular-nums">
+                            {line.haber > 0 ? formatEuro(line.haber) : ""}
+                          </td>
+                          <td className="px-2 py-1.5 font-mono text-xs">{line.contrapartida || ""}</td>
+                        </tr>
+                        )
+                      }),
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <div className="shrink-0 overflow-x-auto">
+              <table className="w-full min-w-[960px] text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
+                    <th className="w-[108px] px-2 py-2 font-medium">Fecha</th>
+                    <th className="w-14 px-2 py-2 font-medium">Cód.</th>
+                    <th className="min-w-[140px] px-2 py-2 font-medium">Concepto</th>
+                    <th className="w-24 px-2 py-2 font-medium">Documen.</th>
+                    <th className="w-28 px-2 py-2 font-medium">Cuenta</th>
+                    <th className="w-28 px-2 py-2 font-medium text-right">Debe</th>
+                    <th className="w-28 px-2 py-2 font-medium text-right">Haber</th>
+                    <th className="w-28 px-2 py-2 font-medium">Contrapartida</th>
+                    <th className="w-10 px-1 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
                 {lines.map((line, rowIndex) => {
                   const warnings = validationByLine.get(line.id) ?? []
                   const hasWarning = warnings.length > 0
@@ -1258,6 +1590,7 @@ export function QuickAccountingEntryForm() {
                 </tr>
               </tfoot>
             </table>
+            </div>
           </div>
 
           <div className="border-t bg-emerald-50/80 px-4 py-2 text-xs text-emerald-900">
@@ -1433,7 +1766,12 @@ export function QuickAccountingEntryForm() {
         entryId={editEntryId}
         onClose={() => setEditEntryId(null)}
         onSaved={() => setMovementsRefreshKey((value) => value + 1)}
-        onDeleted={() => setMovementsRefreshKey((value) => value + 1)}
+        onDeleted={() => {
+          setMovementsRefreshKey((value) => value + 1)
+          setCommittedEntries((prev) =>
+            editEntryId ? prev.filter((entry) => entry.id !== editEntryId) : prev,
+          )
+        }}
       />
     </div>
   )
