@@ -461,6 +461,67 @@ function parseNativeJournalFile(
   return { entries: propagateEntryVendorAccounts(entries), warnings }
 }
 
+function entryTotals(entry: A3JournalEntry): { debe: number; haber: number } {
+  return entry.lines.reduce(
+    (acc, line) => ({ debe: acc.debe + line.debe, haber: acc.haber + line.haber }),
+    { debe: 0, haber: 0 },
+  )
+}
+
+function conceptGroupingKey(concept: string): string {
+  const words = concept
+    .replace(/[^\x20-\x7E\u00C0-\u00FF]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(" ")
+    .filter((word) => word.length > 2 && /^[A-Za-zÁÉÍÓÚÑ]+$/u.test(word))
+    .slice(0, 3)
+    .join(" ")
+  return normalizeVendorKey(words) || words.toUpperCase()
+}
+
+/** Une apuntes partidos cuando el diario nativo genera claves distintas en D/H del mismo pago. */
+function mergeComplementaryNativeEntries(entries: A3JournalEntry[]): A3JournalEntry[] {
+  const used = new Set<number>()
+  const merged: A3JournalEntry[] = []
+
+  for (let i = 0; i < entries.length; i++) {
+    if (used.has(i)) continue
+    const left = entries[i]!
+    const leftTotals = entryTotals(left)
+    if (Math.abs(leftTotals.debe - leftTotals.haber) < 0.01) {
+      merged.push(left)
+      continue
+    }
+
+    let combined: A3JournalEntry | null = null
+    for (let j = i + 1; j < entries.length; j++) {
+      if (used.has(j)) continue
+      const right = entries[j]!
+      if (left.fecha !== right.fecha) continue
+
+      const rightTotals = entryTotals(right)
+      if (Math.abs(leftTotals.debe - rightTotals.haber) >= 0.02) continue
+      if (Math.abs(leftTotals.haber - rightTotals.debe) >= 0.02) continue
+      if (conceptGroupingKey(left.concepto) !== conceptGroupingKey(right.concepto)) continue
+
+      combined = {
+        fecha: left.fecha,
+        documento: left.documento || right.documento,
+        concepto: left.concepto.length >= right.concepto.length ? left.concepto : right.concepto,
+        lines: [...left.lines, ...right.lines],
+        recordTypes: left.recordTypes,
+      }
+      used.add(j)
+      break
+    }
+
+    merged.push(combined ?? left)
+  }
+
+  return merged
+}
+
 function parseExpManifest(content: string): A3NativeExportManifest | null {
   const lines = content.split(/\r?\n/).map((line) => line.trimEnd())
   const files: Array<{ name: string; code: string }> = []
@@ -615,11 +676,47 @@ function inferCompanyCode(manifest: A3NativeExportManifest | null, folderName: s
   return match?.[1] ?? null
 }
 
-function monthFromJournalFileName(fileName: string): number | null {
-  const match = fileName.match(/004586(\d{1,2})A\.DAT/i)
+/** Prefijo de ficheros mensuales *A.DAT (p. ej. 0045826 → 004586, 0090926 → 009096). */
+export function nativeJournalFilePrefix(
+  companyCode: string | null,
+  fileNames: string[],
+): string | null {
+  if (companyCode && companyCode.length >= 6) {
+    const fromCode = `${companyCode.slice(0, 5)}${companyCode[5]}`
+    const hasMatch = fileNames.some((name) => {
+      const base = name.split("/").pop()?.toUpperCase() ?? ""
+      return base.startsWith(fromCode.toUpperCase()) && /^\d{6}\d{1,2}A\.DAT$/.test(base)
+    })
+    if (hasMatch) return fromCode
+  }
+
+  for (const name of fileNames) {
+    const base = name.split("/").pop()?.toUpperCase() ?? ""
+    const match = base.match(/^(\d{6})(\d{1,2})A\.DAT$/)
+    if (match) return match[1]!
+  }
+
+  if (fileNames.some((name) => /004586\d{1,2}A\.DAT/i.test(name.split("/").pop() ?? ""))) {
+    return "004586"
+  }
+
+  return null
+}
+
+export function monthFromJournalFileName(fileName: string, prefix: string): number | null {
+  const base = fileName.split("/").pop()?.toUpperCase() ?? ""
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const match = base.match(new RegExp(`^${escaped}(\\d{1,2})A\\.DAT$`, "i"))
   if (!match) return null
   const month = Number(match[1])
   return month >= 1 && month <= 12 ? month : null
+}
+
+function discoverJournalFiles(fileNames: string[], prefix: string | null): string[] {
+  if (!prefix) return []
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const pattern = new RegExp(`^${escaped}\\d{1,2}A\\.DAT$`, "i")
+  return fileNames.filter((name) => pattern.test(name.split("/").pop()?.toUpperCase() ?? ""))
 }
 
 function fileBaseName(path: string): string {
@@ -631,7 +728,7 @@ export { extractVendorNameFromConcept as extractVendorName }
 export function isNativeA3ExportFileMap(fileNames: string[]): boolean {
   const lower = fileNames.map((name) => fileBaseName(name))
   const hasExp = lower.some((name) => /^e\d+\.exp$/i.test(name))
-  const hasMonthlyJournal = lower.some((name) => /004586\dA\.DAT/i.test(name))
+  const hasMonthlyJournal = lower.some((name) => /^\d{6}\d{1,2}a\.dat$/i.test(name))
   const hasCu = lower.some((name) => name.endsWith("cu.dat"))
   return hasExp || (hasMonthlyJournal && hasCu)
 }
@@ -645,15 +742,12 @@ export function parseNativeA3ExportFiles(
 
   const expFile = fileNames.find((name) => /\/E\d+\.EXP$/i.test(name) || /^E\d+\.EXP$/i.test(name))
   const manifest = expFile ? parseExpManifest(decodeLatin1(files.get(expFile)!)) : null
-
-  const journalFiles = fileNames.filter((name) => {
-    const base = name.split("/").pop()?.toUpperCase() ?? ""
-    return /^004586(\d{1,2})A\.DAT$/.test(base)
-  })
+  const companyCode = inferCompanyCode(manifest, folderName)
+  const journalPrefix = nativeJournalFilePrefix(companyCode, fileNames)
+  const journalFiles = discoverJournalFiles(fileNames, journalPrefix)
 
   const sampleBuffers = journalFiles.slice(0, 3).map((name) => files.get(name)!)
   const fiscalYear = inferFiscalYearFromBuffers(sampleBuffers.length > 0 ? sampleBuffers : [...files.values()])
-  const companyCode = inferCompanyCode(manifest, folderName)
 
   const tcliproData = parseTcliproFromFiles(files)
   const subaccountLists: A3Subaccount[][] = []
@@ -715,7 +809,7 @@ export function parseNativeA3ExportFiles(
 
   for (const journalFile of journalFiles.sort()) {
     const base = journalFile.split("/").pop() ?? journalFile
-    const month = monthFromJournalFileName(base)
+    const month = monthFromJournalFileName(base, journalPrefix ?? "")
     if (!month) continue
 
     const parsed = parseNativeJournalFile(
@@ -731,6 +825,8 @@ export function parseNativeA3ExportFiles(
     entries.push(...parsed.entries)
     warnings.push(...parsed.warnings)
   }
+
+  entries = mergeComplementaryNativeEntries(entries)
 
   if (thirdParties.length > 0 && entries.length > 0) {
     const matched = applyVendorMatchingToEntries(entries, thirdParties)

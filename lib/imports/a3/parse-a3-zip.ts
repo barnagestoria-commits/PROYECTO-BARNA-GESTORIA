@@ -184,7 +184,7 @@ async function parseA3ZipFileMap(
       contents: {
         fileNames,
         subaccountSource: fileNames.some((n) => n.endsWith("cu.dat")) ? "subcue.dat" : null,
-        journalSource: fileNames.some((n) => /004586\da\.dat/i.test(n)) ? "asient.dat" : "asient.dat",
+        journalSource: fileNames.some((n) => /\d{6}\d{1,2}a\.dat/i.test(n)) ? "asient.dat" : "asient.dat",
         linkFormat: "native-v950",
         importMode: "native-export",
       },

@@ -246,7 +246,7 @@ export function AddGestoriaClientDialog({
                   value={cif}
                   onChange={(event) => setCif(event.target.value.toUpperCase())}
                   className="font-mono uppercase sm:flex-1"
-                  placeholder="B12345678"
+                  placeholder={entityType === "fisica" ? "12345678Z" : "B12345678"}
                 />
                 <Button
                   type="button"
