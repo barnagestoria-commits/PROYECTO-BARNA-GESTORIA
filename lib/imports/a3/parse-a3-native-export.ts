@@ -4,6 +4,12 @@ import {
   parseTcliproSubaccounts,
 } from "@/lib/imports/a3/parse-tclipro"
 import { normalizeCif } from "@/lib/accounting/third-party-types"
+import {
+  isDirectDebitConcept,
+  NATIVE_INSURANCE_ACCOUNT,
+  NATIVE_PENDING_ACCOUNT,
+  resolveUnidentifiedBankMovementAccount,
+} from "@/lib/imports/a3/decode-native-journal-account"
 import { bytesToHex, decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import { isGenericProviderCode, isProviderAccountCode, isValidPgcAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
 import {
@@ -39,7 +45,8 @@ const GENERIC_FALLBACK = {
   expense: "629000000000",
   payroll: "640000000000",
   bank: "572000000000",
-  bridge: "555000000000",
+  bridge: NATIVE_PENDING_ACCOUNT,
+  insurance: NATIVE_INSURANCE_ACCOUNT,
   payrollPayable: "465000000000",
   sales: "705000000000",
 } as const
@@ -117,6 +124,7 @@ function resolveNativeLineAccount(
   seq: number,
   dh: "D" | "H",
   concept: string,
+  record: ImportBytes,
   registry: NativePlanRegistry,
   vendorAccounts: Map<string, string>,
   tailVendorMap: Map<string, string>,
@@ -161,8 +169,11 @@ function resolveNativeLineAccount(
     if (upper.includes("TRASPASO") || upper.includes("TRANSFERENCIA")) {
       return clientAccount ?? vendorAccount ?? GENERIC_FALLBACK.bridge
     }
+    if (isDirectDebitConcept(concept)) {
+      return resolveUnidentifiedBankMovementAccount(concept, record)
+    }
     if (isPaymentConcept(concept)) {
-      return GENERIC_FALLBACK.provider
+      return resolveUnidentifiedBankMovementAccount(concept, record)
     }
     return GENERIC_FALLBACK.bridge
   }
@@ -206,7 +217,9 @@ function resolveNativeLineAccount(
   }
 
   if (isPaymentConcept(concept)) {
-    return dh === "H" ? (registry.defaultBankAccount ?? GENERIC_FALLBACK.bank) : GENERIC_FALLBACK.provider
+    if (dh === "H") return registry.defaultBankAccount ?? GENERIC_FALLBACK.bank
+    if (vendorAccount) return vendorAccount
+    return resolveUnidentifiedBankMovementAccount(concept, record)
   }
 
   if (dh === "H") return registry.defaultBankAccount ?? GENERIC_FALLBACK.bank
@@ -272,6 +285,7 @@ interface ParsedNativeLine {
   line: A3JournalLine
   seq: number
   rawConcept: string
+  record: ImportBytes
 }
 
 function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConcept: string }> {
@@ -381,6 +395,7 @@ function parseNativeJournalFile(
       entryKey,
       seq,
       rawConcept: conceptRaw,
+      record: rec,
       line: {
         fecha,
         cuenta: "",
@@ -401,6 +416,7 @@ function parseNativeJournalFile(
       parsed.seq,
       dh,
       parsed.rawConcept,
+      parsed.record,
       registry,
       vendorAccounts,
       tailVendorMap,
@@ -719,9 +735,9 @@ export function parseNativeA3ExportFiles(
     }
   }
 
-  const genericLines = entries.flatMap((e) => e.lines).filter((l) => isGenericProviderCode(l.cuenta)).length
-  if (genericLines > 0) {
-    warnings.push(`${genericLines} líneas siguen usando cuentas genéricas tras resolver el plan nativo.`)
+  const genericProviderLines = entries.flatMap((e) => e.lines).filter((l) => isGenericProviderCode(l.cuenta)).length
+  if (genericProviderLines > 0) {
+    warnings.push(`${genericProviderLines} líneas siguen usando la cuenta genérica 400000000000.`)
   }
 
   return {
