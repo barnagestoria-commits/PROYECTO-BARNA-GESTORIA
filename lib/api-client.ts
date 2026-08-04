@@ -1,5 +1,15 @@
 import type { AuthSession } from "@/lib/types/auth"
 
+export class ApiRequestError extends Error {
+  readonly code?: string
+
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = "ApiRequestError"
+    this.code = code
+  }
+}
+
 async function parseApiResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type") ?? ""
   const raw = await response.text()
@@ -49,10 +59,10 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     },
   })
 
-  const data = await parseApiResponse<{ error?: string; success?: boolean } & T>(response)
+  const data = await parseApiResponse<{ error?: string; success?: boolean; code?: string } & T>(response)
 
   if (!response.ok) {
-    throw new Error(data.error ?? "Error en la solicitud.")
+    throw new ApiRequestError(data.error ?? "Error en la solicitud.", data.code)
   }
 
   return data as T
@@ -65,10 +75,10 @@ export async function apiFormFetch<T>(url: string, formData: FormData): Promise<
     credentials: "include",
   })
 
-  const data = await parseApiResponse<{ error?: string; success?: boolean } & T>(response)
+  const data = await parseApiResponse<{ error?: string; success?: boolean; code?: string } & T>(response)
 
   if (!response.ok) {
-    throw new Error(data.error ?? "Error en la solicitud.")
+    throw new ApiRequestError(data.error ?? "Error en la solicitud.", data.code)
   }
 
   return data as T

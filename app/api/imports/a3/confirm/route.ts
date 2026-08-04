@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, resolveImportCompany } from "@/lib/auth/api-auth"
 import { confirmA3ZipImport } from "@/lib/imports/a3/a3-import-service"
+import { readZipPasswordFromFormData } from "@/lib/imports/a3/read-zip-password"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -25,7 +26,13 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const result = await confirmA3ZipImport(companyId, file.name, buffer, session.user.id)
+    const result = await confirmA3ZipImport(
+      companyId,
+      file.name,
+      buffer,
+      session.user.id,
+      readZipPasswordFromFormData(formData),
+    )
 
     return NextResponse.json({
       success: true,

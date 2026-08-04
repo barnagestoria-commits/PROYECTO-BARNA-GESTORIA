@@ -4,8 +4,9 @@ import { useCallback, useState } from "react"
 import { useDropzone } from "react-dropzone"
 import { CheckCircle2, FileSpreadsheet, Loader2, Upload } from "lucide-react"
 import { PurgeAccountingEntriesPanel } from "@/components/accounting/purge-accounting-entries-panel"
+import { ZipPasswordDialog } from "@/components/import-export/zip-password-dialog"
 import { Button } from "@/components/ui/button"
-import { apiFetch, apiFormFetch } from "@/lib/api-client"
+import { ApiRequestError, apiFetch, apiFormFetch } from "@/lib/api-client"
 import {
   A3_DIRECT_UPLOAD_MAX_BYTES,
   chunkA3Entries,
@@ -13,6 +14,11 @@ import {
   shouldUseClientSideA3Import,
 } from "@/lib/imports/a3/a3-client-import"
 import { parseA3ZipBytes } from "@/lib/imports/a3/parse-a3-zip"
+import {
+  isZipPasswordError,
+  ZIP_PASSWORD_INCORRECT_CODE,
+  ZIP_PASSWORD_REQUIRED_CODE,
+} from "@/lib/imports/a3/zip-password-errors"
 import type { A3ImportPreview, A3JournalEntry } from "@/lib/imports/a3/types"
 import { cn } from "@/lib/utils"
 
@@ -74,12 +80,46 @@ export function A3CompanyImportPanel({
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const [accountingVersion, setAccountingVersion] = useState(0)
+  const [zipPassword, setZipPassword] = useState<string | null>(null)
+  const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
+  const [passwordDialogError, setPasswordDialogError] = useState<string | null>(null)
+  const [passwordDialogSubmitting, setPasswordDialogSubmitting] = useState(false)
 
   const resetZipImport = () => {
     setPendingZipFile(null)
     setParsedState(null)
     setA3Preview(null)
     setConfirmProgress(null)
+    setZipPassword(null)
+    setPasswordDialogOpen(false)
+    setPasswordDialogError(null)
+  }
+
+  const openPasswordDialog = (message?: string | null) => {
+    setPasswordDialogError(message ?? null)
+    setPasswordDialogOpen(true)
+  }
+
+  const resolveZipImportError = (error: unknown): boolean => {
+    if (error instanceof ApiRequestError) {
+      if (error.code === ZIP_PASSWORD_REQUIRED_CODE) {
+        openPasswordDialog()
+        return true
+      }
+      if (error.code === ZIP_PASSWORD_INCORRECT_CODE) {
+        openPasswordDialog(error.message)
+        return true
+      }
+    }
+    if (isZipPasswordError(error)) {
+      if (error.code === ZIP_PASSWORD_INCORRECT_CODE) {
+        openPasswordDialog(error.message)
+      } else {
+        openPasswordDialog()
+      }
+      return true
+    }
+    return false
   }
 
   const buildPreviewFromParsed = (
@@ -99,10 +139,13 @@ export function A3CompanyImportPanel({
     warnings: parsed.warnings,
   })
 
-  const previewViaServerUpload = async (file: File) => {
+  const previewViaServerUpload = async (file: File, password?: string) => {
     const formData = new FormData()
     formData.append("file", file)
     formData.append("companyId", companyId)
+    if (password) {
+      formData.append("zipPassword", password)
+    }
 
     const data = await apiFormFetch<{ success: true; preview: A3ZipPreview }>(
       "/api/imports/a3/preview",
@@ -112,9 +155,9 @@ export function A3CompanyImportPanel({
     setA3Preview(data.preview)
   }
 
-  const previewViaClientParse = async (file: File) => {
+  const previewViaClientParse = async (file: File, password?: string) => {
     const arrayBuffer = await file.arrayBuffer()
-    const parsed = await parseA3ZipBytes(arrayBuffer, file.name)
+    const parsed = await parseA3ZipBytes(arrayBuffer, file.name, password)
     const vendorRefs = extractVendorRefsFromEntries(parsed.entries)
 
     const { counts } = await apiFetch<{ success: true; counts: { newSubaccountCount: number; newThirdPartyCount: number } }>(
@@ -135,32 +178,59 @@ export function A3CompanyImportPanel({
     setA3Preview(buildPreviewFromParsed(parsed, counts))
   }
 
-  const handleZipPreview = async (file: File) => {
+  const runZipPreview = async (file: File, password?: string) => {
+    if (shouldUseClientSideA3Import(file)) {
+      await previewViaClientParse(file, password)
+    } else {
+      await previewViaServerUpload(file, password)
+    }
+    if (password) {
+      setZipPassword(password)
+    }
+    setPasswordDialogOpen(false)
+    setPasswordDialogError(null)
+  }
+
+  const handleZipPreview = async (file: File, password?: string) => {
     setIsPreviewingZip(true)
     setImportError(null)
     setImportMessage(null)
-    setA3Preview(null)
-    setParsedState(null)
+    if (!password) {
+      setA3Preview(null)
+      setParsedState(null)
+      setZipPassword(null)
+    }
     setPendingZipFile(file)
 
     try {
-      if (shouldUseClientSideA3Import(file)) {
-        await previewViaClientParse(file)
-      } else {
-        await previewViaServerUpload(file)
-      }
+      await runZipPreview(file, password)
     } catch (error) {
+      if (resolveZipImportError(error)) {
+        return
+      }
       setImportError(error instanceof Error ? error.message : "Error al leer el archivo ZIP.")
-      setPendingZipFile(null)
+      if (!password) {
+        setPendingZipFile(null)
+      }
     } finally {
       setIsPreviewingZip(false)
+      setPasswordDialogSubmitting(false)
     }
   }
 
-  const confirmViaServerUpload = async (file: File) => {
+  const handlePasswordDialogSubmit = (password: string) => {
+    if (!pendingZipFile || passwordDialogSubmitting) return
+    setPasswordDialogSubmitting(true)
+    void handleZipPreview(pendingZipFile, password)
+  }
+
+  const confirmViaServerUpload = async (file: File, password?: string) => {
     const formData = new FormData()
     formData.append("file", file)
     formData.append("companyId", companyId)
+    if (password) {
+      formData.append("zipPassword", password)
+    }
 
     return apiFormFetch<{
       success: true
@@ -259,7 +329,7 @@ export function A3CompanyImportPanel({
       const data = parsedState
         ? await confirmViaClientParse(parsedState)
         : pendingZipFile
-          ? await confirmViaServerUpload(pendingZipFile)
+          ? await confirmViaServerUpload(pendingZipFile, zipPassword ?? undefined)
           : null
 
       if (!data) return
@@ -270,6 +340,9 @@ export function A3CompanyImportPanel({
       setAccountingVersion((version) => version + 1)
       onSuccess?.(message)
     } catch (error) {
+      if (resolveZipImportError(error)) {
+        return
+      }
       setImportError(error instanceof Error ? error.message : "Error al confirmar la importación.")
     } finally {
       setIsConfirmingZip(false)
@@ -363,7 +436,7 @@ export function A3CompanyImportPanel({
             ZIP con DIARIO.TXT, SUBCUENT.TXT, SUENLACE.DAT o exportación nativa (carpeta E00xxx)
           </p>
           <p className="mt-1 text-xs text-graphite-500">
-            Archivos grandes se analizan en tu navegador (sin subir el ZIP completo)
+            Si el export A3 está protegido con contraseña, te la pediremos al analizar el ZIP
           </p>
           <p className="mt-2 text-xs font-medium text-emerald-800">
             Destino: {companyName}
@@ -483,6 +556,23 @@ export function A3CompanyImportPanel({
           onPurged={() => onSuccess?.(`Contabilidad de ${companyName} vaciada.`)}
         />
       )}
+
+      <ZipPasswordDialog
+        open={passwordDialogOpen}
+        fileName={pendingZipFile?.name}
+        errorMessage={passwordDialogError}
+        isSubmitting={passwordDialogSubmitting || isPreviewingZip}
+        onCancel={() => {
+          if (passwordDialogSubmitting || isPreviewingZip) return
+          setPasswordDialogOpen(false)
+          setPasswordDialogError(null)
+          if (!a3Preview) {
+            setPendingZipFile(null)
+            setZipPassword(null)
+          }
+        }}
+        onSubmit={handlePasswordDialogSubmit}
+      />
     </div>
   )
 }

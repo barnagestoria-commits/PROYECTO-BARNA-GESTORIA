@@ -1,4 +1,4 @@
-import JSZip from "jszip"
+import { extractZipFiles } from "@/lib/imports/a3/extract-zip-files"
 import {
   isNativeA3ExportFileMap,
   parseNativeA3ExportFiles,
@@ -6,7 +6,7 @@ import {
 import { parseDiarioTxtBuffer } from "@/lib/imports/a3/parse-diario-txt"
 import { parseSubcuentTxtBuffer } from "@/lib/imports/a3/parse-subcuent-txt"
 import { parseSuenlaceBuffer } from "@/lib/imports/a3/parse-suenlace-buffer"
-import { decodeLatin1, toUint8Array, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import type { A3ImportPreview, A3JournalEntry, A3Subaccount, A3ThirdParty, A3ZipContents } from "@/lib/imports/a3/types"
 import { normalizeCif } from "@/lib/accounting/third-party-types"
 
@@ -24,22 +24,6 @@ const VERSION_FILE_ALIASES = ["version.txt", "version.dat", "info.txt"]
 
 function basename(path: string): string {
   return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
-}
-
-async function extractZipFiles(data: ArrayBuffer | ImportBytes): Promise<{ byBase: ZipFileMap; paths: string[] }> {
-  const bytes = toUint8Array(data)
-  const zip = await JSZip.loadAsync(bytes)
-  const byBase = new Map<string, ImportBytes>()
-  const paths: string[] = []
-
-  for (const [path, entry] of Object.entries(zip.files)) {
-    if (entry.dir) continue
-    paths.push(path)
-    const content = await entry.async("uint8array")
-    byBase.set(basename(path), content)
-  }
-
-  return { byBase, paths }
 }
 
 function pickFile(files: ZipFileMap, aliases: string[]): { name: string; buffer: ImportBytes } | null {
@@ -335,16 +319,18 @@ async function parseA3ZipFileMap(
 export async function parseA3ZipBytes(
   data: ArrayBuffer | ImportBytes,
   fileName: string,
+  zipPassword?: string,
 ): Promise<Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">> {
-  const { byBase, paths } = await extractZipFiles(data)
+  const { byBase, paths } = await extractZipFiles(data, zipPassword)
   return parseA3ZipFileMap(byBase, paths, fileName)
 }
 
 export async function parseA3ZipBuffer(
   buffer: Buffer,
   fileName: string,
+  zipPassword?: string,
 ): Promise<Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">> {
-  return parseA3ZipBytes(buffer, fileName)
+  return parseA3ZipBytes(buffer, fileName, zipPassword)
 }
 
 export { recordTypeLabel }

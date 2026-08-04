@@ -143,8 +143,9 @@ export async function previewA3ZipImport(
   companyId: string,
   fileName: string,
   buffer: Buffer,
+  zipPassword?: string,
 ): Promise<A3ImportPreview> {
-  const parsed = await enrichPreview(await parseA3ZipBuffer(buffer, fileName))
+  const parsed = await enrichPreview(await parseA3ZipBuffer(buffer, fileName, zipPassword))
   const [newSubaccountCount, newThirdPartyCount] = await Promise.all([
     countMissingSubaccounts(companyId, parsed.subaccounts),
     countMissingThirdParties(companyId, parsed.thirdParties, parsed.entries),
@@ -262,8 +263,9 @@ export async function confirmA3ZipImport(
   fileName: string,
   buffer: Buffer,
   uploadedById?: string,
+  zipPassword?: string,
 ): Promise<A3ImportResult> {
-  const parsed = await enrichPreview(await parseA3ZipBuffer(buffer, fileName))
+  const parsed = await enrichPreview(await parseA3ZipBuffer(buffer, fileName, zipPassword))
 
   const importRecord = await prisma.accountingDataImport.create({
     data: {

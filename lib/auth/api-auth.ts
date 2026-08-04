@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { AuthSession } from "@/lib/types/auth"
 import { SESSION_COOKIE, getSessionFromToken } from "@/lib/auth/service"
+import { getZipPasswordErrorCode } from "@/lib/imports/a3/zip-password-errors"
 
 export const SESSION_HEADER = "x-session-token"
 
@@ -120,6 +121,10 @@ export function authErrorResponse(error: unknown) {
     return NextResponse.json({ success: false, error: error.message }, { status: error.status })
   }
   if (error instanceof Error) {
+    const code = getZipPasswordErrorCode(error)
+    if (code) {
+      return NextResponse.json({ success: false, error: error.message, code }, { status: 400 })
+    }
     return NextResponse.json({ success: false, error: error.message }, { status: 400 })
   }
   return NextResponse.json({ success: false, error: "Error de autenticación." }, { status: 500 })
