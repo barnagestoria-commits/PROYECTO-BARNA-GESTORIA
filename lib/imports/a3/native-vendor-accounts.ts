@@ -35,7 +35,8 @@ export function buildUniqueVendorAccountMap(subaccounts: A3Subaccount[]): Map<st
 
   for (const sub of subaccounts) {
     const key = normalizeVendorKey(sub.name)
-    if (!key || accountByVendorKey.has(key)) continue
+    if (!key) continue
+    if (accountByVendorKey.has(key)) continue
 
     const digits = padAccountCode12(sub.accountCode)
     const isClient = digits.startsWith(CLIENT_PREFIX)

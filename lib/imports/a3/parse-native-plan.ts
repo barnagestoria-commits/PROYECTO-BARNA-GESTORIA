@@ -1,8 +1,10 @@
 import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import {
+  decodeCu400ProviderSubaccount,
   decodeCuProviderNineDigitField,
   decodeNativeNineDigitAccountField,
   decodeSnnsAccountField,
+  formatA3MerchandiseProviderAccount,
   formatA3ProviderAccount,
   isGarbagePlanRef,
   isProviderAccountCode,
@@ -80,22 +82,35 @@ function nineDigitFieldsInRecord(record: ImportBytes): string[] {
 function resolveAccountFromCuRecord(record: ImportBytes): { accountCode: string; priority: number } | null {
   const providerSub = resolveCuProviderSubaccount(record)
   if (providerSub !== null) {
-    return { accountCode: formatA3ProviderAccount(providerSub), priority: 3 }
+    return { accountCode: formatA3ProviderAccount(providerSub), priority: 4 }
   }
 
-  for (const field of nineDigitFieldsInRecord(record)) {
+  const nineDigitFields = nineDigitFieldsInRecord(record)
+  const has400Template = nineDigitFields.some((field) => field === "100400000")
+
+  for (const field of nineDigitFields) {
     const middle = field.slice(3, 6)
     if (middle === "400" || middle === "410") {
       const fromProvider = decodeCuProviderNineDigitField(field)
       if (fromProvider && isProviderAccountCode(fromProvider)) {
-        return { accountCode: fromProvider, priority: 2 }
+        return { accountCode: fromProvider, priority: 3 }
       }
       continue
     }
     if (!PGC_MIDDLE_IN_NINE.has(middle)) continue
     const decoded = decodeNativeNineDigitAccountField(field)
     if (decoded && isProviderAccountCode(decoded)) {
-      return { accountCode: decoded, priority: 1 }
+      return { accountCode: decoded, priority: 2 }
+    }
+  }
+
+  if (has400Template) {
+    const merchandiseSub = decodeCu400ProviderSubaccount(record)
+    if (merchandiseSub !== null) {
+      return {
+        accountCode: formatA3MerchandiseProviderAccount(merchandiseSub),
+        priority: 3,
+      }
     }
   }
 

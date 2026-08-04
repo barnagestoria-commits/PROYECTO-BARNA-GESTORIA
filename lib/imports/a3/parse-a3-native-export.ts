@@ -1,4 +1,9 @@
-import { parseTcliproBuffer } from "@/lib/imports/a3/parse-tclipro"
+import {
+  buildAccountMapByCif,
+  parseTcliproBuffer,
+  parseTcliproSubaccounts,
+} from "@/lib/imports/a3/parse-tclipro"
+import { normalizeCif } from "@/lib/accounting/third-party-types"
 import { bytesToHex, decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import { isGenericProviderCode, isProviderAccountCode, isValidPgcAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
 import {
@@ -22,6 +27,7 @@ import {
   extractClientNameFromConcept,
   extractVendorNameFromConcept,
   normalizeVendorKey,
+  resolveVendorAccountCodes,
 } from "@/lib/imports/a3/vendor-matching"
 
 const GENERIC_FALLBACK = {
@@ -448,14 +454,21 @@ function parseExpManifest(content: string): A3NativeExportManifest | null {
   return { companyFolder: "", files }
 }
 
-function parseTcliproFromFiles(files: Map<string, ImportBytes>): A3ThirdParty[] {
+function parseTcliproFromFiles(files: Map<string, ImportBytes>): {
+  thirdParties: A3ThirdParty[]
+  subaccounts: A3Subaccount[]
+} {
   for (const [name, buffer] of files) {
     const base = name.split("/").pop()?.toUpperCase() ?? ""
     if (base === "TCLIPRO.DAT") {
-      return parseTcliproBuffer(buffer)
+      const subaccounts = parseTcliproSubaccounts(buffer)
+      return {
+        subaccounts,
+        thirdParties: parseTcliproBuffer(buffer),
+      }
     }
   }
-  return []
+  return { thirdParties: [], subaccounts: [] }
 }
 
 function enrichThirdPartiesWithRegistry(
@@ -463,15 +476,78 @@ function enrichThirdPartiesWithRegistry(
   vendorAccounts: Map<string, string>,
 ): A3ThirdParty[] {
   return thirdParties.map((party) => {
-    const accountCode = lookupUniqueVendorAccount(vendorAccounts, party.name)
-    if (!accountCode || isGenericProviderCode(accountCode)) return party
-    return { ...party, accountCode }
+    const merged = lookupUniqueVendorAccount(vendorAccounts, party.name)
+    if (merged && !isGenericProviderCode(merged)) {
+      return { ...party, accountCode: merged }
+    }
+    if (party.accountCode && !isGenericProviderCode(party.accountCode)) return party
+    return party
   })
+}
+
+function vendorAccountPriority(code: string): number {
+  const digits = padAccountCode12(code).replace(/\D/g, "")
+  if (isGenericProviderCode(digits)) return 0
+  if (/^4100\d{4}/.test(digits) && digits !== "410000000000") return 3
+  if (/^400000\d{2}/.test(digits) && digits.slice(0, 9) !== "400000000") return 2
+  if (isProviderAccountCode(digits)) return 1
+  return 0
+}
+
+function preferVendorAccount(existing: string, candidate: string): string {
+  const existingPriority = vendorAccountPriority(existing)
+  const candidatePriority = vendorAccountPriority(candidate)
+  if (candidatePriority > existingPriority) return candidate
+  if (candidatePriority < existingPriority) return existing
+
+  const existingDigits = padAccountCode12(existing).replace(/\D/g, "")
+  const candidateDigits = padAccountCode12(candidate).replace(/\D/g, "")
+  if (/^4100/.test(existingDigits) && /^4100/.test(candidateDigits)) {
+    return candidateDigits < existingDigits ? candidate : existing
+  }
+  if (/^400000/.test(existingDigits) && /^400000/.test(candidateDigits)) {
+    return candidateDigits < existingDigits ? candidate : existing
+  }
+  return existing
 }
 
 function mergeSubaccountLists(...lists: A3Subaccount[][]): A3Subaccount[] {
   const byCode = new Map<string, A3Subaccount>()
   const vendorsByName = new Map<string, A3Subaccount>()
+  const vendorsByNif = new Map<string, A3Subaccount>()
+
+  const upsertVendor = (item: A3Subaccount, code: string) => {
+    const nameKey = normalizeVendorKey(item.name)
+    if (nameKey) {
+      const existing = vendorsByName.get(nameKey)
+      if (!existing) {
+        vendorsByName.set(nameKey, { ...item, accountCode: code })
+      } else {
+        const preferred = preferVendorAccount(existing.accountCode, code)
+        if (preferred !== existing.accountCode) {
+          vendorsByName.set(nameKey, { ...item, accountCode: preferred })
+        }
+      }
+    }
+
+    if (item.nif) {
+      const nif = normalizeCif(item.nif)
+      if (nif) {
+        const existing = vendorsByNif.get(nif)
+        if (!existing) {
+          vendorsByNif.set(nif, { ...item, accountCode: code })
+        } else {
+          const preferred = preferVendorAccount(existing.accountCode, code)
+          vendorsByNif.set(nif, {
+            ...existing,
+            ...item,
+            accountCode: preferred,
+            name: existing.name.length >= item.name.length ? existing.name : item.name,
+          })
+        }
+      }
+    }
+  }
 
   for (const list of lists) {
     for (const item of list) {
@@ -482,11 +558,7 @@ function mergeSubaccountLists(...lists: A3Subaccount[][]): A3Subaccount[] {
       const isThirdParty = isProviderAccountCode(digits) || digits.startsWith("430")
 
       if (isThirdParty) {
-        const nameKey = normalizeVendorKey(item.name)
-        if (!nameKey) continue
-        if (!vendorsByName.has(nameKey)) {
-          vendorsByName.set(nameKey, { ...item, accountCode: code })
-        }
+        upsertVendor(item, code)
         continue
       }
 
@@ -496,7 +568,13 @@ function mergeSubaccountLists(...lists: A3Subaccount[][]): A3Subaccount[] {
     }
   }
 
-  return [...byCode.values(), ...vendorsByName.values()]
+  const vendors = new Map<string, A3Subaccount>()
+  for (const sub of [...vendorsByName.values(), ...vendorsByNif.values()]) {
+    const key = sub.nif ? `nif:${normalizeCif(sub.nif)}` : `name:${normalizeVendorKey(sub.name)}`
+    if (!key.endsWith(":")) vendors.set(key, sub)
+  }
+
+  return [...byCode.values(), ...vendors.values()]
 }
 
 function inferFiscalYearFromBuffers(buffers: ImportBytes[]): number {
@@ -555,6 +633,7 @@ export function parseNativeA3ExportFiles(
   const fiscalYear = inferFiscalYearFromBuffers(sampleBuffers.length > 0 ? sampleBuffers : [...files.values()])
   const companyCode = inferCompanyCode(manifest, folderName)
 
+  const tcliproData = parseTcliproFromFiles(files)
   const subaccountLists: A3Subaccount[][] = []
   let tpDefaults: NativePlanDefaults = {}
 
@@ -574,17 +653,28 @@ export function parseNativeA3ExportFiles(
     }
   }
 
+  subaccountLists.push(tcliproData.subaccounts)
+
   const rawSubaccounts = mergeSubaccountLists(...subaccountLists)
   const vendorAccounts = buildUniqueVendorAccountMap(rawSubaccounts)
+  const accountByCif = buildAccountMapByCif(rawSubaccounts)
   const vendorDisplayNames = new Map<string, string>()
   const subaccounts = subaccountsFromVendorRegistry(rawSubaccounts, vendorAccounts, vendorDisplayNames)
   const registry = buildNativePlanRegistry(subaccounts, tpDefaults)
+
+  for (const party of tcliproData.thirdParties) {
+    if (!party.cif || !party.accountCode) continue
+    const normalized = party.cif.trim().toUpperCase()
+    if (!accountByCif.has(normalized) && !isGenericProviderCode(party.accountCode)) {
+      accountByCif.set(normalized, padAccountCode12(party.accountCode))
+    }
+  }
 
   if (subaccounts.length === 0) {
     warnings.push("No se pudieron leer subcuentas del plan nativo (CU.DAT / DA.DAT).")
   }
 
-  let thirdParties = enrichThirdPartiesWithRegistry(parseTcliproFromFiles(files), vendorAccounts)
+  let thirdParties = enrichThirdPartiesWithRegistry(tcliproData.thirdParties, vendorAccounts)
   const tailVendorMap = buildGlobalTailVendorMap(files, journalFiles)
   let entries: A3JournalEntry[] = []
 
@@ -609,7 +699,7 @@ export function parseNativeA3ExportFiles(
 
   if (thirdParties.length > 0 && entries.length > 0) {
     const matched = applyVendorMatchingToEntries(entries, thirdParties)
-    entries = matched.entries
+    entries = resolveVendorAccountCodes(matched.entries, accountByCif)
     if (matched.matchedVendorCifs.size === 0) {
       warnings.push(
         "Se leyeron proveedores del TCLIPRO pero no se pudieron vincular automáticamente a las líneas del diario.",

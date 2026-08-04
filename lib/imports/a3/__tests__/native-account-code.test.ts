@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest"
 import {
+  decodeCu400ProviderSubaccount,
   decodeCuProviderNineDigitField,
+  formatA3MerchandiseProviderAccount,
   decodeNativeNineDigitAccountField,
   decodeSnnsAccountField,
   formatA3ProviderAccount,
@@ -50,6 +52,10 @@ describe("decodeCuProviderNineDigitField", () => {
     expect(decodeCuProviderNineDigitField("100400000")).toBeNull()
     expect(decodeCuProviderNineDigitField("300400000")).toBeNull()
   })
+
+  it("uses head subaccount when tail >= 600 (100400700 → 41000100)", () => {
+    expect(decodeCuProviderNineDigitField("100400700")).toBe("410001000000")
+  })
 })
 
 describe("decodeNativeNineDigitAccountField", () => {
@@ -65,6 +71,21 @@ describe("decodeNativeNineDigitAccountField", () => {
   it("returns null for invalid fields", () => {
     expect(decodeNativeNineDigitAccountField("12345678")).toBeNull()
     expect(decodeNativeNineDigitAccountField("100999100")).toBeNull()
+  })
+})
+
+describe("formatA3MerchandiseProviderAccount", () => {
+  it("formats 400000XX accounts", () => {
+    expect(formatA3MerchandiseProviderAccount(29)).toBe("400000290000")
+    expect(formatA3MerchandiseProviderAccount(31)).toBe("400000310000")
+  })
+})
+
+describe("decodeCu400ProviderSubaccount", () => {
+  it("reads subaccount from byte offset 264", () => {
+    const record = Buffer.alloc(512, 0)
+    record[264] = 29
+    expect(decodeCu400ProviderSubaccount(record)).toBe(29)
   })
 })
 

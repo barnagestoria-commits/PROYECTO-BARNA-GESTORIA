@@ -1,3 +1,5 @@
+import type { ImportBytes } from "@/lib/imports/a3/import-bytes"
+
 /** Decodificación y reglas del Plan General Contable (PGC) para el export nativo A3. */
 
 /** Grupos PGC reconocibles en campos binarios de 9 dígitos (posiciones 4-6). */
@@ -103,10 +105,31 @@ export function decodeCuProviderNineDigitField(field: string): string | null {
   if (digits.length !== 9 || digits.slice(3, 6) !== "400") return null
   if (isCuProviderTemplateField(digits)) return null
 
+  const head = Number.parseInt(digits.slice(0, 3), 10)
   const tail = Number.parseInt(digits.slice(6, 9), 10)
   if (!Number.isFinite(tail) || tail <= 0) return null
 
+  // 100400700 → subcuenta 100 en cabecera; 100400248 → subcuenta 248 en cola.
+  if (tail >= 600 && head >= 1 && head <= 999) {
+    return formatA3ProviderAccount(head)
+  }
+
   return formatA3ProviderAccount(tail)
+}
+
+/** Subcuenta grupo 400 (400000XX) en registro CU con plantilla 100400000. */
+export function decodeCu400ProviderSubaccount(record: ImportBytes): number | null {
+  if (record.length <= 264) return null
+  const sub = record[264]!
+  if (sub > 0 && sub < 250) return sub
+  return null
+}
+
+export function formatA3MerchandiseProviderAccount(subaccount: number): string {
+  if (!Number.isFinite(subaccount) || subaccount <= 0 || subaccount > 99999) {
+    return "400000000000"
+  }
+  return padAccountCode12(String(40000000 + subaccount))
 }
 
 /**

@@ -1,3 +1,4 @@
+import { normalizeCif } from "@/lib/accounting/third-party-types"
 import { isGenericProviderCode } from "@/lib/imports/a3/native-account-code"
 import type { A3JournalEntry, A3JournalLine, A3ThirdParty } from "@/lib/imports/a3/types"
 
@@ -13,6 +14,7 @@ export function normalizeVendorKey(name: string): string {
     .toUpperCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/^B@/, "")
     .replace(/\b(S\.?L\.?U?|S\.?A\.?|SLU|SCP|SC|SL|GMBH|LIMITED|LTD)\b/g, " ")
     .replace(/[^A-Z0-9]/g, "")
     .slice(0, 32)
@@ -155,7 +157,8 @@ export function resolveVendorAccountCodes(
     lines: entry.lines.map((line) => {
       if (!line.vendorCif) return line
       if (!needsProviderResolution(line.cuenta)) return line
-      const accountCode = accountByCif.get(line.vendorCif)
+      const normalizedCif = normalizeCif(line.vendorCif) ?? line.vendorCif.trim().toUpperCase()
+      const accountCode = accountByCif.get(normalizedCif)
       if (!accountCode) return line
       return { ...line, cuenta: accountCode }
     }),
