@@ -8,7 +8,7 @@ import { bulkResolveOrCreateThirdParties, type BulkThirdPartyInput } from "@/lib
 import { encodeImportFormatLabel } from "@/lib/imports/accounting-formats"
 import { parseA3ZipBuffer, parseA3ZipBytes } from "@/lib/imports/a3/parse-a3-zip"
 import type { A3VendorRef } from "@/lib/imports/a3/a3-client-import"
-import type { A3ImportPreview, A3ImportResult, A3JournalEntry, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
+import type { A3ImportPreview, A3ImportResult, A3FixedAsset, A3JournalEntry, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
 import { resolveVendorAccountCodes } from "@/lib/imports/a3/vendor-matching"
 import { prisma } from "@/lib/db"
 
@@ -124,7 +124,61 @@ async function countMissingThirdParties(
   return parties.filter((party) => !existingKeys.has(`${party.type}:${party.cif}`)).length
 }
 
-async function enrichPreview(parsed: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">) {
+async function countMissingFixedAssets(companyId: string, fixedAssets: A3FixedAsset[]): Promise<number> {
+  if (fixedAssets.length === 0) return 0
+
+  const existing = await prisma.fixedAsset.findMany({
+    where: {
+      companyId,
+      code: { in: fixedAssets.map((asset) => asset.code) },
+    },
+    select: { code: true },
+  })
+
+  const existingCodes = new Set(existing.map((row) => row.code))
+  return fixedAssets.filter((asset) => !existingCodes.has(asset.code)).length
+}
+
+async function createFixedAssetsFromParsed(
+  companyId: string,
+  fixedAssets: A3FixedAsset[],
+): Promise<number> {
+  if (fixedAssets.length === 0) return 0
+
+  const existing = await prisma.fixedAsset.findMany({
+    where: {
+      companyId,
+      code: { in: fixedAssets.map((asset) => asset.code) },
+    },
+    select: { code: true },
+  })
+
+  const existingCodes = new Set(existing.map((row) => row.code))
+  const toCreate = fixedAssets.filter((asset) => !existingCodes.has(asset.code))
+  if (toCreate.length === 0) return 0
+
+  await prisma.fixedAsset.createMany({
+    data: toCreate.map((asset) => ({
+      companyId,
+      code: asset.code,
+      name: asset.name,
+      description: asset.description,
+      cuentaInmovilizado: asset.cuentaInmovilizado,
+      cuentaAmortAcumulada: asset.cuentaAmortAcumulada,
+      cuentaGastoAmort: asset.cuentaGastoAmort,
+      acquisitionDate: new Date(`${asset.acquisitionDate}T00:00:00.000Z`),
+      acquisitionCost: asset.acquisitionCost,
+      residualValue: asset.residualValue,
+      usefulLifeMonths: asset.usefulLifeMonths,
+      accumulatedAmort: asset.accumulatedAmort,
+      isActive: asset.isActive,
+    })),
+  })
+
+  return toCreate.length
+}
+
+async function enrichPreview(parsed: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount" | "newFixedAssetCount">) {
   const suenlaceParties = thirdPartiesFromSubaccounts(parsed.subaccounts)
   const thirdPartyMap = new Map<string, A3ThirdParty>()
   for (const party of [...parsed.thirdParties, ...suenlaceParties]) {
@@ -146,15 +200,17 @@ export async function previewA3ZipImport(
   zipPassword?: string,
 ): Promise<A3ImportPreview> {
   const parsed = await enrichPreview(await parseA3ZipBuffer(buffer, fileName, zipPassword))
-  const [newSubaccountCount, newThirdPartyCount] = await Promise.all([
+  const [newSubaccountCount, newThirdPartyCount, newFixedAssetCount] = await Promise.all([
     countMissingSubaccounts(companyId, parsed.subaccounts),
     countMissingThirdParties(companyId, parsed.thirdParties, parsed.entries),
+    countMissingFixedAssets(companyId, parsed.fixedAssets),
   ])
 
   return {
     ...parsed,
     newSubaccountCount,
     newThirdPartyCount,
+    newFixedAssetCount,
   }
 }
 
@@ -278,7 +334,10 @@ export async function confirmA3ZipImport(
   })
 
   try {
-    const subaccountsCreated = await createSubaccountsFromParsed(companyId, parsed.subaccounts)
+    const [subaccountsCreated, fixedAssetsCreated] = await Promise.all([
+      createSubaccountsFromParsed(companyId, parsed.subaccounts),
+      createFixedAssetsFromParsed(companyId, parsed.fixedAssets),
+    ])
 
     const { accountByCif, created: thirdPartiesCreated } = await ensureThirdParties(
       companyId,
@@ -309,6 +368,7 @@ export async function confirmA3ZipImport(
       entriesCreated,
       subaccountsCreated,
       thirdPartiesCreated,
+      fixedAssetsCreated,
       linesImported,
       status: "PROCESADO",
     }
@@ -324,26 +384,31 @@ export async function confirmA3ZipImport(
   }
 }
 
-export type A3ParsedImportMeta = Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount" | "entries">
+export type A3ParsedImportMeta = Omit<
+  A3ImportPreview,
+  "newSubaccountCount" | "newThirdPartyCount" | "newFixedAssetCount" | "entries"
+>
 
 export async function previewCountsForParsedA3(
   companyId: string,
   subaccounts: A3Subaccount[],
   thirdParties: A3ThirdParty[],
   vendorRefs: A3VendorRef[],
-): Promise<{ newSubaccountCount: number; newThirdPartyCount: number }> {
+  fixedAssets: A3FixedAsset[] = [],
+): Promise<{ newSubaccountCount: number; newThirdPartyCount: number; newFixedAssetCount: number }> {
   const suenlaceParties = thirdPartiesFromSubaccounts(subaccounts)
   const thirdPartyMap = new Map<string, A3ThirdParty>()
   for (const party of [...thirdParties, ...suenlaceParties]) {
     thirdPartyMap.set(party.cif, party)
   }
 
-  const [newSubaccountCount, newThirdPartyCount] = await Promise.all([
+  const [newSubaccountCount, newThirdPartyCount, newFixedAssetCount] = await Promise.all([
     countMissingSubaccounts(companyId, subaccounts),
     countMissingThirdPartiesFromRefs(companyId, [...thirdPartyMap.values()], vendorRefs),
+    countMissingFixedAssets(companyId, fixedAssets),
   ])
 
-  return { newSubaccountCount, newThirdPartyCount }
+  return { newSubaccountCount, newThirdPartyCount, newFixedAssetCount }
 }
 
 async function createSubaccountsFromParsed(
@@ -368,6 +433,7 @@ export async function startParsedA3Import(
   importId: string
   subaccountsCreated: number
   thirdPartiesCreated: number
+  fixedAssetsCreated: number
 }> {
   const enriched = await enrichPreview({
     ...meta,
@@ -385,7 +451,10 @@ export async function startParsedA3Import(
   })
 
   try {
-    const subaccountsCreated = await createSubaccountsFromParsed(companyId, enriched.subaccounts)
+    const [subaccountsCreated, fixedAssetsCreated] = await Promise.all([
+      createSubaccountsFromParsed(companyId, enriched.subaccounts),
+      createFixedAssetsFromParsed(companyId, enriched.fixedAssets),
+    ])
     const { created: thirdPartiesCreated } = await ensureThirdPartiesFromRefs(
       companyId,
       enriched.thirdParties,
@@ -396,6 +465,7 @@ export async function startParsedA3Import(
       importId: importRecord.id,
       subaccountsCreated,
       thirdPartiesCreated,
+      fixedAssetsCreated,
     }
   } catch (error) {
     await prisma.accountingDataImport.update({
@@ -483,6 +553,7 @@ export async function finishParsedA3Import(
     entriesCreated: number
     subaccountsCreated: number
     thirdPartiesCreated: number
+    fixedAssetsCreated: number
     linesImported: number
   },
 ): Promise<A3ImportResult> {
@@ -508,6 +579,7 @@ export async function finishParsedA3Import(
     entriesCreated: totals.entriesCreated,
     subaccountsCreated: totals.subaccountsCreated,
     thirdPartiesCreated: totals.thirdPartiesCreated,
+    fixedAssetsCreated: totals.fixedAssetsCreated,
     linesImported: totals.linesImported,
     status: "PROCESADO",
   }
@@ -525,6 +597,7 @@ export async function previewParsedA3Import(
     parsed.subaccounts,
     parsed.thirdParties,
     vendorRefs,
+    parsed.fixedAssets,
   )
 
   return {

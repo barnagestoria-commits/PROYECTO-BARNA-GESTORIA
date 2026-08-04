@@ -31,6 +31,8 @@ export interface A3ZipPreview {
   newSubaccountCount: number
   thirdPartyCount: number
   newThirdPartyCount: number
+  fixedAssetCount: number
+  newFixedAssetCount: number
   recordTypes: string[]
   contents: {
     fileNames: string[]
@@ -55,7 +57,10 @@ function describeImportMode(mode?: A3ZipPreview["contents"]["importMode"]): stri
 interface ParsedA3State {
   fileName: string
   entries: A3JournalEntry[]
-  meta: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount" | "entries">
+  meta: Omit<
+    A3ImportPreview,
+    "newSubaccountCount" | "newThirdPartyCount" | "newFixedAssetCount" | "entries"
+  >
 }
 
 interface A3CompanyImportPanelProps {
@@ -123,8 +128,8 @@ export function A3CompanyImportPanel({
   }
 
   const buildPreviewFromParsed = (
-    parsed: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount">,
-    counts: { newSubaccountCount: number; newThirdPartyCount: number },
+    parsed: Omit<A3ImportPreview, "newSubaccountCount" | "newThirdPartyCount" | "newFixedAssetCount">,
+    counts: { newSubaccountCount: number; newThirdPartyCount: number; newFixedAssetCount: number },
   ): A3ZipPreview => ({
     versionLabel: parsed.versionLabel,
     companyCode: parsed.companyCode,
@@ -134,6 +139,8 @@ export function A3CompanyImportPanel({
     newSubaccountCount: counts.newSubaccountCount,
     thirdPartyCount: parsed.thirdPartyCount,
     newThirdPartyCount: counts.newThirdPartyCount,
+    fixedAssetCount: parsed.fixedAssetCount,
+    newFixedAssetCount: counts.newFixedAssetCount,
     recordTypes: parsed.recordTypes,
     contents: parsed.contents,
     warnings: parsed.warnings,
@@ -160,7 +167,14 @@ export function A3CompanyImportPanel({
     const parsed = await parseA3ZipBytes(arrayBuffer, file.name, password)
     const vendorRefs = extractVendorRefsFromEntries(parsed.entries)
 
-    const { counts } = await apiFetch<{ success: true; counts: { newSubaccountCount: number; newThirdPartyCount: number } }>(
+    const { counts } = await apiFetch<{
+      success: true
+      counts: {
+        newSubaccountCount: number
+        newThirdPartyCount: number
+        newFixedAssetCount: number
+      }
+    }>(
       "/api/imports/a3/preview-counts",
       {
         method: "POST",
@@ -169,6 +183,7 @@ export function A3CompanyImportPanel({
           subaccounts: parsed.subaccounts,
           thirdParties: parsed.thirdParties,
           vendorRefs,
+          fixedAssets: parsed.fixedAssets,
         }),
       },
     )
@@ -238,6 +253,7 @@ export function A3CompanyImportPanel({
         entriesCreated: number
         subaccountsCreated: number
         thirdPartiesCreated: number
+        fixedAssetsCreated: number
         linesImported: number
         fileName: string
       }
@@ -253,6 +269,7 @@ export function A3CompanyImportPanel({
       importId: string
       subaccountsCreated: number
       thirdPartiesCreated: number
+      fixedAssetsCreated: number
     }>("/api/imports/a3/confirm-parsed/start", {
       method: "POST",
       body: JSON.stringify({
@@ -298,6 +315,7 @@ export function A3CompanyImportPanel({
         entriesCreated: number
         subaccountsCreated: number
         thirdPartiesCreated: number
+        fixedAssetsCreated: number
         linesImported: number
         fileName: string
       }
@@ -310,6 +328,7 @@ export function A3CompanyImportPanel({
           entriesCreated,
           subaccountsCreated: start.subaccountsCreated,
           thirdPartiesCreated: start.thirdPartiesCreated,
+          fixedAssetsCreated: start.fixedAssetsCreated,
           linesImported,
         },
       }),
@@ -334,7 +353,7 @@ export function A3CompanyImportPanel({
 
       if (!data) return
 
-      const message = `Importación completada en ${companyName}: ${data.import.entriesCreated} asientos, ${data.import.subaccountsCreated} subcuentas y ${data.import.thirdPartiesCreated} terceros nuevos (${data.import.linesImported} líneas).`
+      const message = `Importación completada en ${companyName}: ${data.import.entriesCreated} asientos, ${data.import.subaccountsCreated} subcuentas, ${data.import.fixedAssetsCreated} activos y ${data.import.thirdPartiesCreated} terceros nuevos (${data.import.linesImported} líneas).`
       setImportMessage(message)
       resetZipImport()
       setAccountingVersion((version) => version + 1)
@@ -465,6 +484,7 @@ export function A3CompanyImportPanel({
             <p className="mt-1 text-xs text-graphite-600">
               {a3Preview.subaccountCount} subcuentas detectadas ·{" "}
               {describeImportMode(a3Preview.contents.importMode)}
+              {a3Preview.fixedAssetCount > 0 && ` · ${a3Preview.fixedAssetCount} fichas de inmovilizado`}
               {a3Preview.thirdPartyCount > 0 &&
                 ` · ${a3Preview.thirdPartyCount} proveedores/clientes`}
             </p>
@@ -476,7 +496,9 @@ export function A3CompanyImportPanel({
                   : null}
               </p>
             )}
-            {(a3Preview.newSubaccountCount > 0 || a3Preview.newThirdPartyCount > 0) && (
+            {(a3Preview.newSubaccountCount > 0 ||
+              a3Preview.newThirdPartyCount > 0 ||
+              a3Preview.newFixedAssetCount > 0) && (
               <p className="mt-1 text-xs text-graphite-600">
                 {a3Preview.newSubaccountCount > 0
                   ? `${a3Preview.newSubaccountCount} subcuentas nuevas`
@@ -484,6 +506,13 @@ export function A3CompanyImportPanel({
                 {a3Preview.newSubaccountCount > 0 && a3Preview.newThirdPartyCount > 0 ? " y " : null}
                 {a3Preview.newThirdPartyCount > 0
                   ? `${a3Preview.newThirdPartyCount} terceros nuevos`
+                  : null}
+                {(a3Preview.newSubaccountCount > 0 || a3Preview.newThirdPartyCount > 0) &&
+                a3Preview.newFixedAssetCount > 0
+                  ? " y "
+                  : null}
+                {a3Preview.newFixedAssetCount > 0
+                  ? `${a3Preview.newFixedAssetCount} activos nuevos`
                   : null}
                 {" se darán de alta antes de volcar el diario."}
               </p>

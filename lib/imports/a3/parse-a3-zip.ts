@@ -178,6 +178,8 @@ async function parseA3ZipFileMap(
       entryCount: native.entries.length,
       subaccountCount: native.subaccounts.length,
       thirdPartyCount: native.thirdParties.length,
+      fixedAssetCount: native.fixedAssets.length,
+      newFixedAssetCount: 0,
       recordTypes: native.recordTypes,
       contents: {
         fileNames,
@@ -189,6 +191,7 @@ async function parseA3ZipFileMap(
       entries: native.entries,
       subaccounts: native.subaccounts,
       thirdParties: native.thirdParties,
+      fixedAssets: native.fixedAssets,
       warnings: native.warnings,
     }
   }
@@ -301,6 +304,8 @@ async function parseA3ZipFileMap(
     entryCount: entries.length,
     subaccountCount: subaccounts.length,
     thirdPartyCount: thirdParties.length,
+    fixedAssetCount: 0,
+    newFixedAssetCount: 0,
     recordTypes: sortedRecordTypes.map(recordTypeLabel),
     contents: {
       fileNames,
@@ -312,6 +317,7 @@ async function parseA3ZipFileMap(
     entries,
     subaccounts,
     thirdParties,
+    fixedAssets: [],
     warnings,
   }
 }

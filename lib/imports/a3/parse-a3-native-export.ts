@@ -27,7 +27,12 @@ import {
   lookupUniqueVendorAccount,
   subaccountsFromVendorRegistry,
 } from "@/lib/imports/a3/native-vendor-accounts"
-import type { A3JournalEntry, A3JournalLine, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
+import type { A3FixedAsset, A3JournalEntry, A3JournalLine, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
+import {
+  isAamDatBuffer,
+  parseAamDatFixedAssets,
+  parseTpPredefiAssetDefaults,
+} from "@/lib/imports/a3/parse-a3-fixed-assets"
 import {
   applyVendorMatchingToEntries,
   extractClientNameFromConcept,
@@ -64,6 +69,7 @@ export interface A3NativeParseResult {
   entries: A3JournalEntry[]
   subaccounts: A3Subaccount[]
   thirdParties: A3ThirdParty[]
+  fixedAssets: A3FixedAsset[]
   companyCode: string | null
   fiscalYear: number | null
   recordTypes: string[]
@@ -652,6 +658,8 @@ export function parseNativeA3ExportFiles(
   const tcliproData = parseTcliproFromFiles(files)
   const subaccountLists: A3Subaccount[][] = []
   let tpDefaults: NativePlanDefaults = {}
+  let assetDefaults = parseTpPredefiAssetDefaults(new Uint8Array(0))
+  let fixedAssets: A3FixedAsset[] = []
 
   for (const [name, buffer] of files) {
     const base = name.split("/").pop()?.toUpperCase() ?? ""
@@ -666,6 +674,13 @@ export function parseNativeA3ExportFiles(
     }
     if (base === "TPREDEFI.DAT") {
       tpDefaults = parseTpPredefiDefaults(buffer)
+      assetDefaults = parseTpPredefiAssetDefaults(buffer)
+    }
+    if (base.endsWith("AAM.DAT") && isAamDatBuffer(buffer)) {
+      fixedAssets = parseAamDatFixedAssets(buffer, {
+        fiscalYear,
+        defaults: assetDefaults,
+      })
     }
   }
 
@@ -688,6 +703,10 @@ export function parseNativeA3ExportFiles(
 
   if (subaccounts.length === 0) {
     warnings.push("No se pudieron leer subcuentas del plan nativo (CU.DAT / DA.DAT).")
+  }
+
+  if (fixedAssets.length > 0) {
+    warnings.push(`Se detectaron ${fixedAssets.length} fichas de inmovilizado en AAM.DAT.`)
   }
 
   let thirdParties = enrichThirdPartiesWithRegistry(tcliproData.thirdParties, vendorAccounts)
@@ -740,13 +759,19 @@ export function parseNativeA3ExportFiles(
     warnings.push(`${genericProviderLines} líneas siguen usando la cuenta genérica 400000000000.`)
   }
 
+  const recordTypes = ["Exportación nativa ZIP (v9.50+)", "Apuntes mensuales *A.DAT"]
+  if (fixedAssets.length > 0) {
+    recordTypes.push(`Inmovilizado AAM.DAT (${fixedAssets.length} fichas)`)
+  }
+
   return {
     entries,
     subaccounts: finalSubaccounts,
     thirdParties,
+    fixedAssets,
     companyCode,
     fiscalYear,
-    recordTypes: ["Exportación nativa ZIP (v9.50+)", "Apuntes mensuales *A.DAT"],
+    recordTypes,
     warnings,
   }
 }

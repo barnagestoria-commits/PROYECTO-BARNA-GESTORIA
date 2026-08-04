@@ -11,6 +11,28 @@ export interface A3Subaccount {
   nif?: string
 }
 
+export interface A3FixedAssetDefaults {
+  cuentaInmovilizado: string
+  cuentaAmortAcumulada: string
+  cuentaGastoAmort: string
+}
+
+export interface A3FixedAsset {
+  code: string
+  name: string
+  description?: string
+  elementType?: string
+  cuentaInmovilizado: string
+  cuentaAmortAcumulada: string
+  cuentaGastoAmort: string
+  acquisitionDate: string
+  acquisitionCost: number
+  residualValue: number
+  usefulLifeMonths: number
+  accumulatedAmort: number
+  isActive: boolean
+}
+
 export interface A3JournalLine {
   fecha: string
   cuenta: string
@@ -49,11 +71,14 @@ export interface A3ImportPreview {
   newSubaccountCount: number
   thirdPartyCount: number
   newThirdPartyCount: number
+  fixedAssetCount: number
+  newFixedAssetCount: number
   recordTypes: string[]
   contents: A3ZipContents
   entries: A3JournalEntry[]
   subaccounts: A3Subaccount[]
   thirdParties: A3ThirdParty[]
+  fixedAssets: A3FixedAsset[]
   warnings: string[]
 }
 
@@ -63,6 +88,7 @@ export interface A3ImportResult {
   entriesCreated: number
   subaccountsCreated: number
   thirdPartiesCreated: number
+  fixedAssetsCreated: number
   linesImported: number
   status: "PROCESADO"
 }

@@ -13,6 +13,7 @@ interface FinishParsedBody {
     entriesCreated: number
     subaccountsCreated: number
     thirdPartiesCreated: number
+    fixedAssetsCreated: number
     linesImported: number
   }
 }
