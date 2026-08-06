@@ -70,7 +70,7 @@ async function fetchYearLines(companyId: string, year: number): Promise<RawEntry
     },
     include: {
       entry: {
-        select: { id: true, fecha: true },
+        select: { id: true, fecha: true, concepto: true },
       },
     },
     orderBy: [{ entry: { fecha: "asc" } }, { sortOrder: "asc" }],
@@ -223,6 +223,7 @@ export async function buildFiscalPanorama(
       ivaResult: taxSummary.ivaResult,
       retenciones111: taxSummary.retenciones111,
       retenciones115: taxSummary.retenciones115,
+      retenciones123: taxSummary.retenciones123,
       retenciones180: taxSummary.retenciones180,
       totalAPagarDevolver: taxSummary.totalAPagarDevolver,
       resultLabel: taxSummary.label,
@@ -300,7 +301,7 @@ export async function buildFiscalModelDetail(
 }
 
 export function isValidModelCode(value: string): value is FiscalModelId {
-  return value === "111" || value === "115" || value === "180" || value === "303"
+  return value === "111" || value === "115" || value === "123" || value === "180" || value === "303"
 }
 
 export { prismaCodeToModelId }

@@ -52,6 +52,8 @@ export interface A3JournalEntry {
   concepto: string
   lines: A3JournalLine[]
   recordTypes: string[]
+  /** Número de asiento A3 cuando está disponible en el export nativo. */
+  refNumber?: number
 }
 
 export interface A3ZipContents {

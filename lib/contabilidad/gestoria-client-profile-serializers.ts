@@ -86,6 +86,7 @@ export function profileRecordToDto(
       model232: impresosFromJson.model232 ?? presentationFromJson.model232Enabled,
       model111: fiscalSettings.model111Enabled,
       model115: fiscalSettings.model115Enabled,
+      model123: fiscalSettings.model123Enabled,
       model180: fiscalSettings.model180Enabled,
       model303: fiscalSettings.model303Enabled,
     },
@@ -152,6 +153,7 @@ export function fiscalSettingsFromProfileImpresos(
     ...current,
     model111Enabled: profile.impresos.model111 ?? current.model111Enabled,
     model115Enabled: profile.impresos.model115 ?? current.model115Enabled,
+    model123Enabled: profile.impresos.model123 ?? current.model123Enabled,
     model180Enabled: profile.impresos.model180 ?? current.model180Enabled,
     model303Enabled: profile.impresos.model303 ?? current.model303Enabled,
   }

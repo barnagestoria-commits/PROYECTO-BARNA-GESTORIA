@@ -5,6 +5,7 @@ export interface CompanyFiscalSettingsDto {
   clientProfile: CompanyClientProfile
   model111Enabled: boolean
   model115Enabled: boolean
+  model123Enabled: boolean
   model180Enabled: boolean
   model303Enabled: boolean
 }
@@ -55,6 +56,12 @@ export const FISCAL_MODEL_OPTIONS: Array<{
     periodicity: "trimestral",
   },
   {
+    id: "123",
+    label: "Modelo 123",
+    description: "Retenciones e ingresos a cuenta — dividendos",
+    periodicity: "trimestral",
+  },
+  {
     id: "180",
     label: "Modelo 180",
     description: "Resumen anual de retenciones de alquileres",
@@ -73,6 +80,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     clientProfile: "PERSONA_FISICA",
     model111Enabled: false,
     model115Enabled: false,
+    model123Enabled: false,
     model180Enabled: false,
     model303Enabled: false,
   },
@@ -80,6 +88,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     clientProfile: "AUTONOMO",
     model111Enabled: true,
     model115Enabled: false,
+    model123Enabled: false,
     model180Enabled: false,
     model303Enabled: true,
   },
@@ -87,6 +96,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     clientProfile: "PYME",
     model111Enabled: true,
     model115Enabled: true,
+    model123Enabled: true,
     model180Enabled: true,
     model303Enabled: true,
   },
@@ -94,6 +104,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     clientProfile: "GRAN_EMPRESA",
     model111Enabled: true,
     model115Enabled: true,
+    model123Enabled: true,
     model180Enabled: true,
     model303Enabled: true,
   },
@@ -108,6 +119,8 @@ export function isModelEnabled(
       return settings.model111Enabled
     case "115":
       return settings.model115Enabled
+    case "123":
+      return settings.model123Enabled
     case "180":
       return settings.model180Enabled
     case "303":
@@ -124,6 +137,7 @@ export function getEnabledModels(settings: CompanyFiscalSettingsDto): FiscalMode
 export type FiscalModelSettingsKey =
   | "model111Enabled"
   | "model115Enabled"
+  | "model123Enabled"
   | "model180Enabled"
   | "model303Enabled"
 
@@ -133,6 +147,8 @@ export function settingsKeyForModel(model: FiscalModelId): FiscalModelSettingsKe
       return "model111Enabled"
     case "115":
       return "model115Enabled"
+    case "123":
+      return "model123Enabled"
     case "180":
       return "model180Enabled"
     case "303":
@@ -141,11 +157,11 @@ export function settingsKeyForModel(model: FiscalModelId): FiscalModelSettingsKe
 }
 
 export function isQuarterlyModel(model: FiscalModelId): boolean {
-  return model === "111" || model === "115" || model === "303"
+  return model === "111" || model === "115" || model === "123" || model === "303"
 }
 
 export function isAnnualModel(model: FiscalModelId): boolean {
   return model === "180"
 }
 
-export const ANNUAL_SUMMARY_MODELS: FiscalModelId[] = ["111", "115", "180", "303"]
+export const ANNUAL_SUMMARY_MODELS: FiscalModelId[] = ["111", "115", "123", "180", "303"]

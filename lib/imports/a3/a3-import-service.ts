@@ -271,13 +271,16 @@ async function createEntriesInBulk(
 ): Promise<{ entriesCreated: number; linesImported: number }> {
   const entryRows: Prisma.AccountingEntryCreateManyInput[] = []
   const lineRows: Prisma.EntryLineCreateManyInput[] = []
-  let refNumber = startRefNumber
+  let fallbackRefNumber = startRefNumber
 
   for (const entry of entries) {
     const date = new Date(`${entry.fecha}T00:00:00.000Z`)
     if (Number.isNaN(date.getTime())) continue
 
     const entryId = randomUUID()
+    const refNumber = entry.refNumber ?? fallbackRefNumber
+    if (!entry.refNumber) fallbackRefNumber += 1
+
     entryRows.push({
       id: entryId,
       companyId,
@@ -286,7 +289,6 @@ async function createEntriesInBulk(
       commandCode: entry.documento.trim() || null,
       createdById: uploadedById,
     })
-    refNumber += 1
 
     entry.lines.forEach((line, index) => {
       lineRows.push({

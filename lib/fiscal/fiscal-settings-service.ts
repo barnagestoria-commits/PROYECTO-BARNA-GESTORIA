@@ -19,6 +19,7 @@ export async function getOrCreateCompanyFiscalSettings(
       clientProfile: existing.clientProfile,
       model111Enabled: existing.model111Enabled,
       model115Enabled: existing.model115Enabled,
+      model123Enabled: existing.model123Enabled,
       model180Enabled: existing.model180Enabled,
       model303Enabled: existing.model303Enabled,
     }
@@ -36,6 +37,7 @@ export async function getOrCreateCompanyFiscalSettings(
     clientProfile: created.clientProfile,
     model111Enabled: created.model111Enabled,
     model115Enabled: created.model115Enabled,
+    model123Enabled: created.model123Enabled,
     model180Enabled: created.model180Enabled,
     model303Enabled: created.model303Enabled,
   }
@@ -64,6 +66,7 @@ export async function updateCompanyFiscalSettings(
     clientProfile: updated.clientProfile,
     model111Enabled: updated.model111Enabled,
     model115Enabled: updated.model115Enabled,
+    model123Enabled: updated.model123Enabled,
     model180Enabled: updated.model180Enabled,
     model303Enabled: updated.model303Enabled,
   }

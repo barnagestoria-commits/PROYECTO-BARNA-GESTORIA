@@ -10,7 +10,20 @@ import {
   NATIVE_PENDING_ACCOUNT,
   resolveUnidentifiedBankMovementAccount,
 } from "@/lib/imports/a3/decode-native-journal-account"
-import { bytesToHex, decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import {
+  extractNativeConcept,
+  extractNativeDate,
+  extractNativeDocument,
+  extractNativePostAmountMarker,
+  nativeEntryGroupKey,
+  nativeEntryLookupKey,
+  nativeJournalLineRecordStart,
+  NATIVE_JOURNAL_CONCEPT_START,
+  parseNativeJournalHeaders,
+  resolveNativeAccountFromMarker,
+  type NativeJournalHeaderInfo,
+} from "@/lib/imports/a3/native-journal-record"
+import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import { isGenericProviderCode, isProviderAccountCode, isValidPgcAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
 import {
   buildNativePlanRegistry,
@@ -87,15 +100,11 @@ function cleanConcept(raw: string): string {
   return raw
     .replace(/\x00/g, " ")
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F]/g, " ")
-    .replace(/[^\x20-\x7E\u00C0-\u00FF.,\-/()&]/g, " ")
+    .replace(/[^\x20-\x7E\u00C0-\u00FF.,\-/()&º°]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
 }
 
-function extractDocument(concept: string): string {
-  const match = concept.match(/([A-Z0-9][A-Z0-9/\-]{2,14})\s*$/)
-  return match?.[1]?.trim() ?? ""
-}
 
 function conceptLinkSignature(rawConcept: string): string {
   const bytes = Buffer.from(rawConcept, "latin1")
@@ -149,6 +158,9 @@ function resolveNativeLineAccount(
 
   if (seq === 1) {
     if (dh === "H") {
+      if (upper.includes("RETENCION DIVID")) {
+        return registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
+      }
       return registry.defaultBankAccount ?? GENERIC_FALLBACK.bank
     }
 
@@ -236,66 +248,8 @@ function recordHasAmountField(rec: ImportBytes): boolean {
   return /[DH]\d{11,14}/.test(decodeLatin1(rec))
 }
 
-function detectLineRecordStart(buffer: ImportBytes): number {
-  const searchStart = NATIVE_HEADER
-  const head = buffer.subarray(searchStart)
-  const amountPattern = /[DH]\d{11,14}/
-  const firstMatch = decodeLatin1(head).match(amountPattern)
-  if (!firstMatch || firstMatch.index === undefined) {
-    return searchStart
-  }
-
-  const absPos = searchStart + firstMatch.index
-  let bestOffset = 0
-  let bestCount = 0
-
-  for (let trial = 0; trial < NATIVE_LINE_RECORD; trial += 1) {
-    const start = absPos - trial
-    if (start < NATIVE_HEADER) continue
-
-    let count = 0
-    for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
-      if (recordHasAmountField(buffer.subarray(pos, pos + NATIVE_LINE_RECORD))) count += 1
-    }
-
-    if (count > bestCount) {
-      bestCount = count
-      bestOffset = trial
-    }
-  }
-
-  // Desempate: la alineación correcta coloca el tipo de línea A3 en rec[11].
-  for (let trial = 0; trial < NATIVE_LINE_RECORD; trial += 1) {
-    const start = absPos - trial
-    if (start < NATIVE_HEADER) continue
-
-    let count = 0
-    for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
-      if (recordHasAmountField(buffer.subarray(pos, pos + NATIVE_LINE_RECORD))) count += 1
-    }
-
-    if (count !== bestCount) continue
-
-    const rec = buffer.subarray(start, start + NATIVE_LINE_RECORD)
-    const seq = rec[11] ?? 0
-    if (seq >= 1 && seq <= 6) {
-      return start
-    }
-  }
-
-  return absPos - bestOffset
-}
-
-interface ParsedNativeLine {
-  entryKey: string
-  line: A3JournalLine
-  seq: number
-  rawConcept: string
-  record: ImportBytes
-}
-
 function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConcept: string }> {
-  const start = detectLineRecordStart(buffer)
+  const start = nativeJournalLineRecordStart(buffer)
   const lines: Array<{ seq: number; rawConcept: string }> = []
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
@@ -307,7 +261,7 @@ function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConce
     const dhIndex = dhMatch.index ?? 0
     lines.push({
       seq: rec[11] ?? 0,
-      rawConcept: text.slice(15, dhIndex),
+      rawConcept: text.slice(NATIVE_JOURNAL_CONCEPT_START, dhIndex),
     })
   }
 
@@ -371,9 +325,18 @@ function parseNativeJournalFile(
   vendorAccounts: Map<string, string>,
   tailVendorMap: Map<string, string>,
   vendorDisplayNames: Map<string, string>,
+  headerIndex: Map<string, NativeJournalHeaderInfo>,
 ): { entries: A3JournalEntry[]; warnings: string[] } {
   const warnings: string[] = []
-  const start = detectLineRecordStart(buffer)
+  const start = nativeJournalLineRecordStart(buffer)
+  interface ParsedNativeLine {
+    entryKey: string
+    lookupKey: string
+    line: A3JournalLine
+    seq: number
+    rawConcept: string
+    record: ImportBytes
+  }
   const parsedLines: ParsedNativeLine[] = []
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
@@ -387,20 +350,22 @@ function parseNativeJournalFile(
     if (amount <= 0) continue
 
     const dhIndex = dhMatch.index ?? 0
-    const conceptRaw = text.slice(15, dhIndex)
-    const conceptClean = cleanConcept(conceptRaw)
-    const documento = extractDocument(conceptClean)
-    const concept = documento ? conceptClean.replace(new RegExp(`${documento}\\s*$`), "").trim() : conceptClean
+    const conceptClean = extractNativeConcept(text, dhIndex)
+    const lookupKey = nativeEntryLookupKey(rec)
+    const header = headerIndex.get(lookupKey)
+    const documento = extractNativeDocument(conceptClean, header?.documento)
+    const concept = documento
+      ? conceptClean.replace(new RegExp(`${documento.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "").trim()
+      : conceptClean
     const seq = rec[11] ?? 0
-    const entryKey = bytesToHex(rec.subarray(0, 10))
-
-    const day = Math.min(Math.max(((rec[8] ?? 1) % 28) + 1, 1), 28)
-    const fecha = `${fiscalYear}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+    const entryKey = nativeEntryGroupKey(rec)
+    const fecha = extractNativeDate(conceptClean, rec, fiscalYear, month, header?.fecha)
 
     parsedLines.push({
       entryKey,
+      lookupKey,
       seq,
-      rawConcept: conceptRaw,
+      rawConcept: text.slice(NATIVE_JOURNAL_CONCEPT_START, dhIndex),
       record: rec,
       line: {
         fecha,
@@ -414,20 +379,24 @@ function parseNativeJournalFile(
   }
 
   const grouped = new Map<string, A3JournalLine[]>()
-  const groupMeta = new Map<string, { concept: string; documento: string }>()
+  const groupMeta = new Map<string, { concept: string; documento: string; lookupKey: string }>()
 
   for (const parsed of parsedLines) {
     const dh = parsed.line.debe > 0 ? "D" : "H"
-    parsed.line.cuenta = resolveNativeLineAccount(
-      parsed.seq,
-      dh,
-      parsed.rawConcept,
-      parsed.record,
-      registry,
-      vendorAccounts,
-      tailVendorMap,
-      vendorDisplayNames,
-    )
+    const marker = extractNativePostAmountMarker(parsed.record)
+    const markerAccount = resolveNativeAccountFromMarker(marker, dh, parsed.line.concepto, registry)
+    parsed.line.cuenta =
+      markerAccount ??
+      resolveNativeLineAccount(
+        parsed.seq,
+        dh,
+        parsed.rawConcept,
+        parsed.record,
+        registry,
+        vendorAccounts,
+        tailVendorMap,
+        vendorDisplayNames,
+      )
 
     const existing = grouped.get(parsed.entryKey) ?? []
     existing.push(parsed.line)
@@ -437,6 +406,7 @@ function parseNativeJournalFile(
       groupMeta.set(parsed.entryKey, {
         concept: parsed.line.concepto,
         documento: parsed.line.documento ?? "",
+        lookupKey: parsed.lookupKey,
       })
     }
   }
@@ -445,12 +415,18 @@ function parseNativeJournalFile(
   for (const [entryKey, lines] of grouped) {
     if (lines.length === 0) continue
     const meta = groupMeta.get(entryKey)
+    const header = meta ? headerIndex.get(meta.lookupKey) : undefined
+    const entryFecha = header?.fecha
+      ? `${header.fecha.slice(0, 4)}-${header.fecha.slice(4, 6)}-${header.fecha.slice(6, 8)}`
+      : lines[0].fecha
+    const normalizedLines = lines.map((line) => ({ ...line, fecha: entryFecha }))
     entries.push({
-      fecha: lines[0].fecha,
-      documento: meta?.documento ?? lines[0].documento ?? "",
-      concepto: meta?.concept ?? lines[0].concepto,
-      lines,
+      fecha: entryFecha,
+      documento: meta?.documento ?? normalizedLines[0].documento ?? "",
+      concepto: header?.concepto ?? meta?.concept ?? normalizedLines[0].concepto,
+      lines: normalizedLines,
       recordTypes: ["Apunte nativo (.DAT)"],
+      refNumber: header?.refNumber,
     })
   }
 
@@ -719,6 +695,54 @@ function discoverJournalFiles(fileNames: string[], prefix: string | null): strin
   return fileNames.filter((name) => pattern.test(name.split("/").pop()?.toUpperCase() ?? ""))
 }
 
+function discoverJournalHeaderFiles(fileNames: string[], prefix: string | null): string[] {
+  if (!prefix) return []
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const pattern = new RegExp(`^${escaped}\\d{1,2}R\\.DAT$`, "i")
+  return fileNames.filter((name) => pattern.test(name.split("/").pop()?.toUpperCase() ?? ""))
+}
+
+function buildGlobalNativeHeaderIndex(
+  files: Map<string, ImportBytes>,
+  headerFiles: string[],
+): Map<string, NativeJournalHeaderInfo> {
+  const globalIndex = new Map<string, NativeJournalHeaderInfo>()
+  let refOffset = 0
+
+  for (const headerFile of headerFiles.sort()) {
+    const parsed = parseNativeJournalHeaders(files.get(headerFile)!)
+    for (const header of parsed) {
+      const normalized = { ...header, refNumber: refOffset + header.refNumber }
+      if (!globalIndex.has(normalized.lookupKey)) {
+        globalIndex.set(normalized.lookupKey, normalized)
+      }
+    }
+    refOffset += parsed.length
+  }
+
+  return globalIndex
+}
+
+function assignMissingNativeRefNumbers(entries: A3JournalEntry[]): A3JournalEntry[] {
+  const used = new Set<number>()
+  let maxRef = 0
+
+  for (const entry of entries) {
+    if (entry.refNumber) {
+      used.add(entry.refNumber)
+      maxRef = Math.max(maxRef, entry.refNumber)
+    }
+  }
+
+  let nextRef = maxRef + 1
+  return entries.map((entry) => {
+    if (entry.refNumber) return entry
+    while (used.has(nextRef)) nextRef += 1
+    used.add(nextRef)
+    return { ...entry, refNumber: nextRef }
+  })
+}
+
 function fileBaseName(path: string): string {
   return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
 }
@@ -745,6 +769,8 @@ export function parseNativeA3ExportFiles(
   const companyCode = inferCompanyCode(manifest, folderName)
   const journalPrefix = nativeJournalFilePrefix(companyCode, fileNames)
   const journalFiles = discoverJournalFiles(fileNames, journalPrefix)
+  const journalHeaderFiles = discoverJournalHeaderFiles(fileNames, journalPrefix)
+  const headerIndex = buildGlobalNativeHeaderIndex(files, journalHeaderFiles)
 
   const sampleBuffers = journalFiles.slice(0, 3).map((name) => files.get(name)!)
   const fiscalYear = inferFiscalYearFromBuffers(sampleBuffers.length > 0 ? sampleBuffers : [...files.values()])
@@ -821,12 +847,14 @@ export function parseNativeA3ExportFiles(
       vendorAccounts,
       tailVendorMap,
       vendorDisplayNames,
+      headerIndex,
     )
     entries.push(...parsed.entries)
     warnings.push(...parsed.warnings)
   }
 
   entries = mergeComplementaryNativeEntries(entries)
+  entries = assignMissingNativeRefNumbers(entries)
 
   if (thirdParties.length > 0 && entries.length > 0) {
     const matched = applyVendorMatchingToEntries(entries, thirdParties)

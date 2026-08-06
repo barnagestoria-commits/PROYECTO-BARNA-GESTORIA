@@ -12,6 +12,7 @@ export interface TaxSummaryBreakdown {
   ivaResult: number
   retenciones111: number
   retenciones115: number
+  retenciones123: number
   retenciones180: number
   totalAPagarDevolver: number
   label: string
@@ -25,6 +26,7 @@ export function calculateTaxSummary(
   const iva = calculateModelAmount("303", lines, year, quarter)
   const m111 = calculateModelAmount("111", lines, year, quarter)
   const m115 = calculateModelAmount("115", lines, year, quarter)
+  const m123 = calculateModelAmount("123", lines, year, quarter)
   const m180 =
     quarter === "annual"
       ? calculateModelAmount("180", lines, year, "annual")
@@ -33,9 +35,12 @@ export function calculateTaxSummary(
   const ivaResult = iva.amount
   const retenciones111 = m111.amount
   const retenciones115 = m115.amount
+  const retenciones123 = m123.amount
   const retenciones180 = m180.amount
 
-  const totalAPagarDevolver = round2(ivaResult + retenciones111 + retenciones115 + retenciones180)
+  const totalAPagarDevolver = round2(
+    ivaResult + retenciones111 + retenciones115 + retenciones123 + retenciones180,
+  )
 
   const label =
     totalAPagarDevolver > 0
@@ -48,6 +53,7 @@ export function calculateTaxSummary(
     ivaResult,
     retenciones111,
     retenciones115,
+    retenciones123,
     retenciones180,
     totalAPagarDevolver,
     label,

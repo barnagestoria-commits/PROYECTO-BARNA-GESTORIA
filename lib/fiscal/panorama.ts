@@ -6,6 +6,11 @@ import type {
   FiscalPeriodKey,
 } from "@/lib/types/fiscal-panorama"
 import { decimalToNumber } from "@/lib/prisma/decimal"
+import {
+  extractModel303LiquidationAmount,
+  isModel111RetentionLine,
+  isModel123DividendRetentionLine,
+} from "@/lib/fiscal/fiscal-line-detection"
 
 export interface FiscalModelDefinition {
   code: FiscalModelId
@@ -28,6 +33,13 @@ export const FISCAL_MODEL_DEFINITIONS: FiscalModelDefinition[] = [
     prismaCode: "M115",
     label: "Modelo 115",
     description: "Retenciones IRPF — Arrendamientos de inmuebles urbanos",
+    block: "IRPF",
+  },
+  {
+    code: "123",
+    prismaCode: "M123",
+    label: "Modelo 123",
+    description: "Retenciones e ingresos a cuenta — Dividendos y capital mobiliario",
     block: "IRPF",
   },
   {
@@ -62,6 +74,7 @@ export interface RawEntryLine {
   entry: {
     id: string
     fecha: Date
+    concepto?: string | null
   }
 }
 
@@ -187,8 +200,7 @@ export function calculateModelAmount(
   const entryIds = new Set<string>()
 
   if (modelCode === "111") {
-    const prefixes = ["4731"]
-    const matched = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, prefixes))
+    const matched = periodLines.filter(isModel111RetentionLine)
     const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
     for (const line of matched) entryIds.add(line.entry.id)
     const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
@@ -197,6 +209,26 @@ export function calculateModelAmount(
       lineCount: matched.length,
       entryIds,
       breakdown: [{ key: "retenciones", label: "Retenciones practicadas", total, lines: breakdownLines }],
+    }
+  }
+
+  if (modelCode === "123") {
+    const matched = periodLines.filter(isModel123DividendRetentionLine)
+    const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
+    for (const line of matched) entryIds.add(line.entry.id)
+    const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+    return {
+      amount: total,
+      lineCount: matched.length,
+      entryIds,
+      breakdown: [
+        {
+          key: "retenciones-dividendos",
+          label: "Retenciones sobre dividendos",
+          total,
+          lines: breakdownLines,
+        },
+      ],
     }
   }
 
@@ -234,6 +266,38 @@ export function calculateModelAmount(
           lines: breakdownLines,
         },
       ],
+    }
+  }
+
+  if (quarter !== "annual") {
+    const liquidationAmount = extractModel303LiquidationAmount(lines, year, quarter)
+    if (liquidationAmount !== null) {
+      const matched = periodLines.filter((line) => {
+        const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+        return new RegExp(`Modelo\\s+303\\s+${quarter}\\s+Trimestre`, "i").test(text)
+      })
+      for (const line of matched) entryIds.add(line.entry.id)
+      return {
+        amount: liquidationAmount,
+        lineCount: matched.length,
+        entryIds,
+        breakdown: [
+          {
+            key: "liquidacion",
+            label: `Liquidación Modelo 303 (${quarter}T)`,
+            total: liquidationAmount,
+            lines: matched.map((line) =>
+              mapBreakdownLine(
+                line,
+                line.haber > 0
+                  ? round2(decimalToNumber(line.haber))
+                  : -round2(decimalToNumber(line.debe)),
+                "liquidacion",
+              ),
+            ),
+          },
+        ],
+      }
     }
   }
 
@@ -313,6 +377,8 @@ export function prismaCodeToModelId(code: FiscalModelCode): FiscalModelId {
       return "111"
     case "M115":
       return "115"
+    case "M123":
+      return "123"
     case "M180":
       return "180"
     case "M303":

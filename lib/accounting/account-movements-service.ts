@@ -46,6 +46,25 @@ export async function fetchAccountMovements(
   const start = new Date(`${year}-01-01T00:00:00.000Z`)
   const end = new Date(`${year}-12-31T23:59:59.999Z`)
 
+  const priorLines = await prisma.entryLine.findMany({
+    where: {
+      entry: {
+        companyId,
+        fecha: { lt: start },
+      },
+    },
+    select: { cuenta: true, debe: true, haber: true },
+  })
+
+  const openingBalance = round2(
+    priorLines
+      .filter((line) => matchesCuenta(line.cuenta, normalized))
+      .reduce(
+        (sum, line) => sum + decimalToNumber(line.debe) - decimalToNumber(line.haber),
+        0,
+      ),
+  )
+
   const lines = await prisma.entryLine.findMany({
     where: {
       entry: {
@@ -72,7 +91,7 @@ export async function fetchAccountMovements(
 
   const matched = lines.filter((line) => matchesCuenta(line.cuenta, normalized))
 
-  let running = 0
+  let running = openingBalance
   const movements: AccountMovementRow[] = matched.map((line) => {
     const debe = decimalToNumber(line.debe)
     const haber = decimalToNumber(line.haber)
@@ -103,10 +122,10 @@ export async function fetchAccountMovements(
     formattedCuenta: formatAccountCodeDisplay(normalized),
     label: getAccountLabel(normalized),
     year,
-    openingBalance: 0,
+    openingBalance,
     totalDebe,
     totalHaber,
-    closingBalance: round2(totalDebe - totalHaber),
+    closingBalance: round2(openingBalance + totalDebe - totalHaber),
     movements,
   }
 }

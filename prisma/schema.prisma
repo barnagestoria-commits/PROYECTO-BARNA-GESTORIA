@@ -34,6 +34,7 @@ enum DocumentStatus {
 enum FiscalModelCode {
   M111
   M115
+  M123
   M180
   M303
 }
@@ -250,6 +251,7 @@ model CompanyFiscalSettings {
   clientProfile    CompanyClientProfile @default(PYME)
   model111Enabled  Boolean              @default(true)
   model115Enabled  Boolean              @default(false)
+  model123Enabled  Boolean              @default(false)
   model180Enabled  Boolean              @default(false)
   model303Enabled  Boolean              @default(true)
   createdAt        DateTime             @default(now())

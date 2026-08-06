@@ -1,4 +1,4 @@
-export type FiscalModelId = "111" | "115" | "180" | "303"
+export type FiscalModelId = "111" | "115" | "123" | "180" | "303"
 
 export type FiscalPeriodKey = "q1" | "q2" | "q3" | "q4" | "annual"
 
@@ -38,6 +38,7 @@ export interface FiscalPanoramaSummary {
       ivaResult: number
       retenciones111: number
       retenciones115: number
+      retenciones123: number
       retenciones180: number
       totalAPagarDevolver: number
       resultLabel: string

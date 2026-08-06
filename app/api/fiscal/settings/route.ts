@@ -34,6 +34,7 @@ export async function PATCH(request: Request) {
       clientProfile: body.clientProfile,
       model111Enabled: body.model111Enabled,
       model115Enabled: body.model115Enabled,
+      model123Enabled: body.model123Enabled,
       model180Enabled: body.model180Enabled,
       model303Enabled: body.model303Enabled,
     })
