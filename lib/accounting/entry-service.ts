@@ -308,23 +308,199 @@ export interface CompanyAccountingVolume {
   matchedBankMovementCount: number
 }
 
+export type AccountingEntryPurgeMode = "all" | "quarter" | "ref"
+
+export interface AccountingEntryPurgeFilter {
+  mode: AccountingEntryPurgeMode
+  year?: number
+  quarter?: 1 | 2 | 3 | 4
+  refNumbers?: number[]
+  refFrom?: number
+  refTo?: number
+}
+
+const QUARTER_DATE_RANGES: Record<1 | 2 | 3 | 4, [string, string]> = {
+  1: ["01-01", "03-31"],
+  2: ["04-01", "06-30"],
+  3: ["07-01", "09-30"],
+  4: ["10-01", "12-31"],
+}
+
+function quarterDateBounds(year: number, quarter: 1 | 2 | 3 | 4): { start: Date; end: Date } {
+  const [startDay, endDay] = QUARTER_DATE_RANGES[quarter]
+  return {
+    start: new Date(`${year}-${startDay}T00:00:00.000Z`),
+    end: new Date(`${year}-${endDay}T23:59:59.999Z`),
+  }
+}
+
+function buildAccountingEntryPurgeWhere(
+  companyId: string,
+  filter: AccountingEntryPurgeFilter,
+): Prisma.AccountingEntryWhereInput {
+  if (filter.mode === "all") {
+    return { companyId }
+  }
+
+  if (filter.mode === "quarter") {
+    if (!filter.year || !filter.quarter) {
+      throw new Error("Indica el ejercicio y el trimestre.")
+    }
+    const { start, end } = quarterDateBounds(filter.year, filter.quarter)
+    return { companyId, fecha: { gte: start, lte: end } }
+  }
+
+  const refConditions: Prisma.AccountingEntryWhereInput[] = []
+  if (filter.refNumbers?.length) {
+    refConditions.push({ refNumber: { in: filter.refNumbers } })
+  }
+  if (filter.refFrom != null && filter.refTo != null) {
+    refConditions.push({ refNumber: { gte: filter.refFrom, lte: filter.refTo } })
+  }
+
+  if (refConditions.length === 0) {
+    throw new Error("Indica al menos un número de asiento o un rango.")
+  }
+
+  return {
+    companyId,
+    OR: refConditions,
+  }
+}
+
+export function parseRefNumberInput(input: string): Pick<
+  AccountingEntryPurgeFilter,
+  "refNumbers" | "refFrom" | "refTo"
+> | null {
+  const trimmed = input.trim()
+  if (!trimmed) return null
+
+  const rangeMatch = trimmed.match(/^(\d+)\s*-\s*(\d+)$/)
+  if (rangeMatch) {
+    const from = Number.parseInt(rangeMatch[1], 10)
+    const to = Number.parseInt(rangeMatch[2], 10)
+    if (Number.isNaN(from) || Number.isNaN(to) || from <= 0 || to <= 0) return null
+    return from <= to ? { refFrom: from, refTo: to } : { refFrom: to, refTo: from }
+  }
+
+  if (trimmed.includes(",")) {
+    const refNumbers = trimmed
+      .split(",")
+      .map((part) => Number.parseInt(part.trim(), 10))
+      .filter((value) => !Number.isNaN(value) && value > 0)
+    return refNumbers.length > 0 ? { refNumbers } : null
+  }
+
+  const single = Number.parseInt(trimmed, 10)
+  return !Number.isNaN(single) && single > 0 ? { refNumbers: [single] } : null
+}
+
+export function parseAccountingEntryPurgeFilter(input: {
+  mode?: string
+  year?: string | number
+  quarter?: string | number
+  refs?: string
+  refNumbers?: string
+}): AccountingEntryPurgeFilter {
+  const mode = input.mode === "quarter" || input.mode === "ref" ? input.mode : "all"
+
+  if (mode === "all") {
+    return { mode: "all" }
+  }
+
+  if (mode === "quarter") {
+    const year = Number.parseInt(String(input.year ?? ""), 10)
+    const quarter = Number.parseInt(String(input.quarter ?? ""), 10)
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new Error("Ejercicio no válido.")
+    }
+    if (![1, 2, 3, 4].includes(quarter)) {
+      throw new Error("Trimestre no válido.")
+    }
+    return { mode: "quarter", year, quarter: quarter as 1 | 2 | 3 | 4 }
+  }
+
+  const parsedRefs = parseRefNumberInput(String(input.refs ?? input.refNumbers ?? ""))
+  if (!parsedRefs) {
+    throw new Error("Indica un asiento, varios separados por coma o un rango (p. ej. 100-200).")
+  }
+
+  return { mode: "ref", ...parsedRefs }
+}
+
 export async function getCompanyAccountingVolume(
   companyId: string,
+  filter: AccountingEntryPurgeFilter = { mode: "all" },
 ): Promise<CompanyAccountingVolume> {
+  const where = buildAccountingEntryPurgeWhere(companyId, filter)
+
   const [entryCount, lineCount, importCount, matchedBankMovementCount] = await Promise.all([
-    prisma.accountingEntry.count({ where: { companyId } }),
-    prisma.entryLine.count({ where: { entry: { companyId } } }),
-    prisma.accountingDataImport.count({ where: { companyId } }),
-    prisma.bankMovement.count({ where: { companyId, matchedEntryId: { not: null } } }),
+    prisma.accountingEntry.count({ where }),
+    prisma.entryLine.count({ where: { entry: where } }),
+    filter.mode === "all"
+      ? prisma.accountingDataImport.count({ where: { companyId } })
+      : Promise.resolve(0),
+    prisma.bankMovement.count({
+      where: {
+        companyId,
+        matchedEntryId: { not: null },
+        matchedEntry: where,
+      },
+    }),
   ])
 
   return { entryCount, lineCount, importCount, matchedBankMovementCount }
 }
 
-export interface DeleteAllAccountingEntriesResult {
+export interface DeleteAccountingEntriesResult {
   entriesDeleted: number
   importsDeleted: number
   bankMovementsReset: number
+}
+
+/**
+ * Borra asientos según el filtro indicado.
+ * Las líneas se eliminan en cascada; las conciliaciones afectadas vuelven a pendiente.
+ * Solo el borrado total elimina también el historial de importaciones.
+ */
+export async function deleteAccountingEntries(
+  companyId: string,
+  filter: AccountingEntryPurgeFilter = { mode: "all" },
+): Promise<DeleteAccountingEntriesResult> {
+  if (filter.mode === "all") {
+    return deleteAllAccountingEntries(companyId)
+  }
+
+  const where = buildAccountingEntryPurgeWhere(companyId, filter)
+  const entriesToDelete = await prisma.accountingEntry.findMany({
+    where,
+    select: { id: true },
+  })
+  const entryIds = entriesToDelete.map((entry) => entry.id)
+
+  if (entryIds.length === 0) {
+    return { entriesDeleted: 0, importsDeleted: 0, bankMovementsReset: 0 }
+  }
+
+  const [bankMovements, entries] = await prisma.$transaction([
+    prisma.bankMovement.updateMany({
+      where: { companyId, matchedEntryId: { in: entryIds } },
+      data: {
+        status: "PENDIENTE",
+        matchedEntryId: null,
+        matchedLineId: null,
+        matchedAt: null,
+        matchedById: null,
+      },
+    }),
+    prisma.accountingEntry.deleteMany({ where: { id: { in: entryIds } } }),
+  ])
+
+  return {
+    entriesDeleted: entries.count,
+    importsDeleted: 0,
+    bankMovementsReset: bankMovements.count,
+  }
 }
 
 /**
@@ -334,7 +510,7 @@ export interface DeleteAllAccountingEntriesResult {
  */
 export async function deleteAllAccountingEntries(
   companyId: string,
-): Promise<DeleteAllAccountingEntriesResult> {
+): Promise<DeleteAccountingEntriesResult> {
   const [bankMovements, imports, entries] = await prisma.$transaction([
     prisma.bankMovement.updateMany({
       where: { companyId, matchedEntryId: { not: null } },
