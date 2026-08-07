@@ -289,7 +289,7 @@ export function calculateModelAmount(
             lines: matched.map((line) =>
               mapBreakdownLine(
                 line,
-                line.haber > 0
+                decimalToNumber(line.haber) > 0
                   ? round2(decimalToNumber(line.haber))
                   : -round2(decimalToNumber(line.debe)),
                 "liquidacion",

@@ -70,13 +70,25 @@ async function fetchYearLines(companyId: string, year: number): Promise<RawEntry
     },
     include: {
       entry: {
-        select: { id: true, fecha: true, concepto: true },
+        select: { id: true, fecha: true, commandCode: true },
       },
     },
     orderBy: [{ entry: { fecha: "asc" } }, { sortOrder: "asc" }],
   })
 
-  return lines
+  return lines.map((line) => ({
+    id: line.id,
+    entryId: line.entryId,
+    cuenta: line.cuenta,
+    concepto: line.concepto,
+    debe: line.debe,
+    haber: line.haber,
+    entry: {
+      id: line.entry.id,
+      fecha: line.entry.fecha,
+      concepto: line.entry.commandCode,
+    },
+  }))
 }
 
 function computeRowCells(
