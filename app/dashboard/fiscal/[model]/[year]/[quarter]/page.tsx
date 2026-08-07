@@ -125,6 +125,28 @@ export default function FiscalModelDetailPage() {
             </CardContent>
           </Card>
 
+          <Card className="border-emerald-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base text-emerald-900">
+                {detail.modelCode === "303" ? "Resumen de IVA del periodo" : "Desglose del periodo"}
+              </CardTitle>
+              <CardDescription>
+                {detail.modelCode === "303"
+                  ? "Vista previa del borrador calculado desde los asientos importados, similar al detalle de A3."
+                  : "Líneas contables que componen el importe mostrado en la panorámica."}
+              </CardDescription>
+            </CardHeader>
+            {detail.modelCode === "303" && (
+              <CardContent className="pb-0">
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/dashboard/fiscal/pagar-devolver/${params.year}/${params.quarter}`}>
+                    Ver resumen a pagar / devolver
+                  </Link>
+                </Button>
+              </CardContent>
+            )}
+          </Card>
+
           {detail.breakdown.map((section) => (
             <Card key={section.key}>
               <CardHeader className="pb-3">

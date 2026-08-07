@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
+import { FiscalModelsConfigButton } from "@/components/fiscal/fiscal-models-config-panel"
 import { ClientA3ImportDialog } from "@/components/contabilidad/client-a3-import-dialog"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
@@ -271,6 +272,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
                     Pendiente / SD
                   </span>
                 </div>
+                <FiscalModelsConfigButton onSaved={() => void loadPanorama()} />
               </div>
 
               {isLoading ? (

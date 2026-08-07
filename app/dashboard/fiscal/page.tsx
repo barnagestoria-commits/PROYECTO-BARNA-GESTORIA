@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
+import { FiscalModelsConfigButton } from "@/components/fiscal/fiscal-models-config-panel"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
 import type { FiscalPanoramaResponse } from "@/lib/types/fiscal-panorama"
@@ -79,6 +80,7 @@ export default function FiscalPanoramaPage() {
               Pendiente / SD
             </span>
           </div>
+          <FiscalModelsConfigButton onSaved={() => void loadPanorama()} />
         </CardContent>
       </Card>
 

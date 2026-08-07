@@ -197,4 +197,51 @@ describe("fiscal line detection", () => {
     expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(551.25)
     expect(calculateModelAmount("123", lines, 2026, 1).amount).toBe(22870.38)
   })
+
+  it("detects modelo 111 from NRC payments and accruals", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "nrc-q1",
+        concepto: "IMPUESTOS - TRIBUTOS - NRC 111",
+        cuenta: "475101000000",
+        debe: 162,
+        haber: 0,
+        entry: { id: "e-nrc-q1", fecha: new Date("2026-01-13T12:00:00.000Z"), concepto: null },
+      }),
+      line({
+        id: "pay-q1",
+        concepto: "NRC. 1117330443354Z5KD38FQ0",
+        cuenta: "572000000000",
+        debe: 0,
+        haber: 37612.24,
+        entry: { id: "e-pay-q1", fecha: new Date("2026-04-01T12:00:00.000Z"), concepto: null },
+      }),
+    ]
+
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(37612.24)
+    expect(calculateModelAmount("111", lines, 2026, 2).amount).toBe(0)
+  })
+
+  it("estimates modelo 303 from IVA bridge lines when liquidation is missing", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "iva-s",
+        concepto: "IVA S./CAN LAMPAZAS PARALELO",
+        cuenta: "555000000000",
+        debe: 56.28,
+        haber: 0,
+        entry: { id: "e-q3-1", fecha: new Date("2026-07-01T12:00:00.000Z"), concepto: null },
+      }),
+      line({
+        id: "iva-r",
+        concepto: "IVA R./FIRA BARCELONA F26 0103",
+        cuenta: "572000000000",
+        debe: 0,
+        haber: 9396.67,
+        entry: { id: "e-q3-2", fecha: new Date("2026-07-07T12:00:00.000Z"), concepto: null },
+      }),
+    ]
+
+    expect(calculateModelAmount("303", lines, 2026, 3).amount).toBe(9340.39)
+  })
 })

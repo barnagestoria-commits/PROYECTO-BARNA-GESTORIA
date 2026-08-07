@@ -162,6 +162,11 @@ export function resolveNativeAccountFromMarker(
         ? registry.defaultBankAccount ?? padAccountCode12(GENERIC_BANK)
         : padAccountCode12("555000000000")
     }
+    if (/MODELO\s+111/i.test(upper)) {
+      return dh === "H"
+        ? registry.defaultBankAccount ?? padAccountCode12(GENERIC_BANK)
+        : padAccountCode12(RETENCION_PRACTICADAS)
+    }
     if (/IMPUESTOS|TRIBUTOS|NRC/i.test(upper)) {
       return padAccountCode12(RETENCION_PRACTICADAS)
     }

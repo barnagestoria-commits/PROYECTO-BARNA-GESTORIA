@@ -43,8 +43,6 @@ function cellBackgroundClass(status: FiscalPanoramaCell["status"]): string {
 }
 
 function PanoramaCell({ cell }: { cell: FiscalPanoramaCell }) {
-  const isClickable = cell.status !== "sin_datos" || cell.lineCount > 0
-
   const content = (
     <div className="flex min-w-[120px] flex-col items-end gap-1">
       <span
@@ -63,10 +61,6 @@ function PanoramaCell({ cell }: { cell: FiscalPanoramaCell }) {
       </Badge>
     </div>
   )
-
-  if (!isClickable) {
-    return content
-  }
 
   return (
     <Link

@@ -7,10 +7,14 @@ import type {
 } from "@/lib/types/fiscal-panorama"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import {
+  extractModel111LiquidationAmount,
+  extractModel111NrcAccrualLines,
+  extractModel111NrcPaymentAmount,
   extractModel303LiquidationAmount,
   isModel111RetentionLine,
   isModel123DividendRetentionLine,
 } from "@/lib/fiscal/fiscal-line-detection"
+import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
 
 export interface FiscalModelDefinition {
   code: FiscalModelId
@@ -200,6 +204,88 @@ export function calculateModelAmount(
   const entryIds = new Set<string>()
 
   if (modelCode === "111") {
+    if (quarter !== "annual") {
+      const liquidationAmount = extractModel111LiquidationAmount(lines, year, quarter)
+      if (liquidationAmount !== null) {
+        const matched = periodLines.filter((line) => {
+          const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+          return new RegExp(`Modelo\\s+111\\s+${quarter}\\s+Trimestre`, "i").test(text)
+        })
+        for (const line of matched) entryIds.add(line.entry.id)
+        return {
+          amount: liquidationAmount,
+          lineCount: matched.length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: `Liquidación Modelo 111 (${quarter}T)`,
+              total: liquidationAmount,
+              lines: matched.map((line) =>
+                mapBreakdownLine(
+                  line,
+                  decimalToNumber(line.haber) > 0
+                    ? round2(decimalToNumber(line.haber))
+                    : -round2(decimalToNumber(line.debe)),
+                ),
+              ),
+            },
+          ],
+        }
+      }
+
+      const nrcPaymentAmount = extractModel111NrcPaymentAmount(lines, year, quarter)
+      if (nrcPaymentAmount !== null) {
+        const { month, yearOffset } = { 1: { month: 4, yearOffset: 0 }, 2: { month: 7, yearOffset: 0 }, 3: { month: 10, yearOffset: 0 }, 4: { month: 1, yearOffset: 1 } }[quarter]!
+        const paymentYear = year + yearOffset
+        const matched = lines.filter((line) => {
+          const fecha = line.entry.fecha
+          return (
+            fecha.getUTCFullYear() === paymentYear &&
+            fecha.getUTCMonth() + 1 === month &&
+            /NRC\.?\s*111|NRC\.?\s*11\b/i.test(`${line.concepto} ${line.entry.concepto ?? ""}`) &&
+            !/123/i.test(`${line.concepto} ${line.entry.concepto ?? ""}`)
+          )
+        })
+        for (const line of matched) entryIds.add(line.entry.id)
+        return {
+          amount: nrcPaymentAmount,
+          lineCount: matched.length,
+          entryIds,
+          breakdown: [
+            {
+              key: "nrc-pago",
+              label: `Pago NRC Modelo 111 (${quarter}T)`,
+              total: nrcPaymentAmount,
+              lines: matched.map((line) =>
+                mapBreakdownLine(
+                  line,
+                  decimalToNumber(line.haber) > 0
+                    ? round2(decimalToNumber(line.haber))
+                    : -round2(decimalToNumber(line.debe)),
+                ),
+              ),
+            },
+          ],
+        }
+      }
+
+      const nrcAccrualLines = extractModel111NrcAccrualLines(lines, year, quarter)
+      if (nrcAccrualLines.length > 0) {
+        const breakdownLines = nrcAccrualLines.map((line) =>
+          mapBreakdownLine(line, round2(decimalToNumber(line.debe))),
+        )
+        for (const line of nrcAccrualLines) entryIds.add(line.entry.id)
+        const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+        return {
+          amount: total,
+          lineCount: nrcAccrualLines.length,
+          entryIds,
+          breakdown: [{ key: "nrc-accrual", label: "Ingreso NRC Modelo 111", total, lines: breakdownLines }],
+        }
+      }
+    }
+
     const matched = periodLines.filter(isModel111RetentionLine)
     const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
     for (const line of matched) entryIds.add(line.entry.id)
@@ -295,6 +381,34 @@ export function calculateModelAmount(
                 "liquidacion",
               ),
             ),
+          },
+        ],
+      }
+    }
+
+    const bridge = calculateIvaBridgeSummary(lines, year, quarter)
+    if (bridge.lineCount > 0) {
+      for (const line of [...bridge.soportadoLines, ...bridge.repercutidoLines]) {
+        entryIds.add(line.entry.id)
+      }
+      const soportado = bridge.soportadoLines.map((line) =>
+        mapBreakdownLine(line, round2(decimalToNumber(line.debe) - decimalToNumber(line.haber)), "soportado"),
+      )
+      const repercutido = bridge.repercutidoLines.map((line) =>
+        mapBreakdownLine(line, round2(decimalToNumber(line.haber) - decimalToNumber(line.debe)), "repercutido"),
+      )
+      return {
+        amount: bridge.netResult,
+        lineCount: bridge.lineCount,
+        entryIds,
+        breakdown: [
+          { key: "repercutido", label: "IVA repercutido (IVA R./)", total: bridge.repercutido, lines: repercutido },
+          { key: "soportado", label: "IVA soportado (IVA S./)", total: bridge.soportado, lines: soportado },
+          {
+            key: "resultado",
+            label: "Resultado IVA estimado (Repercutido − Soportado)",
+            total: bridge.netResult,
+            lines: [],
           },
         ],
       }

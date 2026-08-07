@@ -15,24 +15,40 @@ function isDateInYear(date: Date, year: number): boolean {
   return date.getUTCFullYear() === year
 }
 
+function isDateInQuarter(date: Date, year: number, quarter: 1 | 2 | 3 | 4): boolean {
+  if (date.getUTCFullYear() !== year) return false
+  const month = date.getUTCMonth() + 1
+  const quarterFromMonth = month <= 3 ? 1 : month <= 6 ? 2 : month <= 9 ? 3 : 4
+  return quarterFromMonth === quarter
+}
+
+function nrcPaymentMonthForQuarter(quarter: 1 | 2 | 3 | 4): { month: number; yearOffset: number } {
+  return (
+    { 1: { month: 4, yearOffset: 0 }, 2: { month: 7, yearOffset: 0 }, 3: { month: 10, yearOffset: 0 }, 4: { month: 1, yearOffset: 1 } }[
+      quarter
+    ] ?? { month: 1, yearOffset: 0 }
+  )
+}
+
+function isModel111NrcConcept(text: string): boolean {
+  if (/123/i.test(text)) return false
+  return /NRC\.?\s*111/i.test(text) || /NRC\.?\s*11\b/i.test(text)
+}
+
 export function isModel111RetentionLine(line: RawEntryLine): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
-  return /Reten\.\//i.test(line.concepto)
+  if (/RETENCI[ÓO]N\s+DIVID/i.test(line.concepto)) return false
+  return /Reten[\.\/]/i.test(line.concepto) || /Retenc/i.test(line.concepto)
 }
 
-export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
-  const haber = decimalToNumber(line.haber)
-  if (haber <= 0) return false
-  return /RETENCI[ÓO]N\s+DIVID/i.test(line.concepto)
-}
-
-export function extractModel303LiquidationAmount(
+function extractLiquidationAmount(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4,
+  modelCode: "111" | "303",
 ): number | null {
-  const pattern = new RegExp(`Modelo\\s+303\\s+${quarter}\\s+Trimestre`, "i")
+  const pattern = new RegExp(`Modelo\\s+${modelCode}\\s+${quarter}\\s+Trimestre`, "i")
   const compensationPattern = /Cuotas compensar/i
 
   const linesByEntry = new Map<string, RawEntryLine[]>()
@@ -53,7 +69,7 @@ export function extractModel303LiquidationAmount(
 
   for (const line of lines) {
     if (!isDateInYear(line.entry.fecha, year)) continue
-    if (entryHasSupplierAccount(line.entry.id)) continue
+    if (modelCode === "303" && entryHasSupplierAccount(line.entry.id)) continue
     if (compensationPattern.test(line.concepto)) continue
 
     const text = `${line.concepto} ${line.entry.concepto ?? ""}`
@@ -75,40 +91,6 @@ export function extractModel303LiquidationAmount(
   if (candidates.length === 0) return null
   if (candidates.length === 1) return round2(candidates[0].signedAmount)
 
-  const byEntry = new Map<string, Candidate[]>()
-  for (const candidate of candidates) {
-    const bucket = byEntry.get(candidate.entryId) ?? []
-    bucket.push(candidate)
-    byEntry.set(candidate.entryId, bucket)
-  }
-
-  const singleLineEntries = [...byEntry.entries()].filter(([, entryCandidates]) => entryCandidates.length === 1)
-  if (singleLineEntries.length === 1) {
-    return round2(singleLineEntries[0][1][0].signedAmount)
-  }
-
-  if (singleLineEntries.length > 1) {
-    const directMatches = singleLineEntries
-      .map(([, entryCandidates]) => entryCandidates[0])
-      .filter((candidate) => pattern.test(candidate.line.concepto))
-    if (directMatches.length === 1) {
-      return round2(directMatches[0].signedAmount)
-    }
-
-    const settlementAccounts = new Set(["572", "555", "470", "473"])
-    const settlementMatches = directMatches.filter((candidate) =>
-      settlementAccounts.has(normalizeCuenta(candidate.line.cuenta).slice(0, 3)),
-    )
-    if (settlementMatches.length === 1) {
-      return round2(settlementMatches[0].signedAmount)
-    }
-
-    if (directMatches.length > 0) {
-      const pick = directMatches.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
-      return round2(pick.signedAmount)
-    }
-  }
-
   const modeloCandidates = candidates.filter((candidate) => pattern.test(candidate.line.concepto))
   if (modeloCandidates.length > 0) {
     const pick = modeloCandidates.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
@@ -117,4 +99,85 @@ export function extractModel303LiquidationAmount(
 
   const pick = candidates.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
   return round2(pick.signedAmount)
+}
+
+export function extractModel111LiquidationAmount(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): number | null {
+  return extractLiquidationAmount(lines, year, quarter, "111")
+}
+
+export function extractModel111NrcPaymentAmount(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): number | null {
+  const { month, yearOffset } = nrcPaymentMonthForQuarter(quarter)
+  const paymentYear = year + yearOffset
+  const start = new Date(`${paymentYear}-${String(month).padStart(2, "0")}-01T00:00:00.000Z`)
+  const end = new Date(`${paymentYear}-${String(month).padStart(2, "0")}-${String(new Date(paymentYear, month, 0).getDate()).padStart(2, "0")}T23:59:59.999Z`)
+
+  type Candidate = { amount: number; signedAmount: number; line: RawEntryLine }
+  const candidates: Candidate[] = []
+
+  for (const line of lines) {
+    const fecha = line.entry.fecha
+    if (fecha < start || fecha > end) continue
+
+    const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+    if (!isModel111NrcConcept(text)) continue
+
+    const cuenta = normalizeCuenta(line.cuenta)
+    if (!cuenta.startsWith("572") && !cuenta.startsWith("555") && !cuenta.startsWith("475101")) {
+      continue
+    }
+
+    const debe = decimalToNumber(line.debe)
+    const haber = decimalToNumber(line.haber)
+    const amount = Math.max(debe, haber)
+    if (amount <= 0 || amount >= LIQUIDATION_CLEARING_THRESHOLD) continue
+
+    candidates.push({
+      amount,
+      signedAmount: haber > 0 ? haber : -debe,
+      line,
+    })
+  }
+
+  if (candidates.length === 0) return null
+  const haberCandidates = candidates.filter((candidate) => decimalToNumber(candidate.line.haber) > 0)
+  const pick = (haberCandidates.length > 0 ? haberCandidates : candidates).reduce((best, cur) =>
+    cur.amount < best.amount ? cur : best,
+  )
+  return round2(Math.abs(pick.signedAmount))
+}
+
+export function extractModel111NrcAccrualLines(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): RawEntryLine[] {
+  return lines.filter((line) => {
+    if (!isDateInQuarter(line.entry.fecha, year, quarter)) return false
+    const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+    if (!isModel111NrcConcept(text)) return false
+    const cuenta = normalizeCuenta(line.cuenta)
+    return cuenta.startsWith("475101") && decimalToNumber(line.debe) > 0
+  })
+}
+
+export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
+  const haber = decimalToNumber(line.haber)
+  if (haber <= 0) return false
+  return /RETENCI[ÓO]N\s+DIVID/i.test(line.concepto)
+}
+
+export function extractModel303LiquidationAmount(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): number | null {
+  return extractLiquidationAmount(lines, year, quarter, "303")
 }
