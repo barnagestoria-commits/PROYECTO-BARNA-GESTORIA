@@ -118,6 +118,62 @@ describe("fiscal line detection", () => {
     expect(extractModel303LiquidationAmount(lines, 2026, 2)).toBe(110116.19)
   })
 
+  it("extracts modelo 303 when liquidation lines were imported on 473", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "q1-supplier",
+        concepto: "Modelo 303 1 Trimestre 1 o",
+        cuenta: "473000000000",
+        debe: 162335.77,
+        haber: 0,
+        entry: { id: "e1", fecha: new Date("2026-03-01T12:00:00.000Z"), concepto: "Modelo 303 1 Trimestre 1 o" },
+      }),
+      line({
+        id: "q1-pay",
+        concepto: "Modelo 303 1 Trimestre 1 m",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 258395.68,
+        entry: { id: "e1", fecha: new Date("2026-03-01T12:00:00.000Z"), concepto: "Modelo 303 1 Trimestre 1 o" },
+      }),
+      line({
+        id: "q1-result",
+        concepto: "Modelo 303 1 Trimestre 1 m",
+        cuenta: "473000000000",
+        debe: 96059.91,
+        haber: 0,
+        entry: { id: "e1", fecha: new Date("2026-03-01T12:00:00.000Z"), concepto: "Modelo 303 1 Trimestre 1 o" },
+      }),
+      line({
+        id: "q2-result",
+        concepto: "Modelo 303 2 Trimestre 2 n",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 110116.19,
+        entry: { id: "e2", fecha: new Date("2026-06-01T12:00:00.000Z"), concepto: "Modelo 303 2 Trimestre 2 o" },
+      }),
+      line({
+        id: "q2-pay",
+        concepto: "Modelo 303 2 Trimestre 2 m",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 191159.01,
+        entry: { id: "e2", fecha: new Date("2026-06-01T12:00:00.000Z"), concepto: "Modelo 303 2 Trimestre 2 o" },
+      }),
+      line({
+        id: "q2-comp",
+        concepto: "Cuotas compensar aplicadas 2 m",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 96059.91,
+        entry: { id: "e2", fecha: new Date("2026-06-01T12:00:00.000Z"), concepto: "Modelo 303 2 Trimestre 2 o" },
+      }),
+    ]
+
+    expect(extractModel303LiquidationAmount(lines, 2026, 1)).toBe(-96059.91)
+    expect(extractModel303LiquidationAmount(lines, 2026, 2)).toBe(110116.19)
+  })
+
   it("calculates 111 and 123 from concepts instead of 4731 prefix", () => {
     const lines: RawEntryLine[] = [
       line({

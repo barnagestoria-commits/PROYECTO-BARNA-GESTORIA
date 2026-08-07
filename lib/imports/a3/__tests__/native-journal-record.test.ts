@@ -49,4 +49,12 @@ describe("native journal record parsing", () => {
     expect(resolveNativeAccountFromMarker(debitMarker, "D", concept, registry)).toBe("475101000000")
     expect(resolveNativeAccountFromMarker(creditMarker, "H", concept, registry)).toBe("572000020000")
   })
+
+  it("maps modelo 303 liquidation lines to settlement and bank accounts", () => {
+    const registry = buildNativePlanRegistry([], parseTpPredefiDefaults(Buffer.alloc(0)))
+    const concept = "Modelo 303 1 Trimestre 1 m"
+
+    expect(resolveNativeAccountFromMarker("AC", "D", concept, registry)).toBe("555000000000")
+    expect(resolveNativeAccountFromMarker("AC", "H", concept, registry)).toBe("572000000000")
+  })
 })

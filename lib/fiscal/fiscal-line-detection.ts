@@ -48,7 +48,7 @@ export function extractModel303LiquidationAmount(
     return entryLines.some((entryLine) => normalizeCuenta(entryLine.cuenta).startsWith("400"))
   }
 
-  type Candidate = { entryId: string; signedAmount: number; line: RawEntryLine }
+  type Candidate = { entryId: string; signedAmount: number; line: RawEntryLine; amount: number }
   const candidates: Candidate[] = []
 
   for (const line of lines) {
@@ -64,23 +64,16 @@ export function extractModel303LiquidationAmount(
     const amount = Math.max(debe, haber)
     if (amount <= 0 || amount >= LIQUIDATION_CLEARING_THRESHOLD) continue
 
-    const cuenta = normalizeCuenta(line.cuenta)
-    if (
-      !cuenta.startsWith("572") &&
-      !cuenta.startsWith("555") &&
-      !cuenta.startsWith("470")
-    ) {
-      continue
-    }
-
     candidates.push({
       entryId: line.entry.id,
       signedAmount: haber > 0 ? haber : -debe,
       line,
+      amount,
     })
   }
 
   if (candidates.length === 0) return null
+  if (candidates.length === 1) return round2(candidates[0].signedAmount)
 
   const byEntry = new Map<string, Candidate[]>()
   for (const candidate of candidates) {
@@ -102,29 +95,26 @@ export function extractModel303LiquidationAmount(
       return round2(directMatches[0].signedAmount)
     }
 
-    const haberCandidates = singleLineEntries
-      .map(([, entryCandidates]) => entryCandidates[0])
-      .filter((candidate) => candidate.signedAmount > 0)
-    if (haberCandidates.length === 1) {
-      return round2(haberCandidates[0].signedAmount)
+    const settlementAccounts = new Set(["572", "555", "470", "473"])
+    const settlementMatches = directMatches.filter((candidate) =>
+      settlementAccounts.has(normalizeCuenta(candidate.line.cuenta).slice(0, 3)),
+    )
+    if (settlementMatches.length === 1) {
+      return round2(settlementMatches[0].signedAmount)
     }
 
-    const debeCandidates = singleLineEntries
-      .map(([, entryCandidates]) => entryCandidates[0])
-      .filter((candidate) => candidate.signedAmount < 0)
-    if (debeCandidates.length === 1) {
-      return round2(debeCandidates[0].signedAmount)
+    if (directMatches.length > 0) {
+      const pick = directMatches.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
+      return round2(pick.signedAmount)
     }
   }
 
-  const amounts = candidates.map((candidate) => candidate.signedAmount)
-  const haberAmounts = amounts.filter((value) => value > 0)
-  if (haberAmounts.length === 1) {
-    return round2(haberAmounts[0])
-  }
-  if (haberAmounts.length > 1) {
-    return round2(Math.max(...haberAmounts))
+  const modeloCandidates = candidates.filter((candidate) => pattern.test(candidate.line.concepto))
+  if (modeloCandidates.length > 0) {
+    const pick = modeloCandidates.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
+    return round2(pick.signedAmount)
   }
 
-  return round2(Math.min(...amounts))
+  const pick = candidates.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
+  return round2(pick.signedAmount)
 }
