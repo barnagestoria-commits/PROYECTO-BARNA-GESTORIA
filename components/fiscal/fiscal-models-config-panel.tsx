@@ -5,17 +5,18 @@ import { Loader2, Settings2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { apiFetch } from "@/lib/api-client"
 import {
-  FISCAL_MODEL_OPTIONS,
+  filterModelOptionsByScope,
   settingsKeyForModel,
   type CompanyFiscalSettingsDto,
 } from "@/lib/fiscal/fiscal-settings"
-import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
+import type { FiscalModelId, FiscalPanoramaScope } from "@/lib/types/fiscal-panorama"
 import { cn } from "@/lib/utils"
 
 interface FiscalModelsConfigPanelProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved?: () => void
+  scope?: FiscalPanoramaScope
   className?: string
 }
 
@@ -23,12 +24,14 @@ export function FiscalModelsConfigPanel({
   open,
   onOpenChange,
   onSaved,
+  scope = "trimestral",
   className,
 }: FiscalModelsConfigPanelProps) {
   const [settings, setSettings] = useState<CompanyFiscalSettingsDto | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+  const modelOptions = filterModelOptionsByScope(scope)
 
   const loadSettings = useCallback(async () => {
     setIsLoading(true)
@@ -80,10 +83,12 @@ export function FiscalModelsConfigPanel({
         <div>
           <p className="flex items-center gap-2 text-sm font-semibold text-emerald-900">
             <Settings2 className="h-4 w-4" />
-            Modelos visibles en la panorámica
+            Modelos visibles — {scope === "trimestral" ? "resumen trimestral" : "resumen anual"}
           </p>
           <p className="mt-1 text-xs text-graphite-600">
-            Marca qué impuestos deben aparecer en la matriz trimestral de esta empresa.
+            {scope === "trimestral"
+              ? "Solo modelos trimestrales (111, 115, 123, 303)."
+              : "Solo modelos anuales (180 y certificados anuales)."}
           </p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
@@ -98,7 +103,7 @@ export function FiscalModelsConfigPanel({
         </div>
       ) : settings ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
-          {FISCAL_MODEL_OPTIONS.map((model) => {
+          {modelOptions.map((model) => {
             const enabled = settings[settingsKeyForModel(model.id)]
             return (
               <label
@@ -130,25 +135,47 @@ export function FiscalModelsConfigPanel({
 }
 
 interface FiscalModelsConfigButtonProps {
+  scope?: FiscalPanoramaScope
   onSaved?: () => void
+  className?: string
 }
 
-export function FiscalModelsConfigButton({ onSaved }: FiscalModelsConfigButtonProps) {
+export function FiscalModelsConfigButton({
+  scope = "trimestral",
+  onSaved,
+  className,
+}: FiscalModelsConfigButtonProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="space-y-3">
-      <Button type="button" size="sm" variant="outline" onClick={() => setOpen((value) => !value)}>
+    <div className={cn("space-y-3", className)}>
+      <Button type="button" size="sm" variant="outline" onClick={() => setOpen((value) => !open)}>
         <Settings2 className="mr-2 h-4 w-4" />
         Configurar modelos
       </Button>
       <FiscalModelsConfigPanel
         open={open}
         onOpenChange={setOpen}
+        scope={scope}
         onSaved={() => {
           onSaved?.()
         }}
       />
+    </div>
+  )
+}
+
+interface FiscalPanoramaSectionHeaderProps {
+  title: string
+  scope: FiscalPanoramaScope
+  onSaved?: () => void
+}
+
+export function FiscalPanoramaSectionHeader({ title, scope, onSaved }: FiscalPanoramaSectionHeaderProps) {
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-900">{title}</h2>
+      <FiscalModelsConfigButton scope={scope} onSaved={onSaved} className="space-y-0" />
     </div>
   )
 }

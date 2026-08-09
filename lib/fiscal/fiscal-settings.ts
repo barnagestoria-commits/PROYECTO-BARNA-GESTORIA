@@ -134,6 +134,24 @@ export function getEnabledModels(settings: CompanyFiscalSettingsDto): FiscalMode
   )
 }
 
+export function getEnabledQuarterlyModels(settings: CompanyFiscalSettingsDto): FiscalModelId[] {
+  return FISCAL_MODEL_OPTIONS.filter(
+    (model) => model.periodicity === "trimestral" && isModelEnabled(settings, model.id),
+  ).map((model) => model.id)
+}
+
+export function getEnabledAnnualModels(settings: CompanyFiscalSettingsDto): FiscalModelId[] {
+  return FISCAL_MODEL_OPTIONS.filter(
+    (model) => model.periodicity === "anual" && isModelEnabled(settings, model.id),
+  ).map((model) => model.id)
+}
+
+export function filterModelOptionsByScope(scope: "trimestral" | "anual") {
+  return FISCAL_MODEL_OPTIONS.filter((model) =>
+    scope === "trimestral" ? model.periodicity === "trimestral" : model.periodicity === "anual",
+  )
+}
+
 export type FiscalModelSettingsKey =
   | "model111Enabled"
   | "model115Enabled"

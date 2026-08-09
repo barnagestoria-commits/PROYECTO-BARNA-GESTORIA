@@ -3,16 +3,23 @@
 import { useCallback, useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
-import { FiscalModelsConfigButton } from "@/components/fiscal/fiscal-models-config-panel"
+import { FiscalPanoramaSectionHeader } from "@/components/fiscal/fiscal-models-config-panel"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
-import type { FiscalPanoramaResponse } from "@/lib/types/fiscal-panorama"
+import type { FiscalPanoramaResponse, FiscalPanoramaScope } from "@/lib/types/fiscal-panorama"
 import { CalendarRange, Loader2, TableProperties } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+const PANORAMA_VIEWS: Array<{ id: FiscalPanoramaScope; label: string }> = [
+  { id: "trimestral", label: "Resumen trimestral" },
+  { id: "anual", label: "Resumen anual" },
+]
 
 export default function FiscalPanoramaPage() {
   const { session, activeCompany } = useRequireAuth()
   const currentYear = new Date().getFullYear()
   const [year, setYear] = useState(currentYear)
+  const [scope, setScope] = useState<FiscalPanoramaScope>("trimestral")
   const [panorama, setPanorama] = useState<FiscalPanoramaResponse | null>(null)
   const [isLoadingPanorama, setIsLoadingPanorama] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +57,7 @@ export default function FiscalPanoramaPage() {
             <span className="break-words text-balance">Mantenimiento de datos — Resumen periódico</span>
           </CardTitle>
           <CardDescription className="break-words text-pretty leading-relaxed">
-            Matriz trimestral calculada desde los asientos contables de la empresa activa.
+            Matriz calculada desde los asientos contables de la empresa activa.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6">
@@ -80,7 +87,6 @@ export default function FiscalPanoramaPage() {
               Pendiente / SD
             </span>
           </div>
-          <FiscalModelsConfigButton onSaved={() => void loadPanorama()} />
         </CardContent>
       </Card>
 
@@ -90,18 +96,48 @@ export default function FiscalPanoramaPage() {
             Selecciona una empresa para ver la vista panorámica fiscal.
           </CardContent>
         </Card>
-      ) : isLoadingPanorama ? (
-        <div className="flex items-center justify-center gap-2 py-16 text-gray-600">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Calculando modelos fiscales…
-        </div>
-      ) : error ? (
-        <Card>
-          <CardContent className="py-10 text-center text-red-700">{error}</CardContent>
-        </Card>
-      ) : panorama ? (
-        <FiscalPanoramaMatrix panorama={panorama} />
-      ) : null}
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-1 border-b border-sand-200" role="tablist">
+            {PANORAMA_VIEWS.map((view) => (
+              <button
+                key={view.id}
+                type="button"
+                role="tab"
+                aria-selected={scope === view.id}
+                onClick={() => setScope(view.id)}
+                className={cn(
+                  "rounded-t-md border-b-2 px-4 py-2 text-sm font-semibold transition-colors",
+                  scope === view.id
+                    ? "border-emerald-800 text-emerald-900"
+                    : "border-transparent text-graphite-600 hover:text-emerald-800",
+                )}
+              >
+                {view.label}
+              </button>
+            ))}
+          </div>
+
+          <FiscalPanoramaSectionHeader
+            title={scope === "trimestral" ? "Resumen trimestral" : "Resumen anual"}
+            scope={scope}
+            onSaved={() => void loadPanorama()}
+          />
+
+          {isLoadingPanorama ? (
+            <div className="flex items-center justify-center gap-2 py-16 text-gray-600">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Calculando modelos fiscales…
+            </div>
+          ) : error ? (
+            <Card>
+              <CardContent className="py-10 text-center text-red-700">{error}</CardContent>
+            </Card>
+          ) : panorama ? (
+            <FiscalPanoramaMatrix panorama={panorama} scope={scope} />
+          ) : null}
+        </>
+      )}
     </div>
   )
 }

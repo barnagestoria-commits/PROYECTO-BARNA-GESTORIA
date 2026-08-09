@@ -15,7 +15,9 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
-import { FiscalModelsConfigButton } from "@/components/fiscal/fiscal-models-config-panel"
+import {
+  FiscalPanoramaSectionHeader,
+} from "@/components/fiscal/fiscal-models-config-panel"
 import { ClientA3ImportDialog } from "@/components/contabilidad/client-a3-import-dialog"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
@@ -25,7 +27,8 @@ import type { FiscalPanoramaResponse } from "@/lib/types/fiscal-panorama"
 import { cn } from "@/lib/utils"
 
 const WORKSPACE_TABS = [
-  { id: "resumen", label: "Resumen", icon: FileSpreadsheet },
+  { id: "resumen-trimestral", label: "Resumen trimestral", icon: FileSpreadsheet },
+  { id: "resumen-anual", label: "Resumen anual", icon: CalendarRange },
   { id: "apuntes", label: "Apuntes / Movimientos", icon: BookOpen },
   { id: "iva", label: "Resumen de IVA", icon: Landmark },
   { id: "plan", label: "Plan Contable", icon: Calculator },
@@ -53,7 +56,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
   const [error, setError] = useState<string | null>(null)
   const [isSwitchingCompany, setIsSwitchingCompany] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
-  const [activeTab, setActiveTab] = useState<WorkspaceTabId>("resumen")
+  const [activeTab, setActiveTab] = useState<WorkspaceTabId>("resumen-trimestral")
 
   const company = useMemo(
     () => session?.companies.find((item) => item.id === companyId) ?? null,
@@ -105,7 +108,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
   }, [company, ensureActiveCompany, session, year])
 
   useEffect(() => {
-    if (company && activeTab === "resumen") {
+    if (company && (activeTab === "resumen-trimestral" || activeTab === "resumen-anual")) {
       void loadPanorama()
     }
   }, [activeTab, company, loadPanorama])
@@ -245,7 +248,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6">
-          {activeTab === "resumen" && (
+          {(activeTab === "resumen-trimestral" || activeTab === "resumen-anual") && (
             <>
               <div className="flex flex-wrap items-center gap-3">
                 <CalendarRange className="h-4 w-4 text-graphite-500" />
@@ -272,8 +275,13 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
                     Pendiente / SD
                   </span>
                 </div>
-                <FiscalModelsConfigButton onSaved={() => void loadPanorama()} />
               </div>
+
+              <FiscalPanoramaSectionHeader
+                title={activeTab === "resumen-trimestral" ? "Resumen trimestral" : "Resumen anual"}
+                scope={activeTab === "resumen-trimestral" ? "trimestral" : "anual"}
+                onSaved={() => void loadPanorama()}
+              />
 
               {isLoading ? (
                 <div className="flex items-center justify-center py-16 text-emerald-800">
@@ -285,7 +293,10 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
                   {error}
                 </div>
               ) : panorama ? (
-                <FiscalPanoramaMatrix panorama={panorama} />
+                <FiscalPanoramaMatrix
+                  panorama={panorama}
+                  scope={activeTab === "resumen-trimestral" ? "trimestral" : "anual"}
+                />
               ) : null}
             </>
           )}

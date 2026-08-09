@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment } from "react"
+import { Fragment, useMemo } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -12,12 +12,17 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { formatFiscalAmount } from "@/lib/fiscal/panorama"
+import { isAnnualModel, isQuarterlyModel } from "@/lib/fiscal/fiscal-settings"
 import type {
   FiscalPanoramaCell,
   FiscalPanoramaResponse,
+  FiscalPanoramaScope,
   FiscalPeriodKey,
 } from "@/lib/types/fiscal-panorama"
-import { FISCAL_PERIOD_COLUMNS } from "@/lib/types/fiscal-panorama"
+import {
+  FISCAL_ANNUAL_PERIOD_COLUMNS,
+  FISCAL_QUARTERLY_PERIOD_COLUMNS,
+} from "@/lib/types/fiscal-panorama"
 import { cn } from "@/lib/utils"
 
 function statusBadgeClass(status: FiscalPanoramaCell["status"]): string {
@@ -74,10 +79,39 @@ function PanoramaCell({ cell }: { cell: FiscalPanoramaCell }) {
 
 interface FiscalPanoramaMatrixProps {
   panorama: FiscalPanoramaResponse
+  scope?: FiscalPanoramaScope
 }
 
-export function FiscalPanoramaMatrix({ panorama }: FiscalPanoramaMatrixProps) {
-  const periodKeys = FISCAL_PERIOD_COLUMNS.map((column) => column.key)
+export function FiscalPanoramaMatrix({ panorama, scope = "trimestral" }: FiscalPanoramaMatrixProps) {
+  const periodColumns =
+    scope === "trimestral" ? FISCAL_QUARTERLY_PERIOD_COLUMNS : FISCAL_ANNUAL_PERIOD_COLUMNS
+  const periodKeys = periodColumns.map((column) => column.key)
+
+  const blocks = useMemo(() => {
+    const predicate =
+      scope === "trimestral"
+        ? (modelCode: string) => isQuarterlyModel(modelCode as never)
+        : (modelCode: string) => isAnnualModel(modelCode as never)
+
+    return panorama.blocks
+      .map((block) => ({
+        ...block,
+        rows: block.rows.filter((row) => predicate(row.modelCode)),
+      }))
+      .filter((block) => block.rows.length > 0)
+  }, [panorama.blocks, scope])
+
+  const showSummary = scope === "trimestral"
+
+  if (blocks.length === 0) {
+    return (
+      <div className="rounded-lg border bg-white px-4 py-10 text-center text-sm text-graphite-600">
+        {scope === "trimestral"
+          ? "No hay modelos trimestrales activos para esta empresa."
+          : "No hay modelos anuales activos para esta empresa."}
+      </div>
+    )
+  }
 
   return (
     <div className="overflow-x-auto rounded-lg border bg-white">
@@ -85,7 +119,7 @@ export function FiscalPanoramaMatrix({ panorama }: FiscalPanoramaMatrixProps) {
         <TableHeader>
           <TableRow className="bg-emerald-900 hover:bg-emerald-900">
             <TableHead className="min-w-[220px] font-semibold text-white">Modelo</TableHead>
-            {FISCAL_PERIOD_COLUMNS.map((column) => (
+            {periodColumns.map((column) => (
               <TableHead key={column.key} className="text-right font-semibold text-white">
                 {column.label}
               </TableHead>
@@ -93,11 +127,11 @@ export function FiscalPanoramaMatrix({ panorama }: FiscalPanoramaMatrixProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {panorama.blocks.map((block) => (
+          {blocks.map((block) => (
             <Fragment key={block.id}>
               <TableRow className="bg-sand-100 hover:bg-sand-100">
                 <TableCell
-                  colSpan={FISCAL_PERIOD_COLUMNS.length + 1}
+                  colSpan={periodColumns.length + 1}
                   className="py-2 text-xs font-bold uppercase tracking-wider text-emerald-900"
                 >
                   {block.label}
@@ -124,17 +158,19 @@ export function FiscalPanoramaMatrix({ panorama }: FiscalPanoramaMatrixProps) {
             </Fragment>
           ))}
 
-          <TableRow className="border-t-2 border-emerald-700 bg-emerald-50 font-semibold hover:bg-emerald-50">
-            <TableCell className="text-emerald-900">{panorama.summary.label}</TableCell>
-            {periodKeys.map((periodKey: FiscalPeriodKey) => (
-              <TableCell
-                key={`summary-${periodKey}`}
-                className={cn("text-right", cellBackgroundClass(panorama.summary.cells[periodKey].status))}
-              >
-                <PanoramaCell cell={panorama.summary.cells[periodKey]} />
-              </TableCell>
-            ))}
-          </TableRow>
+          {showSummary && (
+            <TableRow className="border-t-2 border-emerald-700 bg-emerald-50 font-semibold hover:bg-emerald-50">
+              <TableCell className="text-emerald-900">{panorama.summary.label}</TableCell>
+              {periodKeys.map((periodKey: FiscalPeriodKey) => (
+                <TableCell
+                  key={`summary-${periodKey}`}
+                  className={cn("text-right", cellBackgroundClass(panorama.summary.cells[periodKey].status))}
+                >
+                  <PanoramaCell cell={panorama.summary.cells[periodKey]} />
+                </TableCell>
+              ))}
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     </div>

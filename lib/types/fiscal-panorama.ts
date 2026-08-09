@@ -91,3 +91,13 @@ export const FISCAL_PERIOD_COLUMNS: Array<{ key: FiscalPeriodKey; label: string 
   { key: "q4", label: "4T" },
   { key: "annual", label: "Resumen anual" },
 ]
+
+export const FISCAL_QUARTERLY_PERIOD_COLUMNS = FISCAL_PERIOD_COLUMNS.filter(
+  (column) => column.key !== "annual",
+)
+
+export const FISCAL_ANNUAL_PERIOD_COLUMNS: Array<{ key: FiscalPeriodKey; label: string }> = [
+  { key: "annual", label: "Ejercicio" },
+]
+
+export type FiscalPanoramaScope = "trimestral" | "anual"
