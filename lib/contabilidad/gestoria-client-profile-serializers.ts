@@ -5,6 +5,7 @@ import {
   createDefaultPresentationConfig,
   syncPresentationWithAccountingPlan,
 } from "@/lib/contabilidad/gestoria-presentation-config"
+import { mergeImpresosIntoFiscalSettings } from "@/lib/fiscal/fiscal-settings"
 import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
 import {
   createEmptyGestoriaProfile,
@@ -88,7 +89,11 @@ export function profileRecordToDto(
       model115: fiscalSettings.model115Enabled,
       model123: fiscalSettings.model123Enabled,
       model180: fiscalSettings.model180Enabled,
+      model190: fiscalSettings.model190Enabled,
       model303: fiscalSettings.model303Enabled,
+      model347: fiscalSettings.model347Enabled,
+      model349: fiscalSettings.model349Enabled,
+      model390: fiscalSettings.model390Enabled,
     },
     inmovilizadoParams: parseJson<GestoriaInmovilizadoParams>(
       record.inmovilizadoParamsJson,
@@ -131,6 +136,7 @@ export function profileDtoToRecordData(profile: GestoriaClientProfileDto) {
     localesJson: JSON.stringify(profile.locales),
     impresosJson: JSON.stringify({
       model123: impresos.model123,
+      model190: impresos.model190,
       model232: impresos.model232 ?? profile.presentation.model232Enabled,
       model347: impresos.model347,
       model349: impresos.model349,
@@ -149,12 +155,5 @@ export function fiscalSettingsFromProfileImpresos(
   profile: GestoriaClientProfileDto,
   current: CompanyFiscalSettingsDto,
 ): CompanyFiscalSettingsDto {
-  return {
-    ...current,
-    model111Enabled: profile.impresos.model111 ?? current.model111Enabled,
-    model115Enabled: profile.impresos.model115 ?? current.model115Enabled,
-    model123Enabled: profile.impresos.model123 ?? current.model123Enabled,
-    model180Enabled: profile.impresos.model180 ?? current.model180Enabled,
-    model303Enabled: profile.impresos.model303 ?? current.model303Enabled,
-  }
+  return mergeImpresosIntoFiscalSettings(current, profile.impresos)
 }

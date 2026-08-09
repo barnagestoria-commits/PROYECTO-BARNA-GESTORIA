@@ -1,9 +1,7 @@
 import type { TDocumentDefinitions, TFontDictionary } from "pdfmake/interfaces"
 
-// pdfmake 0.3 exposes the Node/server API from the package root (not build/pdfmake).
-// eslint-disable-next-line @typescript-eslint/no-require-imports
+// pdfmake 0.3 server API is CommonJS-only from the package root.
 const pdfmake = require("pdfmake") as PdfMakeInstance
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const pdfFontVfs = require("pdfmake/build/vfs_fonts") as Record<string, string>
 
 interface PdfMakeInstance {

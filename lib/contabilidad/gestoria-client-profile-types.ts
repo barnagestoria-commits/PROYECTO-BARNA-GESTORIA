@@ -78,6 +78,7 @@ export interface GestoriaImpresosConfig {
   model115?: boolean
   model123?: boolean
   model180?: boolean
+  model190?: boolean
   model232?: boolean
   model303?: boolean
   model347?: boolean

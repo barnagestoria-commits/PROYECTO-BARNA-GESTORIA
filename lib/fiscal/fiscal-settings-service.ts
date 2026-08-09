@@ -2,10 +2,59 @@ import type { CompanyClientProfile } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import {
   DEFAULT_SETTINGS_BY_PROFILE,
+  mergeImpresosIntoFiscalSettings,
   type CompanyFiscalSettingsDto,
   getEnabledModels,
 } from "@/lib/fiscal/fiscal-settings"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
+
+function mapRecordToDto(record: {
+  clientProfile: CompanyClientProfile
+  model111Enabled: boolean
+  model115Enabled: boolean
+  model123Enabled: boolean
+  model180Enabled: boolean
+  model190Enabled: boolean
+  model303Enabled: boolean
+  model347Enabled: boolean
+  model349Enabled: boolean
+  model390Enabled: boolean
+}): CompanyFiscalSettingsDto {
+  return {
+    clientProfile: record.clientProfile,
+    model111Enabled: record.model111Enabled,
+    model115Enabled: record.model115Enabled,
+    model123Enabled: record.model123Enabled,
+    model180Enabled: record.model180Enabled,
+    model190Enabled: record.model190Enabled,
+    model303Enabled: record.model303Enabled,
+    model347Enabled: record.model347Enabled,
+    model349Enabled: record.model349Enabled,
+    model390Enabled: record.model390Enabled,
+  }
+}
+
+function parseImpresosJson(value: string | null | undefined): Partial<Record<string, boolean>> {
+  if (!value) return {}
+  try {
+    return JSON.parse(value) as Partial<Record<string, boolean>>
+  } catch {
+    return {}
+  }
+}
+
+async function mergeGestoriaImpresos(
+  companyId: string,
+  settings: CompanyFiscalSettingsDto,
+): Promise<CompanyFiscalSettingsDto> {
+  const gestoriaProfile = await prisma.companyGestoriaProfile.findUnique({
+    where: { companyId },
+    select: { impresosJson: true },
+  })
+
+  if (!gestoriaProfile?.impresosJson) return settings
+  return mergeImpresosIntoFiscalSettings(settings, parseImpresosJson(gestoriaProfile.impresosJson))
+}
 
 export async function getOrCreateCompanyFiscalSettings(
   companyId: string,
@@ -14,33 +63,11 @@ export async function getOrCreateCompanyFiscalSettings(
     where: { companyId },
   })
 
-  if (existing) {
-    return {
-      clientProfile: existing.clientProfile,
-      model111Enabled: existing.model111Enabled,
-      model115Enabled: existing.model115Enabled,
-      model123Enabled: existing.model123Enabled,
-      model180Enabled: existing.model180Enabled,
-      model303Enabled: existing.model303Enabled,
-    }
-  }
+  const base = existing
+    ? mapRecordToDto(existing)
+    : DEFAULT_SETTINGS_BY_PROFILE.PYME
 
-  const defaults = DEFAULT_SETTINGS_BY_PROFILE.PYME
-  const created = await prisma.companyFiscalSettings.create({
-    data: {
-      companyId,
-      ...defaults,
-    },
-  })
-
-  return {
-    clientProfile: created.clientProfile,
-    model111Enabled: created.model111Enabled,
-    model115Enabled: created.model115Enabled,
-    model123Enabled: created.model123Enabled,
-    model180Enabled: created.model180Enabled,
-    model303Enabled: created.model303Enabled,
-  }
+  return mergeGestoriaImpresos(companyId, base)
 }
 
 export async function updateCompanyFiscalSettings(
@@ -62,14 +89,7 @@ export async function updateCompanyFiscalSettings(
     },
   })
 
-  return {
-    clientProfile: updated.clientProfile,
-    model111Enabled: updated.model111Enabled,
-    model115Enabled: updated.model115Enabled,
-    model123Enabled: updated.model123Enabled,
-    model180Enabled: updated.model180Enabled,
-    model303Enabled: updated.model303Enabled,
-  }
+  return mapRecordToDto(updated)
 }
 
 export async function applyClientProfilePreset(

@@ -401,6 +401,7 @@ export function EditGestoriaClientDialog({
                     ["model115", "Modelo 115"],
                     ["model123", "Modelo 123"],
                     ["model180", "Modelo 180"],
+                    ["model190", "Modelo 190"],
                     ["model232", "Modelo 232"],
                     ["model303", "Modelo 303"],
                     ["model347", "Modelo 347"],

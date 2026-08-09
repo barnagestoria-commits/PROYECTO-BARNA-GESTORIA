@@ -1,10 +1,10 @@
-export type FiscalModelId = "111" | "115" | "123" | "180" | "303"
+export type FiscalModelId = "111" | "115" | "123" | "180" | "190" | "303" | "347" | "349" | "390"
 
 export type FiscalPeriodKey = "q1" | "q2" | "q3" | "q4" | "annual"
 
 export type FiscalCellStatus = "sin_datos" | "pendiente" | "presentado"
 
-export type FiscalBlockId = "IRPF" | "IVA"
+export type FiscalBlockId = "IRPF" | "IVA" | "INFORMATIVAS"
 
 export interface FiscalPanoramaCell {
   period: FiscalPeriodKey

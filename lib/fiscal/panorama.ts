@@ -8,10 +8,12 @@ import type {
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import {
   collectEntryLines,
+  extractGenericModelLiquidationDetail,
   extractModel111LiquidationDetail,
   extractModel111NrcAccrualLines,
   extractModel111NrcPaymentDetail,
   extractModel303LiquidationDetail,
+  isIntracomunitariaLine,
   isModel111RetentionLine,
   isModel115RentalRetentionLine,
   isModel123DividendRetentionLine,
@@ -50,6 +52,20 @@ export const FISCAL_MODEL_DEFINITIONS: FiscalModelDefinition[] = [
     block: "IRPF",
   },
   {
+    code: "349",
+    prismaCode: "M349",
+    label: "Modelo 349",
+    description: "IVA — Declaración recapitulativa de operaciones intracomunitarias",
+    block: "IVA",
+  },
+  {
+    code: "303",
+    prismaCode: "M303",
+    label: "Modelo 303",
+    description: "IVA — Autoliquidación (Repercutido − Soportado)",
+    block: "IVA",
+  },
+  {
     code: "180",
     prismaCode: "M180",
     label: "Modelo 180",
@@ -57,10 +73,24 @@ export const FISCAL_MODEL_DEFINITIONS: FiscalModelDefinition[] = [
     block: "IRPF",
   },
   {
-    code: "303",
-    prismaCode: "M303",
-    label: "Modelo 303",
-    description: "IVA — Autoliquidación (Repercutido − Soportado)",
+    code: "190",
+    prismaCode: "M190",
+    label: "Modelo 190",
+    description: "Resumen anual — Retenciones e ingresos a cuenta (Imp. Sociedades / IRPF)",
+    block: "IRPF",
+  },
+  {
+    code: "347",
+    prismaCode: "M347",
+    label: "Modelo 347",
+    description: "Declaración anual — Operaciones con terceras personas",
+    block: "INFORMATIVAS",
+  },
+  {
+    code: "390",
+    prismaCode: "M390",
+    label: "Modelo 390",
+    description: "Resumen anual — IVA",
     block: "IVA",
   },
 ]
@@ -379,8 +409,58 @@ export function calculateModelAmount(
     }
   }
 
-  if (quarter !== "annual") {
-    const liquidation = extractModel303LiquidationDetail(lines, year, quarter)
+  if (modelCode === "190") {
+    if (quarter === "annual") {
+      const liquidation = extractGenericModelLiquidationDetail(lines, year, "annual", "190")
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
+        for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
+        return {
+          amount: liquidation.amount,
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: "Liquidación Modelo 190",
+              total: liquidation.amount,
+              lines: breakdownLines,
+            },
+          ],
+        }
+      }
+    }
+
+    const matched = periodLines.filter(
+      (line) =>
+        isModel111RetentionLine(line) ||
+        isModel115RentalRetentionLine(line) ||
+        isModel123DividendRetentionLine(line),
+    )
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
+    for (const line of matched) entryIds.add(line.entry.id)
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
+    return {
+      amount: total,
+      lineCount: matched.length,
+      entryIds,
+      breakdown: [
+        {
+          key: "retenciones-anuales",
+          label: "Retenciones practicadas acumuladas (111/115/123)",
+          total,
+          lines: breakdownLines,
+        },
+      ],
+    }
+  }
+
+  if (modelCode === "347") {
+    const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "347")
     if (liquidation) {
       const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
       for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
@@ -391,7 +471,7 @@ export function calculateModelAmount(
         breakdown: [
           {
             key: "liquidacion",
-            label: `Liquidación Modelo 303 (${quarter}T)`,
+            label: "Liquidación Modelo 347",
             total: liquidation.amount,
             lines: breakdownLines,
           },
@@ -399,60 +479,212 @@ export function calculateModelAmount(
       }
     }
 
-    const bridge = calculateIvaBridgeSummary(lines, year, quarter)
-    if (bridge.lineCount > 0) {
-      for (const line of [...bridge.soportadoLines, ...bridge.repercutidoLines]) {
-        entryIds.add(line.entry.id)
+    const matched = periodLines.filter((line) => {
+      const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+      return /Modelo\s+347|347.*tercer|OPERAC.*TERCER/i.test(text)
+    })
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, (line) =>
+      round2(Math.max(decimalToNumber(line.debe), decimalToNumber(line.haber))),
+    )
+    for (const line of matched) entryIds.add(line.entry.id)
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
+    return {
+      amount: total,
+      lineCount: matched.length,
+      entryIds,
+      breakdown: [
+        {
+          key: "operaciones-terceros",
+          label: "Operaciones declarables — terceros",
+          total,
+          lines: breakdownLines,
+        },
+      ],
+    }
+  }
+
+  if (modelCode === "349") {
+    if (quarter !== "annual") {
+      const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "349")
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
+        for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
+        return {
+          amount: liquidation.amount,
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: `Liquidación Modelo 349 (${quarter}T)`,
+              total: liquidation.amount,
+              lines: breakdownLines,
+            },
+          ],
+        }
       }
-      const soportado = expandMatchedLinesToEntries(lines, bridge.soportadoLines, (line) =>
-        round2(decimalToNumber(line.debe) - decimalToNumber(line.haber)),
-      )
-      const repercutido = expandMatchedLinesToEntries(lines, bridge.repercutidoLines, (line) =>
-        round2(decimalToNumber(line.haber) - decimalToNumber(line.debe)),
-      )
+    }
+
+    const matched = periodLines.filter(isIntracomunitariaLine)
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, (line) => {
+      const debe = decimalToNumber(line.debe)
+      const haber = decimalToNumber(line.haber)
+      return round2(Math.max(debe, haber))
+    })
+    for (const line of matched) entryIds.add(line.entry.id)
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
+    return {
+      amount: total,
+      lineCount: matched.length,
+      entryIds,
+      breakdown: [
+        {
+          key: "intracomunitarias",
+          label: "Operaciones intracomunitarias",
+          total,
+          lines: breakdownLines,
+        },
+      ],
+    }
+  }
+
+  if (modelCode === "390") {
+    if (quarter === "annual") {
+      const liquidation = extractGenericModelLiquidationDetail(lines, year, "annual", "390")
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
+        for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
+        return {
+          amount: liquidation.amount,
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: "Liquidación Modelo 390",
+              total: liquidation.amount,
+              lines: breakdownLines,
+            },
+          ],
+        }
+      }
+
+      const quarterly303 = ([1, 2, 3, 4] as const).map((q) => calculateModelAmount("303", lines, year, q).amount)
+      const total = round2(quarterly303.reduce((sum, value) => sum + value, 0))
       return {
-        amount: bridge.netResult,
-        lineCount: bridge.lineCount,
+        amount: total,
+        lineCount: quarterly303.filter((value) => Math.abs(value) >= 0.01).length,
         entryIds,
         breakdown: [
-          { key: "repercutido", label: "IVA repercutido (IVA R./)", total: bridge.repercutido, lines: repercutido },
-          { key: "soportado", label: "IVA soportado (IVA S./)", total: bridge.soportado, lines: soportado },
           {
-            key: "resultado",
-            label: "Resultado IVA estimado (Repercutido − Soportado)",
-            total: bridge.netResult,
+            key: "resumen-iva",
+            label: "Resumen anual IVA (suma trimestral del 303)",
+            total,
             lines: [],
           },
         ],
       }
     }
+
+    return {
+      amount: 0,
+      lineCount: 0,
+      entryIds,
+      breakdown: [],
+    }
   }
 
-  const repercutidoLines = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, ["477"]))
-  const soportadoLines = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, ["472"]))
+  if (modelCode === "303") {
+    if (quarter !== "annual") {
+      const liquidation = extractModel303LiquidationDetail(lines, year, quarter)
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
+        for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
+        return {
+          amount: liquidation.amount,
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: `Liquidación Modelo 303 (${quarter}T)`,
+              total: liquidation.amount,
+              lines: breakdownLines,
+            },
+          ],
+        }
+      }
 
-  const repercutido = expandMatchedLinesToEntries(lines, repercutidoLines, signedRepercutidoAmount)
-  const soportado = expandMatchedLinesToEntries(lines, soportadoLines, signedSoportadoAmount)
+      const bridge = calculateIvaBridgeSummary(lines, year, quarter)
+      if (bridge.lineCount > 0) {
+        for (const line of [...bridge.soportadoLines, ...bridge.repercutidoLines]) {
+          entryIds.add(line.entry.id)
+        }
+        const soportado = expandMatchedLinesToEntries(lines, bridge.soportadoLines, (line) =>
+          round2(decimalToNumber(line.debe) - decimalToNumber(line.haber)),
+        )
+        const repercutido = expandMatchedLinesToEntries(lines, bridge.repercutidoLines, (line) =>
+          round2(decimalToNumber(line.haber) - decimalToNumber(line.debe)),
+        )
+        return {
+          amount: bridge.netResult,
+          lineCount: bridge.lineCount,
+          entryIds,
+          breakdown: [
+            { key: "repercutido", label: "IVA repercutido (IVA R./)", total: bridge.repercutido, lines: repercutido },
+            { key: "soportado", label: "IVA soportado (IVA S./)", total: bridge.soportado, lines: soportado },
+            {
+              key: "resultado",
+              label: "Resultado IVA estimado (Repercutido − Soportado)",
+              total: bridge.netResult,
+              lines: [],
+            },
+          ],
+        }
+      }
+    }
 
-  for (const line of [...repercutidoLines, ...soportadoLines]) entryIds.add(line.entry.id)
+    const repercutidoLines = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, ["477"]))
+    const soportadoLines = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, ["472"]))
 
-  const totalRepercutido = round2(
-    repercutido.filter((line) => line.category === "contributing").reduce((sum, line) => sum + line.signedAmount, 0),
-  )
-  const totalSoportado = round2(
-    soportado.filter((line) => line.category === "contributing").reduce((sum, line) => sum + line.signedAmount, 0),
-  )
-  const amount = round2(totalRepercutido - totalSoportado)
+    const repercutido = expandMatchedLinesToEntries(lines, repercutidoLines, signedRepercutidoAmount)
+    const soportado = expandMatchedLinesToEntries(lines, soportadoLines, signedSoportadoAmount)
+
+    for (const line of [...repercutidoLines, ...soportadoLines]) entryIds.add(line.entry.id)
+
+    const totalRepercutido = round2(
+      repercutido.filter((line) => line.category === "contributing").reduce((sum, line) => sum + line.signedAmount, 0),
+    )
+    const totalSoportado = round2(
+      soportado.filter((line) => line.category === "contributing").reduce((sum, line) => sum + line.signedAmount, 0),
+    )
+    const amount = round2(totalRepercutido - totalSoportado)
+
+    return {
+      amount,
+      lineCount: repercutidoLines.length + soportadoLines.length,
+      entryIds,
+      breakdown: [
+        { key: "repercutido", label: "IVA repercutido (477)", total: totalRepercutido, lines: repercutido },
+        { key: "soportado", label: "IVA soportado (472)", total: totalSoportado, lines: soportado },
+        { key: "resultado", label: "Resultado IVA (Repercutido − Soportado)", total: amount, lines: [] },
+      ],
+    }
+  }
 
   return {
-    amount,
-    lineCount: repercutido.length + soportado.length,
+    amount: 0,
+    lineCount: 0,
     entryIds,
-    breakdown: [
-      { key: "repercutido", label: "IVA repercutido (477)", total: totalRepercutido, lines: repercutido },
-      { key: "soportado", label: "IVA soportado (472)", total: totalSoportado, lines: soportado },
-      { key: "resultado", label: "Resultado IVA (Repercutido − Soportado)", total: amount, lines: [] },
-    ],
+    breakdown: [],
   }
 }
 
@@ -508,7 +740,15 @@ export function prismaCodeToModelId(code: FiscalModelCode): FiscalModelId {
       return "123"
     case "M180":
       return "180"
+    case "M190":
+      return "190"
     case "M303":
       return "303"
+    case "M347":
+      return "347"
+    case "M349":
+      return "349"
+    case "M390":
+      return "390"
   }
 }

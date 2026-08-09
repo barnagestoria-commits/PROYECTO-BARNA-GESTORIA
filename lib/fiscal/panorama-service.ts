@@ -22,6 +22,7 @@ import type {
   FiscalPeriodKey,
 } from "@/lib/types/fiscal-panorama"
 import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summary"
+import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
 
 function declarationKey(year: number, quarter: number, modelCode: FiscalModelCode): string {
   return `${year}-${quarter}-${modelCode}`
@@ -98,9 +99,26 @@ function computeRowCells(
   declarationMap: Map<string, FiscalDeclaration>,
 ): Record<FiscalPeriodKey, FiscalPanoramaCell> {
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)!
-  const quarterlyAmounts: number[] = []
-
   const cells = {} as Record<FiscalPeriodKey, FiscalPanoramaCell>
+
+  if (isAnnualOnlyModel(modelCode)) {
+    for (const period of ["q1", "q2", "q3", "q4"] as const) {
+      cells[period] = buildCell(modelCode, year, period, 0, 0, 0)
+    }
+
+    const annualResult = calculateModelAmount(modelCode, allLines, year, "annual")
+    cells.annual = buildCell(
+      modelCode,
+      year,
+      "annual",
+      annualResult.amount,
+      annualResult.lineCount,
+      annualResult.entryIds.size,
+    )
+    return cells
+  }
+
+  const quarterlyAmounts: number[] = []
 
   for (const period of ["q1", "q2", "q3", "q4"] as const) {
     const quarter = Number(period.replace("q", "")) as 1 | 2 | 3 | 4
@@ -186,6 +204,16 @@ export async function buildFiscalPanorama(
       id: "IVA" as const,
       label: "I.V.A.",
       rows: activeDefinitions.filter((model) => model.block === "IVA").map((model) => ({
+        modelCode: model.code,
+        modelLabel: model.label,
+        description: model.description,
+        cells: computeRowCells(model.code, year, allLines, declarationMap),
+      })),
+    },
+    {
+      id: "INFORMATIVAS" as const,
+      label: "Informativas",
+      rows: activeDefinitions.filter((model) => model.block === "INFORMATIVAS").map((model) => ({
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
@@ -313,7 +341,17 @@ export async function buildFiscalModelDetail(
 }
 
 export function isValidModelCode(value: string): value is FiscalModelId {
-  return value === "111" || value === "115" || value === "123" || value === "180" || value === "303"
+  return (
+    value === "111" ||
+    value === "115" ||
+    value === "123" ||
+    value === "180" ||
+    value === "190" ||
+    value === "303" ||
+    value === "347" ||
+    value === "349" ||
+    value === "390"
+  )
 }
 
 export { prismaCodeToModelId }

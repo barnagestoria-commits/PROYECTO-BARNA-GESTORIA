@@ -95,8 +95,8 @@ export function FiscalExportButtons({
 
   const formats = useMemo(() => {
     const isAnnual = quarter === "annual" || quarter === "anual"
-    if (model === "180") {
-      return FISCAL_EXPORT_FORMATS.filter((format) => format !== "txt" || isAnnual)
+    if (model === "180" || model === "190" || model === "347" || model === "390") {
+      return FISCAL_EXPORT_FORMATS.filter((format) => format !== "txt" || model === "180")
     }
     if (isAnnual) {
       return FISCAL_EXPORT_FORMATS.filter((format) => format !== "txt")

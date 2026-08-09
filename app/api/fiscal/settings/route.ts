@@ -36,7 +36,11 @@ export async function PATCH(request: Request) {
       model115Enabled: body.model115Enabled,
       model123Enabled: body.model123Enabled,
       model180Enabled: body.model180Enabled,
+      model190Enabled: body.model190Enabled,
       model303Enabled: body.model303Enabled,
+      model347Enabled: body.model347Enabled,
+      model349Enabled: body.model349Enabled,
+      model390Enabled: body.model390Enabled,
     })
 
     return NextResponse.json({ success: true, settings })

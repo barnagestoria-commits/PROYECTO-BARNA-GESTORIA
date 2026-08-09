@@ -36,7 +36,11 @@ enum FiscalModelCode {
   M115
   M123
   M180
+  M190
   M303
+  M347
+  M349
+  M390
 }
 
 enum AmortizationPeriodization {
@@ -253,7 +257,11 @@ model CompanyFiscalSettings {
   model115Enabled  Boolean              @default(false)
   model123Enabled  Boolean              @default(false)
   model180Enabled  Boolean              @default(false)
+  model190Enabled  Boolean              @default(false)
   model303Enabled  Boolean              @default(true)
+  model347Enabled  Boolean              @default(false)
+  model349Enabled  Boolean              @default(false)
+  model390Enabled  Boolean              @default(false)
   createdAt        DateTime             @default(now())
   updatedAt        DateTime             @updatedAt
 }

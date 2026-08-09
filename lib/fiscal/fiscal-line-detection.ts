@@ -100,11 +100,14 @@ function pickLiquidationCandidate(candidates: Array<{ entryId: string; signedAmo
 function extractLiquidationDetail(
   lines: RawEntryLine[],
   year: number,
-  quarter: 1 | 2 | 3 | 4,
-  modelCode: "111" | "303",
+  quarter: 1 | 2 | 3 | 4 | "annual",
+  modelCode: string,
 ): LiquidationDetail | null {
-  const pattern = new RegExp(`Modelo\\s+${modelCode}\\s+${quarter}\\s+Trimestre`, "i")
   const compensationPattern = /Cuotas compensar/i
+  const pattern =
+    quarter === "annual"
+      ? new RegExp(`Modelo\\s+${modelCode}(?!\\s+\\d)`, "i")
+      : new RegExp(`Modelo\\s+${modelCode}\\s+${quarter}\\s+Trimestre`, "i")
 
   const linesByEntry = new Map<string, RawEntryLine[]>()
   for (const line of lines) {
@@ -160,6 +163,15 @@ export function extractModel111LiquidationDetail(
   quarter: 1 | 2 | 3 | 4,
 ): LiquidationDetail | null {
   return extractLiquidationDetail(lines, year, quarter, "111")
+}
+
+export function extractGenericModelLiquidationDetail(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4 | "annual",
+  modelCode: string,
+): LiquidationDetail | null {
+  return extractLiquidationDetail(lines, year, quarter, modelCode)
 }
 
 export interface NrcPaymentDetail {
@@ -254,6 +266,14 @@ export function extractModel303LiquidationDetail(
   quarter: 1 | 2 | 3 | 4,
 ): LiquidationDetail | null {
   return extractLiquidationDetail(lines, year, quarter, "303")
+}
+
+export function isIntracomunitariaLine(line: RawEntryLine): boolean {
+  const concept = `${line.concepto} ${line.entry.concepto ?? ""}`
+  if (/INTRACOMUNIT|INTRA\s*COM|ADQ\.?\s*INTRA|IVA\s+[AR]\.\/.*INTRA/i.test(concept)) {
+    return true
+  }
+  return /INTRA/i.test(line.concepto) && /IVA/i.test(line.concepto)
 }
 
 export function liquidationSignedAmount(line: RawEntryLine, contributingLineId: string): number {

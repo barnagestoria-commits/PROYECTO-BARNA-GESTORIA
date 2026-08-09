@@ -8,7 +8,7 @@ import { FISCAL_MODEL_DEFINITIONS } from "@/lib/fiscal/panorama"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 import { ArrowRight, FileSpreadsheet } from "lucide-react"
 
-const VALID_MODELS = new Set(["111", "115", "123", "180", "303"])
+const VALID_MODELS = new Set(["111", "115", "123", "180", "190", "303", "347", "349", "390"])
 
 export default function FiscalModelHubPage() {
   const params = useParams<{ model: string }>()
@@ -16,7 +16,7 @@ export default function FiscalModelHubPage() {
   const modelCode = params.model as FiscalModelId
 
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
-  const isAnnualOnly = modelCode === "180"
+  const isAnnualOnly = modelCode === "180" || modelCode === "190" || modelCode === "347" || modelCode === "390"
 
   if (!model || !VALID_MODELS.has(modelCode)) {
     return (

@@ -87,8 +87,8 @@ export function FiscalModelsConfigPanel({
           </p>
           <p className="mt-1 text-xs text-graphite-600">
             {scope === "trimestral"
-              ? "Solo modelos trimestrales (111, 115, 123, 303)."
-              : "Solo modelos anuales (180 y certificados anuales)."}
+              ? "Solo modelos trimestrales (111, 115, 123, 349, 303)."
+              : "Solo modelos anuales (180, 190, 347, 390)."}
           </p>
         </div>
         <Button type="button" size="sm" variant="outline" onClick={() => onOpenChange(false)}>
