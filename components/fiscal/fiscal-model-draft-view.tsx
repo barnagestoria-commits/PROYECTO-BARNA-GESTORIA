@@ -4,24 +4,16 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { FiscalExportButtons } from "@/components/report-export-buttons"
 import { FiscalCalculationDetailDialog } from "@/components/fiscal/fiscal-calculation-detail-dialog"
+import { FiscalModelDraftPdfPreview } from "@/components/fiscal/fiscal-model-draft-pdf-preview"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
-import {
-  AeatOfficialFormHeader,
-  AeatOfficialIvaSection,
-  AeatOfficialResultRow,
-  AeatOfficialSingleAmountSection,
-} from "@/components/fiscal/aeat-official-form"
 import { buildFiscalModelDraft } from "@/lib/fiscal/model-draft/build-model-draft"
 import { buildCalculationDetailRows } from "@/lib/fiscal/model-draft/calculation-rows"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
-import {
-  getDraftTableLayout,
-  getResultCasillaLabel,
-  resolveDraftResultAmount,
-} from "@/lib/fiscal/official-layouts"
+import { getResultCasillaLabel, resolveDraftResultAmount } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import { apiFetch } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
+import { formatFiscalAmount } from "@/lib/fiscal/panorama"
 import {
   FileText,
   Loader2,
@@ -66,6 +58,7 @@ export function FiscalModelDraftView({
   )
 
   const resultAmount = useMemo(() => resolveDraftResultAmount(detail), [detail])
+  const resultLabel = getResultCasillaLabel(detail.modelCode)
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailTitle, setDetailTitle] = useState("Datos del cálculo")
@@ -73,6 +66,7 @@ export function FiscalModelDraftView({
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [isRefreshing, setIsRefreshing] = useState(false)
+  const [pdfRefreshKey, setPdfRefreshKey] = useState(0)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -92,6 +86,7 @@ export function FiscalModelDraftView({
     setErrorMessage(null)
     try {
       await onRefresh()
+      setPdfRefreshKey((value) => value + 1)
     } finally {
       setIsRefreshing(false)
     }
@@ -108,6 +103,7 @@ export function FiscalModelDraftView({
       )
       setSuccessMessage(data.message)
       await onRefresh()
+      setPdfRefreshKey((value) => value + 1)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "No se pudo generar el asiento.")
     } finally {
@@ -119,42 +115,39 @@ export function FiscalModelDraftView({
     return null
   }
 
-  const tableLayout = getDraftTableLayout(detail.modelCode)
-
   return (
     <>
-      <div className="mx-auto max-w-5xl bg-[#e8e8e8] p-2 shadow-md md:p-4">
-        <AeatOfficialFormHeader
-          modelCode={draft.modelCode}
-          modelLabel={draft.modelLabel}
-          nif={draft.nif}
-          companyName={draft.companyName}
-          year={draft.year}
-          periodLabel={draft.periodLabel}
-          statusLabel={draft.statusLabel}
-          statusClassName={statusBadgeClass(detail.status)}
-        />
-
-        <div className="mt-0">
-          {draft.sections.map((section) =>
-            tableLayout === "iva" ? (
-              <AeatOfficialIvaSection key={section.id} section={section} onOpenDetail={openDetail} />
-            ) : (
-              <AeatOfficialSingleAmountSection key={section.id} section={section} onOpenDetail={openDetail} />
-            ),
-          )}
-
-          <AeatOfficialResultRow
-            label={getResultCasillaLabel(detail.modelCode)}
-            amount={resultAmount}
-            onOpenDetail={() => openDetail(undefined, "Detalle completo del cálculo")}
-          />
+      <div className="mx-auto max-w-5xl shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-3 border border-black bg-[#dce6ef] px-4 py-3">
+          <div>
+            <p className="text-xs font-bold uppercase text-[#1a4480]">Agencia Estatal de Administración Tributaria</p>
+            <p className="text-sm font-bold text-black">
+              Modelo {draft.modelCode} — {draft.modelLabel}
+            </p>
+            <p className="text-xs text-neutral-700">
+              {draft.nif} · {draft.companyName} · {draft.year} · {draft.periodLabel}
+            </p>
+          </div>
+          <div className="text-right">
+            <span className={cn("rounded border px-2 py-0.5 text-xs font-bold uppercase", statusBadgeClass(detail.status))}>
+              {draft.statusLabel}
+            </span>
+            <p className="mt-2 text-xs font-semibold uppercase text-[#1a4480]">{resultLabel}</p>
+            <p className="font-mono text-lg font-bold tabular-nums text-black">{formatFiscalAmount(resultAmount)}</p>
+          </div>
         </div>
+
+        <FiscalModelDraftPdfPreview
+          modelParam={modelParam}
+          year={year}
+          quarterParam={quarterParam}
+          refreshKey={pdfRefreshKey}
+        />
 
         {(successMessage || errorMessage) && (
           <div
             className={cn(
-              "mt-2 border px-4 py-2 text-sm",
+              "border-x border-black px-4 py-2 text-sm",
               successMessage
                 ? "border-emerald-700 bg-emerald-50 text-emerald-900"
                 : "border-red-700 bg-red-50 text-red-900",
@@ -164,7 +157,7 @@ export function FiscalModelDraftView({
           </div>
         )}
 
-        <div className="sticky bottom-0 z-20 mt-2 flex flex-wrap items-center gap-2 border border-black bg-[#f0f0f0]/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+        <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-2 border border-black bg-[#f0f0f0]/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)] backdrop-blur-sm">
           {draft.supportsGenerateEntry && (
             <Button
               type="button"
@@ -196,12 +189,12 @@ export function FiscalModelDraftView({
             onClick={() => void handleRefresh()}
           >
             {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Actualizar
+            Actualizar borrador
           </Button>
           <div className="ml-auto flex min-w-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
             <span className="hidden text-xs text-neutral-600 lg:inline">
               <FileText className="mr-1 inline h-3.5 w-3.5" />
-              Listar / PDF / Exportar
+              Exportar TXT / ZIP / desglose
             </span>
             <FiscalExportButtons model={modelParam} quarter={quarterParam} year={year} compact />
           </div>
@@ -224,7 +217,7 @@ export function FiscalModelDraftView({
         open={selectedEntryId !== null}
         entryId={selectedEntryId}
         onClose={() => setSelectedEntryId(null)}
-        onSaved={() => void onRefresh()}
+        onSaved={() => void handleRefresh()}
       />
     </>
   )
