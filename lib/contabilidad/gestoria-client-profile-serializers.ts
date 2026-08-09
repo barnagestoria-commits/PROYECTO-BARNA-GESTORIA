@@ -20,12 +20,10 @@ import {
   type GestoriaProrrataConfig,
   type GestoriaRelatedPerson,
 } from "@/lib/contabilidad/gestoria-client-profile-types"
-import {
-  createEmptyRegistroMercantil,
-  type RegistroMercantilData,
-} from "@/lib/invoices/registro-mercantil"
+import { createEmptyRegistroMercantil } from "@/lib/invoices/registro-mercantil"
 import { createDefaultInvoiceTemplate } from "@/lib/invoices/invoice-template-defaults"
-import type { InvoiceTemplateConfig } from "@/lib/invoices/types"
+import type { InvoiceTemplateConfig, RegistroMercantilData } from "@/lib/invoices/types"
+import { resolveCompanyAccessPath } from "@/lib/contabilidad/gestoria-companies"
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback

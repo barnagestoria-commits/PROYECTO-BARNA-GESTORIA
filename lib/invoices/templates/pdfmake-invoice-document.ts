@@ -6,10 +6,13 @@ const GRAPHITE = "#2C2C2C"
 const MUTED = "#6B7280"
 const BORDER = "#E5E7EB"
 
-function partyBlock(title: string, name: string, taxId: string, addressLines: string[], contact?: {
-  email?: string
-  phone?: string
-}): Content {
+function partyBlock(
+  title: string,
+  name: string,
+  taxId: string,
+  addressLines: string[],
+  contact?: { email?: string; phone?: string },
+): Content {
   const stack: Content[] = [
     { text: title, style: "blockTitle" },
     { text: name, style: "partyName" },
@@ -18,7 +21,7 @@ function partyBlock(title: string, name: string, taxId: string, addressLines: st
   ]
   if (contact?.email) stack.push({ text: contact.email, style: "partyMeta" })
   if (contact?.phone) stack.push({ text: contact.phone, style: "partyMeta" })
-  return { stack, width: "*" }
+  return { stack, width: "*" } as Content
 }
 
 function tableHeaderFill(style: InvoiceTableStyle, primary: string): string | null {
@@ -26,7 +29,14 @@ function tableHeaderFill(style: InvoiceTableStyle, primary: string): string | nu
   return primary
 }
 
-function tableLayout(style: InvoiceTableStyle) {
+function tableFillColor(rowIndex: number, rowCount: number, style: InvoiceTableStyle, primary: string): string | null {
+  if (rowIndex === 0) return tableHeaderFill(style, primary)
+  if (style === "striped" && rowIndex % 2 === 0) return "#F9FAFB"
+  if (rowIndex === rowCount - 1) return null
+  return null
+}
+
+function tableLayout(style: InvoiceTableStyle, rowCount: number, primary: string) {
   return {
     hLineWidth: () => (style === "minimal" ? 0.3 : 0.5),
     vLineWidth: () => 0,
@@ -35,11 +45,12 @@ function tableLayout(style: InvoiceTableStyle) {
     paddingRight: () => 6,
     paddingTop: () => 5,
     paddingBottom: () => 5,
+    fillColor: (rowIndex: number) => tableFillColor(rowIndex, rowCount, style, primary),
   }
 }
 
 function lineItemsTable(data: InvoicePdfData): Content {
-  const { template } = data
+  const template = data.template
   const headerStyle = template.tableStyle === "minimal" ? "tableHeaderMinimal" : "tableHeader"
   const showDiscount =
     template.visibility.showZeroDiscounts ||
@@ -83,16 +94,10 @@ function lineItemsTable(data: InvoicePdfData): Content {
   }
 
   const widths = showDiscount ? ["*", 28, 52, 32, 52, 32, 58] : ["*", 28, 52, 52, 32, 58]
-  const fill = tableHeaderFill(template.tableStyle, template.primaryColor)
 
   return {
     table: { headerRows: 1, widths, body },
-    layout: tableLayout(template.tableStyle),
-    fillColor: (rowIndex: number) => {
-      if (rowIndex === 0) return fill
-      if (template.tableStyle === "striped" && rowIndex % 2 === 0) return "#F9FAFB"
-      return null
-    },
+    layout: tableLayout(template.tableStyle, body.length, template.primaryColor),
     margin: [0, 0, 0, 12],
   }
 }
@@ -106,7 +111,7 @@ function totalsBlock(data: InvoicePdfData): Content {
     ...data.taxBreakdown.map((row) => [
       { text: `IVA ${row.vatPercent}%`, style: "totalsLabel" },
       { text: formatEuro(row.quota), alignment: "right", style: "totalsValue" },
-    ]),
+    ] as TableCell[]),
   ]
   if (data.totalIrpf > 0) {
     rows.push([
@@ -147,7 +152,8 @@ export function buildInvoicePdfDocument(
   data: InvoicePdfData,
   qrDataUrl?: string,
 ): TDocumentDefinitions {
-  const { template, primaryColor, accentColor } = data.template
+  const template = data.template
+  const { primaryColor, accentColor } = template
   const logoBlock: Content | null = template.logoDataUrl
     ? { image: template.logoDataUrl, width: 110, margin: [0, 0, 0, 8] }
     : null
@@ -234,7 +240,11 @@ export function buildInvoicePdfDocument(
           stack: [
             { text: "Verificación Veri*factu", style: "sectionTitle", margin: [0, 0, 0, 4] },
             { text: data.verifactu.qrCaption, style: "verifactuCaption" },
-            { text: data.verifactu.verificationUrl, style: "verifactuUrl", link: data.verifactu.verificationUrl },
+            {
+              text: data.verifactu.verificationUrl,
+              style: "verifactuUrl",
+              link: data.verifactu.verificationUrl,
+            },
             data.verifactu.recordHash
               ? { text: `Huella: ${data.verifactu.recordHash}`, style: "verifactuHash", margin: [0, 4, 0, 0] }
               : { text: "" },
@@ -271,7 +281,7 @@ export function buildInvoicePdfDocument(
       paymentLine: { fontSize: 8, margin: [0, 1, 0, 0] },
       footerNotes: { fontSize: 7, color: MUTED, italics: true },
       verifactuCaption: { fontSize: 7.5, color: GRAPHITE },
-      verifactuUrl: { fontSize: 6.5, color: MUTED, link: undefined },
+      verifactuUrl: { fontSize: 6.5, color: MUTED },
       verifactuHash: { fontSize: 6.5, color: MUTED, characterSpacing: 0.2 },
     },
   }
