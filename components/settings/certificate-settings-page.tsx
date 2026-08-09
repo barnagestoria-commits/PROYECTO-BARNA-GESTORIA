@@ -1,127 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import Link from "next/link"
 import { ArrowLeft, KeyRound } from "lucide-react"
-import { CertificateStatusCard } from "@/components/settings/certificate-status-card"
-import { CertificateUploadForm } from "@/components/settings/certificate-upload-form"
 import { Button } from "@/components/ui/button"
-import { apiFetch } from "@/lib/api-client"
-import {
-  buildMockCertificate,
-  clearStoredCertificate,
-  loadStoredCertificate,
-  saveStoredCertificate,
-  type CertificateUploadPayload,
-  type StoredDigitalCertificate,
-} from "@/lib/settings/certificate-storage"
-
-type Feedback = { tone: "success" | "warning"; message: string }
+import { CompanyCertificatePanel } from "@/components/settings/company-certificate-panel"
 
 export function CertificateSettingsPage() {
-  const [certificate, setCertificate] = useState<StoredDigitalCertificate | null>(null)
-  const [feedback, setFeedback] = useState<Feedback | null>(null)
-  const [isSaving, setIsSaving] = useState(false)
-  const [isTesting, setIsTesting] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
-
-  useEffect(() => {
-    setCertificate(loadStoredCertificate())
-  }, [])
-
-  const handleSave = async (payload: CertificateUploadPayload) => {
-    setIsSaving(true)
-    setFeedback(null)
-    try {
-      await apiFetch<{ success: true; certificate: StoredDigitalCertificate }>(
-        "/api/certificate",
-        {
-          method: "POST",
-          body: JSON.stringify(payload),
-        },
-      )
-
-      const stored = buildMockCertificate(payload)
-      saveStoredCertificate(stored)
-      setCertificate(stored)
-      setFeedback({
-        tone: "success",
-        message: "Certificado guardado y encriptado correctamente (demo).",
-      })
-    } catch (error) {
-      setFeedback({
-        tone: "warning",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudo guardar el certificado. Inténtalo de nuevo.",
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const handleTestSignature = async () => {
-    if (!certificate) {
-      setFeedback({
-        tone: "warning",
-        message: "Sube un certificado antes de probar la firma.",
-      })
-      return
-    }
-
-    setIsTesting(true)
-    setFeedback(null)
-    try {
-      const result = await apiFetch<{ success: true; message: string }>(
-        "/api/certificate/test",
-        { method: "POST" },
-      )
-      setFeedback({ tone: "success", message: result.message })
-    } catch (error) {
-      setFeedback({
-        tone: "warning",
-        message:
-          error instanceof Error ? error.message : "La prueba de firma no ha podido completarse.",
-      })
-    } finally {
-      setIsTesting(false)
-    }
-  }
-
-  const handleDelete = async () => {
-    if (!certificate) return
-
-    const confirmed = window.confirm(
-      "¿Eliminar el certificado digital configurado? Deberás subir uno nuevo para firmar facturas Verifactu.",
-    )
-    if (!confirmed) return
-
-    setIsDeleting(true)
-    setFeedback(null)
-    try {
-      await apiFetch<{ success: true; message: string }>("/api/certificate", {
-        method: "DELETE",
-      })
-      clearStoredCertificate()
-      setCertificate(null)
-      setFeedback({
-        tone: "success",
-        message: "Certificado eliminado correctamente.",
-      })
-    } catch (error) {
-      setFeedback({
-        tone: "warning",
-        message:
-          error instanceof Error
-            ? error.message
-            : "No se pudo eliminar el certificado. Inténtalo de nuevo.",
-      })
-    } finally {
-      setIsDeleting(false)
-    }
-  }
-
   return (
     <div className="mx-auto max-w-3xl space-y-6" data-tour="onboarding-certificate">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -134,7 +18,7 @@ export function CertificateSettingsPage() {
             Certificado Digital
           </h1>
           <p className="mt-1 text-sm text-graphite-500">
-            Gestiona la firma electrónica para el envío de facturas verificables.
+            Gestiona la firma electrónica para el envío de facturas verificables y presentaciones fiscales.
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -145,31 +29,7 @@ export function CertificateSettingsPage() {
         </Button>
       </div>
 
-      {feedback && (
-        <div
-          className={
-            feedback.tone === "success"
-              ? "rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
-              : "rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800"
-          }
-          role="status"
-        >
-          {feedback.message}
-        </div>
-      )}
-
-      <CertificateStatusCard
-        certificate={certificate}
-        onDelete={certificate ? handleDelete : undefined}
-        isDeleting={isDeleting}
-      />
-      <CertificateUploadForm
-        onSave={handleSave}
-        onTestSignature={handleTestSignature}
-        hasCertificate={Boolean(certificate)}
-        isSaving={isSaving}
-        isTesting={isTesting}
-      />
+      <CompanyCertificatePanel />
     </div>
   )
 }

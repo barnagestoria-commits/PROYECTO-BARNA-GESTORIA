@@ -9,6 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { apiFetch } from "@/lib/api-client"
 import { GestoriaPresentationConfigForm } from "@/components/contabilidad/gestoria-presentation-config-form"
+import { CompanyCertificatePanel } from "@/components/settings/company-certificate-panel"
 import {
   createEmptyGestoriaProfile,
   createId,
@@ -29,6 +30,7 @@ import { cn } from "@/lib/utils"
 interface EditGestoriaClientDialogProps {
   open: boolean
   companyId: string | null
+  initialTab?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -75,9 +77,11 @@ function CheckboxField({
 export function EditGestoriaClientDialog({
   open,
   companyId,
+  initialTab = "general",
   onClose,
   onSaved,
 }: EditGestoriaClientDialogProps) {
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -90,6 +94,7 @@ export function EditGestoriaClientDialog({
   useEffect(() => {
     if (!open || !companyId) return
 
+    setActiveTab(initialTab)
     setLoading(true)
     setError(null)
 
@@ -103,7 +108,7 @@ export function EditGestoriaClientDialog({
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
-  }, [companyId, open])
+  }, [companyId, open, initialTab])
 
   useEffect(() => {
     if (!open) return
@@ -114,6 +119,15 @@ export function EditGestoriaClientDialog({
   }, [open])
 
   if (!open || !companyId) return null
+
+  const reloadClientIdentity = () => {
+    void apiFetch<{ success: true; client: GestoriaClientDetailDto }>(`/api/companies/${companyId}`)
+      .then((data) => {
+        setName(data.client.name)
+        setCif(data.client.cif ?? "")
+      })
+      .catch(() => undefined)
+  }
 
   const updateProfile = (patch: Partial<GestoriaClientProfileDto>) => {
     setProfile((current) => ({ ...current, ...patch }))
@@ -221,9 +235,10 @@ export function EditGestoriaClientDialog({
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-            <Tabs defaultValue="general" className="space-y-4">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
               <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1 bg-sand-100 p-1">
                 <TabsTrigger value="general">Datos generales</TabsTrigger>
+                <TabsTrigger value="certificado">Certificado digital</TabsTrigger>
                 <TabsTrigger value="presentacion">Presentación fiscal</TabsTrigger>
                 <TabsTrigger value="impresos">Impresos</TabsTrigger>
                 <TabsTrigger value="bancos">Bancos</TabsTrigger>
@@ -382,6 +397,18 @@ export function EditGestoriaClientDialog({
                     }
                   />
                 </div>
+              </TabsContent>
+
+              <TabsContent value="certificado" className="space-y-4">
+                <CompanyCertificatePanel
+                  companyId={companyId}
+                  title="Certificado digital del cliente"
+                  description="Sube el certificado FNMT/AEAT del cliente para vincular la presentación de impuestos (303, 111, 349…) con Hacienda. El NIF extraído se usará en los borradores fiscales."
+                  onCertificateChange={() => {
+                    reloadClientIdentity()
+                    onSaved()
+                  }}
+                />
               </TabsContent>
 
               <TabsContent value="presentacion" className="space-y-4">

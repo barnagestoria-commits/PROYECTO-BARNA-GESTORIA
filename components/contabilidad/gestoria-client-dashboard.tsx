@@ -10,10 +10,12 @@ import {
   CalendarRange,
   FileSpreadsheet,
   Landmark,
+  KeyRound,
   Loader2,
   Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { CompanyCertificatePanel } from "@/components/settings/company-certificate-panel"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
 import {
   FiscalPanoramaSectionHeader,
@@ -42,7 +44,7 @@ interface GestoriaClientDashboardProps {
 
 export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardProps) {
   const router = useRouter()
-  const { session, setActiveCompany } = useRequireAuth()
+  const { session, setActiveCompany, refreshSession } = useRequireAuth()
   const currentYear = new Date().getFullYear()
   const currentMonthLabel = new Date().toLocaleDateString("es-ES", {
     month: "long",
@@ -56,6 +58,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
   const [error, setError] = useState<string | null>(null)
   const [isSwitchingCompany, setIsSwitchingCompany] = useState(false)
   const [importDialogOpen, setImportDialogOpen] = useState(false)
+  const [certificateDialogOpen, setCertificateDialogOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<WorkspaceTabId>("resumen-trimestral")
 
   const company = useMemo(
@@ -182,6 +185,14 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
           <Button
             type="button"
             variant="outline"
+            onClick={() => setCertificateDialogOpen(true)}
+          >
+            <KeyRound className="mr-2 h-4 w-4" />
+            Certificado digital
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
             disabled={isSwitchingCompany}
             onClick={() => void openWorkspace("/dashboard/fiscal")}
           >
@@ -189,6 +200,26 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
           </Button>
         </div>
       </div>
+
+      {certificateDialogOpen ? (
+        <div className="fixed inset-0 z-[120] flex items-end justify-center p-2 sm:items-center sm:p-4">
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="Cerrar"
+            onClick={() => setCertificateDialogOpen(false)}
+          />
+          <div className="relative max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-sand-200 bg-white p-5 shadow-2xl">
+            <CompanyCertificatePanel
+              companyId={companyId}
+              title={`Certificado digital · ${company.name}`}
+              onCertificateChange={async () => {
+                await refreshSession()
+              }}
+            />
+          </div>
+        </div>
+      ) : null}
 
       <ClientA3ImportDialog
         open={importDialogOpen}

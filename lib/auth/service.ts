@@ -348,6 +348,12 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
     input.phone === undefined ? undefined : input.phone?.trim() ? input.phone.trim() : null
   const accountName = input.accountName?.trim()
   const activeCompanyName = input.activeCompanyName?.trim()
+  const activeCompanyCif =
+    input.activeCompanyCif === undefined
+      ? undefined
+      : input.activeCompanyCif?.trim()
+        ? input.activeCompanyCif.trim().replace(/[^A-Z0-9]/gi, "").toUpperCase()
+        : null
 
   if (name !== undefined && !name) {
     throw new Error("El nombre es obligatorio.")
@@ -398,7 +404,19 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
 
       await tx.company.update({
         where: { id: session.activeCompanyId },
-        data: { name: activeCompanyName },
+        data: {
+          ...(activeCompanyName !== undefined ? { name: activeCompanyName } : {}),
+          ...(activeCompanyCif !== undefined ? { cif: activeCompanyCif } : {}),
+        },
+      })
+    } else if (activeCompanyCif !== undefined && session.activeCompanyId) {
+      if (!session.companies.some((company) => company.id === session.activeCompanyId)) {
+        throw new Error("No tienes acceso a la empresa activa.")
+      }
+
+      await tx.company.update({
+        where: { id: session.activeCompanyId },
+        data: { cif: activeCompanyCif },
       })
     }
   })

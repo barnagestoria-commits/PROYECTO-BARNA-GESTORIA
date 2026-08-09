@@ -5,6 +5,7 @@ import {
   isValidModelCode,
 } from "@/lib/fiscal/panorama-service"
 import { parseDetailQuarter } from "@/lib/fiscal/panorama"
+import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 
 interface RouteContext {
   params: Promise<{ model: string; year: string; quarter: string }>
@@ -29,12 +30,23 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Trimestre no válido." }, { status: 400 })
     }
 
-    const detail = await buildFiscalModelDetail(companyId, model, year, quarter)
+    const [detail, company] = await Promise.all([
+      buildFiscalModelDetail(companyId, model, year, quarter),
+      resolveCompanyTaxIdentity(companyId),
+    ])
+
     if (!detail) {
       return NextResponse.json({ success: false, error: "Modelo no encontrado." }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, detail })
+    return NextResponse.json({
+      success: true,
+      detail,
+      company: {
+        name: company.name,
+        cif: company.cif,
+      },
+    })
   } catch (error) {
     return authErrorResponse(error)
   }

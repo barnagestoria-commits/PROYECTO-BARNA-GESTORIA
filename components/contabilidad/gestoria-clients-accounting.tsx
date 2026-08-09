@@ -63,6 +63,7 @@ export function GestoriaClientsAccountingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [addClientOpen, setAddClientOpen] = useState(false)
   const [editClientId, setEditClientId] = useState<string | null>(null)
+  const [editClientInitialTab, setEditClientInitialTab] = useState("general")
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [profiles, setProfiles] = useState<Map<string, GestoriaClientProfileDto>>(new Map())
 
@@ -177,7 +178,9 @@ export function GestoriaClientsAccountingPage() {
     await reloadProfiles()
     setSelectedCompanyId(companyId)
     setFilters(EMPTY_GESTORIA_COMPANY_FILTERS)
-    setStatusMessage("Cliente creado correctamente. Selecciónelo y pulse Aceptar para continuar.")
+    setEditClientInitialTab("certificado")
+    setEditClientId(companyId)
+    setStatusMessage("Cliente creado. Configure el certificado digital para vincular la presentación con Hacienda.")
   }
 
   const reloadProfiles = async () => {
@@ -193,6 +196,7 @@ export function GestoriaClientsAccountingPage() {
 
   const handleEditClient = (companyId: string) => {
     setOpenMenuId(null)
+    setEditClientInitialTab("general")
     setEditClientId(companyId)
   }
 
@@ -408,7 +412,11 @@ export function GestoriaClientsAccountingPage() {
       <EditGestoriaClientDialog
         open={editClientId !== null}
         companyId={editClientId}
-        onClose={() => setEditClientId(null)}
+        initialTab={editClientInitialTab}
+        onClose={() => {
+          setEditClientId(null)
+          setEditClientInitialTab("general")
+        }}
         onSaved={() => void handleClientSaved()}
       />
     </div>

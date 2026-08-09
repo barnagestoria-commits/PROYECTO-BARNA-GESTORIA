@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react"
 import Link from "next/link"
-import { useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import {
   Area,
   AreaChart,
@@ -24,6 +24,7 @@ import {
   CalendarRange,
   CircleDollarSign,
   Info,
+  Loader2,
   Receipt,
   TrendingDown,
   TrendingUp,
@@ -42,16 +43,19 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
+import { apiFetch } from "@/lib/api-client"
+import { useRequireAuth } from "@/components/auth-provider"
 import {
   DATE_RANGE_OPTIONS,
+  createEmptyFinancialDashboardData,
   formatEuro,
   formatPercent,
-  getFinancialDashboardData,
   type DateRangeKey,
   type FinancialAlert,
+  type FinancialDashboardData,
   type KpiMetric,
   type RecentTransaction,
-} from "@/lib/dashboard/mock-financial-data"
+} from "@/lib/dashboard/financial-dashboard-data"
 
 interface FinancialAnalyticsDashboardProps {
   userName: string
@@ -164,14 +168,56 @@ export function FinancialAnalyticsDashboard({
   companyName,
   uploadHref = "/dashboard/compras/facturas-recibidas",
 }: FinancialAnalyticsDashboardProps) {
+  const { session, activeCompany } = useRequireAuth()
   const [dateRange, setDateRange] = useState<DateRangeKey>("this_month")
-  const data = useMemo(() => getFinancialDashboardData(dateRange), [dateRange])
+  const [data, setData] = useState<FinancialDashboardData>(() =>
+    createEmptyFinancialDashboardData("this_month"),
+  )
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const loadDashboard = useCallback(async () => {
+    if (!session?.activeCompanyId) {
+      setData(createEmptyFinancialDashboardData(dateRange))
+      setIsLoading(false)
+      return
+    }
+
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const response = await apiFetch<{ success: true; data: FinancialDashboardData }>(
+        `/api/dashboard/financial?range=${dateRange}`,
+      )
+      setData(response.data)
+    } catch (error) {
+      setData(createEmptyFinancialDashboardData(dateRange))
+      setErrorMessage(
+        error instanceof Error ? error.message : "No se pudieron cargar los datos del panel.",
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }, [session?.activeCompanyId, dateRange])
+
+  useEffect(() => {
+    void loadDashboard()
+  }, [loadDashboard, activeCompany?.id])
 
   const firstName = userName.split(" ")[0] || userName
-  const totalExpenses = data.expenseCategories.reduce((sum, c) => sum + c.value, 0)
+  const totalExpenses = data.expenseCategories.reduce((sum, category) => sum + category.value, 0)
+  const hasExpenseCategories = data.expenseCategories.length > 0
+  const hasEvolution = data.evolution.some((point) => point.ingresos > 0 || point.gastos > 0)
 
   return (
     <div className="space-y-6">
+      {errorMessage ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {errorMessage}
+        </div>
+      ) : null}
+
       {/* Header */}
       <div className="flex flex-col gap-4 rounded-xl border border-sand-200 bg-gradient-to-br from-white via-sand-50/50 to-emerald-50/30 p-4 shadow-sm sm:p-6 lg:flex-row lg:items-center lg:justify-between">
         <div className="min-w-0 space-y-1">
@@ -216,7 +262,12 @@ export function FinancialAnalyticsDashboard({
       </div>
 
       {/* KPIs */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="relative grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {isLoading ? (
+          <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/70">
+            <Loader2 className="h-6 w-6 animate-spin text-emerald-700" />
+          </div>
+        ) : null}
         <KpiCard
           metric={data.kpis.ingresos}
           icon={<TrendingUp className="h-4 w-4" />}
@@ -249,8 +300,9 @@ export function FinancialAnalyticsDashboard({
           </CardHeader>
           <CardContent>
             <div className="h-[280px] w-full sm:h-[320px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data.evolution} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+              {hasEvolution ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={data.evolution} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
                     <linearGradient id="ingresosGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#145A32" stopOpacity={0.35} />
@@ -299,6 +351,11 @@ export function FinancialAnalyticsDashboard({
                   />
                 </AreaChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-graphite-500">
+                  Sin movimientos en el periodo seleccionado
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -310,8 +367,9 @@ export function FinancialAnalyticsDashboard({
           </CardHeader>
           <CardContent>
             <div className="h-[220px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
+              {hasExpenseCategories ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
                   <Pie
                     data={data.expenseCategories}
                     dataKey="value"
@@ -336,7 +394,13 @@ export function FinancialAnalyticsDashboard({
                   />
                 </PieChart>
               </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-graphite-500">
+                  Sin gastos registrados
+                </div>
+              )}
             </div>
+            {hasExpenseCategories ? (
             <ul className="mt-2 space-y-2">
               {data.expenseCategories.map((cat) => (
                 <li key={cat.name} className="flex items-center justify-between text-sm">
@@ -348,11 +412,12 @@ export function FinancialAnalyticsDashboard({
                     {cat.name}
                   </span>
                   <span className="font-medium text-pine-900">
-                    {Math.round((cat.value / totalExpenses) * 100)}%
+                    {totalExpenses > 0 ? Math.round((cat.value / totalExpenses) * 100) : 0}%
                   </span>
                 </li>
               ))}
             </ul>
+            ) : null}
           </CardContent>
         </Card>
       </div>
@@ -380,7 +445,14 @@ export function FinancialAnalyticsDashboard({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.transactions.map((tx) => (
+                  {data.transactions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-12 text-center text-graphite-500">
+                        No hay transacciones registradas todavía.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                  data.transactions.map((tx) => (
                     <TableRow key={tx.id} className="border-sand-100">
                       <TableCell className="font-medium text-pine-900">{tx.counterparty}</TableCell>
                       <TableCell className="hidden text-graphite-500 sm:table-cell">{tx.reference}</TableCell>
@@ -402,7 +474,8 @@ export function FinancialAnalyticsDashboard({
                         {formatEuro(tx.amount, { signed: true })}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ))
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -415,7 +488,12 @@ export function FinancialAnalyticsDashboard({
             <CardDescription>Próximas acciones recomendadas</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            {data.alerts.map((alert) => (
+            {data.alerts.length === 0 ? (
+              <p className="rounded-xl border border-sand-200 bg-sand-50/60 p-4 text-sm text-graphite-500">
+                No hay alertas pendientes.
+              </p>
+            ) : (
+            data.alerts.map((alert) => (
               <div
                 key={alert.id}
                 className={cn(
@@ -435,14 +513,11 @@ export function FinancialAnalyticsDashboard({
                   </p>
                 </div>
               </div>
-            ))}
+            ))
+            )}
           </CardContent>
         </Card>
       </div>
-
-      <p className="text-center text-xs text-graphite-400">
-        Datos de demostración · Conecta contabilidad real para métricas en vivo
-      </p>
     </div>
   )
 }

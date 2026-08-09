@@ -56,10 +56,25 @@ export function CertificateUploadForm({
     }
 
     setFeedback(null)
+    const fileBase64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        const result = reader.result
+        if (typeof result !== "string") {
+          reject(new Error("No se pudo leer el certificado."))
+          return
+        }
+        resolve(result.includes(",") ? result.split(",")[1] ?? result : result)
+      }
+      reader.onerror = () => reject(new Error("No se pudo leer el certificado."))
+      reader.readAsDataURL(file)
+    })
+
     await onSave({
       fileName: file.name,
       password: password.trim(),
       environment,
+      fileBase64,
     })
     setPassword("")
     setFile(null)
@@ -75,7 +90,7 @@ export function CertificateUploadForm({
       <CardHeader>
         <CardTitle className="text-lg text-pine-900">Subir certificado digital</CardTitle>
         <CardDescription>
-          El archivo se encriptará en el servidor. Solo se almacenan metadatos en esta demo.
+          El certificado se analiza en el servidor para extraer NIF y titular. No se guarda el archivo .p12.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">

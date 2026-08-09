@@ -13,6 +13,7 @@ export interface CertificateUploadPayload {
   fileName: string
   password: string
   environment: VerifactuEnvironment
+  fileBase64: string
 }
 
 const STORAGE_KEY = "gestoria-digital-certificate"

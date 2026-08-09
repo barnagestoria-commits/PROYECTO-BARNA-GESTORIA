@@ -26,6 +26,7 @@ interface ProfileFormState {
   phone: string
   accountName: string
   activeCompanyName: string
+  activeCompanyCif: string
 }
 
 export function AccountSettingsPage() {
@@ -40,6 +41,7 @@ export function AccountSettingsPage() {
     phone: "",
     accountName: "",
     activeCompanyName: "",
+    activeCompanyCif: "",
   })
 
   const canEditAccountName =
@@ -55,8 +57,9 @@ export function AccountSettingsPage() {
       phone: session.user.phone ?? "",
       accountName: session.user.accountName,
       activeCompanyName: activeCompany?.name ?? "",
+      activeCompanyCif: activeCompany?.cif ?? "",
     })
-  }, [session, activeCompany?.name])
+  }, [session, activeCompany?.name, activeCompany?.cif])
 
   if (!session) return null
 
@@ -67,6 +70,7 @@ export function AccountSettingsPage() {
       phone: session.user.phone ?? "",
       accountName: session.user.accountName,
       activeCompanyName: activeCompany?.name ?? "",
+      activeCompanyCif: activeCompany?.cif ?? "",
     })
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -86,6 +90,7 @@ export function AccountSettingsPage() {
           phone: form.phone || null,
           ...(canEditAccountName ? { accountName: form.accountName } : {}),
           ...(activeCompany ? { activeCompanyName: form.activeCompanyName } : {}),
+          ...(activeCompany ? { activeCompanyCif: form.activeCompanyCif || null } : {}),
         }),
       })
       await refreshSession()
@@ -185,6 +190,7 @@ export function AccountSettingsPage() {
               <ProfileField label="Teléfono" value={session.user.phone ?? "—"} />
               <ProfileField label="Rol" value={roleLabel} />
               <ProfileField label="Empresa activa" value={activeCompany?.name ?? "—"} />
+              <ProfileField label="NIF / CIF" value={activeCompany?.cif ?? "—"} />
               <ProfileField label="Cuenta" value={session.user.accountName} />
             </div>
           ) : (
@@ -210,16 +216,29 @@ export function AccountSettingsPage() {
               />
               <ProfileField label="Rol" value={roleLabel} />
               {activeCompany ? (
-                <ProfileInput
-                  id="profile-company"
-                  label="Empresa activa"
-                  value={form.activeCompanyName}
-                  onChange={(value) =>
-                    setForm((current) => ({ ...current, activeCompanyName: value }))
-                  }
-                />
+                <>
+                  <ProfileInput
+                    id="profile-company"
+                    label="Empresa activa"
+                    value={form.activeCompanyName}
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, activeCompanyName: value }))
+                    }
+                  />
+                  <ProfileInput
+                    id="profile-company-cif"
+                    label="NIF / CIF"
+                    value={form.activeCompanyCif}
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, activeCompanyCif: value }))
+                    }
+                  />
+                </>
               ) : (
-                <ProfileField label="Empresa activa" value="—" />
+                <>
+                  <ProfileField label="Empresa activa" value="—" />
+                  <ProfileField label="NIF / CIF" value="—" />
+                </>
               )}
               {canEditAccountName ? (
                 <ProfileInput

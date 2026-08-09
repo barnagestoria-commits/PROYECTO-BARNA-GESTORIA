@@ -12,10 +12,16 @@ import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import { ArrowLeft, Loader2 } from "lucide-react"
 
+interface FiscalModelDetailPageState {
+  detail: FiscalModelDetailResponse
+  companyName: string
+  companyCif: string | null
+}
+
 export default function FiscalModelDetailPage() {
   const params = useParams<{ model: string; year: string; quarter: string }>()
   const { session, activeCompany } = useRequireAuth()
-  const [detail, setDetail] = useState<FiscalModelDetailResponse | null>(null)
+  const [payload, setPayload] = useState<FiscalModelDetailPageState | null>(null)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -25,12 +31,18 @@ export default function FiscalModelDetailPage() {
     setIsLoadingDetail(true)
     setError(null)
     try {
-      const data = await apiFetch<{ success: true; detail: FiscalModelDetailResponse }>(
-        `/api/fiscal/models/${params.model}/${params.year}/${params.quarter}`,
-      )
-      setDetail(data.detail)
+      const data = await apiFetch<{
+        success: true
+        detail: FiscalModelDetailResponse
+        company: { name: string; cif: string | null }
+      }>(`/api/fiscal/models/${params.model}/${params.year}/${params.quarter}`)
+      setPayload({
+        detail: data.detail,
+        companyName: data.company.name,
+        companyCif: data.company.cif,
+      })
     } catch (err) {
-      setDetail(null)
+      setPayload(null)
       setError(err instanceof Error ? err.message : "No se pudo cargar el borrador del modelo.")
     } finally {
       setIsLoadingDetail(false)
@@ -43,6 +55,7 @@ export default function FiscalModelDetailPage() {
     }
   }, [session?.activeCompanyId, loadDetail])
 
+  const detail = payload?.detail ?? null
   const usesDraftLayout =
     detail !== null && DRAFT_SUPPORTED_MODELS.has(detail.modelCode)
 
@@ -64,12 +77,12 @@ export default function FiscalModelDetailPage() {
         <Card>
           <CardContent className="py-10 text-center text-red-700">{error}</CardContent>
         </Card>
-      ) : detail && activeCompany ? (
+      ) : detail && payload && activeCompany ? (
         usesDraftLayout ? (
           <FiscalModelDraftView
             detail={detail}
-            companyName={activeCompany.name}
-            companyCif={activeCompany.cif}
+            companyName={payload.companyName}
+            companyCif={payload.companyCif}
             modelParam={params.model}
             quarterParam={params.quarter}
             year={Number.parseInt(params.year, 10)}

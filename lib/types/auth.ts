@@ -25,6 +25,7 @@ export interface UpdateUserProfileRequest {
   phone?: string | null
   accountName?: string
   activeCompanyName?: string
+  activeCompanyCif?: string | null
 }
 
 export interface AuthSession {

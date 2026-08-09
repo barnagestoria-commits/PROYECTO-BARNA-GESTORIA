@@ -12,7 +12,7 @@ import {
 } from "@/lib/fiscal/export-fiscal-model"
 import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-service"
 import { parseDetailQuarter } from "@/lib/fiscal/panorama"
-import { prisma } from "@/lib/db"
+import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 
 export const runtime = "nodejs"
 
@@ -51,7 +51,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     const [detail, company] = await Promise.all([
       buildFiscalModelDetail(companyId, model, year, quarter),
-      prisma.company.findUnique({ where: { id: companyId }, select: { name: true, cif: true } }),
+      resolveCompanyTaxIdentity(companyId),
     ])
 
     if (!detail) {

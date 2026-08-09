@@ -151,6 +151,21 @@ model Company {
   gestoriaProfile      CompanyGestoriaProfile?
   bankStatementImports BankStatementImport[]
   bankMovements        BankMovement[]
+  digitalCertificate   CompanyDigitalCertificate?
+}
+
+/// Metadatos del certificado digital FNMT/AEAT vinculado a la empresa (sin almacenar el .p12).
+model CompanyDigitalCertificate {
+  id          String   @id @default(cuid())
+  companyId   String   @unique
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  holderName  String
+  taxId       String
+  fileName    String
+  expiresAt   DateTime
+  environment String
+  uploadedAt  DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
