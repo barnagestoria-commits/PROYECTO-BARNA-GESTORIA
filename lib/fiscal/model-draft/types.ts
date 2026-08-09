@@ -6,6 +6,8 @@ export interface DraftCasilla {
   label: string
   description?: string
   amount: number
+  baseAmount?: number
+  relatedCode?: string
   sectionKey?: string
   clickable: boolean
 }
@@ -45,4 +47,14 @@ export interface CalculationDetailRow {
   entryDate: string
 }
 
-export const DRAFT_SUPPORTED_MODELS = new Set<FiscalModelId>(["303", "111", "115", "123", "349"])
+export const DRAFT_SUPPORTED_MODELS = new Set<FiscalModelId>([
+  "111",
+  "115",
+  "123",
+  "180",
+  "190",
+  "303",
+  "347",
+  "349",
+  "390",
+])

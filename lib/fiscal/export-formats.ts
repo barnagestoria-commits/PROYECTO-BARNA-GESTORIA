@@ -14,6 +14,6 @@ export const FISCAL_EXPORT_DESCRIPTIONS: Record<FiscalExportFormat, string> = {
   pdf: "Documento formal para archivo e impresión",
   xlsx: "Hoja de cálculo editable",
   csv: "Texto delimitado para sistemas externos",
-  txt: "Archivo .txt de importación telemática en AEAT",
+  txt: "Descargar fichero (.txt) para importar en la Sede Electrónica de la AEAT",
   zip: "Paquete con PDF, Excel, CSV y TXT",
 }

@@ -1,4 +1,12 @@
 import type { FiscalModelDetailResponse, FiscalModelId } from "@/lib/types/fiscal-panorama"
+import {
+  buildModel303CasillaValues,
+  model303CasillaEntries,
+} from "@/lib/fiscal/model-303/official-layout"
+import {
+  buildOfficialCasillaEntries,
+  OFFICIAL_CASILLA_LABELS,
+} from "@/lib/fiscal/official-layouts"
 
 const RECORD_LENGTH = 500
 
@@ -67,7 +75,7 @@ function buildIdentificationRecord(
 function buildAmountRecord(casilla: string, amount: number, label: string): string {
   return buildRecord([
     "2",
-    padRight(casilla, 6),
+    padLeft(casilla, 6, " "),
     formatSignedAmount(amount),
     padRight(label.toUpperCase(), 80),
   ])
@@ -87,36 +95,60 @@ function buildDetailRecord(
   ])
 }
 
-function build303Records(
-  detail: FiscalModelDetailResponse,
-  companyName: string,
-  companyCif: string | null | undefined,
-): string[] {
-  const repercutido = detail.breakdown.find((section) => section.key === "repercutido")?.total ?? 0
-  const soportado = detail.breakdown.find((section) => section.key === "soportado")?.total ?? 0
-  const resultado = detail.amount
-
-  return [
-    buildIdentificationRecord(detail, companyName, companyCif),
-    buildAmountRecord("01", repercutido, "IVA repercutido"),
-    buildAmountRecord("02", soportado, "IVA soportado"),
-    buildAmountRecord("03", resultado, "Resultado liquidacion IVA"),
-    buildRecord(["9", padRight("FIN REGISTRO MODELO 303", 40)]),
-  ]
+const MODEL303_CASILLA_LABELS: Record<string, string> = {
+  "01": "BASE REGIMEN GENERAL 21",
+  "03": "CUOTA REGIMEN GENERAL 21",
+  "04": "BASE REGIMEN GENERAL 10",
+  "06": "CUOTA REGIMEN GENERAL 10",
+  "07": "BASE REGIMEN GENERAL 4",
+  "09": "CUOTA REGIMEN GENERAL 4",
+  "10": "BASE ADQ INTRACOMUNITARIAS",
+  "11": "CUOTA ADQ INTRACOMUNITARIAS",
+  "12": "BASE INV SUJETO PASIVO",
+  "13": "CUOTA INV SUJETO PASIVO",
+  "27": "TOTAL CUOTA DEVENGADA",
+  "28": "BASE DEDUCIBLE INTERIOR CORRIENTE",
+  "29": "CUOTA DEDUCIBLE INTERIOR CORRIENTE",
+  "30": "BASE DEDUCIBLE INTERIOR INVERSION",
+  "31": "CUOTA DEDUCIBLE INTERIOR INVERSION",
+  "32": "BASE DEDUCIBLE IMPORT CORRIENTE",
+  "33": "CUOTA DEDUCIBLE IMPORT CORRIENTE",
+  "34": "BASE DEDUCIBLE IMPORT INVERSION",
+  "35": "CUOTA DEDUCIBLE IMPORT INVERSION",
+  "36": "BASE DEDUCIBLE INTRA CORRIENTE",
+  "37": "CUOTA DEDUCIBLE INTRA CORRIENTE",
+  "38": "BASE DEDUCIBLE INTRA INVERSION",
+  "39": "CUOTA DEDUCIBLE INTRA INVERSION",
+  "45": "TOTAL A DEDUCIR",
+  "46": "DIFERENCIA 27 MENOS 45",
+  "110": "COMPENSACION PERIODOS ANTERIORES",
+  "71": "RESULTADO LIQUIDACION",
 }
 
-function buildRetentionRecords(
+function casillaLabel(modelCode: FiscalModelId, code: string): string {
+  return (
+    (modelCode === "303" ? MODEL303_CASILLA_LABELS[code] : OFFICIAL_CASILLA_LABELS[modelCode]?.[code]) ??
+    `CASILLA ${code}`
+  )
+}
+
+function buildOfficialRecords(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
 ): string[] {
-  const lines = detail.breakdown.flatMap((section) => section.lines)
-  const records = [
-    buildIdentificationRecord(detail, companyName, companyCif),
-    buildAmountRecord("01", detail.amount, "Total retenciones e ingresos a cuenta"),
-  ]
+  const records = [buildIdentificationRecord(detail, companyName, companyCif)]
+  const entries =
+    detail.modelCode === "303"
+      ? model303CasillaEntries(buildModel303CasillaValues(detail))
+      : buildOfficialCasillaEntries(detail)
 
-  lines.forEach((line, index) => {
+  for (const entry of entries) {
+    records.push(buildAmountRecord(entry.code, entry.amount, casillaLabel(detail.modelCode, entry.code)))
+  }
+
+  const detailLines = detail.breakdown.flatMap((section) => section.lines)
+  detailLines.forEach((line, index) => {
     records.push(buildDetailRecord(index, line))
   })
 
@@ -135,27 +167,23 @@ export function generateAeatTxt(
     `# NIF ${normalizeNif(companyCif).trim()}`,
     `# GENERADO POR BARNA GESTORIA`,
     `# FORMATO: REGISTROS DE ANCHURA FIJA (${RECORD_LENGTH}) PARA IMPORTACION .TXT`,
+    `# Descargar e importar en la Sede Electronica de la AEAT`,
     "",
   ]
 
-  let records: string[]
-  if (detail.modelCode === "303") {
-    records = build303Records(detail, companyName, companyCif)
-  } else {
-    records = buildRetentionRecords(detail, companyName, companyCif)
-  }
-
+  const records = buildOfficialRecords(detail, companyName, companyCif)
   const content = [...header, ...records].join("\r\n")
   return Buffer.from(content, "latin1")
 }
 
 export function supportsAeatTxtImport(model: FiscalModelId): boolean {
-  return model === "111" || model === "115" || model === "303" || model === "180"
+  return model === "111" || model === "115" || model === "123" || model === "180" || model === "190" || model === "303" || model === "347" || model === "349" || model === "390"
 }
 
 export function shouldOfferAeatTxt(
   detail: Pick<FiscalModelDetailResponse, "modelCode" | "quarter">,
 ): boolean {
-  if (detail.modelCode === "180") return detail.quarter === "annual"
+  const annualModels: FiscalModelId[] = ["180", "190", "347", "390"]
+  if (annualModels.includes(detail.modelCode)) return detail.quarter === "annual"
   return detail.quarter !== "annual"
 }

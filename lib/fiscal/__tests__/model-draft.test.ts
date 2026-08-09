@@ -22,7 +22,9 @@ describe("buildFiscalModelDraft", () => {
   it("builds AEAT casillas for modelo 303", () => {
     const draft = buildFiscalModelDraft(baseDetail, "EMPRESA TEST SL", "B12345678")
     expect(draft.nif).toBe("B12345678")
+    expect(draft.sections).toHaveLength(3)
     expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "01"))).toBe(true)
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "71"))).toBe(true)
     expect(draft.supportsGenerateEntry).toBe(true)
   })
 
@@ -57,5 +59,45 @@ describe("buildFiscalModelDraft", () => {
     const draft = buildFiscalModelDraft(detail, "EMPRESA TEST SL", "B12345678")
     expect(draft.sections[0].casillas.find((cell) => cell.code === "02")?.amount).toBe(25000)
     expect(draft.supportsGenerateEntry).toBe(false)
+  })
+
+  it("builds official casillas for modelo 111", () => {
+    const detail: FiscalModelDetailResponse = {
+      ...baseDetail,
+      modelCode: "111",
+      modelLabel: "Modelo 111",
+      amount: 1500,
+      breakdown: [{ key: "retenciones", label: "Retenciones practicadas", total: 1500, lines: [] }],
+    }
+    const draft = buildFiscalModelDraft(detail, "EMPRESA TEST SL", "B12345678")
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "15"))).toBe(true)
+  })
+
+  it("builds official casillas for modelo 390 annual", () => {
+    const detail: FiscalModelDetailResponse = {
+      ...baseDetail,
+      modelCode: "390",
+      modelLabel: "Modelo 390",
+      quarter: "annual",
+      periodLabel: "Resumen anual 2026",
+      amount: 4000,
+      breakdown: [{ key: "resumen-iva", label: "Resumen anual IVA", total: 4000, lines: [] }],
+    }
+    const draft = buildFiscalModelDraft(detail, "EMPRESA TEST SL", "B12345678")
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "71"))).toBe(true)
+  })
+
+  it("builds official casillas for modelo 347 annual", () => {
+    const detail: FiscalModelDetailResponse = {
+      ...baseDetail,
+      modelCode: "347",
+      modelLabel: "Modelo 347",
+      quarter: "annual",
+      periodLabel: "Resumen anual 2026",
+      amount: 50000,
+      breakdown: [{ key: "operaciones-terceros", label: "Operaciones terceros", total: 50000, lines: [] }],
+    }
+    const draft = buildFiscalModelDraft(detail, "EMPRESA TEST SL", "B12345678")
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "28"))).toBe(true)
   })
 })

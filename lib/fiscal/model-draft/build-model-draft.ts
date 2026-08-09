@@ -1,244 +1,17 @@
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
-import type { DraftCasilla, DraftSection, FiscalModelDraft } from "@/lib/fiscal/model-draft/types"
+import type { FiscalModelDraft } from "@/lib/fiscal/model-draft/types"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 import {
-  detectModel349Clave,
-  MODEL_349_CLAVE_LABELS,
-  MODEL_349_CLAVE_ORDER,
-  model349SectionKeyForClave,
-  type Model349Clave,
-} from "@/lib/fiscal/model-349-claves"
-import {
-  collectModel349EntryText,
-  findModel349IvaContextLine,
-} from "@/lib/fiscal/model-349-base-imponible"
-import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
-
-function sectionTotal(
-  detail: FiscalModelDetailResponse,
-  key: string,
-): number {
-  return detail.breakdown.find((section) => section.key === key)?.total ?? 0
-}
-
-function casilla(
-  id: string,
-  code: string,
-  label: string,
-  amount: number,
-  sectionKey: string,
-  description?: string,
-): DraftCasilla {
-  return {
-    id,
-    code,
-    label,
-    description,
-    amount,
-    sectionKey,
-    clickable: true,
-  }
-}
-
-function build303Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const repercutido = sectionTotal(detail, "repercutido")
-  const soportado = sectionTotal(detail, "soportado")
-  const liquidacion = sectionTotal(detail, "liquidacion")
-
-  if (detail.breakdown.some((section) => section.key === "liquidacion")) {
-    return [
-      {
-        id: "liquidacion",
-        title: "Liquidación trimestral",
-        casillas: [
-          casilla(
-            "liq-03",
-            "03",
-            "Resultado de la liquidación",
-            detail.amount,
-            "liquidacion",
-            "Importe de la liquidación registrada en contabilidad",
-          ),
-        ],
-      },
-    ]
-  }
-
-  return [
-    {
-      id: "iva-repercutido",
-      title: "IVA devengado — Cuotas repercutidas",
-      casillas: [
-        casilla("303-01", "01", "Cuota del IVA repercutido", repercutido, "repercutido"),
-      ],
-    },
-    {
-      id: "iva-soportado",
-      title: "IVA deducible — Cuotas soportadas",
-      casillas: [
-        casilla("303-02", "02", "Cuota del IVA soportado", soportado, "soportado"),
-      ],
-    },
-    {
-      id: "resultado",
-      title: "Resultado de la liquidación",
-      casillas: [
-        casilla(
-          "303-03",
-          "03",
-          detail.amount >= 0 ? "Total a ingresar" : "Total a compensar / devolver",
-          detail.amount,
-          "resultado",
-        ),
-        ...(liquidacion !== 0
-          ? [casilla("303-liq", "LQ", "Liquidación registrada", liquidacion, "liquidacion")]
-          : []),
-      ],
-    },
-  ]
-}
-
-function buildRetentionSections(detail: FiscalModelDetailResponse): DraftSection[] {
-  return detail.breakdown.map((section) => ({
-    id: section.key,
-    title: section.label,
-    casillas: [
-      casilla(
-        `${section.key}-total`,
-        section.key === "retenciones" ? "01" : "01",
-        section.label,
-        section.total,
-        section.key,
-      ),
-    ],
-  }))
-}
-
-function build111Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const sections = buildRetentionSections(detail)
-  if (sections.length === 0) {
-    return [
-      {
-        id: "retenciones",
-        title: "Retenciones e ingresos a cuenta",
-        casillas: [casilla("111-01", "01", "Total retenciones practicadas", detail.amount, "retenciones")],
-      },
-    ]
-  }
-  return sections
-}
-
-function build123Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const base = buildRetentionSections(detail)
-  return base.map((section) => ({
-    ...section,
-    casillas: section.casillas.map((cell) => ({
-      ...cell,
-      code: cell.code === "01" ? "04" : cell.code,
-      label: cell.label.includes("Retenciones") ? cell.label : "Retenciones e ingresos a cuenta",
-    })),
-  }))
-}
-
-function build349Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const allLines = detail.breakdown.flatMap((section) => section.lines)
-  const contributingLines = allLines.filter((line) => line.category === "contributing")
-
-  const operadores = new Set(
-    contributingLines.map((line) => {
-      const vatId = extractPrimaryEuVatId(collectModel349EntryText(line, allLines))
-      return vatId ? formatEuVatIdForAeat(vatId) : line.entryId
-    }),
-  ).size
-
-  const byClave = new Map<Model349Clave, { operadores: Set<string>; total: number }>()
-
-  for (const line of contributingLines) {
-    const contextLine = findModel349IvaContextLine(line, allLines)
-    const clave = detectModel349Clave({
-      concepto: contextLine.concepto,
-      entryConcept: line.entryConcept,
-      cuenta: contextLine.cuenta,
-      debe: contextLine.debe,
-      haber: contextLine.haber,
-    })
-    const vatId = extractPrimaryEuVatId(collectModel349EntryText(line, allLines))
-    const operatorKey = vatId ? formatEuVatIdForAeat(vatId) : line.entryId
-
-    const group = byClave.get(clave) ?? { operadores: new Set<string>(), total: 0 }
-    group.operadores.add(operatorKey)
-    group.total += line.signedAmount
-    byClave.set(clave, group)
-  }
-
-  const claveCasillas: DraftCasilla[] = MODEL_349_CLAVE_ORDER.filter((clave) => byClave.has(clave)).map(
-    (clave) => {
-      const group = byClave.get(clave)!
-      return casilla(
-        `349-clave-${clave}`,
-        clave,
-        MODEL_349_CLAVE_LABELS[clave],
-        group.total,
-        model349SectionKeyForClave(clave),
-        `${group.operadores.size} operador${group.operadores.size === 1 ? "" : "es"}`,
-      )
-    },
-  )
-
-  const sections: DraftSection[] = [
-    {
-      id: "intracomunitarias",
-      title: "Operaciones intracomunitarias",
-      casillas: [
-        casilla("349-01", "01", "Número de operadores comunitarios", operadores, "intracomunitarias"),
-        casilla(
-          "349-02",
-          "02",
-          "Importe de las operaciones intracomunitarias",
-          detail.amount,
-          "intracomunitarias",
-        ),
-      ],
-    },
-  ]
-
-  if (claveCasillas.length > 0) {
-    sections.push({
-      id: "claves-operacion",
-      title: "Desglose por clave de operación",
-      casillas: claveCasillas,
-    })
-  }
-
-  return sections
-}
+  buildOfficialModelSections,
+  resolveDraftResultAmount,
+} from "@/lib/fiscal/official-layouts"
 
 export function buildFiscalModelDraft(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
 ): FiscalModelDraft {
-  let sections: DraftSection[] = []
-
-  switch (detail.modelCode) {
-    case "303":
-      sections = build303Sections(detail)
-      break
-    case "111":
-      sections = build111Sections(detail)
-      break
-    case "115":
-      sections = buildRetentionSections(detail)
-      break
-    case "123":
-      sections = build123Sections(detail)
-      break
-    case "349":
-      sections = build349Sections(detail)
-      break
-    default:
-      sections = buildRetentionSections(detail)
-  }
+  const sections = buildOfficialModelSections(detail)
 
   const hasExistingLiquidation = detail.breakdown.some(
     (section) => section.key === "liquidacion" || section.key === "nrc-pago",
@@ -255,7 +28,7 @@ export function buildFiscalModelDraft(
     status: detail.status,
     statusLabel: detail.statusLabel,
     sections,
-    resultAmount: detail.amount,
+    resultAmount: resolveDraftResultAmount(detail),
     supportsGenerateEntry:
       DRAFT_SUPPORTED_MODELS.has(detail.modelCode) &&
       detail.quarter !== "annual" &&
