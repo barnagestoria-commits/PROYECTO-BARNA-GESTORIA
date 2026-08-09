@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { generateAeatTxt } from "@/lib/fiscal/aeat/generate-aeat-txt"
+import { AEAT_RECORD_LENGTH, generateAeatTxt } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
 const detail303: FiscalModelDetailResponse = {
@@ -18,18 +18,25 @@ const detail303: FiscalModelDetailResponse = {
 }
 
 describe("generateAeatTxt modelo 303", () => {
-  it("includes official casilla records with fixed width", () => {
+  it("generates only fixed-width official records without comments or branding", () => {
     const buffer = generateAeatTxt(detail303, "EMPRESA TEST SL", "B12345678")
     const content = buffer.toString("latin1")
-    expect(content).toContain("MODELO 303")
-    expect(content).toContain("TOTAL CUOTA DEVENGADA")
-    expect(content).toContain("RESULTADO LIQUIDACION")
-    const dataLines = content.split("\r\n").filter((line) => line.startsWith("2"))
-    expect(dataLines.some((line) => line.includes("TOTAL CUOTA DEVENGADA"))).toBe(true)
-    expect(dataLines.some((line) => line.includes("RESULTADO LIQUIDACION"))).toBe(true)
-    expect(dataLines.length).toBeGreaterThan(20)
-    for (const line of dataLines) {
-      expect(line.length).toBe(500)
+    const lines = content.split("\r\n")
+
+    expect(lines.some((line) => line.startsWith("#"))).toBe(false)
+    expect(content).not.toContain("BARNA GESTORIA")
+    expect(content).not.toContain("GENERADO POR")
+    expect(content).toContain("EMPRESA TEST SL")
+    expect(content).toContain("B12345678")
+
+    expect(lines.length).toBeGreaterThan(20)
+    for (const line of lines) {
+      expect(line.length).toBe(AEAT_RECORD_LENGTH)
     }
+
+    expect(lines[0]?.startsWith("1")).toBe(true)
+    expect(lines.some((line) => line.startsWith("2"))).toBe(true)
+    expect(lines.at(-1)?.startsWith("9")).toBe(true)
+    expect(lines.some((line) => line.startsWith("3"))).toBe(false)
   })
 })
