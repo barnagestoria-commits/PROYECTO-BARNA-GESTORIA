@@ -14,6 +14,14 @@ import type { FiscalModelDetailResponse, FiscalModelId } from "@/lib/types/fisca
 
 export type { FiscalExportFormat }
 
+function sanitizePdfText(value: string): string {
+  return value
+    .replace(/\u0000/g, "")
+    .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function escapeCsv(value: string | number): string {
   const str = String(value)
   if (str.includes(",") || str.includes('"') || str.includes("\n") || str.includes(";")) {
@@ -137,7 +145,7 @@ export async function generateFiscalPdf(
 ): Promise<Buffer> {
   const bodyRows = detail.breakdown.flatMap((section) => {
     const sectionHeader: Content = {
-      text: section.label,
+      text: sanitizePdfText(section.label),
       style: "section",
       margin: [0, 8, 0, 4],
     }
@@ -151,30 +159,38 @@ export async function generateFiscalPdf(
       {
         table: {
           headerRows: 1,
-          widths: [52, 42, "*", 48, 48, 52],
+          widths: [48, 40, "*", 44, 44, 48],
           body: [
             [
               { text: "Fecha", style: "tableHeader" },
               { text: "Cuenta", style: "tableHeader" },
-              { text: "Concepto", style: "tableHeader" },
+              { text: "Concepto / Asiento", style: "tableHeader" },
               { text: "Debe", style: "tableHeader", alignment: "right" },
               { text: "Haber", style: "tableHeader", alignment: "right" },
               { text: "Importe", style: "tableHeader", alignment: "right" },
             ],
-            ...section.lines.map((line) => [
-              line.entryDate,
-              line.cuenta,
-              line.concepto || "—",
-              { text: line.debe ? formatAmount(line.debe) : "—", alignment: "right" },
-              { text: line.haber ? formatAmount(line.haber) : "—", alignment: "right" },
-              { text: formatAmount(line.signedAmount), alignment: "right" },
-            ]),
+            ...section.lines.map((line) => {
+              const conceptParts = [line.entryConcept, line.concepto].filter(Boolean).map((part) => sanitizePdfText(part ?? ""))
+              const conceptText = conceptParts.length > 1 ? `${conceptParts[0]} — ${conceptParts[1]}` : conceptParts[0] || "—"
+              return [
+                sanitizePdfText(line.entryDate),
+                sanitizePdfText(line.cuenta),
+                conceptText,
+                { text: line.debe ? formatAmount(line.debe) : "—", alignment: "right" },
+                { text: line.haber ? formatAmount(line.haber) : "—", alignment: "right" },
+                {
+                  text: line.signedAmount ? formatAmount(line.signedAmount) : "—",
+                  alignment: "right",
+                  bold: line.category === "contributing",
+                },
+              ]
+            }),
             [
-              { text: "Total sección", colSpan: 5, bold: true },
-              "",
-              "",
-              "",
-              "",
+              { text: "Total sección", colSpan: 5, alignment: "right", bold: true },
+              {},
+              {},
+              {},
+              {},
               { text: formatAmount(section.total), alignment: "right", bold: true },
             ],
           ],
@@ -188,17 +204,21 @@ export async function generateFiscalPdf(
   const doc: TDocumentDefinitions = {
     pageSize: "A4",
     pageMargins: [40, 40, 40, 50],
+    defaultStyle: {
+      font: "Roboto",
+      fontSize: 8,
+    },
     content: [
       { text: "BARNA GESTORÍA", style: "brand" },
-      { text: detail.modelLabel, style: "title" },
+      { text: sanitizePdfText(detail.modelLabel), style: "title" },
       {
         columns: [
           {
             width: "*",
             stack: [
-              { text: companyName, style: "company" },
-              { text: detail.periodLabel, style: "meta" },
-              { text: `Estado: ${detail.statusLabel}`, style: "meta" },
+              { text: sanitizePdfText(companyName), style: "company" },
+              { text: sanitizePdfText(detail.periodLabel), style: "meta" },
+              { text: `Estado: ${sanitizePdfText(detail.statusLabel)}`, style: "meta" },
             ],
           },
           {

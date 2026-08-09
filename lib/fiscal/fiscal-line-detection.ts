@@ -35,19 +35,74 @@ function isModel111NrcConcept(text: string): boolean {
   return /NRC\.?\s*111/i.test(text) || /NRC\.?\s*11\b/i.test(text)
 }
 
+export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
+  const haber = decimalToNumber(line.haber)
+  if (haber <= 0) return false
+  const concept = line.concepto
+  if (/RETENCI[ÓO]N\s+DIVID/i.test(concept)) return true
+  if (/RET\.?\s*DIVID/i.test(concept)) return true
+  if (/DIVIDENDOS/i.test(concept) && /RETENCI|RET\.|Reten/i.test(concept)) return true
+  return false
+}
+
+export function isModel115RentalRetentionLine(line: RawEntryLine): boolean {
+  const haber = decimalToNumber(line.haber)
+  if (haber <= 0) return false
+  if (isModel123DividendRetentionLine(line)) return false
+
+  const cuenta = normalizeCuenta(line.cuenta)
+  if (cuenta.startsWith("4732")) return true
+
+  const concept = line.concepto
+  if (!/Reten[\.\/]|Retenc|RETENCI/i.test(concept)) return false
+  return /ALQUILER|ARREND|RENTA\s+LOCAL|INMUEBLE|URBAN/i.test(concept)
+}
+
 export function isModel111RetentionLine(line: RawEntryLine): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
-  if (/RETENCI[ÓO]N\s+DIVID/i.test(line.concepto)) return false
+  if (isModel123DividendRetentionLine(line)) return false
+  if (isModel115RentalRetentionLine(line)) return false
   return /Reten[\.\/]/i.test(line.concepto) || /Retenc/i.test(line.concepto)
 }
 
-function extractLiquidationAmount(
+export function collectEntryLines(lines: RawEntryLine[], entryId: string): RawEntryLine[] {
+  return lines.filter((line) => line.entry.id === entryId)
+}
+
+export interface LiquidationDetail {
+  amount: number
+  entryId: string
+  contributingLineId: string
+}
+
+function pickLiquidationCandidate(candidates: Array<{ entryId: string; signedAmount: number; line: RawEntryLine; amount: number }>, pattern: RegExp): LiquidationDetail | null {
+  if (candidates.length === 0) return null
+
+  const pickFrom = (pool: typeof candidates) =>
+    pool.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
+
+  const picked =
+    candidates.length === 1
+      ? candidates[0]
+      : (() => {
+          const modeloCandidates = candidates.filter((candidate) => pattern.test(candidate.line.concepto))
+          return modeloCandidates.length > 0 ? pickFrom(modeloCandidates) : pickFrom(candidates)
+        })()
+
+  return {
+    amount: round2(picked.signedAmount),
+    entryId: picked.entryId,
+    contributingLineId: picked.line.id,
+  }
+}
+
+function extractLiquidationDetail(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4,
   modelCode: "111" | "303",
-): number | null {
+): LiquidationDetail | null {
   const pattern = new RegExp(`Modelo\\s+${modelCode}\\s+${quarter}\\s+Trimestre`, "i")
   const compensationPattern = /Cuotas compensar/i
 
@@ -88,17 +143,7 @@ function extractLiquidationAmount(
     })
   }
 
-  if (candidates.length === 0) return null
-  if (candidates.length === 1) return round2(candidates[0].signedAmount)
-
-  const modeloCandidates = candidates.filter((candidate) => pattern.test(candidate.line.concepto))
-  if (modeloCandidates.length > 0) {
-    const pick = modeloCandidates.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
-    return round2(pick.signedAmount)
-  }
-
-  const pick = candidates.reduce((best, cur) => (cur.amount < best.amount ? cur : best))
-  return round2(pick.signedAmount)
+  return pickLiquidationCandidate(candidates, pattern)
 }
 
 export function extractModel111LiquidationAmount(
@@ -106,14 +151,28 @@ export function extractModel111LiquidationAmount(
   year: number,
   quarter: 1 | 2 | 3 | 4,
 ): number | null {
-  return extractLiquidationAmount(lines, year, quarter, "111")
+  return extractLiquidationDetail(lines, year, quarter, "111")?.amount ?? null
 }
 
-export function extractModel111NrcPaymentAmount(
+export function extractModel111LiquidationDetail(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4,
-): number | null {
+): LiquidationDetail | null {
+  return extractLiquidationDetail(lines, year, quarter, "111")
+}
+
+export interface NrcPaymentDetail {
+  amount: number
+  entryId: string
+  contributingLineId: string
+}
+
+export function extractModel111NrcPaymentDetail(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): NrcPaymentDetail | null {
   const { month, yearOffset } = nrcPaymentMonthForQuarter(quarter)
   const paymentYear = year + yearOffset
   const start = new Date(`${paymentYear}-${String(month).padStart(2, "0")}-01T00:00:00.000Z`)
@@ -151,7 +210,20 @@ export function extractModel111NrcPaymentAmount(
   const pick = (haberCandidates.length > 0 ? haberCandidates : candidates).reduce((best, cur) =>
     cur.amount < best.amount ? cur : best,
   )
-  return round2(Math.abs(pick.signedAmount))
+
+  return {
+    amount: round2(Math.abs(pick.signedAmount)),
+    entryId: pick.line.entry.id,
+    contributingLineId: pick.line.id,
+  }
+}
+
+export function extractModel111NrcPaymentAmount(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): number | null {
+  return extractModel111NrcPaymentDetail(lines, year, quarter)?.amount ?? null
 }
 
 export function extractModel111NrcAccrualLines(
@@ -168,16 +240,25 @@ export function extractModel111NrcAccrualLines(
   })
 }
 
-export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
-  const haber = decimalToNumber(line.haber)
-  if (haber <= 0) return false
-  return /RETENCI[ÓO]N\s+DIVID/i.test(line.concepto)
-}
-
 export function extractModel303LiquidationAmount(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4,
 ): number | null {
-  return extractLiquidationAmount(lines, year, quarter, "303")
+  return extractLiquidationDetail(lines, year, quarter, "303")?.amount ?? null
+}
+
+export function extractModel303LiquidationDetail(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): LiquidationDetail | null {
+  return extractLiquidationDetail(lines, year, quarter, "303")
+}
+
+export function liquidationSignedAmount(line: RawEntryLine, contributingLineId: string): number {
+  if (line.id !== contributingLineId) return 0
+  const haber = decimalToNumber(line.haber)
+  const debe = decimalToNumber(line.debe)
+  return haber > 0 ? round2(haber) : -round2(debe)
 }

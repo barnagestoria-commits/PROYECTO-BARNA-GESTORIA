@@ -58,6 +58,7 @@ export interface FiscalPanoramaResponse {
 export interface FiscalModelBreakdownLine {
   entryId: string
   entryDate: string
+  entryConcept?: string
   lineId: string
   cuenta: string
   concepto: string

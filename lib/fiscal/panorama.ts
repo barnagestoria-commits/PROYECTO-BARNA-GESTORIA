@@ -7,12 +7,15 @@ import type {
 } from "@/lib/types/fiscal-panorama"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import {
-  extractModel111LiquidationAmount,
+  collectEntryLines,
+  extractModel111LiquidationDetail,
   extractModel111NrcAccrualLines,
-  extractModel111NrcPaymentAmount,
-  extractModel303LiquidationAmount,
+  extractModel111NrcPaymentDetail,
+  extractModel303LiquidationDetail,
   isModel111RetentionLine,
+  isModel115RentalRetentionLine,
   isModel123DividendRetentionLine,
+  liquidationSignedAmount,
 } from "@/lib/fiscal/fiscal-line-detection"
 import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
 
@@ -172,6 +175,7 @@ function mapBreakdownLine(line: RawEntryLine, signedAmount: number, category?: s
   return {
     entryId: line.entry.id,
     entryDate: line.entry.fecha.toISOString().split("T")[0],
+    entryConcept: line.entry.concepto ?? undefined,
     lineId: line.id,
     cuenta: line.cuenta,
     concepto: line.concepto,
@@ -180,6 +184,36 @@ function mapBreakdownLine(line: RawEntryLine, signedAmount: number, category?: s
     signedAmount,
     category,
   }
+}
+
+function expandMatchedLinesToEntries(
+  allLines: RawEntryLine[],
+  matchedLines: RawEntryLine[],
+  signedAmountForLine: (line: RawEntryLine) => number,
+) {
+  const matchedIds = new Set(matchedLines.map((line) => line.id))
+  const entryIds = [...new Set(matchedLines.map((line) => line.entry.id))].sort()
+
+  return entryIds.flatMap((entryId) => {
+    const entryLines = collectEntryLines(allLines, entryId)
+    return entryLines.map((line) =>
+      mapBreakdownLine(
+        line,
+        matchedIds.has(line.id) ? signedAmountForLine(line) : 0,
+        matchedIds.has(line.id) ? "contributing" : "asiento",
+      ),
+    )
+  })
+}
+
+function expandLiquidationEntry(
+  allLines: RawEntryLine[],
+  entryId: string,
+  contributingLineId: string,
+) {
+  return collectEntryLines(allLines, entryId).map((line) =>
+    mapBreakdownLine(line, liquidationSignedAmount(line, contributingLineId), line.id === contributingLineId ? "contributing" : "asiento"),
+  )
 }
 
 function filterLinesForPeriod(
@@ -205,66 +239,39 @@ export function calculateModelAmount(
 
   if (modelCode === "111") {
     if (quarter !== "annual") {
-      const liquidationAmount = extractModel111LiquidationAmount(lines, year, quarter)
-      if (liquidationAmount !== null) {
-        const matched = periodLines.filter((line) => {
-          const text = `${line.concepto} ${line.entry.concepto ?? ""}`
-          return new RegExp(`Modelo\\s+111\\s+${quarter}\\s+Trimestre`, "i").test(text)
-        })
-        for (const line of matched) entryIds.add(line.entry.id)
+      const liquidation = extractModel111LiquidationDetail(lines, year, quarter)
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
+        for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
         return {
-          amount: liquidationAmount,
-          lineCount: matched.length,
+          amount: liquidation.amount,
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
           entryIds,
           breakdown: [
             {
               key: "liquidacion",
               label: `Liquidación Modelo 111 (${quarter}T)`,
-              total: liquidationAmount,
-              lines: matched.map((line) =>
-                mapBreakdownLine(
-                  line,
-                  decimalToNumber(line.haber) > 0
-                    ? round2(decimalToNumber(line.haber))
-                    : -round2(decimalToNumber(line.debe)),
-                ),
-              ),
+              total: liquidation.amount,
+              lines: breakdownLines,
             },
           ],
         }
       }
 
-      const nrcPaymentAmount = extractModel111NrcPaymentAmount(lines, year, quarter)
-      if (nrcPaymentAmount !== null) {
-        const { month, yearOffset } = { 1: { month: 4, yearOffset: 0 }, 2: { month: 7, yearOffset: 0 }, 3: { month: 10, yearOffset: 0 }, 4: { month: 1, yearOffset: 1 } }[quarter]!
-        const paymentYear = year + yearOffset
-        const matched = lines.filter((line) => {
-          const fecha = line.entry.fecha
-          return (
-            fecha.getUTCFullYear() === paymentYear &&
-            fecha.getUTCMonth() + 1 === month &&
-            /NRC\.?\s*111|NRC\.?\s*11\b/i.test(`${line.concepto} ${line.entry.concepto ?? ""}`) &&
-            !/123/i.test(`${line.concepto} ${line.entry.concepto ?? ""}`)
-          )
-        })
-        for (const line of matched) entryIds.add(line.entry.id)
+      const nrcPayment = extractModel111NrcPaymentDetail(lines, year, quarter)
+      if (nrcPayment) {
+        const breakdownLines = expandLiquidationEntry(lines, nrcPayment.entryId, nrcPayment.contributingLineId)
+        for (const line of collectEntryLines(lines, nrcPayment.entryId)) entryIds.add(line.entry.id)
         return {
-          amount: nrcPaymentAmount,
-          lineCount: matched.length,
+          amount: nrcPayment.amount,
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
           entryIds,
           breakdown: [
             {
               key: "nrc-pago",
               label: `Pago NRC Modelo 111 (${quarter}T)`,
-              total: nrcPaymentAmount,
-              lines: matched.map((line) =>
-                mapBreakdownLine(
-                  line,
-                  decimalToNumber(line.haber) > 0
-                    ? round2(decimalToNumber(line.haber))
-                    : -round2(decimalToNumber(line.debe)),
-                ),
-              ),
+              total: nrcPayment.amount,
+              lines: breakdownLines,
             },
           ],
         }
@@ -272,11 +279,15 @@ export function calculateModelAmount(
 
       const nrcAccrualLines = extractModel111NrcAccrualLines(lines, year, quarter)
       if (nrcAccrualLines.length > 0) {
-        const breakdownLines = nrcAccrualLines.map((line) =>
-          mapBreakdownLine(line, round2(decimalToNumber(line.debe))),
+        const breakdownLines = expandMatchedLinesToEntries(lines, nrcAccrualLines, (line) =>
+          round2(decimalToNumber(line.debe)),
         )
         for (const line of nrcAccrualLines) entryIds.add(line.entry.id)
-        const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+        const total = round2(
+          breakdownLines
+            .filter((line) => line.category === "contributing")
+            .reduce((sum, line) => sum + line.signedAmount, 0),
+        )
         return {
           amount: total,
           lineCount: nrcAccrualLines.length,
@@ -287,9 +298,13 @@ export function calculateModelAmount(
     }
 
     const matched = periodLines.filter(isModel111RetentionLine)
-    const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
-    const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
     return {
       amount: total,
       lineCount: matched.length,
@@ -300,9 +315,13 @@ export function calculateModelAmount(
 
   if (modelCode === "123") {
     const matched = periodLines.filter(isModel123DividendRetentionLine)
-    const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
-    const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
     return {
       amount: total,
       lineCount: matched.length,
@@ -319,11 +338,14 @@ export function calculateModelAmount(
   }
 
   if (modelCode === "115") {
-    const prefixes = ["4732"]
-    const matched = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, prefixes))
-    const breakdownLines = matched.map((line) => mapBreakdownLine(line, signedRetentionAmount(line)))
+    const matched = periodLines.filter(isModel115RentalRetentionLine)
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
-    const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
     return {
       amount: total,
       lineCount: matched.length,
@@ -335,11 +357,13 @@ export function calculateModelAmount(
   if (modelCode === "180") {
     const prefixes = ["4751"]
     const matched = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, prefixes))
-    const breakdownLines = matched.map((line) =>
-      mapBreakdownLine(line, signedRetentionAmount(line), "alquiler"),
-    )
+    const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
-    const total = round2(breakdownLines.reduce((sum, line) => sum + line.signedAmount, 0))
+    const total = round2(
+      breakdownLines
+        .filter((line) => line.category === "contributing")
+        .reduce((sum, line) => sum + line.signedAmount, 0),
+    )
     return {
       amount: total,
       lineCount: matched.length,
@@ -356,31 +380,20 @@ export function calculateModelAmount(
   }
 
   if (quarter !== "annual") {
-    const liquidationAmount = extractModel303LiquidationAmount(lines, year, quarter)
-    if (liquidationAmount !== null) {
-      const matched = periodLines.filter((line) => {
-        const text = `${line.concepto} ${line.entry.concepto ?? ""}`
-        return new RegExp(`Modelo\\s+303\\s+${quarter}\\s+Trimestre`, "i").test(text)
-      })
-      for (const line of matched) entryIds.add(line.entry.id)
+    const liquidation = extractModel303LiquidationDetail(lines, year, quarter)
+    if (liquidation) {
+      const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
+      for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
       return {
-        amount: liquidationAmount,
-        lineCount: matched.length,
+        amount: liquidation.amount,
+        lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
         entryIds,
         breakdown: [
           {
             key: "liquidacion",
             label: `Liquidación Modelo 303 (${quarter}T)`,
-            total: liquidationAmount,
-            lines: matched.map((line) =>
-              mapBreakdownLine(
-                line,
-                decimalToNumber(line.haber) > 0
-                  ? round2(decimalToNumber(line.haber))
-                  : -round2(decimalToNumber(line.debe)),
-                "liquidacion",
-              ),
-            ),
+            total: liquidation.amount,
+            lines: breakdownLines,
           },
         ],
       }
@@ -391,11 +404,11 @@ export function calculateModelAmount(
       for (const line of [...bridge.soportadoLines, ...bridge.repercutidoLines]) {
         entryIds.add(line.entry.id)
       }
-      const soportado = bridge.soportadoLines.map((line) =>
-        mapBreakdownLine(line, round2(decimalToNumber(line.debe) - decimalToNumber(line.haber)), "soportado"),
+      const soportado = expandMatchedLinesToEntries(lines, bridge.soportadoLines, (line) =>
+        round2(decimalToNumber(line.debe) - decimalToNumber(line.haber)),
       )
-      const repercutido = bridge.repercutidoLines.map((line) =>
-        mapBreakdownLine(line, round2(decimalToNumber(line.haber) - decimalToNumber(line.debe)), "repercutido"),
+      const repercutido = expandMatchedLinesToEntries(lines, bridge.repercutidoLines, (line) =>
+        round2(decimalToNumber(line.haber) - decimalToNumber(line.debe)),
       )
       return {
         amount: bridge.netResult,
@@ -418,17 +431,17 @@ export function calculateModelAmount(
   const repercutidoLines = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, ["477"]))
   const soportadoLines = periodLines.filter((line) => matchesAccountPrefix(line.cuenta, ["472"]))
 
-  const repercutido = repercutidoLines.map((line) =>
-    mapBreakdownLine(line, signedRepercutidoAmount(line), "repercutido"),
-  )
-  const soportado = soportadoLines.map((line) =>
-    mapBreakdownLine(line, signedSoportadoAmount(line), "soportado"),
-  )
+  const repercutido = expandMatchedLinesToEntries(lines, repercutidoLines, signedRepercutidoAmount)
+  const soportado = expandMatchedLinesToEntries(lines, soportadoLines, signedSoportadoAmount)
 
   for (const line of [...repercutidoLines, ...soportadoLines]) entryIds.add(line.entry.id)
 
-  const totalRepercutido = round2(repercutido.reduce((sum, line) => sum + line.signedAmount, 0))
-  const totalSoportado = round2(soportado.reduce((sum, line) => sum + line.signedAmount, 0))
+  const totalRepercutido = round2(
+    repercutido.filter((line) => line.category === "contributing").reduce((sum, line) => sum + line.signedAmount, 0),
+  )
+  const totalSoportado = round2(
+    soportado.filter((line) => line.category === "contributing").reduce((sum, line) => sum + line.signedAmount, 0),
+  )
   const amount = round2(totalRepercutido - totalSoportado)
 
   return {

@@ -162,7 +162,7 @@ export default function FiscalModelDetailPage() {
                       <TableRow>
                         <TableHead>Fecha</TableHead>
                         <TableHead>Cuenta</TableHead>
-                        <TableHead>Concepto</TableHead>
+                        <TableHead>Concepto / Asiento</TableHead>
                         <TableHead className="text-right">Debe</TableHead>
                         <TableHead className="text-right">Haber</TableHead>
                         <TableHead className="text-right">Importe</TableHead>
@@ -170,18 +170,33 @@ export default function FiscalModelDetailPage() {
                     </TableHeader>
                     <TableBody>
                       {section.lines.map((line) => (
-                        <TableRow key={line.lineId}>
+                        <TableRow
+                          key={line.lineId}
+                          className={cn(line.category === "contributing" && "bg-emerald-50/40")}
+                        >
                           <TableCell>{line.entryDate}</TableCell>
                           <TableCell className="font-mono">{line.cuenta}</TableCell>
-                          <TableCell>{line.concepto || "—"}</TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              {line.entryConcept ? (
+                                <p className="text-xs font-medium text-graphite-700">{line.entryConcept}</p>
+                              ) : null}
+                              <p>{line.concepto || "—"}</p>
+                            </div>
+                          </TableCell>
                           <TableCell className="text-right font-mono tabular-nums">
                             {line.debe ? formatFiscalAmount(line.debe) : "—"}
                           </TableCell>
                           <TableCell className="text-right font-mono tabular-nums">
                             {line.haber ? formatFiscalAmount(line.haber) : "—"}
                           </TableCell>
-                          <TableCell className="text-right font-mono font-semibold tabular-nums">
-                            {formatFiscalAmount(line.signedAmount)}
+                          <TableCell
+                            className={cn(
+                              "text-right font-mono tabular-nums",
+                              line.category === "contributing" && "font-semibold",
+                            )}
+                          >
+                            {line.signedAmount ? formatFiscalAmount(line.signedAmount) : "—"}
                           </TableCell>
                         </TableRow>
                       ))}

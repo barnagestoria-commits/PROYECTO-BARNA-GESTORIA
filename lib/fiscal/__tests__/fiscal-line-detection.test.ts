@@ -244,4 +244,56 @@ describe("fiscal line detection", () => {
 
     expect(calculateModelAmount("303", lines, 2026, 3).amount).toBe(9340.39)
   })
+
+  it("includes full journal entry lines in modelo 303 liquidation breakdown", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "q1-supplier",
+        concepto: "Modelo 303 1 Trimestre 1 o",
+        cuenta: "473000000000",
+        debe: 162335.77,
+        haber: 0,
+        entry: { id: "e1", fecha: new Date("2026-03-01T12:00:00.000Z"), concepto: "Modelo 303 1 Trimestre 1 o" },
+      }),
+      line({
+        id: "q1-pay",
+        concepto: "Modelo 303 1 Trimestre 1 m",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 258395.68,
+        entry: { id: "e1", fecha: new Date("2026-03-01T12:00:00.000Z"), concepto: "Modelo 303 1 Trimestre 1 o" },
+      }),
+      line({
+        id: "q1-result",
+        concepto: "Modelo 303 1 Trimestre 1 m",
+        cuenta: "473000000000",
+        debe: 96059.91,
+        haber: 0,
+        entry: { id: "e1", fecha: new Date("2026-03-01T12:00:00.000Z"), concepto: "Modelo 303 1 Trimestre 1 o" },
+      }),
+    ]
+
+    const result = calculateModelAmount("303", lines, 2026, 1)
+    expect(result.amount).toBe(-96059.91)
+    expect(result.breakdown[0].lines).toHaveLength(3)
+    expect(result.breakdown[0].total).toBe(-96059.91)
+    expect(result.breakdown[0].lines.find((item) => item.lineId === "q1-result")?.signedAmount).toBe(-96059.91)
+    expect(result.breakdown[0].lines.find((item) => item.lineId === "q1-pay")?.signedAmount).toBe(0)
+  })
+
+  it("detects modelo 115 by rental concept on generic 473 account", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "115",
+        concepto: "Reten./ALQUILER LOCAL BARCELONA 01/26",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 150,
+        entry: { id: "e115", fecha: new Date("2026-02-10T12:00:00.000Z"), concepto: "Factura alquiler" },
+      }),
+    ]
+
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(150)
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
+  })
 })
