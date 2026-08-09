@@ -265,9 +265,21 @@ export const ANNUAL_SUMMARY_MODELS: FiscalModelId[] = [
   "390",
 ]
 
+export type FiscalImpresosMergeInput = Partial<{
+  model111: boolean
+  model115: boolean
+  model123: boolean
+  model180: boolean
+  model190: boolean
+  model303: boolean
+  model347: boolean
+  model349: boolean
+  model390: boolean
+}>
+
 export function mergeImpresosIntoFiscalSettings(
   settings: CompanyFiscalSettingsDto,
-  impresos: Partial<Record<string, boolean | undefined>>,
+  impresos: FiscalImpresosMergeInput,
 ): CompanyFiscalSettingsDto {
   return {
     ...settings,
