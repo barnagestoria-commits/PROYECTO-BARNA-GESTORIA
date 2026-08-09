@@ -1,10 +1,15 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import Link from "next/link"
-import { KeyRound, Settings, Shield, UserCircle2 } from "lucide-react"
+import { KeyRound, Loader2, Pencil, Settings, Shield, UserCircle2, X } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useRequireAuth } from "@/components/auth-provider"
 import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel"
+import { apiFetch, type SessionResponse } from "@/lib/api-client"
 
 const SETTINGS_LINKS = [
   {
@@ -15,10 +20,83 @@ const SETTINGS_LINKS = [
   },
 ]
 
+interface ProfileFormState {
+  name: string
+  email: string
+  phone: string
+  accountName: string
+  activeCompanyName: string
+}
+
 export function AccountSettingsPage() {
-  const { session, roleLabel, activeCompany } = useRequireAuth()
+  const { session, roleLabel, activeCompany, refreshSession } = useRequireAuth()
+  const [isEditing, setIsEditing] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [form, setForm] = useState<ProfileFormState>({
+    name: "",
+    email: "",
+    phone: "",
+    accountName: "",
+    activeCompanyName: "",
+  })
+
+  const canEditAccountName =
+    session?.user.role === "ADMIN_GESTOR" ||
+    session?.user.accountType === "CLIENTE_FINAL" ||
+    session?.user.accountType === "EMPRESA"
+
+  useEffect(() => {
+    if (!session) return
+    setForm({
+      name: session.user.name,
+      email: session.user.email,
+      phone: session.user.phone ?? "",
+      accountName: session.user.accountName,
+      activeCompanyName: activeCompany?.name ?? "",
+    })
+  }, [session, activeCompany?.name])
 
   if (!session) return null
+
+  const resetForm = () => {
+    setForm({
+      name: session.user.name,
+      email: session.user.email,
+      phone: session.user.phone ?? "",
+      accountName: session.user.accountName,
+      activeCompanyName: activeCompany?.name ?? "",
+    })
+    setErrorMessage(null)
+    setSuccessMessage(null)
+  }
+
+  const handleSave = async () => {
+    setIsSaving(true)
+    setErrorMessage(null)
+    setSuccessMessage(null)
+
+    try {
+      await apiFetch<SessionResponse>("/api/auth/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: form.name,
+          email: form.email,
+          phone: form.phone || null,
+          ...(canEditAccountName ? { accountName: form.accountName } : {}),
+          ...(activeCompany ? { activeCompanyName: form.activeCompanyName } : {}),
+        }),
+      })
+      await refreshSession()
+      setIsEditing(false)
+      setSuccessMessage("Perfil actualizado correctamente.")
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "No se pudo guardar el perfil.")
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -37,20 +115,110 @@ export function AccountSettingsPage() {
 
       <Card className="border-sand-200 shadow-sm">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <UserCircle2 className="h-5 w-5 text-emerald-700" />
-            <div>
-              <CardTitle className="text-lg text-pine-900">Perfil</CardTitle>
-              <CardDescription>Datos de la sesión activa (demo)</CardDescription>
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <UserCircle2 className="h-5 w-5 text-emerald-700" />
+              <div>
+                <CardTitle className="text-lg text-pine-900">Perfil</CardTitle>
+                <CardDescription>Datos de tu usuario y cuenta activa</CardDescription>
+              </div>
             </div>
+            {!isEditing ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditing(true)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Editar perfil
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    resetForm()
+                    setIsEditing(false)
+                  }}
+                  disabled={isSaving}
+                >
+                  <X className="mr-2 h-4 w-4" />
+                  Cancelar
+                </Button>
+                <Button type="button" size="sm" onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Guardar
+                </Button>
+              </div>
+            )}
           </div>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <ProfileField label="Nombre" value={session.user.name} />
-          <ProfileField label="Email" value={session.user.email} />
-          <ProfileField label="Rol" value={roleLabel} />
-          <ProfileField label="Empresa activa" value={activeCompany?.name ?? "—"} />
-          <ProfileField label="Cuenta" value={session.user.accountName} />
+        <CardContent className="space-y-4">
+          {(successMessage || errorMessage) && (
+            <div
+              className={
+                successMessage
+                  ? "rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
+                  : "rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800"
+              }
+            >
+              {successMessage ?? errorMessage}
+            </div>
+          )}
+
+          {!isEditing ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ProfileField label="Nombre" value={session.user.name} />
+              <ProfileField label="Email" value={session.user.email} />
+              <ProfileField label="Teléfono" value={session.user.phone ?? "—"} />
+              <ProfileField label="Rol" value={roleLabel} />
+              <ProfileField label="Empresa activa" value={activeCompany?.name ?? "—"} />
+              <ProfileField label="Cuenta" value={session.user.accountName} />
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <ProfileInput
+                id="profile-name"
+                label="Nombre"
+                value={form.name}
+                onChange={(value) => setForm((current) => ({ ...current, name: value }))}
+              />
+              <ProfileInput
+                id="profile-email"
+                label="Email"
+                type="email"
+                value={form.email}
+                onChange={(value) => setForm((current) => ({ ...current, email: value }))}
+              />
+              <ProfileInput
+                id="profile-phone"
+                label="Teléfono"
+                value={form.phone}
+                onChange={(value) => setForm((current) => ({ ...current, phone: value }))}
+              />
+              <ProfileField label="Rol" value={roleLabel} />
+              {activeCompany ? (
+                <ProfileInput
+                  id="profile-company"
+                  label="Empresa activa"
+                  value={form.activeCompanyName}
+                  onChange={(value) =>
+                    setForm((current) => ({ ...current, activeCompanyName: value }))
+                  }
+                />
+              ) : (
+                <ProfileField label="Empresa activa" value="—" />
+              )}
+              {canEditAccountName ? (
+                <ProfileInput
+                  id="profile-account"
+                  label="Nombre de la cuenta"
+                  value={form.accountName}
+                  onChange={(value) => setForm((current) => ({ ...current, accountName: value }))}
+                />
+              ) : (
+                <ProfileField label="Cuenta" value={session.user.accountName} />
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -96,6 +264,29 @@ function ProfileField({ label, value }: { label: string; value: string }) {
     <div>
       <p className="text-xs font-medium uppercase tracking-wide text-graphite-500">{label}</p>
       <p className="mt-1 text-sm font-medium text-pine-900">{value}</p>
+    </div>
+  )
+}
+
+function ProfileInput({
+  id,
+  label,
+  value,
+  onChange,
+  type = "text",
+}: {
+  id: string
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: string
+}) {
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id} className="text-xs font-medium uppercase tracking-wide text-graphite-500">
+        {label}
+      </Label>
+      <Input id={id} type={type} value={value} onChange={(event) => onChange(event.target.value)} />
     </div>
   )
 }

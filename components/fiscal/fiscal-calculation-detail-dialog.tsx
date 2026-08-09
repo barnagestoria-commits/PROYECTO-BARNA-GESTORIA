@@ -11,6 +11,7 @@ import {
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { formatFiscalAmount } from "@/lib/fiscal/panorama"
 import type { CalculationDetailRow } from "@/lib/fiscal/model-draft/types"
+import { formatModel349Clave, isModel349Clave } from "@/lib/fiscal/model-349-claves"
 import { cn } from "@/lib/utils"
 
 interface FiscalCalculationDetailDialogProps {
@@ -18,6 +19,7 @@ interface FiscalCalculationDetailDialogProps {
   title: string
   subtitle?: string
   rows: CalculationDetailRow[]
+  nifColumnLabel?: string
   onClose: () => void
   onOpenEntry?: (entryId: string) => void
 }
@@ -27,6 +29,7 @@ export function FiscalCalculationDetailDialog({
   title,
   subtitle,
   rows,
+  nifColumnLabel = "NIF",
   onClose,
   onOpenEntry,
 }: FiscalCalculationDetailDialogProps) {
@@ -47,7 +50,7 @@ export function FiscalCalculationDetailDialog({
           <TableHeader>
             <TableRow className="bg-sand-100">
               <TableHead>Cuenta contable</TableHead>
-              <TableHead>NIF</TableHead>
+              <TableHead>{nifColumnLabel}</TableHead>
               <TableHead>Nombre o razón social</TableHead>
               <TableHead>Clave</TableHead>
               <TableHead className="text-right">Importe</TableHead>
@@ -71,7 +74,11 @@ export function FiscalCalculationDetailDialog({
                   </button>
                   <p className="text-xs text-graphite-500">{row.concepto}</p>
                 </TableCell>
-                <TableCell className="font-mono text-xs">{row.claveOperacion}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  <span title={isModel349Clave(row.claveOperacion) ? formatModel349Clave(row.claveOperacion) : undefined}>
+                    {row.claveOperacion}
+                  </span>
+                </TableCell>
                 <TableCell className="text-right font-mono tabular-nums">
                   {formatFiscalAmount(row.importe)}
                 </TableCell>

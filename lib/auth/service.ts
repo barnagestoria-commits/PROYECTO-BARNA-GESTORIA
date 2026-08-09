@@ -1,6 +1,13 @@
 import { randomBytes } from "crypto"
 import { cookies } from "next/headers"
-import type { AccountType, AuthSession, CompanySummary, RegisterRequest, UserRole } from "@/lib/types/auth"
+import type {
+  AccountType,
+  AuthSession,
+  CompanySummary,
+  RegisterRequest,
+  UpdateUserProfileRequest,
+  UserRole,
+} from "@/lib/types/auth"
 import { prisma } from "@/lib/db"
 import { hashPassword, verifyPassword } from "@/lib/auth/password"
 import {
@@ -82,6 +89,7 @@ async function buildAuthSession(
     id: string
     email: string
     name: string
+    phone: string | null
     role: UserRole
     accountId: string
     account: { name: string; accountType: AccountType }
@@ -96,6 +104,7 @@ async function buildAuthSession(
       id: user.id,
       email: user.email,
       name: user.name,
+      phone: user.phone,
       role: user.role,
       accountId: user.accountId,
       accountType: user.account.accountType,
@@ -315,6 +324,91 @@ export async function upgradeAccountPlan(
   }
 
   return buildAuthSession(user, session.activeCompanyId)
+}
+
+function canEditAccountName(session: AuthSession): boolean {
+  return (
+    session.user.role === "ADMIN_GESTOR" ||
+    session.user.accountType === "CLIENTE_FINAL" ||
+    session.user.accountType === "EMPRESA"
+  )
+}
+
+export async function updateUserProfile(input: UpdateUserProfileRequest): Promise<AuthSession> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  const session = await getSessionFromToken(token)
+
+  if (!session) {
+    throw new Error("Sesión no válida.")
+  }
+
+  const name = input.name?.trim()
+  const email = input.email?.trim().toLowerCase()
+  const phone =
+    input.phone === undefined ? undefined : input.phone?.trim() ? input.phone.trim() : null
+  const accountName = input.accountName?.trim()
+  const activeCompanyName = input.activeCompanyName?.trim()
+
+  if (name !== undefined && !name) {
+    throw new Error("El nombre es obligatorio.")
+  }
+
+  if (email !== undefined && !email) {
+    throw new Error("El email es obligatorio.")
+  }
+
+  if (email) {
+    const existing = await prisma.user.findFirst({
+      where: { email, NOT: { id: session.user.id } },
+    })
+    if (existing) {
+      throw new Error("Ya existe otra cuenta con este email.")
+    }
+  }
+
+  if (accountName !== undefined && !accountName) {
+    throw new Error("El nombre de la cuenta es obligatorio.")
+  }
+
+  if (activeCompanyName !== undefined && !activeCompanyName) {
+    throw new Error("El nombre de la empresa activa es obligatorio.")
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.user.update({
+      where: { id: session.user.id },
+      data: {
+        ...(name !== undefined ? { name } : {}),
+        ...(email !== undefined ? { email } : {}),
+        ...(phone !== undefined ? { phone } : {}),
+      },
+    })
+
+    if (accountName !== undefined && canEditAccountName(session)) {
+      await tx.account.update({
+        where: { id: session.user.accountId },
+        data: { name: accountName },
+      })
+    }
+
+    if (activeCompanyName !== undefined && session.activeCompanyId) {
+      if (!session.companies.some((company) => company.id === session.activeCompanyId)) {
+        throw new Error("No tienes acceso a la empresa activa.")
+      }
+
+      await tx.company.update({
+        where: { id: session.activeCompanyId },
+        data: { name: activeCompanyName },
+      })
+    }
+  })
+
+  const updated = await getSessionFromToken(token)
+  if (!updated) {
+    throw new Error("No se pudo actualizar la sesión.")
+  }
+
+  return updated
 }
 
 export async function assertCompanyAccess(

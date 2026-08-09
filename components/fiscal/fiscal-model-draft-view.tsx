@@ -274,6 +274,7 @@ export function FiscalModelDraftView({
         open={detailOpen}
         title={detailTitle}
         rows={detailRows}
+        nifColumnLabel={draft.modelCode === "349" ? "NIF-IVA UE" : "NIF"}
         onClose={() => setDetailOpen(false)}
         onOpenEntry={(entryId) => {
           setDetailOpen(false)

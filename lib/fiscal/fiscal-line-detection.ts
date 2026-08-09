@@ -273,7 +273,31 @@ export function isIntracomunitariaLine(line: RawEntryLine): boolean {
   if (/INTRACOMUNIT|INTRA\s*COM|ADQ\.?\s*INTRA|IVA\s+[AR]\.\/.*INTRA/i.test(concept)) {
     return true
   }
-  return /INTRA/i.test(line.concepto) && /IVA/i.test(line.concepto)
+  if (/INTRA/i.test(line.concepto) && /IVA/i.test(line.concepto)) {
+    return true
+  }
+
+  const trimmedConcept = line.concepto.trim()
+  if (/^IVA\s+[SR]\./i.test(trimmedConcept)) {
+    const euVat = concept.match(/\b([A-Z]{2})[\s-]?[A-Z0-9]{8,12}\b/gi) ?? []
+    if (
+      euVat.some((match) => {
+        const prefix = match.replace(/[\s-]/g, "").slice(0, 2).toUpperCase()
+        return prefix !== "ES" && /^[A-Z]{2}$/.test(prefix)
+      })
+    ) {
+      return true
+    }
+    if (
+      /GOOGLE\s+IRELAND|AMAZON\s+(EU|SERVICES)|META\s+PLATFORMS|MICROSOFT\s+IRELAND|STRIPE\s+PAYMENTS/i.test(
+        concept,
+      )
+    ) {
+      return true
+    }
+  }
+
+  return false
 }
 
 export function liquidationSignedAmount(line: RawEntryLine, contributingLineId: string): number {

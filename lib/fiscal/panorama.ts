@@ -20,6 +20,7 @@ import {
   liquidationSignedAmount,
 } from "@/lib/fiscal/fiscal-line-detection"
 import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
+import { buildModel349BreakdownLines } from "@/lib/fiscal/model-349-base-imponible"
 
 export interface FiscalModelDefinition {
   code: FiscalModelId
@@ -530,11 +531,7 @@ export function calculateModelAmount(
     }
 
     const matched = periodLines.filter(isIntracomunitariaLine)
-    const breakdownLines = expandMatchedLinesToEntries(lines, matched, (line) => {
-      const debe = decimalToNumber(line.debe)
-      const haber = decimalToNumber(line.haber)
-      return round2(Math.max(debe, haber))
-    })
+    const breakdownLines = buildModel349BreakdownLines(lines, matched)
     for (const line of matched) entryIds.add(line.entry.id)
     const total = round2(
       breakdownLines

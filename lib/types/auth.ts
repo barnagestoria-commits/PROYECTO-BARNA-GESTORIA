@@ -12,10 +12,19 @@ export interface AuthUser {
   id: string
   email: string
   name: string
+  phone: string | null
   role: UserRole
   accountId: string
   accountType: AccountType
   accountName: string
+}
+
+export interface UpdateUserProfileRequest {
+  name?: string
+  email?: string
+  phone?: string | null
+  accountName?: string
+  activeCompanyName?: string
 }
 
 export interface AuthSession {

@@ -66,6 +66,8 @@ export interface FiscalModelBreakdownLine {
   haber: number
   signedAmount: number
   category?: string
+  /** Línea IVA intracomunitaria usada para clave y NIF-IVA cuando la contributing es la base imponible. */
+  model349SourceLineId?: string
 }
 
 export interface FiscalModelDetailResponse {
