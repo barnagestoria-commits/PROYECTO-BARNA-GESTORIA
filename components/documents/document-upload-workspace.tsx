@@ -237,8 +237,11 @@ function DocumentUploadWorkspaceContent({
           <CardHeader className="pb-2">
             <CardTitle className="text-base text-pine-900">Verifactu · Registro inalterable</CardTitle>
             <CardDescription>
-              Al emitir facturas, se generará el código QR oficial y la huella de registro para la AEAT. Previsualiza
-              el PDF antes de enviar.
+              Al emitir facturas, se generará el código QR oficial y la huella de registro para la AEAT.{" "}
+              <a href="/configuracion/plantilla-factura" className="font-medium text-emerald-800 underline">
+                Configura la plantilla PDF
+              </a>{" "}
+              o previsualiza antes de enviar.
             </CardDescription>
           </CardHeader>
         </Card>

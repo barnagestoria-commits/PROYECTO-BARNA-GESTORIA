@@ -20,7 +20,12 @@ import {
   type GestoriaProrrataConfig,
   type GestoriaRelatedPerson,
 } from "@/lib/contabilidad/gestoria-client-profile-types"
-import { resolveCompanyAccessPath } from "@/lib/contabilidad/gestoria-companies"
+import {
+  createEmptyRegistroMercantil,
+  type RegistroMercantilData,
+} from "@/lib/invoices/registro-mercantil"
+import { createDefaultInvoiceTemplate } from "@/lib/invoices/invoice-template-defaults"
+import type { InvoiceTemplateConfig } from "@/lib/invoices/types"
 
 function parseJson<T>(value: string | null | undefined, fallback: T): T {
   if (!value) return fallback
@@ -101,6 +106,14 @@ export function profileRecordToDto(
     ),
     prorrata: parseJson<GestoriaProrrataConfig>(record.prorrataJson, base.prorrata),
     presentation: presentationFromJson,
+    registroMercantil: parseJson<RegistroMercantilData>(
+      record.registroMercantilJson,
+      createEmptyRegistroMercantil(record.province ?? ""),
+    ),
+    invoiceTemplate: parseJson<InvoiceTemplateConfig>(
+      record.invoiceTemplateJson,
+      createDefaultInvoiceTemplate(),
+    ),
   }
 }
 
@@ -148,6 +161,8 @@ export function profileDtoToRecordData(profile: GestoriaClientProfileDto) {
     inmovilizadoParamsJson: JSON.stringify(profile.inmovilizadoParams),
     prorrataJson: JSON.stringify(profile.prorrata),
     presentationConfigJson: JSON.stringify(profile.presentation),
+    registroMercantilJson: JSON.stringify(profile.registroMercantil),
+    invoiceTemplateJson: JSON.stringify(profile.invoiceTemplate),
   }
 }
 

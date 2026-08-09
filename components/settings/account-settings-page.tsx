@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { KeyRound, Loader2, Pencil, Settings, Shield, UserCircle2, X } from "lucide-react"
+import { KeyRound, Loader2, Pencil, Receipt, Settings, Shield, UserCircle2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,12 @@ import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 
 const SETTINGS_LINKS = [
+  {
+    href: "/configuracion/plantilla-factura",
+    title: "Plantilla de facturación emitida",
+    description: "Diseño PDF, Registro Mercantil, QR Veri*factu y visibilidad de bloques.",
+    icon: Receipt,
+  },
   {
     href: "/configuracion/certificado",
     title: "Certificado Digital & Verifactu",

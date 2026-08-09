@@ -1,7 +1,10 @@
 import type { AccountingPlanType, GestoriaEntityType } from "@prisma/client"
 import type { CompanyFiscalSettingsDto } from "@/lib/fiscal/fiscal-settings"
-import type { GestoriaPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
+import type { InvoiceTemplateConfig } from "@/lib/invoices/types"
+import { createDefaultInvoiceTemplate } from "@/lib/invoices/invoice-template-defaults"
+import { createEmptyRegistroMercantil, type RegistroMercantilData } from "@/lib/invoices/registro-mercantil"
 import { createDefaultPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
+import type { GestoriaPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
 
 export interface GestoriaBankAccount {
@@ -145,6 +148,8 @@ export interface GestoriaClientProfileDto {
   inmovilizadoParams: GestoriaInmovilizadoParams
   prorrata: GestoriaProrrataConfig
   presentation: GestoriaPresentationConfig
+  registroMercantil: RegistroMercantilData
+  invoiceTemplate: InvoiceTemplateConfig
 }
 
 export interface GestoriaClientDetailDto {
@@ -219,6 +224,8 @@ export function createEmptyGestoriaProfile(
     },
     prorrata: { enabled: false, type: "General", percent: 0 },
     presentation: createDefaultPresentationConfig(entityType),
+    registroMercantil: createEmptyRegistroMercantil(),
+    invoiceTemplate: createDefaultInvoiceTemplate(),
   }
 }
 

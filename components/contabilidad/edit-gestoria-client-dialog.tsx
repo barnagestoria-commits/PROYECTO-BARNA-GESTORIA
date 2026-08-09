@@ -367,6 +367,56 @@ export function EditGestoriaClientDialog({
                   </div>
                 </div>
 
+                {profile.entityType === "PERSONA_JURIDICA" && (
+                  <div className="rounded-lg border border-sand-200 p-4">
+                    <p className="mb-1 text-sm font-semibold text-pine-900">Registro Mercantil</p>
+                    <p className="mb-3 text-xs text-graphite-600">
+                      Datos obligatorios para sociedades (Código de Comercio). Se mostrarán en el pie de las
+                      facturas emitidas.
+                    </p>
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <Field label="Provincia del registro" className="md:col-span-3">
+                        <Input
+                          value={profile.registroMercantil.provincia}
+                          onChange={(e) =>
+                            updateProfile({
+                              registroMercantil: {
+                                ...profile.registroMercantil,
+                                provincia: e.target.value,
+                              },
+                            })
+                          }
+                          placeholder="Barcelona"
+                        />
+                      </Field>
+                      {(
+                        [
+                          ["tomo", "Tomo"],
+                          ["libro", "Libro"],
+                          ["folio", "Folio"],
+                          ["hoja", "Hoja"],
+                          ["seccion", "Sección"],
+                          ["inscripcion", "Inscripción"],
+                        ] as const
+                      ).map(([key, label]) => (
+                        <Field key={key} label={label}>
+                          <Input
+                            value={profile.registroMercantil[key]}
+                            onChange={(e) =>
+                              updateProfile({
+                                registroMercantil: {
+                                  ...profile.registroMercantil,
+                                  [key]: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-4 rounded-lg border border-sand-200 p-4">
                   <CheckboxField
                     label="Inmovilizado"
