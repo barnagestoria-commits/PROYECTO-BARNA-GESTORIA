@@ -1,7 +1,8 @@
 "use client"
 
-import { BadgeCheck, ShieldAlert } from "lucide-react"
+import { BadgeCheck, Loader2, ShieldAlert, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   VERIFACTU_ENV_LABELS,
@@ -11,9 +12,15 @@ import {
 
 interface CertificateStatusCardProps {
   certificate: StoredDigitalCertificate | null
+  onDelete?: () => void
+  isDeleting?: boolean
 }
 
-export function CertificateStatusCard({ certificate }: CertificateStatusCardProps) {
+export function CertificateStatusCard({
+  certificate,
+  onDelete,
+  isDeleting = false,
+}: CertificateStatusCardProps) {
   if (!certificate) {
     return (
       <Card className="border-amber-200 bg-amber-50/70 shadow-sm">
@@ -40,9 +47,29 @@ export function CertificateStatusCard({ certificate }: CertificateStatusCardProp
             <BadgeCheck className="h-5 w-5 text-emerald-700" />
             <CardTitle className="text-lg text-pine-900">Estado del certificado</CardTitle>
           </div>
-          <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
-            Certificado Activo
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 hover:bg-emerald-100">
+              Certificado Activo
+            </Badge>
+            {onDelete ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                onClick={onDelete}
+                disabled={isDeleting}
+                title="Eliminar certificado"
+              >
+                {isDeleting ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Trash2 className="mr-2 h-4 w-4" />
+                )}
+                Eliminar
+              </Button>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="grid gap-3 sm:grid-cols-2">

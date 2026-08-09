@@ -115,21 +115,35 @@ export function AccountSettingsPage() {
 
       <Card className="border-sand-200 shadow-sm">
         <CardHeader>
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <UserCircle2 className="h-5 w-5 text-emerald-700" />
-              <div>
-                <CardTitle className="text-lg text-pine-900">Perfil</CardTitle>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <UserCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
+              <div className="min-w-0">
+                <div className="flex items-center gap-1">
+                  <CardTitle className="text-lg text-pine-900">Perfil</CardTitle>
+                  {!isEditing ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-900"
+                      onClick={() => {
+                        setSuccessMessage(null)
+                        setErrorMessage(null)
+                        setIsEditing(true)
+                      }}
+                      aria-label="Editar perfil"
+                      title="Editar perfil"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  ) : null}
+                </div>
                 <CardDescription>Datos de tu usuario y cuenta activa</CardDescription>
               </div>
             </div>
-            {!isEditing ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => setIsEditing(true)}>
-                <Pencil className="mr-2 h-4 w-4" />
-                Editar perfil
-              </Button>
-            ) : (
-              <div className="flex gap-2">
+            {isEditing ? (
+              <div className="flex shrink-0 gap-2 self-end sm:self-start">
                 <Button
                   type="button"
                   variant="outline"
@@ -148,7 +162,7 @@ export function AccountSettingsPage() {
                   Guardar
                 </Button>
               </div>
-            )}
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { apiFetch } from "@/lib/api-client"
 import {
   buildMockCertificate,
+  clearStoredCertificate,
   loadStoredCertificate,
   saveStoredCertificate,
   type CertificateUploadPayload,
@@ -22,6 +23,7 @@ export function CertificateSettingsPage() {
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [isSaving, setIsSaving] = useState(false)
   const [isTesting, setIsTesting] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     setCertificate(loadStoredCertificate())
@@ -87,6 +89,39 @@ export function CertificateSettingsPage() {
     }
   }
 
+  const handleDelete = async () => {
+    if (!certificate) return
+
+    const confirmed = window.confirm(
+      "¿Eliminar el certificado digital configurado? Deberás subir uno nuevo para firmar facturas Verifactu.",
+    )
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    setFeedback(null)
+    try {
+      await apiFetch<{ success: true; message: string }>("/api/certificate", {
+        method: "DELETE",
+      })
+      clearStoredCertificate()
+      setCertificate(null)
+      setFeedback({
+        tone: "success",
+        message: "Certificado eliminado correctamente.",
+      })
+    } catch (error) {
+      setFeedback({
+        tone: "warning",
+        message:
+          error instanceof Error
+            ? error.message
+            : "No se pudo eliminar el certificado. Inténtalo de nuevo.",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-6" data-tour="onboarding-certificate">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -123,7 +158,11 @@ export function CertificateSettingsPage() {
         </div>
       )}
 
-      <CertificateStatusCard certificate={certificate} />
+      <CertificateStatusCard
+        certificate={certificate}
+        onDelete={certificate ? handleDelete : undefined}
+        isDeleting={isDeleting}
+      />
       <CertificateUploadForm
         onSave={handleSave}
         onTestSignature={handleTestSignature}
