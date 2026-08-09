@@ -4,38 +4,17 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
+import { Card, CardContent } from "@/components/ui/card"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
-import { formatFiscalAmount } from "@/lib/fiscal/panorama"
+import { FiscalModelDraftView } from "@/components/fiscal/fiscal-model-draft-view"
+import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
-import { FiscalExportButtons } from "@/components/report-export-buttons"
-import { ArrowLeft, FileSpreadsheet, Loader2 } from "lucide-react"
-import { cn } from "@/lib/utils"
-
-function statusBadgeClass(status: FiscalModelDetailResponse["status"]): string {
-  switch (status) {
-    case "presentado":
-      return "border-emerald-300 bg-emerald-100 text-emerald-800"
-    case "pendiente":
-      return "border-red-300 bg-red-100 text-red-800"
-    case "sin_datos":
-      return "border-red-300 bg-red-50 text-red-700"
-  }
-}
+import { ArrowLeft, Loader2 } from "lucide-react"
 
 export default function FiscalModelDetailPage() {
   const params = useParams<{ model: string; year: string; quarter: string }>()
-  const { session } = useRequireAuth()
+  const { session, activeCompany } = useRequireAuth()
   const [detail, setDetail] = useState<FiscalModelDetailResponse | null>(null)
   const [isLoadingDetail, setIsLoadingDetail] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +31,7 @@ export default function FiscalModelDetailPage() {
       setDetail(data.detail)
     } catch (err) {
       setDetail(null)
-      setError(err instanceof Error ? err.message : "No se pudo cargar el desglose.")
+      setError(err instanceof Error ? err.message : "No se pudo cargar el borrador del modelo.")
     } finally {
       setIsLoadingDetail(false)
     }
@@ -60,12 +39,15 @@ export default function FiscalModelDetailPage() {
 
   useEffect(() => {
     if (session?.activeCompanyId) {
-      loadDetail()
+      void loadDetail()
     }
   }, [session?.activeCompanyId, loadDetail])
 
+  const usesDraftLayout =
+    detail !== null && DRAFT_SUPPORTED_MODELS.has(detail.modelCode)
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Button variant="outline" size="sm" asChild>
         <Link href={`/dashboard/fiscal/${params.model}`}>
           <ArrowLeft className="mr-1 h-4 w-4" />
@@ -76,139 +58,30 @@ export default function FiscalModelDetailPage() {
       {isLoadingDetail ? (
         <div className="flex items-center justify-center gap-2 py-16 text-gray-600">
           <Loader2 className="h-5 w-5 animate-spin" />
-          Cargando desglose…
+          Cargando borrador del modelo…
         </div>
       ) : error ? (
         <Card>
           <CardContent className="py-10 text-center text-red-700">{error}</CardContent>
         </Card>
-      ) : detail ? (
-        <>
-          <Card className="border-emerald-200">
-            <CardHeader>
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-emerald-900">
-                    <FileSpreadsheet className="h-5 w-5" />
-                    {detail.modelLabel}
-                  </CardTitle>
-                  <CardDescription>{detail.periodLabel}</CardDescription>
-                </div>
-                <Badge variant="outline" className={cn("font-bold uppercase", statusBadgeClass(detail.status))}>
-                  {detail.statusLabel}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-mono font-semibold tabular-nums text-gray-900">
-                {formatFiscalAmount(detail.amount)}
-              </p>
-              <p className="mt-1 text-sm text-gray-500">
-                Importe calculado desde los asientos contables del periodo.
-              </p>
+      ) : detail && activeCompany ? (
+        usesDraftLayout ? (
+          <FiscalModelDraftView
+            detail={detail}
+            companyName={activeCompany.name}
+            companyCif={activeCompany.cif}
+            modelParam={params.model}
+            quarterParam={params.quarter}
+            year={Number.parseInt(params.year, 10)}
+            onRefresh={loadDetail}
+          />
+        ) : (
+          <Card>
+            <CardContent className="py-10 text-center text-sm text-graphite-600">
+              El borrador visual oficial aún no está disponible para el modelo {detail.modelCode}.
             </CardContent>
           </Card>
-
-          <Card className="border-emerald-200">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-emerald-900">Exportar modelo fiscal</CardTitle>
-              <CardDescription>
-                PDF, Excel, CSV, TXT Hacienda (.txt) o ZIP para presentación telemática y archivo mercantil.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <FiscalExportButtons
-                model={params.model}
-                quarter={params.quarter}
-                year={Number.parseInt(params.year, 10)}
-              />
-            </CardContent>
-          </Card>
-
-          <Card className="border-emerald-200">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-emerald-900">
-                {detail.modelCode === "303" ? "Resumen de IVA del periodo" : "Desglose del periodo"}
-              </CardTitle>
-              <CardDescription>
-                {detail.modelCode === "303"
-                  ? "Vista previa del borrador calculado desde los asientos importados, similar al detalle de A3."
-                  : "Líneas contables que componen el importe mostrado en la panorámica."}
-              </CardDescription>
-            </CardHeader>
-            {detail.modelCode === "303" && (
-              <CardContent className="pb-0">
-                <Button variant="outline" size="sm" asChild>
-                  <Link href={`/dashboard/fiscal/pagar-devolver/${params.year}/${params.quarter}`}>
-                    Ver resumen a pagar / devolver
-                  </Link>
-                </Button>
-              </CardContent>
-            )}
-          </Card>
-
-          {detail.breakdown.map((section) => (
-            <Card key={section.key}>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{section.label}</CardTitle>
-                <CardDescription className="font-mono tabular-nums">
-                  Total: {formatFiscalAmount(section.total)}
-                </CardDescription>
-              </CardHeader>
-              {section.lines.length > 0 ? (
-                <CardContent className="p-0">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Fecha</TableHead>
-                        <TableHead>Cuenta</TableHead>
-                        <TableHead>Concepto / Asiento</TableHead>
-                        <TableHead className="text-right">Debe</TableHead>
-                        <TableHead className="text-right">Haber</TableHead>
-                        <TableHead className="text-right">Importe</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {section.lines.map((line) => (
-                        <TableRow
-                          key={line.lineId}
-                          className={cn(line.category === "contributing" && "bg-emerald-50/40")}
-                        >
-                          <TableCell>{line.entryDate}</TableCell>
-                          <TableCell className="font-mono">{line.cuenta}</TableCell>
-                          <TableCell>
-                            <div className="space-y-1">
-                              {line.entryConcept ? (
-                                <p className="text-xs font-medium text-graphite-700">{line.entryConcept}</p>
-                              ) : null}
-                              <p>{line.concepto || "—"}</p>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums">
-                            {line.debe ? formatFiscalAmount(line.debe) : "—"}
-                          </TableCell>
-                          <TableCell className="text-right font-mono tabular-nums">
-                            {line.haber ? formatFiscalAmount(line.haber) : "—"}
-                          </TableCell>
-                          <TableCell
-                            className={cn(
-                              "text-right font-mono tabular-nums",
-                              line.category === "contributing" && "font-semibold",
-                            )}
-                          >
-                            {line.signedAmount ? formatFiscalAmount(line.signedAmount) : "—"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </CardContent>
-              ) : (
-                <CardContent className="text-sm text-gray-500">Sin movimientos en esta sección.</CardContent>
-              )}
-            </Card>
-          ))}
-        </>
+        )
       ) : null}
     </div>
   )
