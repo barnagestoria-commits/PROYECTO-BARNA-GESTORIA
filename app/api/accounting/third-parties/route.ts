@@ -3,6 +3,7 @@ import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { isDemoNif } from "@/lib/contacts/demo-contacts"
 import {
   isThirdPartyNewAccountPrefix,
   resolveAccountParentCode,
@@ -32,8 +33,16 @@ export async function GET(request: Request) {
       orderBy: [{ type: "asc" }, { name: "asc" }],
     })
 
+    const [accountingEntryCount] = await Promise.all([
+      prisma.accountingEntry.count({ where: { companyId } }),
+    ])
+
+    const realThirdParties = thirdParties.filter((party) => !isDemoNif(party.cif))
+    const hasRealData = realThirdParties.length > 0 || accountingEntryCount > 0
+
     return NextResponse.json({
       success: true,
+      hasRealData,
       thirdParties: thirdParties.map((party) => ({
         id: party.id,
         type: party.type,

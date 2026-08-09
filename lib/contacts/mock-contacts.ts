@@ -1,123 +1,15 @@
+import {
+  isDemoContact,
+  MOCK_CONTACTS,
+  withoutDemoContacts,
+} from "@/lib/contacts/demo-contacts"
+import {
+  buildAccountCode,
+  parseSubaccountSequence,
+} from "@/lib/accounting/third-party-types"
 import type { Contact, ContactTabFilter, ContactType, NewContactFormData } from "@/lib/contacts/types"
 
-export const MOCK_CONTACTS: Contact[] = [
-  {
-    id: "1",
-    razonSocial: "Tech Solutions SL",
-    nif: "B00000018",
-    tipo: "cliente",
-    cuentaCliente: "430000001",
-    email: "facturacion@techsolutions.es",
-    telefono: "+34 932 111 222",
-    direccionFiscal: "C/ Balmes 120",
-    codigoPostal: "08008",
-    ciudad: "Barcelona",
-    iban: "ES91 2100 0418 4502 0005 1332",
-    formaPago: "transferencia",
-    saldoPendiente: 3150,
-  },
-  {
-    id: "2",
-    razonSocial: "Suministros García SA",
-    nif: "A00000026",
-    tipo: "proveedor",
-    cuentaProveedor: "400000001",
-    email: "administracion@sumgarcia.com",
-    telefono: "+34 934 555 010",
-    direccionFiscal: "Pol. Ind. Nord, Carrer de l'Estany 12",
-    codigoPostal: "08100",
-    ciudad: "Mollet del Vallès",
-    iban: "ES80 0049 0001 5025 1014 5678",
-    formaPago: "domiciliacion",
-    saldoPendiente: -890,
-  },
-  {
-    id: "3",
-    razonSocial: "Innovación BC SL",
-    nif: "B00000034",
-    tipo: "cliente",
-    cuentaCliente: "430000002",
-    email: "hola@innovacionbc.com",
-    telefono: "+34 600 123 456",
-    direccionFiscal: "Av. Diagonal 500",
-    codigoPostal: "08006",
-    ciudad: "Barcelona",
-    formaPago: "transferencia",
-    saldoPendiente: 7800,
-  },
-  {
-    id: "4",
-    razonSocial: "Logística Express SL",
-    nif: "B00000042",
-    tipo: "proveedor",
-    cuentaProveedor: "400000002",
-    email: "contabilidad@logexpress.es",
-    telefono: "+34 931 444 888",
-    direccionFiscal: "C/ Logística 8",
-    codigoPostal: "08940",
-    ciudad: "Cornellà de Llobregat",
-    formaPago: "pagare",
-    saldoPendiente: -1650,
-  },
-  {
-    id: "5",
-    razonSocial: "Distribuciones Norte SL",
-    nif: "B00000059",
-    tipo: "ambos",
-    cuentaCliente: "430000003",
-    cuentaProveedor: "400000003",
-    email: "info@distnorte.es",
-    telefono: "+34 972 300 111",
-    direccionFiscal: "C/ Comercio 45",
-    codigoPostal: "17001",
-    ciudad: "Girona",
-    iban: "ES12 0081 0001 2300 0123 4567",
-    formaPago: "transferencia",
-    saldoPendiente: 420,
-  },
-  {
-    id: "6",
-    razonSocial: "Consultoría Martínez",
-    nif: "52678901T",
-    tipo: "proveedor",
-    cuentaProveedor: "400000004",
-    email: "martinez@consultoria.cat",
-    telefono: "+34 933 222 999",
-    direccionFiscal: "Plaça de Catalunya 1, 3º 2ª",
-    codigoPostal: "08002",
-    ciudad: "Barcelona",
-    formaPago: "transferencia",
-    saldoPendiente: 0,
-  },
-  {
-    id: "7",
-    razonSocial: "Startup Labs SL",
-    nif: "B00000067",
-    tipo: "cliente",
-    cuentaCliente: "430000004",
-    email: "finance@startuplabs.io",
-    telefono: "+34 644 555 777",
-    direccionFiscal: "C/ Poblenou 22@, Edificio Beta",
-    codigoPostal: "08005",
-    ciudad: "Barcelona",
-    formaPago: "tarjeta",
-    saldoPendiente: 6500,
-  },
-  {
-    id: "8",
-    razonSocial: "Servicios Cloud Inc.",
-    nif: "B00000075",
-    tipo: "proveedor",
-    cuentaProveedor: "400000005",
-    email: "billing@cloudservices.com",
-    telefono: "+1 415 555 0100",
-    direccionFiscal: "Paseo de la Castellana 95",
-    codigoPostal: "28046",
-    ciudad: "Madrid",
-    formaPago: "tarjeta",
-    saldoPendiente: -129,
-  },
-]
+export { MOCK_CONTACTS }
 
 export const PAYMENT_METHOD_LABELS: Record<Contact["formaPago"], string> = {
   transferencia: "Transferencia",
@@ -127,35 +19,43 @@ export const PAYMENT_METHOD_LABELS: Record<Contact["formaPago"], string> = {
   pagare: "Pagaré",
 }
 
-function nextAccountSuffix(contacts: Contact[], prefix: "430" | "400"): string {
-  const pattern = new RegExp(`^${prefix}000(\\d{3})$`)
+function nextAccountSequence(contacts: Contact[], prefix: "430" | "400"): number {
+  const realContacts = withoutDemoContacts(contacts)
   let max = 0
-  for (const contact of contacts) {
+
+  for (const contact of realContacts) {
     const codes = [contact.cuentaCliente, contact.cuentaProveedor].filter(Boolean) as string[]
     for (const code of codes) {
-      const match = code.match(pattern)
-      if (match) max = Math.max(max, parseInt(match[1], 10))
+      const sequence = parseSubaccountSequence(code, prefix)
+      if (sequence !== null) max = Math.max(max, sequence)
     }
   }
-  return String(max + 1).padStart(3, "0")
+
+  return max + 1
 }
 
 export function suggestAccountCodes(
   tipo: ContactType,
   contacts: Contact[],
 ): { cuentaCliente: string; cuentaProveedor: string } {
-  const clienteSuffix = nextAccountSuffix(contacts, "430")
-  const proveedorSuffix = nextAccountSuffix(contacts, "400")
+  const clienteSequence = nextAccountSequence(contacts, "430")
+  const proveedorSequence = nextAccountSequence(contacts, "400")
 
   if (tipo === "cliente") {
-    return { cuentaCliente: `430000${clienteSuffix}`, cuentaProveedor: "" }
+    return {
+      cuentaCliente: buildAccountCode("430", clienteSequence),
+      cuentaProveedor: "",
+    }
   }
   if (tipo === "proveedor") {
-    return { cuentaCliente: "", cuentaProveedor: `400000${proveedorSuffix}` }
+    return {
+      cuentaCliente: "",
+      cuentaProveedor: buildAccountCode("400", proveedorSequence),
+    }
   }
   return {
-    cuentaCliente: `430000${clienteSuffix}`,
-    cuentaProveedor: `400000${proveedorSuffix}`,
+    cuentaCliente: buildAccountCode("430", clienteSequence),
+    cuentaProveedor: buildAccountCode("400", proveedorSequence),
   }
 }
 
@@ -215,4 +115,8 @@ export function searchContacts(contacts: Contact[], query: string): Contact[] {
       c.nif.toLowerCase().includes(q) ||
       c.email.toLowerCase().includes(q),
   )
+}
+
+export function isRealContact(contact: Contact): boolean {
+  return !isDemoContact(contact)
 }

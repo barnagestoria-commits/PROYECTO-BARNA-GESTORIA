@@ -1,6 +1,11 @@
 import type { ThirdParty, ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import {
+  DEMO_CONTACT_NIFS,
+  isDemoNif,
+  isDemoStyleAccountCode,
+} from "@/lib/contacts/demo-contacts"
+import {
   buildAccountCode,
   formatAccountCodeDisplay,
   normalizeCif,
@@ -9,12 +14,49 @@ import {
   type ThirdPartyResolution,
 } from "@/lib/accounting/third-party-types"
 
+function normalizeAccountDigits(accountCode: string): string {
+  return accountCode.replace(/\D/g, "")
+}
+
+function shouldCountAccountForSequence(
+  accountCode: string,
+  demoAccountCodes: Set<string>,
+): boolean {
+  const digits = normalizeAccountDigits(accountCode)
+  if (!digits) return false
+  if (isDemoStyleAccountCode(digits)) return false
+  if (demoAccountCodes.has(digits)) return false
+  return true
+}
+
+export async function purgeDemoThirdParties(companyId: string): Promise<number> {
+  const result = await prisma.thirdParty.deleteMany({
+    where: {
+      companyId,
+      cif: { in: [...DEMO_CONTACT_NIFS] },
+    },
+  })
+  return result.count
+}
+
 async function collectExistingSequences(companyId: string, prefix: string): Promise<number[]> {
+  const demoThirdParties = await prisma.thirdParty.findMany({
+    where: {
+      companyId,
+      cif: { in: [...DEMO_CONTACT_NIFS] },
+    },
+    select: { accountCode: true },
+  })
+  const demoAccountCodes = new Set(
+    demoThirdParties.map((party) => normalizeAccountDigits(party.accountCode)),
+  )
+
   const [parties, entryLines] = await Promise.all([
     prisma.thirdParty.findMany({
       where: {
         companyId,
         accountCode: { startsWith: prefix },
+        cif: { notIn: [...DEMO_CONTACT_NIFS] },
       },
       select: { accountCode: true },
     }),
@@ -31,11 +73,13 @@ async function collectExistingSequences(companyId: string, prefix: string): Prom
   const sequences = new Set<number>()
 
   for (const party of parties) {
+    if (!shouldCountAccountForSequence(party.accountCode, demoAccountCodes)) continue
     const seq = parseSubaccountSequence(party.accountCode, prefix)
     if (seq !== null) sequences.add(seq)
   }
 
   for (const line of entryLines) {
+    if (!shouldCountAccountForSequence(line.cuenta, demoAccountCodes)) continue
     const seq = parseSubaccountSequence(line.cuenta, prefix)
     if (seq !== null) sequences.add(seq)
   }
@@ -145,6 +189,10 @@ export async function resolveOrCreateThirdParty(
       isNew: false,
       thirdPartyId: existing.id,
     }
+  }
+
+  if (!isDemoNif(normalizedCif)) {
+    await purgeDemoThirdParties(companyId)
   }
 
   const nextSequence = await findNextAccountSequence(companyId, type)
@@ -308,6 +356,10 @@ export async function previewThirdPartyWithPrefix(
       isNew: false,
       thirdPartyId: existing.id,
     }
+  }
+
+  if (!isDemoNif(normalizedCif)) {
+    await purgeDemoThirdParties(companyId)
   }
 
   const nextSequence = await findNextAccountSequenceForPrefix(companyId, accountPrefix)
