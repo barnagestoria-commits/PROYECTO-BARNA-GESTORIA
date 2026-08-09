@@ -1,4 +1,9 @@
-import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import { decodeA3Text, decodeA3TextSlice, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import {
+  isDeletedCobolStatus,
+  isNativeCobolFile,
+  nativeCobolDataStart,
+} from "@/lib/imports/a3/native-cobol-records"
 import {
   decodeCu400ProviderSubaccount,
   decodeCuProviderNineDigitField,
@@ -17,6 +22,12 @@ import type { A3Subaccount } from "@/lib/imports/a3/types"
 
 const CU_RECORD_SIZE = 512
 const CU_MARKERS = [/\x10[\x04\xcc]/g, /\x0f\xa0/g]
+
+function cuDatDataStart(buffer: ImportBytes): number {
+  if (isNativeCobolFile(buffer)) return nativeCobolDataStart(buffer)
+  if (decodeA3Text(buffer.slice(0, 2)) === "0~") return CU_RECORD_SIZE
+  return CU_RECORD_SIZE
+}
 
 const PGC_MIDDLE_IN_NINE = NINE_DIGIT_PGC_MIDDLE
 
@@ -75,7 +86,7 @@ export function resolveCuProviderSubaccount(record: ImportBytes): number | null 
 }
 
 function nineDigitFieldsInRecord(record: ImportBytes): string[] {
-  const window = decodeLatin1(record.subarray(0, Math.min(record.length, 280)))
+  const window = decodeA3TextSlice(record, 0, Math.min(record.length, 280))
   return window.match(/\d{9}/g) ?? []
 }
 
@@ -118,32 +129,53 @@ function resolveAccountFromCuRecord(record: ImportBytes): { accountCode: string;
 }
 
 export function parseCuDatBinarySubaccounts(buffer: ImportBytes): A3Subaccount[] {
-  const text = decodeLatin1(buffer)
+  const start = cuDatDataStart(buffer)
   const bestByVendor = new Map<string, { accountCode: string; name: string; priority: number }>()
 
-  for (const marker of CU_MARKERS) {
-    for (const match of text.matchAll(marker)) {
-      const pos = match.index ?? 0
-      const recordStart = Math.floor(pos / CU_RECORD_SIZE) * CU_RECORD_SIZE
-      const record = buffer.subarray(recordStart, recordStart + CU_RECORD_SIZE)
+  for (let recordStart = start; recordStart + CU_RECORD_SIZE <= buffer.length; recordStart += CU_RECORD_SIZE) {
+    const record = buffer.subarray(recordStart, recordStart + CU_RECORD_SIZE)
+    if (isDeletedCobolStatus(record[0]!)) continue
 
-      const resolved = resolveAccountFromCuRecord(record)
-      if (!resolved || !isValidPgcAccountCode(resolved.accountCode)) continue
+    const resolved = resolveAccountFromCuRecord(record)
+    if (!resolved || !isValidPgcAccountCode(resolved.accountCode)) continue
 
-      const skip = match[0].length
-      const after = text.slice(pos + skip, pos + skip + 60)
-      const nameMatch = after.match(/([A-ZÁÉÍÓÚÑ][\x20-\x7E\u00C0-\u00FF.,&\-0-9]{3,45})/u)
-      if (!nameMatch) continue
+    const recordText = decodeA3Text(record)
+    let matched = false
 
-      const name = cleanSubaccountName(nameMatch[1])
-      if (name.length < 4) continue
+    for (const marker of CU_MARKERS) {
+      marker.lastIndex = 0
+      for (const match of recordText.matchAll(marker)) {
+        matched = true
+        const pos = match.index ?? 0
+        const skip = match[0].length
+        const after = recordText.slice(pos + skip, pos + skip + 60)
+        const nameMatch = after.match(/([A-ZÁÉÍÓÚÑ][\x20-\x7E\u00C0-\u00FF.,&\-0-9]{3,45})/u)
+        if (!nameMatch) continue
 
-      const vendorKey = normalizeVendorKey(name)
-      if (!vendorKey) continue
+        const name = cleanSubaccountName(nameMatch[1])
+        if (name.length < 4) continue
 
-      const existing = bestByVendor.get(vendorKey)
-      if (!existing || resolved.priority > existing.priority) {
-        bestByVendor.set(vendorKey, { accountCode: resolved.accountCode, name, priority: resolved.priority })
+        const vendorKey = normalizeVendorKey(name)
+        if (!vendorKey) continue
+
+        const existing = bestByVendor.get(vendorKey)
+        if (!existing || resolved.priority > existing.priority) {
+          bestByVendor.set(vendorKey, { accountCode: resolved.accountCode, name, priority: resolved.priority })
+        }
+      }
+    }
+
+    if (!matched) {
+      const fallbackName = decodeA3TextSlice(record, 0x80, 0xb0).trim()
+      const name = cleanSubaccountName(fallbackName)
+      if (name.length >= 4) {
+        const vendorKey = normalizeVendorKey(name)
+        if (vendorKey) {
+          const existing = bestByVendor.get(vendorKey)
+          if (!existing || resolved.priority > existing.priority) {
+            bestByVendor.set(vendorKey, { accountCode: resolved.accountCode, name, priority: resolved.priority })
+          }
+        }
       }
     }
   }
@@ -152,7 +184,7 @@ export function parseCuDatBinarySubaccounts(buffer: ImportBytes): A3Subaccount[]
 }
 
 export function parseAacDatSubaccounts(buffer: ImportBytes): A3Subaccount[] {
-  const text = decodeLatin1(buffer)
+  const text = decodeA3Text(buffer)
   const subaccounts: A3Subaccount[] = []
   const seen = new Set<string>()
 
@@ -176,7 +208,7 @@ export function parseAacDatSubaccounts(buffer: ImportBytes): A3Subaccount[] {
 }
 
 export function parseTpPredefiDefaults(buffer: ImportBytes): NativePlanDefaults {
-  const text = decodeLatin1(buffer)
+  const text = decodeA3Text(buffer)
   const pick = (pattern: RegExp): string | null => {
     const match = text.match(pattern)
     return match ? padAccountCode12(match[0]) : null
@@ -194,7 +226,7 @@ export function parseTpPredefiDefaults(buffer: ImportBytes): NativePlanDefaults 
 }
 
 export function parseDaCuDottedSubaccounts(buffer: ImportBytes): A3Subaccount[] {
-  const text = decodeLatin1(buffer)
+  const text = decodeA3Text(buffer)
   const subaccounts: A3Subaccount[] = []
   const seen = new Set<string>()
 

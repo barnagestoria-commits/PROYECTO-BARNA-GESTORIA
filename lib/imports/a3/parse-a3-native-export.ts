@@ -23,7 +23,18 @@ import {
   resolveNativeAccountFromMarker,
   type NativeJournalHeaderInfo,
 } from "@/lib/imports/a3/native-journal-record"
-import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import { decodeA3Text, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import {
+  countFixedBlockRecords,
+  countNativeCobolRecords,
+  isDeletedCobolStatus,
+} from "@/lib/imports/a3/native-cobol-records"
+import {
+  buildNativeFileIndex,
+  getNativeFileByBase,
+  normalizeA3BaseName,
+  type IndexedNativeFile,
+} from "@/lib/imports/a3/native-file-index"
 import { isGenericProviderCode, isProviderAccountCode, isValidPgcAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
 import {
   buildNativePlanRegistry,
@@ -245,7 +256,7 @@ function resolveNativeLineAccount(
 }
 
 function recordHasAmountField(rec: ImportBytes): boolean {
-  return /[DH]\d{11,14}/.test(decodeLatin1(rec))
+  return /[DH]\d{11,14}/.test(decodeA3Text(rec))
 }
 
 function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConcept: string }> {
@@ -254,7 +265,8 @@ function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConce
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
     const rec = buffer.subarray(pos, pos + NATIVE_LINE_RECORD)
-    const text = decodeLatin1(rec)
+    if (!isNativeJournalDataRecord(rec)) continue
+    const text = decodeA3Text(rec)
     const dhMatch = text.match(/([DH])(\d{11,14})/)
     if (!dhMatch) continue
 
@@ -341,7 +353,8 @@ function parseNativeJournalFile(
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
     const rec = buffer.subarray(pos, pos + NATIVE_LINE_RECORD)
-    const text = decodeLatin1(rec)
+    if (!isNativeJournalDataRecord(rec)) continue
+    const text = decodeA3Text(rec)
     const dhMatch = text.match(/([DH])(\d{11,14})/)
     if (!dhMatch) continue
 
@@ -498,6 +511,65 @@ function mergeComplementaryNativeEntries(entries: A3JournalEntry[]): A3JournalEn
   return merged
 }
 
+function isNativeJournalDataRecord(rec: ImportBytes): boolean {
+  return !isDeletedCobolStatus(rec[0]!)
+}
+
+function appendNativeRawCountWarnings(
+  fileIndex: Map<string, IndexedNativeFile>,
+  parsedCounts: Record<string, number>,
+  warnings: string[],
+): void {
+  const tclipro = getNativeFileByBase(fileIndex, "tclipro.dat")
+  if (tclipro) {
+    const raw = countNativeCobolRecords(tclipro.buffer)
+    const parsed = parsedCounts.TCLIPRO ?? 0
+    if (parsed === 0 && raw.active > 0) {
+      warnings.push(`TCLIPRO: el ZIP contiene ${raw.active} registros activos RAW pero el parser no importó ninguno.`)
+    } else if (raw.active > 0) {
+      warnings.push(`TCLIPRO: ${raw.active} activos / ${raw.deleted} borrados (RAW COBOL).`)
+    }
+  }
+
+  const tpredefi = getNativeFileByBase(fileIndex, "tpredefi.dat")
+  if (tpredefi) {
+    const raw = countNativeCobolRecords(tpredefi.buffer)
+    if (raw.active > 0) {
+      warnings.push(`TPREDEFI: ${raw.active} activos / ${raw.deleted} borrados (RAW COBOL).`)
+    }
+  }
+
+  const staivare = getNativeFileByBase(fileIndex, "staivare.dat")
+  if (staivare) {
+    const raw = countNativeCobolRecords(staivare.buffer)
+    if (raw.active > 0) {
+      warnings.push(`STAIVARE: ${raw.active} activos / ${raw.deleted} borrados (RAW COBOL).`)
+    }
+  }
+
+  for (const entry of fileIndex.values()) {
+    if (!normalizeA3BaseName(entry.path).endsWith("cu.dat")) continue
+    const raw = countFixedBlockRecords(entry.buffer, 512, 512)
+    const parsed = parsedCounts.CU ?? 0
+    if (parsed === 0 && raw.active > 0) {
+      warnings.push(`${normalizeA3BaseName(entry.path).toUpperCase()}: ${raw.active} registros activos RAW sin importar.`)
+    }
+  }
+}
+
+function validateExpManifest(
+  manifest: A3NativeExportManifest | null,
+  fileIndex: Map<string, IndexedNativeFile>,
+  warnings: string[],
+): void {
+  if (!manifest) return
+
+  for (const file of manifest.files) {
+    if (!getNativeFileByBase(fileIndex, file.name)) {
+      warnings.push(`El manifiesto .EXP referencia ${file.name}, pero no se encontró en el ZIP (revisar mayúsculas/ruta).`)
+    }
+  }
+}
 function parseExpManifest(content: string): A3NativeExportManifest | null {
   const lines = content.split(/\r?\n/).map((line) => line.trimEnd())
   const files: Array<{ name: string; code: string }> = []
@@ -513,21 +585,18 @@ function parseExpManifest(content: string): A3NativeExportManifest | null {
   return { companyFolder: "", files }
 }
 
-function parseTcliproFromFiles(files: Map<string, ImportBytes>): {
+function parseTcliproFromIndex(fileIndex: Map<string, IndexedNativeFile>): {
   thirdParties: A3ThirdParty[]
   subaccounts: A3Subaccount[]
 } {
-  for (const [name, buffer] of files) {
-    const base = name.split("/").pop()?.toUpperCase() ?? ""
-    if (base === "TCLIPRO.DAT") {
-      const subaccounts = parseTcliproSubaccounts(buffer)
-      return {
-        subaccounts,
-        thirdParties: parseTcliproBuffer(buffer),
-      }
-    }
+  const tclipro = getNativeFileByBase(fileIndex, "tclipro.dat")
+  if (!tclipro) return { thirdParties: [], subaccounts: [] }
+
+  const subaccounts = parseTcliproSubaccounts(tclipro.buffer)
+  return {
+    subaccounts,
+    thirdParties: parseTcliproBuffer(tclipro.buffer),
   }
-  return { thirdParties: [], subaccounts: [] }
 }
 
 function enrichThirdPartiesWithRegistry(
@@ -638,7 +707,7 @@ function mergeSubaccountLists(...lists: A3Subaccount[][]): A3Subaccount[] {
 
 function inferFiscalYearFromBuffers(buffers: ImportBytes[]): number {
   for (const buffer of buffers) {
-    const head = decodeLatin1(buffer.slice(0, 64))
+    const head = decodeA3Text(buffer.slice(0, 64))
     const explicit = head.match(/(20[2-9]\d)/)
     if (explicit) return Number(explicit[1])
     if (/26[01]\d{6}/.test(head)) return 2026
@@ -744,7 +813,11 @@ function assignMissingNativeRefNumbers(entries: A3JournalEntry[]): A3JournalEntr
 }
 
 function fileBaseName(path: string): string {
-  return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
+  return normalizeA3BaseName(path)
+}
+
+function endsWithBase(path: string, suffix: string): boolean {
+  return normalizeA3BaseName(path).endsWith(normalizeA3BaseName(suffix))
 }
 
 export { extractVendorNameFromConcept as extractVendorName }
@@ -762,41 +835,51 @@ export function parseNativeA3ExportFiles(
   folderName = "export",
 ): A3NativeParseResult {
   const warnings: string[] = []
-  const fileNames = [...files.keys()]
+  const fileIndex = buildNativeFileIndex(files)
+  const fileNames = [...fileIndex.values()].map((entry) => entry.path)
 
-  const expFile = fileNames.find((name) => /\/E\d+\.EXP$/i.test(name) || /^E\d+\.EXP$/i.test(name))
-  const manifest = expFile ? parseExpManifest(decodeLatin1(files.get(expFile)!)) : null
+  const expEntry = [...fileIndex.values()].find((entry) => /^e\d+\.exp$/i.test(normalizeA3BaseName(entry.path)))
+  const manifest = expEntry ? parseExpManifest(decodeA3Text(expEntry.buffer)) : null
+  validateExpManifest(manifest, fileIndex, warnings)
+
   const companyCode = inferCompanyCode(manifest, folderName)
   const journalPrefix = nativeJournalFilePrefix(companyCode, fileNames)
   const journalFiles = discoverJournalFiles(fileNames, journalPrefix)
   const journalHeaderFiles = discoverJournalHeaderFiles(fileNames, journalPrefix)
   const headerIndex = buildGlobalNativeHeaderIndex(files, journalHeaderFiles)
 
-  const sampleBuffers = journalFiles.slice(0, 3).map((name) => files.get(name)!)
-  const fiscalYear = inferFiscalYearFromBuffers(sampleBuffers.length > 0 ? sampleBuffers : [...files.values()])
+  const sampleBuffers = journalFiles
+    .map((name) => files.get(name))
+    .filter((buffer): buffer is ImportBytes => Boolean(buffer))
+    .slice(0, 3)
+  const fiscalYear = inferFiscalYearFromBuffers(
+    sampleBuffers.length > 0 ? sampleBuffers : [...fileIndex.values()].map((entry) => entry.buffer),
+  )
 
-  const tcliproData = parseTcliproFromFiles(files)
+  const tcliproData = parseTcliproFromIndex(fileIndex)
   const subaccountLists: A3Subaccount[][] = []
   let tpDefaults: NativePlanDefaults = {}
   let assetDefaults = parseTpPredefiAssetDefaults(new Uint8Array(0))
   let fixedAssets: A3FixedAsset[] = []
 
-  for (const [name, buffer] of files) {
-    const base = name.split("/").pop()?.toUpperCase() ?? ""
-    if (base.endsWith("CU.DAT") || base.endsWith("DA.DAT")) {
+  for (const { path, buffer } of fileIndex.values()) {
+    if (endsWithBase(path, "cu.dat") || endsWithBase(path, "da.dat")) {
       subaccountLists.push(parseCuDatBinarySubaccounts(buffer), parseDaCuDottedSubaccounts(buffer))
     }
-    if (base.endsWith("AAC.DAT")) {
+    if (endsWithBase(path, "aac.dat")) {
       subaccountLists.push(parseAacDatSubaccounts(buffer))
     }
-    if (base.endsWith("DC.DAT")) {
+    if (endsWithBase(path, "dc.dat")) {
       subaccountLists.push(parseDaCuDottedSubaccounts(buffer))
     }
-    if (base === "TPREDEFI.DAT") {
+    if (normalizeA3BaseName(path) === "tpredefi.dat") {
       tpDefaults = parseTpPredefiDefaults(buffer)
       assetDefaults = parseTpPredefiAssetDefaults(buffer)
     }
-    if (base.endsWith("AAM.DAT") && isAamDatBuffer(buffer)) {
+    if (normalizeA3BaseName(path) === "staivare.dat") {
+      tpDefaults = { ...parseTpPredefiDefaults(buffer), ...tpDefaults }
+    }
+    if (endsWithBase(path, "aam.dat") && isAamDatBuffer(buffer)) {
       fixedAssets = parseAamDatFixedAssets(buffer, {
         fiscalYear,
         defaults: assetDefaults,
@@ -820,6 +903,12 @@ export function parseNativeA3ExportFiles(
       accountByCif.set(normalized, padAccountCode12(party.accountCode))
     }
   }
+
+  appendNativeRawCountWarnings(fileIndex, {
+    TCLIPRO: tcliproData.subaccounts.length,
+    TPREDEFI: Object.keys(tpDefaults).length > 0 ? 1 : 0,
+    CU: rawSubaccounts.length,
+  }, warnings)
 
   if (subaccounts.length === 0) {
     warnings.push("No se pudieron leer subcuentas del plan nativo (CU.DAT / DA.DAT).")
@@ -901,5 +990,5 @@ export function parseNativeA3ExportFiles(
 }
 
 export function isNativeA3BinaryHeader(buffer: ImportBytes): boolean {
-  return decodeLatin1(buffer.slice(0, 2)) === NATIVE_FILE_HEADER_MAGIC
+  return decodeA3Text(buffer.slice(0, 2)) === NATIVE_FILE_HEADER_MAGIC
 }

@@ -1,6 +1,7 @@
 import JSZip from "jszip"
 import { BlobReader, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js"
 import { toUint8Array, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import { isMacOsMetadataPath, normalizeA3BaseName } from "@/lib/imports/a3/native-file-index"
 import {
   isJsZipEncryptedLoadError,
   isZipJsEncryptedEntryError,
@@ -12,7 +13,11 @@ import {
 export type ZipFileMap = Map<string, ImportBytes>
 
 function basename(path: string): string {
-  return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
+  return normalizeA3BaseName(path)
+}
+
+function shouldSkipZipEntry(path: string): boolean {
+  return isMacOsMetadataPath(path)
 }
 
 async function extractWithJsZip(bytes: ImportBytes): Promise<{ byBase: ZipFileMap; paths: string[] }> {
@@ -21,7 +26,7 @@ async function extractWithJsZip(bytes: ImportBytes): Promise<{ byBase: ZipFileMa
   const paths: string[] = []
 
   for (const [path, entry] of Object.entries(zip.files)) {
-    if (entry.dir) continue
+    if (entry.dir || shouldSkipZipEntry(path)) continue
     paths.push(path)
     const content = await entry.async("uint8array")
     byBase.set(basename(path), content)
@@ -44,7 +49,7 @@ async function extractWithZipJs(
     const entries = await reader.getEntries()
 
     for (const entry of entries) {
-      if (entry.directory) continue
+      if (entry.directory || shouldSkipZipEntry(entry.filename)) continue
       paths.push(entry.filename)
 
       try {

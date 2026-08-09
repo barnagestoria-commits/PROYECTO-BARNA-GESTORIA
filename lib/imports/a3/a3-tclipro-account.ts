@@ -1,5 +1,10 @@
 import type { ImportBytes } from "@/lib/imports/a3/import-bytes"
 import { padAccountCode12 } from "@/lib/imports/a3/native-account-code"
+import {
+  isActiveCobolStatus,
+  isDeletedCobolStatus,
+  walkNativeCobolRecords,
+} from "@/lib/imports/a3/native-cobol-records"
 
 export const TCLIPRO_RECORD_SIZE = 536
 
@@ -8,12 +13,32 @@ export function isTcliproRecordStart(buffer: ImportBytes, offset: number): boole
   return buffer[offset + 4] === 0x10 && buffer[offset + 5] === 0x04
 }
 
+function isActiveTcliproRecord(buffer: ImportBytes, offset: number): boolean {
+  if (offset + 8 >= buffer.length) return false
+  if (isDeletedCobolStatus(buffer[offset]!)) return false
+  if (!isActiveCobolStatus(buffer[offset]!) && buffer[offset] !== 0x00) {
+    // Algunos registros activos usan prefijo COBOL distinto pero mantienen la firma interna.
+    if (!isTcliproRecordStart(buffer, offset)) return false
+  }
+  return isTcliproRecordStart(buffer, offset)
+}
+
 export function findTcliproRecordStarts(buffer: ImportBytes): number[] {
+  const fromCobol = walkNativeCobolRecords(buffer)
+    .filter((record) => record.status === "active")
+    .map((record) => {
+      if (isTcliproRecordStart(record.payload, 4)) return record.offset + 4
+      if (isTcliproRecordStart(record.payload, 0)) return record.offset
+      return -1
+    })
+    .filter((offset) => offset >= 0)
+
+  if (fromCobol.length > 0) return fromCobol
+
   const starts: number[] = []
   for (let offset = 0; offset + 8 < buffer.length; offset += 1) {
-    if (isTcliproRecordStart(buffer, offset)) {
-      starts.push(offset)
-    }
+    if (!isActiveTcliproRecord(buffer, offset)) continue
+    starts.push(offset)
   }
   return starts
 }

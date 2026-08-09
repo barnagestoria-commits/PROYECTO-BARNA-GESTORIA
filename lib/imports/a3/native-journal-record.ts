@@ -1,6 +1,7 @@
 import type { ImportBytes } from "@/lib/imports/a3/import-bytes"
-import { decodeLatin1 } from "@/lib/imports/a3/import-bytes"
+import { decodeA3Text } from "@/lib/imports/a3/import-bytes"
 import { padAccountCode12 } from "@/lib/imports/a3/native-account-code"
+import { isDeletedCobolStatus } from "@/lib/imports/a3/native-cobol-records"
 import type { NativePlanRegistry } from "@/lib/imports/a3/parse-native-plan"
 
 export const NATIVE_JOURNAL_HEADER = 512
@@ -41,13 +42,13 @@ function dateFromDayOfYear(year: number, dayOfYear: number): string | null {
 }
 
 export function nativeJournalLineRecordStart(buffer: ImportBytes): number {
-  if (decodeLatin1(buffer.slice(0, 2)) === "0~") {
+  if (decodeA3Text(buffer.slice(0, 2)) === "0~") {
     return NATIVE_JOURNAL_HEADER
   }
 
   const searchStart = NATIVE_JOURNAL_HEADER
   const head = buffer.subarray(searchStart)
-  const firstMatch = decodeLatin1(head).match(/[DH]\d{11,14}/)
+  const firstMatch = decodeA3Text(head).match(/[DH]\d{11,14}/)
   if (!firstMatch || firstMatch.index === undefined) {
     return searchStart
   }
@@ -64,7 +65,7 @@ export function nativeJournalLineRecordStart(buffer: ImportBytes): number {
     let valid = 0
     for (let pos = start; pos + NATIVE_JOURNAL_LINE <= buffer.length; pos += NATIVE_JOURNAL_LINE) {
       const rec = buffer.subarray(pos, pos + NATIVE_JOURNAL_LINE)
-      if (!/[DH]\d{11,14}/.test(decodeLatin1(rec))) continue
+      if (!/[DH]\d{11,14}/.test(decodeA3Text(rec))) continue
       valid += 1
       if (rec.subarray(0, 12).every((byte) => byte === 0)) zeroHeader += 1
     }
@@ -88,7 +89,7 @@ export function nativeEntryLookupKey(rec: ImportBytes): string {
 }
 
 export function extractNativePostAmountMarker(rec: ImportBytes): string {
-  return decodeLatin1(rec.subarray(87, 94)).replace(/\x00/g, "").trim()
+  return decodeA3Text(rec.subarray(87, 94)).replace(/\x00/g, "").trim()
 }
 
 export function extractNativeConcept(text: string, dhIndex: number): string {
@@ -205,6 +206,10 @@ function extractHeaderConcept(text: string): string | null {
   return null
 }
 
+function isNativeJournalHeaderStatus(statusByte: number): boolean {
+  return statusByte === 0x40 || statusByte === 0x41 || statusByte === 0x42
+}
+
 export function parseNativeJournalHeaders(buffer: ImportBytes): NativeJournalHeaderInfo[] {
   const start = nativeJournalLineRecordStart(buffer)
   const headers: NativeJournalHeaderInfo[] = []
@@ -212,10 +217,11 @@ export function parseNativeJournalHeaders(buffer: ImportBytes): NativeJournalHea
 
   for (let pos = start; pos + NATIVE_JOURNAL_LINE <= buffer.length; pos += NATIVE_JOURNAL_LINE) {
     const rec = buffer.subarray(pos, pos + NATIVE_JOURNAL_LINE)
-    if (rec[14] !== 0x41) continue
+    if (isDeletedCobolStatus(rec[0]!)) continue
+    if (!isNativeJournalHeaderStatus(rec[14]!)) continue
 
     refNumber += 1
-    const text = decodeLatin1(rec)
+    const text = decodeA3Text(rec)
     headers.push({
       refNumber,
       groupKey: rec.subarray(16, 21).toString("hex"),

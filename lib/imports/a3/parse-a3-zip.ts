@@ -3,6 +3,7 @@ import {
   isNativeA3ExportFileMap,
   parseNativeA3ExportFiles,
 } from "@/lib/imports/a3/parse-a3-native-export"
+import { normalizeA3BaseName } from "@/lib/imports/a3/native-file-index"
 import { parseDiarioTxtBuffer } from "@/lib/imports/a3/parse-diario-txt"
 import { parseSubcuentTxtBuffer } from "@/lib/imports/a3/parse-subcuent-txt"
 import { parseSuenlaceBuffer } from "@/lib/imports/a3/parse-suenlace-buffer"
@@ -23,7 +24,7 @@ const JOURNAL_FILE_ALIASES = [
 const VERSION_FILE_ALIASES = ["version.txt", "version.dat", "info.txt"]
 
 function basename(path: string): string {
-  return path.split("/").pop()?.toLowerCase() ?? path.toLowerCase()
+  return normalizeA3BaseName(path)
 }
 
 function pickFile(files: ZipFileMap, aliases: string[]): { name: string; buffer: ImportBytes } | null {

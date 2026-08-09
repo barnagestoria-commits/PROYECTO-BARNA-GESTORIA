@@ -21,6 +21,30 @@ export function decodeLatin1(buffer: ImportBytes): string {
   return result
 }
 
+let cp850Decoder: TextDecoder | null | undefined
+
+function getCp850Decoder(): TextDecoder | null {
+  if (cp850Decoder !== undefined) return cp850Decoder
+  try {
+    cp850Decoder = new TextDecoder("ibm850")
+  } catch {
+    cp850Decoder = null
+  }
+  return cp850Decoder
+}
+
+/** Texto de ficheros binarios A3/COBOL (CP850, con fallback Latin-1). */
+export function decodeA3Text(buffer: ImportBytes): string {
+  const bytes = toUint8Array(buffer)
+  const decoder = getCp850Decoder()
+  if (decoder) return decoder.decode(bytes)
+  return decodeLatin1(bytes)
+}
+
+export function decodeA3TextSlice(buffer: ImportBytes, start: number, end: number): string {
+  return decodeA3Text(toUint8Array(buffer).subarray(start, end))
+}
+
 export function bytesToHex(buffer: ImportBytes): string {
   if (typeof Buffer !== "undefined" && Buffer.isBuffer(buffer)) {
     return buffer.toString("hex")

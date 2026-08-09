@@ -5,7 +5,7 @@ import {
   pickPreferredTcliproRecord,
   TCLIPRO_RECORD_SIZE,
 } from "@/lib/imports/a3/a3-tclipro-account"
-import { decodeLatin1, type ImportBytes } from "@/lib/imports/a3/import-bytes"
+import { decodeA3Text, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import { isProviderAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
 import type { A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
 
@@ -55,14 +55,14 @@ function extractNameAfterNif(text: string, nifEndIndex: number): string {
 }
 
 function extractNifFromRecord(record: ImportBytes): string | null {
-  const text = decodeLatin1(record)
+  const text = decodeA3Text(record)
   const match = text.match(NIF_PATTERN)
   if (!match?.[1]) return null
   return normalizeCif(match[1]) ?? null
 }
 
 function extractNameFromRecord(record: ImportBytes): string {
-  const text = decodeLatin1(record)
+  const text = decodeA3Text(record)
   const match = text.match(NIF_PATTERN)
   if (!match?.index) return ""
   const end = match.index + match[0].length

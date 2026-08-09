@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import JSZip from "jszip"
 import { ZipWriter, BlobWriter, TextReader, BlobReader, ZipReader, Uint8ArrayWriter } from "@zip.js/zip.js"
 import { extractZipFiles } from "@/lib/imports/a3/extract-zip-files"
 import {
@@ -6,6 +7,14 @@ import {
   ZipPasswordRequiredError,
   isJsZipEncryptedLoadError,
 } from "@/lib/imports/a3/zip-password-errors"
+
+async function buildZip(entries: Record<string, string>): Promise<Uint8Array> {
+  const zip = new JSZip()
+  for (const [path, content] of Object.entries(entries)) {
+    zip.file(path, content)
+  }
+  return zip.generateAsync({ type: "uint8array" })
+}
 
 async function buildEncryptedZip(password: string): Promise<Uint8Array> {
   const blobWriter = new BlobWriter("application/zip")
@@ -17,6 +26,19 @@ async function buildEncryptedZip(password: string): Promise<Uint8Array> {
 }
 
 describe("extractZipFiles", () => {
+  it("ignora metadatos __MACOSX y ._*", async () => {
+    const zipBytes = await buildZip({
+      "E0045826/TCLIPRO.DAT": "real",
+      "__MACOSX/E0045826/._TCLIPRO.DAT": "junk",
+      "E0045826/TPREDEFI.Dat": "defaults",
+    })
+    const { byBase, paths } = await extractZipFiles(zipBytes)
+    expect(paths).toHaveLength(2)
+    expect(byBase.get("tclipro.dat")?.[0]).toBe("r".charCodeAt(0))
+    expect(byBase.get("tpredefi.dat")?.[0]).toBe("d".charCodeAt(0))
+    expect(byBase.has("._tclipro.dat")).toBe(false)
+  })
+
   it("detects encrypted zip without password", async () => {
     const zipBytes = await buildEncryptedZip("a3-secret")
     await expect(extractZipFiles(zipBytes)).rejects.toBeInstanceOf(ZipPasswordRequiredError)
