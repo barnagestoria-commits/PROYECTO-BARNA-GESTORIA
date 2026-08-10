@@ -9,11 +9,9 @@ import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounti
 import { buildFiscalModelDraft } from "@/lib/fiscal/model-draft/build-model-draft"
 import { buildCalculationDetailRows } from "@/lib/fiscal/model-draft/calculation-rows"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
-import { getResultCasillaLabel, resolveDraftResultAmount } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import { apiFetch } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
-import { formatFiscalAmount } from "@/lib/fiscal/panorama"
 import {
   FileText,
   Loader2,
@@ -32,17 +30,6 @@ interface FiscalModelDraftViewProps {
   onRefresh: () => Promise<void>
 }
 
-function statusBadgeClass(status: FiscalModelDetailResponse["status"]): string {
-  switch (status) {
-    case "presentado":
-      return "border-emerald-700 bg-emerald-100 text-emerald-900"
-    case "pendiente":
-      return "border-red-700 bg-red-100 text-red-900"
-    case "sin_datos":
-      return "border-red-400 bg-red-50 text-red-800"
-  }
-}
-
 export function FiscalModelDraftView({
   detail,
   companyName,
@@ -56,9 +43,6 @@ export function FiscalModelDraftView({
     () => buildFiscalModelDraft(detail, companyName, companyCif),
     [detail, companyName, companyCif],
   )
-
-  const resultAmount = useMemo(() => resolveDraftResultAmount(detail), [detail])
-  const resultLabel = getResultCasillaLabel(detail.modelCode)
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailTitle, setDetailTitle] = useState("Datos del cálculo")
@@ -117,26 +101,7 @@ export function FiscalModelDraftView({
 
   return (
     <>
-      <div className="mx-auto max-w-5xl shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-3 border border-black bg-[#dce6ef] px-4 py-3">
-          <div>
-            <p className="text-xs font-bold uppercase text-[#1a4480]">Agencia Estatal de Administración Tributaria</p>
-            <p className="text-sm font-bold text-black">
-              Modelo {draft.modelCode} — {draft.modelLabel}
-            </p>
-            <p className="text-xs text-neutral-700">
-              {draft.nif} · {draft.companyName} · {draft.year} · {draft.periodLabel}
-            </p>
-          </div>
-          <div className="text-right">
-            <span className={cn("rounded border px-2 py-0.5 text-xs font-bold uppercase", statusBadgeClass(detail.status))}>
-              {draft.statusLabel}
-            </span>
-            <p className="mt-2 text-xs font-semibold uppercase text-[#1a4480]">{resultLabel}</p>
-            <p className="font-mono text-lg font-bold tabular-nums text-black">{formatFiscalAmount(resultAmount)}</p>
-          </div>
-        </div>
-
+      <div className="mx-auto max-w-5xl overflow-hidden shadow-md">
         <FiscalModelDraftPdfPreview
           modelParam={modelParam}
           year={year}
@@ -147,7 +112,7 @@ export function FiscalModelDraftView({
         {(successMessage || errorMessage) && (
           <div
             className={cn(
-              "border-x border-black px-4 py-2 text-sm",
+              "border-x border-b border-black px-4 py-2 text-sm",
               successMessage
                 ? "border-emerald-700 bg-emerald-50 text-emerald-900"
                 : "border-red-700 bg-red-50 text-red-900",
@@ -158,6 +123,9 @@ export function FiscalModelDraftView({
         )}
 
         <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-2 border border-black bg-[#f0f0f0]/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)] backdrop-blur-sm">
+          <p className="mr-2 hidden text-xs text-neutral-700 lg:block">
+            Modelo {draft.modelCode} · {draft.nif} · {draft.periodLabel} {draft.year}
+          </p>
           {draft.supportsGenerateEntry && (
             <Button
               type="button"
@@ -178,7 +146,7 @@ export function FiscalModelDraftView({
             onClick={() => openDetail(undefined, "Detalle cálculo / Declaración")}
           >
             <Calculator className="h-4 w-4" />
-            Detalle cálculo / Declaración
+            Detalle cálculo
           </Button>
           <Button
             type="button"
@@ -194,7 +162,7 @@ export function FiscalModelDraftView({
           <div className="ml-auto flex min-w-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
             <span className="hidden text-xs text-neutral-600 lg:inline">
               <FileText className="mr-1 inline h-3.5 w-3.5" />
-              Exportar TXT / ZIP / desglose
+              Fichero telemático / exportación
             </span>
             <FiscalExportButtons model={modelParam} quarter={quarterParam} year={year} compact />
           </div>
