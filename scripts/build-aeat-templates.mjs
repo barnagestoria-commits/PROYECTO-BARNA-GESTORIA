@@ -8,6 +8,7 @@
  * Si no se indican páginas, se omiten la portada de presentación (página 1).
  */
 import { PDFDocument } from "pdf-lib"
+import { execFileSync } from "node:child_process"
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 
@@ -33,4 +34,13 @@ const outDir = join(process.cwd(), "assets", "aeat-templates")
 mkdirSync(outDir, { recursive: true })
 const outPath = join(outDir, `modelo-${modelCode}.pdf`)
 writeFileSync(outPath, await dst.save())
+
+const sanitizer = join(process.cwd(), "scripts", "sanitize-aeat-template.py")
+const python = join(process.cwd(), ".venv-pdf", "bin", "python3")
+try {
+  execFileSync(python, [sanitizer, outPath], { stdio: "inherit" })
+} catch {
+  console.warn("Aviso: no se pudo sanitizar la plantilla (¿.venv-pdf con pymupdf?).")
+}
+
 console.log(`Plantilla generada: ${outPath} (${pageIndices.length} páginas)`)

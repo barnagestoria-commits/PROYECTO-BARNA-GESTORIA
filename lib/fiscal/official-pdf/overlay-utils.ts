@@ -26,9 +26,12 @@ const FONT_SIZE = 9
 export async function loadOfficialTemplate(modelCode: string): Promise<PDFDocument> {
   const { readFile } = await import("node:fs/promises")
   const { join } = await import("node:path")
+  const { sanitizeOfficialTemplate } = await import("@/lib/fiscal/official-pdf/sanitize-template")
   const templatePath = join(process.cwd(), "assets", "aeat-templates", `modelo-${modelCode}.pdf`)
   const bytes = await readFile(templatePath)
-  return PDFDocument.load(bytes)
+  const doc = await PDFDocument.load(bytes)
+  sanitizeOfficialTemplate(doc, modelCode)
+  return doc
 }
 
 export function drawDraftWatermark(page: PDFPage, color: RGB = rgb(0.75, 0.1, 0.1)): void {
