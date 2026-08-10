@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { buildOfficialAeatDraftBundle } from "@/lib/fiscal/aeat/build-official-submission"
 import {
   buildFiscalExportFilename,
-  generateAeatTxt,
   generateFiscalCsv,
   generateFiscalPdf,
   generateFiscalXlsx,
@@ -74,6 +74,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     let buffer: Buffer | undefined
     let contentType = "application/octet-stream"
+    let aeatValidation: Awaited<ReturnType<typeof buildOfficialAeatDraftBundle>>["validation"] | undefined
 
     switch (format) {
       case "pdf":
@@ -88,10 +89,13 @@ export async function GET(request: Request, { params }: RouteContext) {
         buffer = generateFiscalCsv(detail, company.name)
         contentType = "text/csv; charset=utf-8"
         break
-      case "txt":
-        buffer = generateAeatTxt(detail, company.name, company.cif)
+      case "txt": {
+        const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif)
+        buffer = bundle.telematicFile ?? undefined
         contentType = "text/plain; charset=iso-8859-1"
+        aeatValidation = bundle.validation
         break
+      }
       case "zip":
         buffer = await generateFiscalZip(detail, company.name, company.cif)
         contentType = "application/zip"
@@ -114,6 +118,12 @@ export async function GET(request: Request, { params }: RouteContext) {
         "Cache-Control": "no-store",
         "X-Fiscal-Model": detail.modelCode,
         "X-Fiscal-Format": format,
+        ...(aeatValidation
+          ? {
+              "X-Aeat-Submission-Valid": aeatValidation.valid ? "true" : "false",
+              "X-Aeat-Validation": encodeURIComponent(JSON.stringify(aeatValidation)),
+            }
+          : {}),
       },
     })
   } catch (error) {

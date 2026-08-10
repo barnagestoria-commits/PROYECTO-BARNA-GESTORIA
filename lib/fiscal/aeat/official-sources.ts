@@ -2,13 +2,14 @@ import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 
 /** Referencias oficiales AEAT para diseños de registro y desarrollo. */
 export const AEAT_OFFICIAL_PORTALS = {
-  /** Portal general de ayuda — diseños de registro (modelos por fichero). */
+  /** Portal de desarrolladores y sandbox (servicios web, simulación). */
+  developerSandbox: "https://www.agenciatributaria.es/AEAT.desarrolladores/",
+  /** Índice de diseños de registro BOE (500 posiciones por modelo). */
   recordDesignsIndex:
     "https://sede.agenciatributaria.gob.es/Sede/ayuda/disenos-registro.html",
   recordDesignsManual:
     "https://sede.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/Ayudas/Disenyos_registro_Manual_uso.pdf",
-  /** Entorno de pruebas / documentación para desarrolladores. */
-  developerSandbox: "https://www.agenciatributaria.es/AEAT.desarrolladores/",
+  /** Pre303 — importación y validación de autoliquidaciones IVA en la sede. */
   pre303Service: "https://sede.agenciatributaria.gob.es/Sede/iva/pre-303.html",
 } as const
 

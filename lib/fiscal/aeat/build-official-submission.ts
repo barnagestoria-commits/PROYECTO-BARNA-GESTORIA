@@ -1,9 +1,7 @@
 import { generateAeatTxt, shouldOfferAeatTxt } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import { getAeatModelOfficialSource } from "@/lib/fiscal/aeat/official-sources"
-import {
-  validateAeatSubmission,
-  type AeatSubmissionValidationResult,
-} from "@/lib/fiscal/aeat/validate-submission"
+import { validateWithOfficialAeatPipeline } from "@/lib/fiscal/aeat/sandbox-client"
+import type { AeatSubmissionValidationResult } from "@/lib/fiscal/aeat/validate-submission"
 import { buildOfficialCasillaEntries } from "@/lib/fiscal/official-layouts"
 import { generateOfficialDraftPdf } from "@/lib/fiscal/official-pdf/generate-official-draft-pdf"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
@@ -29,7 +27,7 @@ export async function buildOfficialAeatDraftBundle(
   companyName: string,
   companyCif: string | null | undefined,
 ): Promise<OfficialAeatDraftBundle> {
-  const validation = validateAeatSubmission(detail, companyName, companyCif)
+  const validation = await validateWithOfficialAeatPipeline(detail, companyName, companyCif)
   const telematicFile = shouldOfferAeatTxt(detail)
     ? generateAeatTxt(detail, companyName, companyCif)
     : null
