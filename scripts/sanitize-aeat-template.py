@@ -18,6 +18,10 @@ def should_redact(text: str, size: float) -> bool:
     text = text.strip()
     if not text:
         return False
+    if text in {"{", "}"}:
+        return True
+    if size > 20:
+        return True
     if "justificante" in text.lower():
         return True
     if size < 8:
