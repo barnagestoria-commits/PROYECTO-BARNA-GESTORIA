@@ -296,7 +296,29 @@ export async function buildFiscalModelDetail(
   if (!model) return null
 
   const allLines = await fetchYearLines(companyId, year)
-  const result = calculateModelAmount(modelCode, allLines, year, quarter)
+  let result = calculateModelAmount(modelCode, allLines, year, quarter)
+
+  // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
+  // las bases ni el desglose de tipos necesario para renderizar el modelo.
+  // Para el borrador, recalculamos las casillas desde los asientos origen.
+  if (
+    modelCode === "303" &&
+    quarter !== "annual" &&
+    result.breakdown.some((section) => section.key === "liquidacion")
+  ) {
+    const liquidationEntryIds = new Set(
+      result.breakdown.flatMap((section) => section.lines.map((line) => line.entryId)),
+    )
+    const sourceResult = calculateModelAmount(
+      modelCode,
+      allLines.filter((line) => !liquidationEntryIds.has(line.entry.id)),
+      year,
+      quarter,
+    )
+    if (sourceResult.lineCount > 0) {
+      result = sourceResult
+    }
+  }
 
   let declarationStatus: FiscalDeclaration["status"] | undefined
   if (quarter !== "annual") {

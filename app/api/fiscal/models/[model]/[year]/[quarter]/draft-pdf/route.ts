@@ -76,6 +76,8 @@ export async function GET(request: Request, { params }: RouteContext) {
         "Cache-Control": "no-store",
         "X-Fiscal-Model": detail.modelCode,
         "X-Fiscal-Format": "draft-pdf",
+        "X-Fiscal-Engine": bundle.engineSummary?.engine ?? "legacy",
+        "X-Fiscal-Engine-Version": bundle.engineSummary?.versionKey ?? "",
         "X-Aeat-Submission-Valid": bundle.validation.valid ? "true" : "false",
         "X-Aeat-Validation": validationHeader,
       },

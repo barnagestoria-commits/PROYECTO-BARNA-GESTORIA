@@ -56,6 +56,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       hasTelematicFile: bundle.telematicFile !== null,
       hasDraftPdf: bundle.draftPdf !== null,
       officialSource: bundle.officialSource,
+      engine: bundle.engineSummary,
     })
   } catch (error) {
     return authErrorResponse(error)

@@ -1,12 +1,11 @@
 import { StandardFonts } from "pdf-lib"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
-import { buildModel303CasillaValues } from "@/lib/fiscal/model-303/official-layout"
 import {
   buildModelo111OverlayFields,
   MODELO_111_IDENTITY,
 } from "@/lib/fiscal/official-pdf/field-maps/modelo-111"
 import {
-  buildModelo303OverlayFields,
+  buildModelo303OverlayFieldsFromCasillas,
   MODELO_303_IDENTITY,
 } from "@/lib/fiscal/official-pdf/field-maps/modelo-303"
 import {
@@ -27,6 +26,8 @@ import {
 } from "@/lib/fiscal/official-pdf/overlay-utils"
 import { formatAeatPeriod, sanitizeAeatText } from "@/lib/fiscal/official-pdf/format-aeat-value"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
+import type { TaxCasillaValue } from "@gestoria/tax-engine"
+import { buildTaxEngine303Casillas } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 
@@ -54,7 +55,10 @@ export function hasOfficialDraftTemplate(modelCode: FiscalModelId): boolean {
   return existsSync(templatePath)
 }
 
-function resolveOverlayPlan(detail: FiscalModelDetailResponse): {
+function resolveOverlayPlan(
+  detail: FiscalModelDetailResponse,
+  model303Casillas?: TaxCasillaValue[],
+): {
   identity: {
     nif: OverlayTextField
     companyName: OverlayTextField
@@ -67,7 +71,7 @@ function resolveOverlayPlan(detail: FiscalModelDetailResponse): {
     case "303":
       return {
         identity: MODELO_303_IDENTITY,
-        fields: buildModelo303OverlayFields(buildModel303CasillaValues(detail)),
+        fields: buildModelo303OverlayFieldsFromCasillas(model303Casillas ?? []),
       }
     case "111":
       return {
@@ -108,7 +112,11 @@ export async function generateOfficialDraftPdf(
     period: formatAeatPeriod(detail.quarter),
   }
 
-  const plan = resolveOverlayPlan(detail)
+  const model303Casillas =
+    detail.modelCode === "303"
+      ? buildTaxEngine303Casillas(detail)
+      : undefined
+  const plan = resolveOverlayPlan(detail, model303Casillas)
   drawIdentityBlock(pages, plan.identity, context, font)
 
   for (const { field, value } of plan.fields) {

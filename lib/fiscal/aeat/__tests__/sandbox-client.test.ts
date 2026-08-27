@@ -15,11 +15,11 @@ const detail303 = {
 } as FiscalModelDetailResponse
 
 describe("validateWithOfficialAeatPipeline", () => {
-  it("valida localmente conforme al diseño BOE cuando no hay sandbox", async () => {
+  it("valida localmente conforme al diseño DR303 cuando no hay sandbox", async () => {
     const result = await validateWithOfficialAeatPipeline(detail303, "EMPRESA TEST SL", "B12345678")
     expect(result.valid).toBe(true)
-    expect(result.source).toBe("local-boe")
+    expect(result.source).toBe("local-design")
     expect(result.sandboxConfigured).toBe(false)
-    expect(result.sandboxNotice).toContain("500 pos.")
+    expect(result.sandboxNotice).toContain("DR303")
   })
 })

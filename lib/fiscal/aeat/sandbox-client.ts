@@ -14,7 +14,7 @@ export const AEAT_SANDBOX_SERVICES = {
   recordDesigns: "https://sede.agenciatributaria.gob.es/Sede/ayuda/disenos-registro.html",
 } as const
 
-export type AeatValidationSource = "local-boe" | "aeat-sandbox"
+export type AeatValidationSource = "local-design" | "aeat-sandbox"
 
 export interface AeatOfficialValidationResult extends AeatSubmissionValidationResult {
   /** Origen de la validación aplicada. */
@@ -34,7 +34,7 @@ function isAeatSandboxConfigured(): boolean {
 }
 
 /**
- * Valida el borrador telemático según diseño de registro BOE (500 posiciones).
+ * Valida el borrador telemático según el diseño oficial registrado para el modelo.
  *
  * La sede AEAT exige certificado digital para presentación y servicios web reales.
  * Con `AEAT_SANDBOX_ENABLED=true` y certificado configurado, este módulo podrá
@@ -51,17 +51,19 @@ export async function validateWithOfficialAeatPipeline(
   if (!sandboxConfigured) {
     return {
       ...local,
-      source: "local-boe",
+      source: "local-design",
       sandboxConfigured: false,
       sandboxNotice:
-        "Validación local BOE (500 pos.). Para validación en sandbox AEAT, configure certificado y AEAT_SANDBOX_ENABLED.",
+        detail.modelCode === "303"
+          ? "Validación estructural local DR303. La presentación real requiere importación y confirmación en la Sede AEAT."
+          : "Validación local del diseño registrado. Para validación remota, configure certificado y AEAT_SANDBOX_ENABLED.",
     }
   }
 
   // Punto de extensión: llamada SOAP/REST al servicio Pre303 del portal desarrolladores.
   return {
     ...local,
-    source: "local-boe",
+    source: "local-design",
     sandboxConfigured: true,
     sandboxNotice:
       "Certificado AEAT detectado; validación remota sandbox pendiente de integración WSDL.",

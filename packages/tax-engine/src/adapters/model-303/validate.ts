@@ -15,6 +15,31 @@ export function validateModel303Export(content: string, context: TaxReturnContex
   const period = quarterToPeriod(context.period)
   const opening = `<T3030${context.year}${period}0000>`
   const closing = `</T3030${context.year}${period}0000>`
+  const normalizedNif = context.companyNif.replace(/[^A-Z0-9]/gi, "").toUpperCase()
+
+  if (!/^[A-Z0-9]{9}$/.test(normalizedNif)) {
+    issues.push({
+      code: "INVALID_NIF",
+      message: "El NIF del declarante debe contener exactamente 9 caracteres alfanuméricos.",
+      severity: "error",
+    })
+  }
+
+  if (!context.companyName.trim()) {
+    issues.push({
+      code: "MISSING_COMPANY_NAME",
+      message: "Falta el nombre o razón social del declarante.",
+      severity: "error",
+    })
+  }
+
+  if (!/^[1-4]T$/.test(period)) {
+    issues.push({
+      code: "INVALID_PERIOD",
+      message: "El modelo 303 trimestral requiere un periodo 1T, 2T, 3T o 4T.",
+      severity: "error",
+    })
+  }
 
   if (!content.startsWith(opening)) {
     issues.push({

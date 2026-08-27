@@ -16,6 +16,7 @@ export function buildModel303Page03000(casillas: Map<string, number>): string {
   writeAt(record, 216, formatAeatPercent(100), 5)
 
   for (const field of MODEL_303_PAGE_03000_FIELDS) {
+    if (field.kind === "percent") continue
     let amount = casillas.get(field.casilla) ?? 0
     if (field.casilla === "64" || field.casilla === "66" || field.casilla === "69") {
       amount = cuota46

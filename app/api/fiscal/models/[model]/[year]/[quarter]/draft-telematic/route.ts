@@ -7,6 +7,7 @@ import { parseDetailQuarter } from "@/lib/fiscal/panorama"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 import { shouldOfferAeatTxt } from "@/lib/fiscal/aeat/generate-aeat-txt"
+import { persistModel303EngineResult } from "@/lib/fiscal/model-303/engine-service"
 
 export const runtime = "nodejs"
 
@@ -65,19 +66,34 @@ export async function GET(request: Request, { params }: RouteContext) {
     }
 
     const official = getAeatModelOfficialSource(detail.modelCode)
+    let telematicFile = bundle.telematicFile
+    let taxReturnId: string | undefined
+    if (detail.modelCode === "303") {
+      const persisted = await persistModel303EngineResult({
+        companyId,
+        detail,
+        companyName: company.name,
+        companyCif: company.cif,
+        eventType: "EXPORT_GENERATED",
+      })
+      telematicFile = persisted.artifact.content
+      taxReturnId = persisted.taxReturnId
+    }
+
     const filename = bundle.validation.filename
     const encodedFilename = encodeURIComponent(filename)
     const validationHeader = encodeURIComponent(JSON.stringify(bundle.validation))
 
-    return new NextResponse(new Uint8Array(bundle.telematicFile), {
+    return new NextResponse(new Uint8Array(telematicFile), {
       status: 200,
       headers: {
         "Content-Type": "text/plain; charset=iso-8859-1",
         "Content-Disposition": `attachment; filename="${filename}"; filename*=UTF-8''${encodedFilename}`,
-        "Content-Length": String(bundle.telematicFile.length),
+        "Content-Length": String(telematicFile.length),
         "Cache-Control": "no-store",
         "X-Fiscal-Model": detail.modelCode,
-        "X-Fiscal-Format": "telematic-boe",
+        "X-Fiscal-Format": detail.modelCode === "303" ? "dr303-envelope" : "telematic-boe",
+        ...(taxReturnId ? { "X-Tax-Return-Id": taxReturnId } : {}),
         "X-Aeat-Boe-Extension": official?.boeFileExtension ?? ".txt",
         "X-Aeat-Submission-Valid": bundle.validation.valid ? "true" : "false",
         "X-Aeat-Validation": validationHeader,

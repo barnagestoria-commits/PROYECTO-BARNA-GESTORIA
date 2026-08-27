@@ -55,5 +55,6 @@ export class AeatSourceRegistry {
 export const defaultAeatSourceRegistry = new AeatSourceRegistry()
 
 export function getDefault303VersionKey(year: number, period: string): string {
-  return defaultAeatSourceRegistry.buildVersionKey("303", year, period, "101")
+  const source = defaultAeatSourceRegistry.getActiveForModel("303", year)
+  return source?.id ?? defaultAeatSourceRegistry.buildVersionKey("303", year, period, "UNREGISTERED")
 }

@@ -103,6 +103,23 @@ export function FiscalExportButtons({
     }
     return FISCAL_EXPORT_FORMATS
   }, [model, quarter])
+  const labels = useMemo(
+    () => ({
+      ...FISCAL_EXPORT_LABELS,
+      txt: model === "303" ? "Fichero AEAT .303" : FISCAL_EXPORT_LABELS.txt,
+    }),
+    [model],
+  )
+  const descriptions = useMemo(
+    () => ({
+      ...FISCAL_EXPORT_DESCRIPTIONS,
+      txt:
+        model === "303"
+          ? "Fichero DR303 validado para importar en la Sede Electrónica de la AEAT"
+          : FISCAL_EXPORT_DESCRIPTIONS.txt,
+    }),
+    [model],
+  )
 
   const handleDownload = async (format: FiscalExportFormat) => {
     setDownloading(format)
@@ -117,8 +134,8 @@ export function FiscalExportButtons({
 
   return renderFormatButtons({
     formats,
-    labels: FISCAL_EXPORT_LABELS,
-    descriptions: FISCAL_EXPORT_DESCRIPTIONS,
+    labels,
+    descriptions,
     downloading,
     disabled,
     variant: compact ? "toolbar-desktop" : "default",

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { FiscalExportButtons } from "@/components/report-export-buttons"
 import { FiscalCalculationDetailDialog } from "@/components/fiscal/fiscal-calculation-detail-dialog"
 import { FiscalModelDraftPdfPreview } from "@/components/fiscal/fiscal-model-draft-pdf-preview"
+import { Model303EngineStatus } from "@/components/fiscal/model-303-engine-status"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { buildFiscalModelDraft } from "@/lib/fiscal/model-draft/build-model-draft"
 import { buildCalculationDetailRows } from "@/lib/fiscal/model-draft/calculation-rows"
@@ -102,6 +103,14 @@ export function FiscalModelDraftView({
   return (
     <>
       <div className="mx-auto max-w-5xl overflow-hidden shadow-md">
+        {detail.modelCode === "303" ? (
+          <Model303EngineStatus
+            modelParam={modelParam}
+            year={year}
+            quarterParam={quarterParam}
+            refreshKey={pdfRefreshKey}
+          />
+        ) : null}
         <FiscalModelDraftPdfPreview
           modelParam={modelParam}
           year={year}

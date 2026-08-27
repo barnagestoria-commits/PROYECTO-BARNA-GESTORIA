@@ -1,7 +1,7 @@
 # Motor tributario AEAT — Fase 1 (implementación inicial)
 
-**Rama:** `cursor/aeat-tax-engine-phase-1`  
-**Alcance:** paquete `@gestoria/tax-engine`, adaptador **303 DR303**, migraciones Prisma, integración en exportación fiscal.
+**Rama:** `cursor/aeat-303-end-to-end`
+**Alcance:** paquete `@gestoria/tax-engine`, adaptador **303 DR303**, PDF/UI, trazabilidad, persistencia y exportación fiscal.
 
 ## Qué está implementado
 
@@ -19,7 +19,15 @@
 
 3. **Persistencia** (migración `20250827000000_tax_engine_phase1`):
    - `TaxModelVersion`, `TaxModelSource`, `TaxReturn`, `TaxFact`, `TaxExportArtifact`, etc.
-   - Seed de versión `AEAT:303:2026:TRIM:101`
+   - Versión inmutable `AEAT:303:2026:DR303e26v101`
+   - Casillas y referencias contables en `TaxReturnValueSource`
+   - Validación, hash SHA-256 del export y eventos de auditoría
+
+4. **Flujo visual end-to-end**:
+   - El PDF oficial recibe las mismas casillas que el exportador DR303.
+   - La pantalla muestra versión, fuente oficial, validación y trazabilidad.
+   - La descarga **Fichero AEAT .303** persiste el borrador y el artefacto exportado.
+   - Si existe un asiento de liquidación, el detalle se reconstruye desde los asientos origen.
 
 ## Cómo probar
 
@@ -34,7 +42,6 @@ npm run dev          # UI → exportar modelo 303 trimestral → descarga .303
 
 - Adaptadores 111, 115, 130 (diseños BOE 500/600 pos.)
 - Páginas 02000, 04000, 05000, DID del 303 (régimen simplificado, prorrata, domiciliación)
-- UI trazabilidad casilla → hecho → asiento persistida en `TaxReturnValueSource`
 - Almacenamiento object storage de binarios oficiales
 - Presentación AEAT real (certificado + confirmación humana)
 

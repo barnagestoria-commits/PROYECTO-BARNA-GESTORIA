@@ -13,6 +13,7 @@ import {
 import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-service"
 import { parseDetailQuarter } from "@/lib/fiscal/panorama"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
+import { persistModel303EngineResult } from "@/lib/fiscal/model-303/engine-service"
 
 export const runtime = "nodejs"
 
@@ -75,6 +76,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     let buffer: Buffer | undefined
     let contentType = "application/octet-stream"
     let aeatValidation: Awaited<ReturnType<typeof buildOfficialAeatDraftBundle>>["validation"] | undefined
+    let taxReturnId: string | undefined
 
     switch (format) {
       case "pdf":
@@ -94,6 +96,17 @@ export async function GET(request: Request, { params }: RouteContext) {
         buffer = bundle.telematicFile ?? undefined
         contentType = "text/plain; charset=iso-8859-1"
         aeatValidation = bundle.validation
+        if (detail.modelCode === "303") {
+          const persisted = await persistModel303EngineResult({
+            companyId,
+            detail,
+            companyName: company.name,
+            companyCif: company.cif,
+            eventType: "EXPORT_GENERATED",
+          })
+          buffer = persisted.artifact.content
+          taxReturnId = persisted.taxReturnId
+        }
         break
       }
       case "zip":
@@ -118,6 +131,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         "Cache-Control": "no-store",
         "X-Fiscal-Model": detail.modelCode,
         "X-Fiscal-Format": format,
+        ...(taxReturnId ? { "X-Tax-Return-Id": taxReturnId } : {}),
         ...(aeatValidation
           ? {
               "X-Aeat-Submission-Valid": aeatValidation.valid ? "true" : "false",

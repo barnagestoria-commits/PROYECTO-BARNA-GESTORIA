@@ -66,6 +66,13 @@ describe("exportModel303Dr303", () => {
 
     expect(page01000End - page01000Start).toBe(MODEL_303_PAGE_01000_LENGTH)
     expect(page03000End - page03000Start).toBe(MODEL_303_PAGE_03000_LENGTH)
+    const page01000 = content.slice(page01000Start, page01000End)
+    const page03000 = content.slice(page03000Start, page03000End)
+    expect(page01000.slice(208, 225)).toBe("00000000010000000")
+    expect(page01000.slice(225, 230)).toBe("02100")
+    expect(page01000.slice(230, 247)).toBe("00000000002100000")
+    expect(page03000.slice(215, 220)).toBe("10000")
+    expect(page03000.slice(407, 424)).toBe(" 0000000001050000")
     expect(validateModel303Export(content, {
       modelCode: "303",
       year: 2026,

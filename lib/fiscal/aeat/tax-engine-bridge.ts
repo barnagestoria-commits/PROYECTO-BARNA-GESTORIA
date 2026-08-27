@@ -1,14 +1,13 @@
 import {
   buildModel303Filename,
+  defaultTaxRuleEngine,
   exportModel303Dr303,
   getDefault303VersionKey,
   type TaxCasillaValue,
+  type TaxFactSourceRef,
   type TaxReturnContext,
 } from "@gestoria/tax-engine"
-import {
-  buildModel303CasillaValues,
-  model303CasillaEntries,
-} from "@/lib/fiscal/model-303/official-layout"
+import { buildModel303CasillaValues } from "@/lib/fiscal/model-303/official-layout"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
 function quarterToPeriod(quarter: FiscalModelDetailResponse["quarter"]): string {
@@ -33,9 +32,43 @@ export function buildTaxEngine303Context(
 
 export function buildTaxEngine303Casillas(detail: FiscalModelDetailResponse): TaxCasillaValue[] {
   const values = buildModel303CasillaValues(detail)
-  return model303CasillaEntries(values).map((entry) => ({
-    casilla: entry.code,
+  const sourcesForSections = (
+    sections: FiscalModelDetailResponse["breakdown"],
+  ): TaxFactSourceRef[] => {
+    const byLineId = new Map<string, TaxFactSourceRef>()
+    for (const section of sections) {
+      for (const line of section.lines) {
+        byLineId.set(line.lineId, {
+          entryId: line.entryId,
+          lineId: line.lineId,
+          concept: line.concepto || line.entryConcept || section.label,
+          accountCode: line.cuenta,
+        })
+      }
+    }
+    return [...byLineId.values()]
+  }
+  const allSources = sourcesForSections(detail.breakdown)
+  const repercutidoSources = sourcesForSections(
+    detail.breakdown.filter((section) =>
+      /repercut|devengad/i.test(`${section.key} ${section.label}`),
+    ),
+  )
+  const soportadoSources = sourcesForSections(
+    detail.breakdown.filter((section) =>
+      /soportad|deducible/i.test(`${section.key} ${section.label}`),
+    ),
+  )
+
+  return defaultTaxRuleEngine.buildModel303Casillas(values).map((entry) => ({
+    casilla: entry.casilla,
     amount: entry.amount,
+    sources:
+      Number.parseInt(entry.casilla, 10) <= 27
+        ? repercutidoSources
+        : Number.parseInt(entry.casilla, 10) <= 45
+          ? soportadoSources
+          : allSources,
   }))
 }
 

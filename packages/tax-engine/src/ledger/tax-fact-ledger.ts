@@ -2,7 +2,6 @@ import { roundEuro } from "../amount-format"
 import type { TaxCasillaValue, TaxFact, TaxFactSourceRef, TaxReturnContext, TaxReturnDraft } from "../types"
 
 export interface TaxFactInput {
-  companyId: string
   factType: string
   casilla?: string
   amount: number
