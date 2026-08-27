@@ -20,7 +20,8 @@
     ],
     "paths": {
       "@/*": ["./*"],
-      "@gestoria/platform": ["./packages/platform/src/index.ts"]
+      "@gestoria/platform": ["./packages/platform/src/index.ts"],
+      "@gestoria/tax-engine": ["./packages/tax-engine/src/index.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

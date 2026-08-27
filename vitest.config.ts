@@ -10,6 +10,7 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "."),
+      "@gestoria/tax-engine": path.resolve(__dirname, "packages/tax-engine/src/index.ts"),
     },
   },
 })

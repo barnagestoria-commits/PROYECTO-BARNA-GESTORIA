@@ -16,8 +16,8 @@ export const AEAT_OFFICIAL_PORTALS = {
 export interface AeatModelOfficialSource {
   modelCode: FiscalModelId
   label: string
-  /** Formato BOE de presentación por fichero (registros de 500 posiciones). */
-  submissionFormat: "boe-500" | "xml-ws"
+  /** Formato BOE de presentación por fichero. */
+  submissionFormat: "dr303-envelope" | "boe-500" | "xml-ws"
   /** Extensión del fichero de importación en la sede (p. ej. .303, .111). */
   boeFileExtension: string
   recordDesignPath?: string
@@ -28,7 +28,7 @@ export interface AeatModelOfficialSource {
 const MODEL_303: AeatModelOfficialSource = {
   modelCode: "303",
   label: "IVA — Autoliquidación trimestral",
-  submissionFormat: "boe-500",
+  submissionFormat: "dr303-envelope",
   boeFileExtension: ".303",
   recordDesignPath:
     "https://sede.agenciatributaria.gob.es/Sede/ayuda/disenos-registro.html",

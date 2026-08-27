@@ -1,12 +1,18 @@
 import {
-  AEAT_RECORD_LENGTH,
   buildAeatTxtFilename,
   generateAeatTxt,
   shouldOfferAeatTxt,
+  usesDr303Envelope,
 } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import { getAeatModelOfficialSource } from "@/lib/fiscal/aeat/official-sources"
+import {
+  buildTaxEngine303Casillas,
+  buildTaxEngine303Context,
+} from "@/lib/fiscal/aeat/tax-engine-bridge"
 import { buildOfficialCasillaEntries } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
+import { buildModel303ValidationOnly } from "@gestoria/tax-engine"
+import { LEGACY_AEAT_RECORD_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-legacy"
 
 export interface AeatSubmissionValidationIssue {
   code: string
@@ -23,7 +29,7 @@ export interface AeatSubmissionValidationResult {
   issues: AeatSubmissionValidationIssue[]
 }
 
-function validateRecordLines(content: string): AeatSubmissionValidationIssue[] {
+function validateLegacyRecordLines(content: string): AeatSubmissionValidationIssue[] {
   const issues: AeatSubmissionValidationIssue[] = []
   const lines = content.split(/\r?\n/).filter(Boolean)
 
@@ -38,10 +44,10 @@ function validateRecordLines(content: string): AeatSubmissionValidationIssue[] {
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]!
-    if (line.length !== AEAT_RECORD_LENGTH) {
+    if (line.length !== LEGACY_AEAT_RECORD_LENGTH) {
       issues.push({
         code: "RECORD_LENGTH",
-        message: `Registro ${index + 1}: longitud ${line.length}, se esperaban ${AEAT_RECORD_LENGTH} posiciones BOE.`,
+        message: `Registro ${index + 1}: longitud ${line.length}, se esperaban ${LEGACY_AEAT_RECORD_LENGTH} posiciones BOE legacy.`,
         severity: "error",
       })
     }
@@ -64,22 +70,9 @@ function validateRecordLines(content: string): AeatSubmissionValidationIssue[] {
     })
   }
 
-  const amountRecords = lines.filter((line) => line.startsWith("2"))
-  if (amountRecords.length === 0) {
-    issues.push({
-      code: "NO_CASILLAS",
-      message: "No hay registros de casilla (tipo 2) en el fichero BOE.",
-      severity: "warning",
-    })
-  }
-
   return issues
 }
 
-/**
- * Valida el borrador telemático conforme al diseño de registro BOE (500 posiciones).
- * La presentación real en la sede exige certificado; aquí solo comprobamos integridad del fichero.
- */
 export function validateAeatSubmission(
   detail: FiscalModelDetailResponse,
   companyName: string,
@@ -115,19 +108,47 @@ export function validateAeatSubmission(
   const casillas = buildOfficialCasillaEntries(detail)
   const buffer = generateAeatTxt(detail, companyName, companyCif)
   const content = buffer.toString("latin1")
-  const lines = content.split(/\r?\n/).filter(Boolean)
 
-  issues.push(...validateRecordLines(content))
+  if (usesDr303Envelope(detail.modelCode)) {
+    const context = buildTaxEngine303Context(detail, companyName, companyCif)
+    const taxCasillas = buildTaxEngine303Casillas(detail)
+    const validation = buildModel303ValidationOnly({ context, casillas: taxCasillas })
+    issues.push(
+      ...validation.issues.map((issue) => ({
+        code: issue.code,
+        message: issue.message,
+        severity: issue.severity,
+      })),
+    )
+    if (source?.submissionFormat === "boe-500") {
+      issues.push({
+        code: "SOURCE_FORMAT_UPDATED",
+        message: "El modelo 303 usa diseño DR303 (envolvente <T3030…>) desde 2026, no BOE-500.",
+        severity: "warning",
+      })
+    }
+    const hasErrors = issues.some((issue) => issue.severity === "error")
+    return {
+      valid: !hasErrors,
+      modelCode: detail.modelCode,
+      recordCount: 1,
+      casillaCount: casillas.length,
+      filename: buildAeatTxtFilename(detail, companyCif),
+      issues,
+    }
+  }
 
-  if (source?.submissionFormat === "boe-500" && lines.some((line) => line.length !== AEAT_RECORD_LENGTH)) {
+  issues.push(...validateLegacyRecordLines(content))
+  if (source?.submissionFormat === "boe-500" && content.split(/\r?\n/).some((line) => line.length !== LEGACY_AEAT_RECORD_LENGTH)) {
     issues.push({
       code: "DESIGN_MISMATCH",
       message:
-        "El fichero no cumple el diseño de registro BOE de 500 posiciones publicado en la sede AEAT.",
-      severity: "error",
+        "El fichero no cumple el diseño de registro BOE legacy de 500 posiciones. Pendiente adaptador oficial.",
+      severity: "warning",
     })
   }
 
+  const lines = content.split(/\r?\n/).filter(Boolean)
   const hasErrors = issues.some((issue) => issue.severity === "error")
   return {
     valid: !hasErrors,

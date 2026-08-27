@@ -152,6 +152,8 @@ model Company {
   bankStatementImports BankStatementImport[]
   bankMovements        BankMovement[]
   digitalCertificate   CompanyDigitalCertificate?
+  taxReturns           TaxReturn[]
+  taxFacts             TaxFact[]
 }
 
 /// Metadatos del certificado digital FNMT/AEAT vinculado a la empresa (sin almacenar el .p12).
@@ -560,4 +562,151 @@ model BankMovement {
 
   @@unique([companyId, dedupeKey])
   @@index([companyId, status, movementDate])
+}
+
+enum TaxReturnStatus {
+  DRAFT
+  VALIDATED
+  EXPORTED
+  SUBMITTED
+  REJECTED
+}
+
+enum TaxExportFormat {
+  DR303_ENVELOPE
+  BOE_500
+  XML_WS
+}
+
+/// Versión normativa inmutable de un modelo AEAT (p. ej. AEAT:303:2026:1T:101)
+model TaxModelVersion {
+  id            String          @id @default(cuid())
+  versionKey    String          @unique
+  modelCode     String
+  exercise      Int
+  periodScope   String?
+  revision      String
+  sourceLabel   String
+  sourceUrl     String
+  sha256Prefix  String
+  format        TaxExportFormat
+  effectiveFrom DateTime        @db.Date
+  createdAt     DateTime        @default(now())
+  taxReturns    TaxReturn[]
+  sources       TaxModelSource[]
+
+  @@index([modelCode, exercise])
+}
+
+/// Metadatos de fuente oficial AEAT (binario en object storage, hash en BD)
+model TaxModelSource {
+  id           String          @id @default(cuid())
+  versionId    String
+  version      TaxModelVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  label        String
+  url          String
+  sha256       String?
+  storageKey   String?
+  downloadedAt DateTime?
+  createdAt    DateTime        @default(now())
+
+  @@index([versionId])
+}
+
+/// Borrador / declaración tributaria generada por el motor
+model TaxReturn {
+  id          String          @id @default(cuid())
+  companyId   String
+  company     Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  versionId   String
+  version     TaxModelVersion @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  year        Int
+  period      String
+  status      TaxReturnStatus @default(DRAFT)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  values      TaxReturnValue[]
+  facts       TaxFact[]
+  exports     TaxExportArtifact[]
+  validations TaxValidationResult[]
+  auditEvents TaxAuditEvent[]
+
+  @@unique([companyId, versionId, year, period])
+  @@index([companyId, year])
+}
+
+model TaxReturnValue {
+  id         String   @id @default(cuid())
+  returnId   String
+  taxReturn  TaxReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  casilla    String
+  amount     Decimal  @db.Decimal(14, 2)
+  createdAt  DateTime @default(now())
+  sources    TaxReturnValueSource[]
+
+  @@unique([returnId, casilla])
+}
+
+model TaxReturnValueSource {
+  id             String         @id @default(cuid())
+  returnValueId  String
+  returnValue    TaxReturnValue @relation(fields: [returnValueId], references: [id], onDelete: Cascade)
+  entryId        String?
+  lineId         String?
+  concept        String?
+  accountCode    String?
+}
+
+/// Hecho tributario trazable (origen contable → casilla)
+model TaxFact {
+  id         String   @id @default(cuid())
+  companyId  String
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  returnId   String?
+  taxReturn  TaxReturn? @relation(fields: [returnId], references: [id], onDelete: SetNull)
+  modelCode  String
+  year       Int
+  period     String
+  factType   String
+  casilla    String?
+  amount     Decimal  @db.Decimal(14, 2)
+  payload    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, modelCode, year, period])
+  @@index([returnId])
+}
+
+model TaxValidationResult {
+  id        String    @id @default(cuid())
+  returnId  String
+  taxReturn TaxReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  valid     Boolean
+  format    String
+  issues    Json
+  createdAt DateTime  @default(now())
+}
+
+model TaxExportArtifact {
+  id        String    @id @default(cuid())
+  returnId  String
+  taxReturn TaxReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  filename  String
+  format    TaxExportFormat
+  byteSize  Int
+  storageKey String?
+  sha256    String?
+  createdAt DateTime  @default(now())
+}
+
+model TaxAuditEvent {
+  id        String    @id @default(cuid())
+  returnId  String
+  taxReturn TaxReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  eventType String
+  message   String
+  payload   Json?
+  createdAt DateTime  @default(now())
+
+  @@index([returnId, createdAt])
 }

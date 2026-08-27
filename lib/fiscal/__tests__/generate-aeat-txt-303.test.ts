@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
-import { AEAT_RECORD_LENGTH, generateAeatTxt } from "@/lib/fiscal/aeat/generate-aeat-txt"
+import { generateAeatTxt, buildAeatTxtFilename } from "@/lib/fiscal/aeat/generate-aeat-txt"
+import { validateAeatSubmission } from "@/lib/fiscal/aeat/validate-submission"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
 const detail303: FiscalModelDetailResponse = {
@@ -17,26 +18,26 @@ const detail303: FiscalModelDetailResponse = {
   ],
 }
 
-describe("generateAeatTxt modelo 303", () => {
-  it("generates only fixed-width official records without comments or branding", () => {
+describe("generateAeatTxt modelo 303 via tax-engine", () => {
+  it("generates DR303 envelope without legacy 500-char records", () => {
     const buffer = generateAeatTxt(detail303, "EMPRESA TEST SL", "B12345678")
     const content = buffer.toString("latin1")
-    const lines = content.split("\r\n")
 
-    expect(lines.some((line) => line.startsWith("#"))).toBe(false)
-    expect(content).not.toContain("BARNA GESTORIA")
-    expect(content).not.toContain("GENERADO POR")
+    expect(content.startsWith("<T303020261T0000>")).toBe(true)
+    expect(content.endsWith("</T303020261T0000>")).toBe(true)
+    expect(content).toContain("<T30301000>")
+    expect(content).toContain("</T30301000>")
+    expect(content).toContain("<T30303000>")
     expect(content).toContain("EMPRESA TEST SL")
     expect(content).toContain("B12345678")
+    expect(content).not.toContain("\r\n")
+    expect(content).not.toMatch(/^1.{499}$/m)
+    expect(buildAeatTxtFilename(detail303, "B12345678")).toBe("30320261T_B12345678.303")
+  })
 
-    expect(lines.length).toBeGreaterThan(20)
-    for (const line of lines) {
-      expect(line.length).toBe(AEAT_RECORD_LENGTH)
-    }
-
-    expect(lines[0]?.startsWith("1")).toBe(true)
-    expect(lines.some((line) => line.startsWith("2"))).toBe(true)
-    expect(lines.at(-1)?.startsWith("9")).toBe(true)
-    expect(lines.some((line) => line.startsWith("3"))).toBe(false)
+  it("passes DR303 validation pipeline", () => {
+    const validation = validateAeatSubmission(detail303, "EMPRESA TEST SL", "B12345678")
+    expect(validation.valid).toBe(true)
+    expect(validation.issues.filter((issue) => issue.severity === "error")).toHaveLength(0)
   })
 })

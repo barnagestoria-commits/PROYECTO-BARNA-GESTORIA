@@ -18,10 +18,11 @@ function detail303(): FiscalModelDetailResponse {
 }
 
 describe("validateAeatSubmission", () => {
-  it("valida fichero BOE de 500 posiciones para modelo 303", () => {
+  it("valida fichero DR303 para modelo 303", () => {
     const result = validateAeatSubmission(detail303(), "EMPRESA TEST SL", "B12345678")
     expect(result.valid).toBe(true)
-    expect(result.recordCount).toBeGreaterThan(2)
+    expect(result.recordCount).toBe(1)
+    expect(result.filename.endsWith(".303")).toBe(true)
     expect(result.issues.filter((i) => i.severity === "error")).toHaveLength(0)
   })
 
