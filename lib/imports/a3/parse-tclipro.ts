@@ -7,6 +7,7 @@ import {
 } from "@/lib/imports/a3/a3-tclipro-account"
 import { decodeA3Text, type ImportBytes } from "@/lib/imports/a3/import-bytes"
 import { isProviderAccountCode, padAccountCode12 } from "@/lib/imports/a3/native-account-code"
+import { isValidSpanishTaxId, normalizeTaxId } from "@/lib/contacts/cif-lookup"
 import type { A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
 
 const NIF_PATTERN =
@@ -54,19 +55,35 @@ function extractNameAfterNif(text: string, nifEndIndex: number): string {
   return cleanVendorName(raw)
 }
 
-function extractNifFromRecord(record: ImportBytes): string | null {
+function extractTaxIdMatch(record: ImportBytes): { value: string; index: number; length: number } | null {
   const text = decodeA3Text(record)
-  const match = text.match(NIF_PATTERN)
-  if (!match?.[1]) return null
-  return normalizeCif(match[1]) ?? null
+  for (const run of text.matchAll(/[A-Z0-9]{9,20}/gi)) {
+    if (run.index === undefined) continue
+    for (let offset = 0; offset + 9 <= run[0].length; offset += 1) {
+      const candidate = normalizeTaxId(run[0].slice(offset, offset + 9))
+      if (isValidSpanishTaxId(candidate)) {
+        return { value: candidate, index: run.index + offset, length: 9 }
+      }
+    }
+  }
+
+  const fallback = text.match(NIF_PATTERN)
+  if (!fallback?.[1] || fallback.index === undefined) return null
+  return {
+    value: normalizeCif(fallback[1]) ?? fallback[1].toUpperCase(),
+    index: fallback.index,
+    length: fallback[0].length,
+  }
+}
+
+function extractNifFromRecord(record: ImportBytes): string | null {
+  return extractTaxIdMatch(record)?.value ?? null
 }
 
 function extractNameFromRecord(record: ImportBytes): string {
-  const text = decodeA3Text(record)
-  const match = text.match(NIF_PATTERN)
-  if (!match?.index) return ""
-  const end = match.index + match[0].length
-  return extractNameAfterNif(text, end)
+  const match = extractTaxIdMatch(record)
+  if (!match) return ""
+  return extractNameAfterNif(decodeA3Text(record), match.index + match.length)
 }
 
 export function parseTcliproSubaccounts(buffer: ImportBytes): A3Subaccount[] {

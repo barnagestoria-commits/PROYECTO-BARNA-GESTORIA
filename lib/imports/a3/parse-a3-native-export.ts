@@ -15,8 +15,10 @@ import {
   extractNativeDate,
   extractNativeDocument,
   extractNativePostAmountMarker,
+  alignNativeDateToFileMonth,
   nativeEntryGroupKey,
   nativeEntryLookupKey,
+  nativeJournalLineSequence,
   nativeJournalLineRecordStart,
   NATIVE_JOURNAL_CONCEPT_START,
   parseNativeJournalHeaders,
@@ -71,6 +73,7 @@ const GENERIC_FALLBACK = {
   iva: "472000000000",
   ivaRepercutido: "477000000000",
   retencion: "473000000000",
+  retencionPracticada: "475100000000",
   expense: "629000000000",
   payroll: "640000000000",
   bank: "572000000000",
@@ -153,18 +156,27 @@ function resolveNativeLineAccount(
   record: ImportBytes,
   registry: NativePlanRegistry,
   vendorAccounts: Map<string, string>,
+  clientAccounts: Map<string, string>,
   tailVendorMap: Map<string, string>,
   vendorDisplayNames: Map<string, string>,
+  transactionType: string,
+  entryPartyName?: string,
 ): string {
   const upper = concept.toUpperCase()
-  const vendor = extractVendorNameFromConcept(concept)
-  const client = extractClientNameFromConcept(concept)
+  const vendor =
+    transactionType === "EC"
+      ? null
+      : extractVendorNameFromConcept(concept) ?? (transactionType === "RC" ? entryPartyName ?? null : null)
+  const client =
+    transactionType === "RC"
+      ? null
+      : extractClientNameFromConcept(concept) ?? (transactionType === "EC" ? entryPartyName ?? null : null)
 
   const vendorAccount = vendor
     ? ensureVendorAccount(vendorAccounts, vendor, "400", vendorDisplayNames)
     : null
   const clientAccount = client
-    ? ensureVendorAccount(vendorAccounts, client, "430", vendorDisplayNames)
+    ? ensureVendorAccount(clientAccounts, client, "430", vendorDisplayNames)
     : null
 
   if (seq === 1) {
@@ -224,8 +236,16 @@ function resolveNativeLineAccount(
     return registry.defaultIvaRepercutidoAccount ?? GENERIC_FALLBACK.ivaRepercutido
   }
 
-  if (seq === 5 && dh === "H") {
-    return registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
+  if (seq === 5) {
+    if (transactionType === "RC" && dh === "H") {
+      return GENERIC_FALLBACK.retencionPracticada
+    }
+    if (transactionType === "EC" && dh === "D") {
+      return registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
+    }
+    return dh === "H"
+      ? GENERIC_FALLBACK.retencionPracticada
+      : registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
   }
 
   if (seq === 6 && dh === "D") {
@@ -272,7 +292,7 @@ function scanRawJournalLines(buffer: ImportBytes): Array<{ seq: number; rawConce
 
     const dhIndex = dhMatch.index ?? 0
     lines.push({
-      seq: rec[11] ?? 0,
+      seq: nativeJournalLineSequence(rec),
       rawConcept: text.slice(NATIVE_JOURNAL_CONCEPT_START, dhIndex),
     })
   }
@@ -335,6 +355,7 @@ function parseNativeJournalFile(
   fiscalYear: number,
   registry: NativePlanRegistry,
   vendorAccounts: Map<string, string>,
+  clientAccounts: Map<string, string>,
   tailVendorMap: Map<string, string>,
   vendorDisplayNames: Map<string, string>,
   headerIndex: Map<string, NativeJournalHeaderInfo>,
@@ -350,10 +371,12 @@ function parseNativeJournalFile(
     record: ImportBytes
   }
   const parsedLines: ParsedNativeLine[] = []
+  let amountRecordCount = 0
 
   for (let pos = start; pos + NATIVE_LINE_RECORD <= buffer.length; pos += NATIVE_LINE_RECORD) {
     const rec = buffer.subarray(pos, pos + NATIVE_LINE_RECORD)
     if (!isNativeJournalDataRecord(rec)) continue
+    if (recordHasAmountField(rec)) amountRecordCount += 1
     const text = decodeA3Text(rec)
     const dhMatch = text.match(/([DH])(\d{11,14})/)
     if (!dhMatch) continue
@@ -366,13 +389,20 @@ function parseNativeJournalFile(
     const conceptClean = extractNativeConcept(text, dhIndex)
     const lookupKey = nativeEntryLookupKey(rec)
     const header = headerIndex.get(lookupKey)
+    const headerMonth = header?.fecha ? Number(header.fecha.slice(4, 6)) : null
+    const headerDateForLine =
+      header?.fecha && headerMonth === month ? header.fecha : null
     const documento = extractNativeDocument(conceptClean, header?.documento)
     const concept = documento
       ? conceptClean.replace(new RegExp(`${documento.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "").trim()
       : conceptClean
-    const seq = rec[11] ?? 0
+    const seq = nativeJournalLineSequence(rec)
     const entryKey = nativeEntryGroupKey(rec)
-    const fecha = extractNativeDate(conceptClean, rec, fiscalYear, month, header?.fecha)
+    const fecha = alignNativeDateToFileMonth(
+      extractNativeDate(conceptClean, rec, fiscalYear, month, headerDateForLine),
+      fiscalYear,
+      month,
+    )
 
     parsedLines.push({
       entryKey,
@@ -393,6 +423,22 @@ function parseNativeJournalFile(
 
   const grouped = new Map<string, A3JournalLine[]>()
   const groupMeta = new Map<string, { concept: string; documento: string; lookupKey: string }>()
+  const entryParties = new Map<string, { name: string; priority: number }>()
+
+  for (const parsed of parsedLines) {
+    const marker = extractNativePostAmountMarker(parsed.record)
+    const concept = parsed.line.concepto
+    const party =
+      marker === "RC" && (/^Gasto a /i.test(concept) || /^IVA S\.\//i.test(concept))
+        ? { name: extractVendorNameFromConcept(concept), priority: /^Gasto a /i.test(concept) ? 2 : 1 }
+        : marker === "EC" && (/^Ventas a /i.test(concept) || /^IVA R\.\//i.test(concept))
+          ? { name: extractClientNameFromConcept(concept), priority: /^Ventas a /i.test(concept) ? 2 : 1 }
+          : null
+    const existing = entryParties.get(parsed.entryKey)
+    if (party?.name && (!existing || party.priority > existing.priority)) {
+      entryParties.set(parsed.entryKey, { name: party.name, priority: party.priority })
+    }
+  }
 
   for (const parsed of parsedLines) {
     const dh = parsed.line.debe > 0 ? "D" : "H"
@@ -407,8 +453,11 @@ function parseNativeJournalFile(
         parsed.record,
         registry,
         vendorAccounts,
+        clientAccounts,
         tailVendorMap,
         vendorDisplayNames,
+        marker,
+        entryParties.get(parsed.entryKey)?.name,
       )
 
     const existing = grouped.get(parsed.entryKey) ?? []
@@ -429,8 +478,10 @@ function parseNativeJournalFile(
     if (lines.length === 0) continue
     const meta = groupMeta.get(entryKey)
     const header = meta ? headerIndex.get(meta.lookupKey) : undefined
-    const entryFecha = header?.fecha
-      ? `${header.fecha.slice(0, 4)}-${header.fecha.slice(4, 6)}-${header.fecha.slice(6, 8)}`
+    const headerDate = header?.fecha
+    const headerMonth = headerDate ? Number(headerDate.slice(4, 6)) : null
+    const entryFecha = headerDate && headerMonth === month
+      ? `${headerDate.slice(0, 4)}-${headerDate.slice(4, 6)}-${headerDate.slice(6, 8)}`
       : lines[0].fecha
     const normalizedLines = lines.map((line) => ({ ...line, fecha: entryFecha }))
     entries.push({
@@ -443,7 +494,7 @@ function parseNativeJournalFile(
     })
   }
 
-  if (entries.length === 0) {
+  if (entries.length === 0 && amountRecordCount > 0) {
     warnings.push(`No se pudieron leer asientos de ${fileName}.`)
   }
 
@@ -526,24 +577,22 @@ function appendNativeRawCountWarnings(
     const parsed = parsedCounts.TCLIPRO ?? 0
     if (parsed === 0 && raw.active > 0) {
       warnings.push(`TCLIPRO: el ZIP contiene ${raw.active} registros activos RAW pero el parser no importó ninguno.`)
-    } else if (raw.active > 0) {
-      warnings.push(`TCLIPRO: ${raw.active} activos / ${raw.deleted} borrados (RAW COBOL).`)
     }
   }
 
   const tpredefi = getNativeFileByBase(fileIndex, "tpredefi.dat")
   if (tpredefi) {
     const raw = countNativeCobolRecords(tpredefi.buffer)
-    if (raw.active > 0) {
-      warnings.push(`TPREDEFI: ${raw.active} activos / ${raw.deleted} borrados (RAW COBOL).`)
+    if ((parsedCounts.TPREDEFI ?? 0) === 0 && raw.active > 0) {
+      warnings.push(`TPREDEFI: el ZIP contiene ${raw.active} registros activos RAW pero el parser no importó ninguno.`)
     }
   }
 
   const staivare = getNativeFileByBase(fileIndex, "staivare.dat")
   if (staivare) {
     const raw = countNativeCobolRecords(staivare.buffer)
-    if (raw.active > 0) {
-      warnings.push(`STAIVARE: ${raw.active} activos / ${raw.deleted} borrados (RAW COBOL).`)
+    if ((parsedCounts.STAIVARE ?? 0) === 0 && raw.active > 0) {
+      warnings.push(`STAIVARE: el ZIP contiene ${raw.active} registros activos RAW pero el parser no importó ninguno.`)
     }
   }
 
@@ -859,6 +908,8 @@ export function parseNativeA3ExportFiles(
   const tcliproData = parseTcliproFromIndex(fileIndex)
   const subaccountLists: A3Subaccount[][] = []
   let tpDefaults: NativePlanDefaults = {}
+  let tpredefiParsed = false
+  let staivareParsed = false
   let assetDefaults = parseTpPredefiAssetDefaults(new Uint8Array(0))
   let fixedAssets: A3FixedAsset[] = []
 
@@ -874,10 +925,13 @@ export function parseNativeA3ExportFiles(
     }
     if (normalizeA3BaseName(path) === "tpredefi.dat") {
       tpDefaults = parseTpPredefiDefaults(buffer)
+      tpredefiParsed = Object.values(tpDefaults).some(Boolean)
       assetDefaults = parseTpPredefiAssetDefaults(buffer)
     }
     if (normalizeA3BaseName(path) === "staivare.dat") {
-      tpDefaults = { ...parseTpPredefiDefaults(buffer), ...tpDefaults }
+      const staivareDefaults = parseTpPredefiDefaults(buffer)
+      staivareParsed = Object.values(staivareDefaults).some(Boolean)
+      tpDefaults = { ...staivareDefaults, ...tpDefaults }
     }
     if (endsWithBase(path, "aam.dat") && isAamDatBuffer(buffer)) {
       fixedAssets = parseAamDatFixedAssets(buffer, {
@@ -890,10 +944,24 @@ export function parseNativeA3ExportFiles(
   subaccountLists.push(tcliproData.subaccounts)
 
   const rawSubaccounts = mergeSubaccountLists(...subaccountLists)
-  const vendorAccounts = buildUniqueVendorAccountMap(rawSubaccounts)
+  const vendorAccounts = buildUniqueVendorAccountMap(
+    rawSubaccounts.filter((subaccount) => isProviderAccountCode(subaccount.accountCode)),
+  )
+  const clientAccounts = buildUniqueVendorAccountMap(
+    rawSubaccounts.filter((subaccount) => subaccount.accountCode.replace(/\D/g, "").startsWith("430")),
+  )
   const accountByCif = buildAccountMapByCif(rawSubaccounts)
   const vendorDisplayNames = new Map<string, string>()
-  const subaccounts = subaccountsFromVendorRegistry(rawSubaccounts, vendorAccounts, vendorDisplayNames)
+  const subaccountsWithProviders = subaccountsFromVendorRegistry(
+    rawSubaccounts,
+    vendorAccounts,
+    vendorDisplayNames,
+  )
+  const subaccounts = subaccountsFromVendorRegistry(
+    subaccountsWithProviders,
+    clientAccounts,
+    vendorDisplayNames,
+  )
   const registry = buildNativePlanRegistry(subaccounts, tpDefaults)
 
   for (const party of tcliproData.thirdParties) {
@@ -906,7 +974,8 @@ export function parseNativeA3ExportFiles(
 
   appendNativeRawCountWarnings(fileIndex, {
     TCLIPRO: tcliproData.subaccounts.length,
-    TPREDEFI: Object.keys(tpDefaults).length > 0 ? 1 : 0,
+    TPREDEFI: tpredefiParsed ? 1 : 0,
+    STAIVARE: staivareParsed ? 1 : 0,
     CU: rawSubaccounts.length,
   }, warnings)
 
@@ -934,6 +1003,7 @@ export function parseNativeA3ExportFiles(
       fiscalYear,
       registry,
       vendorAccounts,
+      clientAccounts,
       tailVendorMap,
       vendorDisplayNames,
       headerIndex,
@@ -958,7 +1028,11 @@ export function parseNativeA3ExportFiles(
   entries = propagateEntryVendorAccounts(entries)
 
   // Actualizar subcuentas con proveedores descubiertos al parsear apuntes.
-  const finalSubaccounts = subaccountsFromVendorRegistry(subaccounts, vendorAccounts, vendorDisplayNames)
+  const finalSubaccounts = subaccountsFromVendorRegistry(
+    subaccountsFromVendorRegistry(subaccounts, vendorAccounts, vendorDisplayNames),
+    clientAccounts,
+    vendorDisplayNames,
+  )
 
   if (entries.length === 0) {
     const daFile = fileNames.find((name) => (name.split("/").pop()?.toUpperCase() ?? "").endsWith("DA.DAT"))

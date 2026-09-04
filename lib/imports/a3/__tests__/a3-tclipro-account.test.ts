@@ -3,6 +3,7 @@ import {
   decodeTcliproRecordAccount,
   isTcliproRecordStart,
 } from "@/lib/imports/a3/a3-tclipro-account"
+import { parseTcliproSubaccounts } from "@/lib/imports/a3/parse-tclipro"
 
 function makeRecord(byte16: number, byte17: number): Buffer {
   const record = Buffer.alloc(536, 0)
@@ -39,5 +40,20 @@ describe("isTcliproRecordStart", () => {
     record[5] = 0x04
     expect(isTcliproRecordStart(record, 0)).toBe(true)
     expect(isTcliproRecordStart(record, 1)).toBe(false)
+  })
+})
+
+describe("parseTcliproSubaccounts", () => {
+  it("extracts the valid Spanish NIF when a binary prefix is attached", () => {
+    const record = makeRecord(0, 73)
+    record.write("IB59869081ASOROTNIC SL\u000b.CL EJEMPLO", 30, "latin1")
+
+    expect(parseTcliproSubaccounts(record)).toEqual([
+      {
+        accountCode: "410000120000",
+        name: "ASOROTNIC SL",
+        nif: "B59869081",
+      },
+    ])
   })
 })

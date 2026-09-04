@@ -25,13 +25,31 @@ function cleanConcept(raw: string): string {
   return raw
     .replace(/\x00/g, " ")
     .replace(/[\x01-\x08\x0B\x0C\x0E-\x1F]/g, " ")
-    .replace(/[^\x20-\x7E\u00C0-\u00FF.,\-/()&º°]/g, " ")
+    .replace(/[^\x20-\x7E\u00C0-\u00FF.,\-/()&º°"]/g, " ")
+    .replace(/^["']+|["']+$/g, "")
     .replace(/\s+/g, " ")
     .trim()
 }
 
 function formatIsoDate(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(Date.UTC(year, month, 0)).getUTCDate()
+}
+
+/** A3 agrupa apuntes por fichero mensual (*1A.DAT = enero, etc.). */
+export function alignNativeDateToFileMonth(
+  isoDate: string,
+  fiscalYear: number,
+  fileMonth: number,
+): string {
+  const parsedMonth = Number(isoDate.slice(5, 7))
+  if (parsedMonth === fileMonth) return isoDate
+
+  const day = Math.min(Math.max(Number(isoDate.slice(8, 10)) || 1, 1), daysInMonth(fiscalYear, fileMonth))
+  return formatIsoDate(fiscalYear, fileMonth, day)
 }
 
 function dateFromDayOfYear(year: number, dayOfYear: number): string | null {
@@ -88,12 +106,24 @@ export function nativeEntryLookupKey(rec: ImportBytes): string {
   return rec.subarray(15, 20).toString("hex")
 }
 
+/** Número de línea contable A3 (2=tercero, 3=IVA, 5=retención, 6=base). */
+export function nativeJournalLineSequence(rec: ImportBytes): number {
+  const sequence = rec[22] ?? 0
+  if (sequence >= 1 && sequence <= 9) return sequence
+  // Compatibilidad defensiva con exportaciones antiguas ya soportadas.
+  return rec[11] ?? 0
+}
+
 export function extractNativePostAmountMarker(rec: ImportBytes): string {
   return decodeA3Text(rec.subarray(87, 94)).replace(/\x00/g, "").trim()
 }
 
 export function extractNativeConcept(text: string, dhIndex: number): string {
   const raw = text.slice(NATIVE_JOURNAL_CONCEPT_START, Math.max(NATIVE_JOURNAL_CONCEPT_START, dhIndex - 4))
+  const retenMatch = raw.match(/"?\s*Reten[\.\/][^@]{4,}/i)
+  if (retenMatch) {
+    return cleanConcept(retenMatch[0])
+  }
   const altMatch = text.slice(15, dhIndex).match(/[A-ZÁÉÍÓÚÑ][A-Z0-9 ÁÉÍÓÚÜÑ.\-/]{4,}/)
   const concept = altMatch ? altMatch[0] : raw
   return cleanConcept(concept)
@@ -118,8 +148,12 @@ export function extractNativeDate(
 
   const doyTag = concept.match(/20(2[4-9]|3[0-9])-(\d{3})/)
   if (doyTag) {
-    const iso = dateFromDayOfYear(Number(`20${doyTag[1]}`), Number(doyTag[2]))
-    if (iso) return iso
+    const dayOfYearNum = Number(doyTag[2])
+    // Evitar confundir referencias de factura (p. ej. 2026-025) con día juliano.
+    if (dayOfYearNum >= 32) {
+      const iso = dateFromDayOfYear(Number(`20${doyTag[1]}`), dayOfYearNum)
+      if (iso) return iso
+    }
   }
 
   const ymd = concept.match(/(20[2-9]\d)(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])/)

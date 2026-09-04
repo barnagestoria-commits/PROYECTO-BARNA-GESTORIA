@@ -1,5 +1,5 @@
 import { normalizeCif } from "@/lib/accounting/third-party-types"
-import { isGenericProviderCode } from "@/lib/imports/a3/native-account-code"
+import { isGenericProviderCode, isProviderAccountCode } from "@/lib/imports/a3/native-account-code"
 import type { A3JournalEntry, A3JournalLine, A3ThirdParty } from "@/lib/imports/a3/types"
 
 const GENERIC_PROVIDER = "400000000000"
@@ -29,7 +29,6 @@ export function extractVendorNameFromConcept(concept: string): string | null {
   const patterns = [
     /Gasto a\s+(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
     /IVA S\.\/?(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
-    /IVA R\.\/?(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
     /Su Fra\.\s*N[ºo°.]?\s*(?:.+?\s+)?(.+?)(?:\s{2,}|$)/i,
     /Pago Fra\.\s*(?:\d+\s+)?(?:DE\s+)?(.+?)(?:\s{2,}|$)/i,
     /Traspaso Fra\.\s+(.+?)(?:\s{2,}|$)/i,
@@ -41,7 +40,11 @@ export function extractVendorNameFromConcept(concept: string): string | null {
   for (const pattern of patterns) {
     const match = cleaned.match(pattern)
     if (match?.[1]) {
-      const name = match[1].trim().replace(/\s+\d{4}[-/].*$/, "").trim()
+      const name = match[1]
+        .trim()
+        .replace(/\s+\d{4}[-/].*$/, "")
+        .replace(/\s+(?:\d{3,}|\d+\/\d+)\s*[_A-Z]?$/i, "")
+        .trim()
       if (name.length >= 4) return name.slice(0, 60)
     }
   }
@@ -64,7 +67,11 @@ export function extractClientNameFromConcept(concept: string): string | null {
   for (const pattern of patterns) {
     const match = cleaned.match(pattern)
     if (match?.[1]) {
-      const name = match[1].trim().replace(/\s+\d{4}[-/].*$/, "").trim()
+      const name = match[1]
+        .trim()
+        .replace(/\s+\d{4}[-/].*$/, "")
+        .replace(/\s+(?:\d{3,}|\d+\/\d+)\s*[_A-Z]?$/i, "")
+        .trim()
       if (name.length >= 4) return name.slice(0, 60)
     }
   }
@@ -133,11 +140,18 @@ function mapLineVendor(
   matchedVendorCifs: Set<string>,
 ): A3JournalLine {
   const needsProvider = needsProviderResolution(line.cuenta)
-
-  if (!needsProvider) return line
-
   const vendor = findVendorForConcept(line.concepto, vendors) ?? entryVendor
   if (!vendor) return line
+
+  if (!needsProvider) {
+    if (!isProviderAccountCode(line.cuenta)) return line
+    matchedVendorCifs.add(vendor.cif)
+    return {
+      ...line,
+      vendorCif: vendor.cif,
+      vendorName: vendor.name,
+    }
+  }
 
   matchedVendorCifs.add(vendor.cif)
   return {
@@ -156,7 +170,7 @@ export function resolveVendorAccountCodes(
     ...entry,
     lines: entry.lines.map((line) => {
       if (!line.vendorCif) return line
-      if (!needsProviderResolution(line.cuenta)) return line
+      if (!needsProviderResolution(line.cuenta) && !isProviderAccountCode(line.cuenta)) return line
       const normalizedCif = normalizeCif(line.vendorCif) ?? line.vendorCif.trim().toUpperCase()
       const accountCode = accountByCif.get(normalizedCif)
       if (!accountCode) return line
