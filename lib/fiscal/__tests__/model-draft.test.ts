@@ -73,6 +73,27 @@ describe("buildFiscalModelDraft", () => {
     expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "15"))).toBe(true)
   })
 
+  it("builds official casillas for modelo 130 from the imported quarterly result", () => {
+    const detail: FiscalModelDetailResponse = {
+      ...baseDetail,
+      modelCode: "130",
+      modelLabel: "Modelo 130",
+      amount: 1165.49,
+      breakdown: [
+        {
+          key: "resultado-importado-a3",
+          label: "Resultado fiscal importado de A3",
+          total: 1165.49,
+          lines: [],
+        },
+      ],
+    }
+    const draft = buildFiscalModelDraft(detail, "ELGUETA VILOS MIGUEL ALEJANDRO", "Y1972636D")
+    expect(draft.nif).toBe("Y1972636D")
+    expect(draft.sections[0]?.casillas.find((cell) => cell.code === "19")?.amount).toBe(1165.49)
+    expect(draft.resultAmount).toBe(1165.49)
+  })
+
   it("builds official casillas for modelo 390 annual", () => {
     const detail: FiscalModelDetailResponse = {
       ...baseDetail,

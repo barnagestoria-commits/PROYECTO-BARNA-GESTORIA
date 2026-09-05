@@ -4,8 +4,14 @@ import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { FiscalExportButtons } from "@/components/report-export-buttons"
 import { FiscalCalculationDetailDialog } from "@/components/fiscal/fiscal-calculation-detail-dialog"
-import { FiscalModelDraftPdfPreview } from "@/components/fiscal/fiscal-model-draft-pdf-preview"
+import {
+  AeatOfficialFormHeader,
+  AeatOfficialIvaSection,
+  AeatOfficialResultRow,
+  AeatOfficialSingleAmountSection,
+} from "@/components/fiscal/aeat-official-form"
 import { Model303EngineStatus } from "@/components/fiscal/model-303-engine-status"
+import { getDraftTableLayout, getResultCasillaLabel } from "@/lib/fiscal/official-layouts"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { buildFiscalModelDraft } from "@/lib/fiscal/model-draft/build-model-draft"
 import { buildCalculationDetailRows } from "@/lib/fiscal/model-draft/calculation-rows"
@@ -111,12 +117,40 @@ export function FiscalModelDraftView({
             refreshKey={pdfRefreshKey}
           />
         ) : null}
-        <FiscalModelDraftPdfPreview
-          modelParam={modelParam}
-          year={year}
-          quarterParam={quarterParam}
-          refreshKey={pdfRefreshKey}
+
+        <AeatOfficialFormHeader
+          modelCode={draft.modelCode}
+          modelLabel={draft.modelLabel}
+          nif={draft.nif}
+          companyName={draft.companyName}
+          year={draft.year}
+          periodLabel={draft.periodLabel}
+          statusLabel={draft.statusLabel}
+          statusClassName={
+            draft.status === "presentado"
+              ? "border-emerald-700 bg-emerald-50 text-emerald-800"
+              : "border-amber-700 bg-amber-50 text-amber-800"
+          }
         />
+
+        {draft.sections.map((section) =>
+          getDraftTableLayout(draft.modelCode) === "iva" ? (
+            <AeatOfficialIvaSection key={section.id} section={section} onOpenDetail={openDetail} />
+          ) : (
+            <AeatOfficialSingleAmountSection key={section.id} section={section} onOpenDetail={openDetail} />
+          ),
+        )}
+
+        <AeatOfficialResultRow
+          label={getResultCasillaLabel(draft.modelCode)}
+          amount={draft.resultAmount}
+          onOpenDetail={() => openDetail(undefined, getResultCasillaLabel(draft.modelCode))}
+        />
+
+        <p className="border-x border-b border-black bg-white px-3 py-2 text-xs text-neutral-600">
+          Borrador de trabajo con las casillas e importes que se exportan al TXT de Hacienda.
+          La plantilla PDF oficial no se muestra aquí para evitar solapes; puedes descargarla aparte si la necesitas.
+        </p>
 
         {(successMessage || errorMessage) && (
           <div

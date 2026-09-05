@@ -110,6 +110,34 @@ export function buildOfficialModel115Sections(detail: FiscalModelDetailResponse)
   ]
 }
 
+export function buildOfficialModel130Sections(detail: FiscalModelDetailResponse): DraftSection[] {
+  const total = Math.abs(detail.amount)
+
+  return [
+    {
+      id: "pago-fraccionado",
+      title: "Pago fraccionado — Estimación directa",
+      casillas: [
+        casillaAmount(
+          "130-07",
+          "07",
+          "Pago fraccionado del periodo",
+          total,
+          "liquidacion",
+        ),
+        casillaAmount(
+          "130-19",
+          "19",
+          "Total a ingresar",
+          total,
+          "liquidacion",
+          "Resultado del periodo",
+        ),
+      ],
+    },
+  ]
+}
+
 export function buildOfficialModel123Sections(detail: FiscalModelDetailResponse): DraftSection[] {
   const totalRetenciones = hasLiquidation(detail)
     ? detail.amount

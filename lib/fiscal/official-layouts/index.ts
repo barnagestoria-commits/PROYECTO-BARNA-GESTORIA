@@ -6,6 +6,7 @@ import {
   buildOfficialModel111Sections,
   buildOfficialModel115Sections,
   buildOfficialModel123Sections,
+  buildOfficialModel130Sections,
   buildOfficialModel180Sections,
   buildOfficialModel190Sections,
 } from "@/lib/fiscal/official-layouts/retention-layouts"
@@ -22,7 +23,14 @@ export type DraftTableLayout = "iva" | "retenciones" | "amount"
 
 export function getDraftTableLayout(modelCode: FiscalModelId): DraftTableLayout {
   if (modelCode === "303" || modelCode === "390") return "iva"
-  if (modelCode === "111" || modelCode === "115" || modelCode === "123" || modelCode === "180" || modelCode === "190") {
+  if (
+    modelCode === "111" ||
+    modelCode === "115" ||
+    modelCode === "123" ||
+    modelCode === "130" ||
+    modelCode === "180" ||
+    modelCode === "190"
+  ) {
     return "retenciones"
   }
   return "amount"
@@ -36,6 +44,8 @@ export function buildOfficialModelSections(detail: FiscalModelDetailResponse): D
       return buildOfficialModel111Sections(detail)
     case "115":
       return buildOfficialModel115Sections(detail)
+    case "130":
+      return buildOfficialModel130Sections(detail)
     case "123":
       return buildOfficialModel123Sections(detail)
     case "349":
@@ -62,6 +72,7 @@ export function resolveDraftResultAmount(detail: FiscalModelDetailResponse): num
     case "111":
     case "115":
     case "123":
+    case "130":
       return detail.amount
     case "180":
     case "190":
@@ -83,6 +94,8 @@ export function getResultCasillaLabel(modelCode: FiscalModelId): string {
       return "Total a ingresar [15]"
     case "115":
       return "Total a ingresar [04]"
+    case "130":
+      return "Total a ingresar [19]"
     case "123":
       return "Total a ingresar [06]"
     case "347":
@@ -126,6 +139,10 @@ export const OFFICIAL_CASILLA_LABELS: Record<string, Record<string, string>> = {
     "02": "BASE RETENCIONES ARRENDAMIENTOS",
     "03": "RETENCIONES PRACTICADAS",
     "04": "TOTAL A INGRESAR",
+  },
+  "130": {
+    "07": "PAGO FRACCIONADO",
+    "19": "TOTAL A INGRESAR",
   },
   "123": {
     "01": "NUM PERCEPTORES",
