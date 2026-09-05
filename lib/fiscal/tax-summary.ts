@@ -1,4 +1,4 @@
-import type { FiscalPeriodKey } from "@/lib/types/fiscal-panorama"
+import type { FiscalModelId, FiscalPeriodKey } from "@/lib/types/fiscal-panorama"
 import {
   calculateModelAmount,
   type RawEntryLine,
@@ -23,11 +23,19 @@ export type TaxSummaryAmountOverrides = Partial<
   Record<"111" | "115" | "123" | "130" | "180" | "303", number>
 >
 
+function includesModel(
+  enabledModels: readonly FiscalModelId[] | undefined,
+  model: FiscalModelId,
+): boolean {
+  return !enabledModels || enabledModels.includes(model)
+}
+
 export function calculateTaxSummary(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
   overrides: TaxSummaryAmountOverrides = {},
+  enabledModels?: readonly FiscalModelId[],
 ): TaxSummaryBreakdown {
   const iva = calculateModelAmount("303", lines, year, quarter)
   const m111 = calculateModelAmount("111", lines, year, quarter)
@@ -39,12 +47,20 @@ export function calculateTaxSummary(
       ? calculateModelAmount("180", lines, year, "annual")
       : { amount: 0, lineCount: 0, entryIds: new Set(), breakdown: [] }
 
-  const ivaResult = overrides["303"] ?? iva.amount
-  const retenciones111 = overrides["111"] ?? m111.amount
-  const retenciones115 = overrides["115"] ?? m115.amount
-  const retenciones123 = overrides["123"] ?? m123.amount
-  const pagos130 = overrides["130"] ?? m130.amount
-  const retenciones180 = overrides["180"] ?? m180.amount
+  const ivaResult = includesModel(enabledModels, "303") ? (overrides["303"] ?? iva.amount) : 0
+  const retenciones111 = includesModel(enabledModels, "111")
+    ? (overrides["111"] ?? m111.amount)
+    : 0
+  const retenciones115 = includesModel(enabledModels, "115")
+    ? (overrides["115"] ?? m115.amount)
+    : 0
+  const retenciones123 = includesModel(enabledModels, "123")
+    ? (overrides["123"] ?? m123.amount)
+    : 0
+  const pagos130 = includesModel(enabledModels, "130") ? (overrides["130"] ?? m130.amount) : 0
+  const retenciones180 = includesModel(enabledModels, "180")
+    ? (overrides["180"] ?? m180.amount)
+    : 0
 
   const retencionesTotal = round2(
     retenciones111 + retenciones115 + retenciones123 + pagos130 + retenciones180,

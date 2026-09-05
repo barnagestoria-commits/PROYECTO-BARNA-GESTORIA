@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { getEnabledModelsForCompany } from "@/lib/fiscal/fiscal-settings-service"
 import { buildFiscalPanorama, fetchFiscalYearLines } from "@/lib/fiscal/panorama-service"
 import { calculateTaxSummary } from "@/lib/fiscal/tax-summary"
 import { FISCAL_MODEL_DEFINITIONS, calculateModelAmount, parseDetailQuarter } from "@/lib/fiscal/panorama"
@@ -21,23 +22,27 @@ export async function GET(request: Request, { params }: RouteContext) {
     }
 
     const lines = await fetchFiscalYearLines(companyId, year)
-    const summary = calculateTaxSummary(lines, year, quarter)
-
+    const enabledModels = await getEnabledModelsForCompany(companyId)
+    const panorama = await buildFiscalPanorama(companyId, "", year, enabledModels)
     const periodKey: FiscalPeriodKey = quarter === "annual" ? "annual" : (`q${quarter}` as FiscalPeriodKey)
+    const breakdown = panorama.summary.breakdown?.[periodKey]
+    const summary = calculateTaxSummary(lines, year, quarter, {}, enabledModels)
 
-    const models = FISCAL_MODEL_DEFINITIONS.map((model) => {
+    const models = FISCAL_MODEL_DEFINITIONS.filter((model) =>
+      enabledModels.includes(model.code),
+    ).map((model) => {
       const result = calculateModelAmount(model.code, lines, year, quarter)
       const q = quarter === "annual" ? "anual" : String(quarter)
+      const cell = panorama.blocks
+        .flatMap((block) => block.rows)
+        .find((row) => row.modelCode === model.code)?.cells[periodKey]
       return {
         modelCode: model.code,
         modelLabel: model.label,
-        amount: result.amount,
+        amount: cell?.amount ?? result.amount,
         href: `/dashboard/fiscal/${model.code}/${year}/${q}`,
       }
     })
-
-    const panorama = await buildFiscalPanorama(companyId, "", year)
-    const breakdown = panorama.summary.breakdown?.[periodKey]
 
     return NextResponse.json({
       success: true,
@@ -48,8 +53,8 @@ export async function GET(request: Request, { params }: RouteContext) {
           quarter === "annual" ? `Resumen anual ${year}` : `${quarter}T ${year}`,
         summary: breakdown ?? summary,
         models,
-        totalAPagarDevolver: summary.totalAPagarDevolver,
-        resultLabel: summary.label,
+        totalAPagarDevolver: breakdown?.totalAPagarDevolver ?? summary.totalAPagarDevolver,
+        resultLabel: breakdown?.resultLabel ?? summary.label,
       },
     })
   } catch (error) {

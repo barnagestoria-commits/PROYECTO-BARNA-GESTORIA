@@ -54,4 +54,37 @@ describe("calculateTaxSummary", () => {
     expect(summary.totalAPagarDevolver).toBe(27049.32)
     expect(summary.label).toBe("A ingresar")
   })
+
+  it("does not add modelo 111 when it is disabled and 115 already carries the A3 result", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "reten-115",
+        concepto: "Reten./ASOROTNIC SL 260008 n",
+        cuenta: "475100000000",
+        haber: 574.72,
+        debe: 0,
+        entry: {
+          id: "e115",
+          fecha: new Date("2026-01-02T12:00:00.000Z"),
+          concepto: "Su Fra. Nº.260008",
+        },
+      }),
+    ]
+
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(574.72)
+
+    const summary = calculateTaxSummary(
+      lines,
+      2026,
+      1,
+      { "115": 574.72, "130": 1165.49, "303": 1291.37 },
+      ["115", "130", "303"],
+    )
+
+    expect(summary.retenciones111).toBe(0)
+    expect(summary.retenciones115).toBe(574.72)
+    expect(summary.pagos130).toBe(1165.49)
+    expect(summary.ivaResult).toBe(1291.37)
+    expect(summary.totalAPagarDevolver).toBe(3031.58)
+  })
 })

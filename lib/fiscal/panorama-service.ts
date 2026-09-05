@@ -312,19 +312,32 @@ export async function buildFiscalPanorama(
       "130": importedAmountForPeriod(importedResults, "130", year, quarter),
       "303": importedAmountForPeriod(importedResults, "303", year, quarter),
     }
-    const taxSummary = calculateTaxSummary(allLines, year, quarter, {
-      ...(importedOverrides["115"] !== undefined
-        ? { "115": importedOverrides["115"] }
-        : {}),
-      ...(importedOverrides["130"] !== undefined
-        ? { "130": importedOverrides["130"] }
-        : {}),
-      ...(importedOverrides["303"] !== undefined
-        ? { "303": importedOverrides["303"] }
-        : {}),
-    })
+    const taxSummary = calculateTaxSummary(
+      allLines,
+      year,
+      quarter,
+      {
+        ...(importedOverrides["115"] !== undefined
+          ? { "115": importedOverrides["115"] }
+          : {}),
+        ...(importedOverrides["130"] !== undefined
+          ? { "130": importedOverrides["130"] }
+          : {}),
+        ...(importedOverrides["303"] !== undefined
+          ? { "303": importedOverrides["303"] }
+          : {}),
+      },
+      activeModels,
+    )
 
-    const amount = taxSummary.totalAPagarDevolver
+    const amount = Math.round(
+      blocks
+        .flatMap((block) => block.rows)
+        .reduce((sum, row) => {
+          if (period !== "annual" && isAnnualOnlyModel(row.modelCode)) return sum
+          return sum + row.cells[period].amount
+        }, 0) * 100,
+    ) / 100
 
     const lineCount = blocks
       .flatMap((block) => block.rows)
@@ -361,8 +374,9 @@ export async function buildFiscalPanorama(
       retenciones123: taxSummary.retenciones123,
       pagos130: taxSummary.pagos130,
       retenciones180: taxSummary.retenciones180,
-      totalAPagarDevolver: taxSummary.totalAPagarDevolver,
-      resultLabel: taxSummary.label,
+      totalAPagarDevolver: amount,
+      resultLabel:
+        amount > 0 ? "A ingresar" : amount < 0 ? "A compensar / devolver" : "Sin resultado",
     }
   }
 

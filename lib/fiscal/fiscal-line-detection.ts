@@ -54,7 +54,7 @@ export function isModel115RentalRetentionLine(line: RawEntryLine): boolean {
   const cuenta = normalizeCuenta(line.cuenta)
   if (cuenta.startsWith("4732")) return true
 
-  const concept = line.concepto
+  const concept = `${line.concepto} ${line.entry.concepto ?? ""}`
   if (!/Reten[\.\/]|Retenc|RETENCI/i.test(concept)) return false
   return /ALQUILER|ARREND|RENTA\s+LOCAL|INMUEBLE|URBAN/i.test(concept)
 }
