@@ -20,14 +20,16 @@ export function buildTaxEngine303Context(
   companyName: string,
   companyCif: string | null | undefined,
 ): TaxReturnContext {
-  const developerNif = process.env.AEAT_DEVELOPER_NIF?.trim()
+  const configuredDeveloperNif = process.env.AEAT_DEVELOPER_NIF?.trim()
+  const clientNif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase()
+  const developerNif = configuredDeveloperNif || clientNif
   const softwareVersion = process.env.AEAT_PROGRAM_VERSION?.trim() || "0102"
 
   return {
     modelCode: "303",
     year: detail.year,
     period: quarterToPeriod(detail.quarter),
-    companyNif: companyCif ?? "",
+    companyNif: clientNif,
     companyName,
     versionKey: getDefault303VersionKey(detail.year, quarterToPeriod(detail.quarter)),
     model303: {

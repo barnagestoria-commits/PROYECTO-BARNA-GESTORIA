@@ -49,4 +49,25 @@ describe("generateAeatTxt modelo 303 via tax-engine", () => {
     expect(validation.valid).toBe(true)
     expect(validation.issues.filter((issue) => issue.severity === "error")).toHaveLength(0)
   })
+
+  it("uses the client NIF as software identity during tests when AEAT_DEVELOPER_NIF is empty", () => {
+    vi.stubEnv("AEAT_DEVELOPER_NIF", "")
+
+    const validation = validateAeatSubmission(
+      detail303,
+      "ELGUETA VILOS MIGUEL ALEJANDRO",
+      "Y1972636D",
+    )
+    const content = generateAeatTxt(
+      detail303,
+      "ELGUETA VILOS MIGUEL ALEJANDRO",
+      "Y1972636D",
+    ).toString("latin1")
+
+    expect(content).toContain("Y1972636D")
+    expect(content).toContain("ELGUETA VILOS MIGUEL ALEJANDRO")
+    expect(validation.valid).toBe(true)
+
+    vi.stubEnv("AEAT_DEVELOPER_NIF", "B12345674")
+  })
 })

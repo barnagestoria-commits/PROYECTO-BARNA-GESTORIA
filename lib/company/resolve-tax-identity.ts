@@ -32,9 +32,10 @@ export async function resolveCompanyTaxIdentity(companyId: string): Promise<Comp
 
   const certificateTaxId = normalizeTaxId(company.digitalCertificate?.taxId)
   const companyCif = normalizeTaxId(company.cif)
+  const certificateName = company.digitalCertificate?.holderName?.trim()
 
   return {
-    name: company.name,
-    cif: companyCif ?? certificateTaxId,
+    name: certificateName || company.name,
+    cif: certificateTaxId ?? companyCif,
   }
 }
