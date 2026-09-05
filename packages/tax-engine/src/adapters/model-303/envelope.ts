@@ -4,8 +4,7 @@ import type { TaxReturnContext } from "../../types"
 import { buildModel303Page01000 } from "./page-01000"
 import { buildModel303Page03000 } from "./page-03000"
 
-export const TAX_ENGINE_PROGRAM_VERSION = "0101"
-export const TAX_ENGINE_DEVELOPER_NIF = "B66287063"
+export const TAX_ENGINE_PROGRAM_VERSION = "0102"
 
 const AUX_BLOCK_LENGTH = 311
 
@@ -20,8 +19,8 @@ export function buildModel303EnvelopeHeader(context: TaxReturnContext): string {
   const opening = `<T3030${context.year}${period}0000>`
   const aux = createBlankRecord(AUX_BLOCK_LENGTH)
   writeAt(aux, 1, "<AUX>", 5)
-  writeAt(aux, 76, TAX_ENGINE_PROGRAM_VERSION, 4)
-  writeAt(aux, 84, normalizeNif(TAX_ENGINE_DEVELOPER_NIF), 9)
+  writeAt(aux, 76, context.software?.version ?? TAX_ENGINE_PROGRAM_VERSION, 4)
+  writeAt(aux, 84, normalizeNif(context.software?.developerNif), 9)
   writeAt(aux, 306, "</AUX>", 6)
   return opening + recordToString(aux)
 }

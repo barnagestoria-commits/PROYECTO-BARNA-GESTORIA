@@ -64,6 +64,16 @@ export async function GET(request: Request, { params }: RouteContext) {
         { status: 500 },
       )
     }
+    if (detail.modelCode === "303" && !bundle.validation.valid) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El fichero DR303 contiene errores de validación y no puede descargarse.",
+          issues: bundle.validation.issues,
+        },
+        { status: 422 },
+      )
+    }
 
     const official = getAeatModelOfficialSource(detail.modelCode)
     let telematicFile = bundle.telematicFile

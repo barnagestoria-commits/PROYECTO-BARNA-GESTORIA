@@ -216,9 +216,17 @@ describe("fiscal line detection", () => {
         haber: 37612.24,
         entry: { id: "e-pay-q1", fecha: new Date("2026-04-01T12:00:00.000Z"), concepto: null },
       }),
+      line({
+        id: "ret-q1",
+        concepto: '"Reten./RIUS SANCHIS, ELISABET 01/26',
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 551.25,
+        entry: { id: "e-ret-q1", fecha: new Date("2026-01-10T12:00:00.000Z"), concepto: null },
+      }),
     ]
 
-    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(37612.24)
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(551.25)
     expect(calculateModelAmount("111", lines, 2026, 2).amount).toBe(0)
   })
 
@@ -295,5 +303,56 @@ describe("fiscal line detection", () => {
 
     expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(150)
     expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
+  })
+
+  it("prefers modelo 115 liquidation entries over accumulated retention lines", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "115-liquidation",
+        concepto: "Modelo 115 1 Trimestre",
+        cuenta: "572000000000",
+        debe: 0,
+        haber: 574.72,
+        entry: {
+          id: "e115-liquidation",
+          fecha: new Date("2026-04-20T12:00:00.000Z"),
+          concepto: "Modelo 115 1 Trimestre",
+        },
+      }),
+      line({
+        id: "115-retention",
+        concepto: "Reten./ALQUILER LOCAL",
+        cuenta: "473000000000",
+        debe: 0,
+        haber: 150,
+        entry: {
+          id: "e115-retention",
+          fecha: new Date("2026-02-10T12:00:00.000Z"),
+          concepto: "Factura alquiler",
+        },
+      }),
+    ]
+
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(574.72)
+  })
+
+  it("calculates modelo 130 from its quarterly liquidation entry", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "130-liquidation",
+        concepto: "Modelo 130 2 Trimestre",
+        cuenta: "572000000000",
+        debe: 0,
+        haber: 5031.5,
+        entry: {
+          id: "e130-liquidation",
+          fecha: new Date("2026-07-20T12:00:00.000Z"),
+          concepto: "Modelo 130 2 Trimestre",
+        },
+      }),
+    ]
+
+    expect(calculateModelAmount("130", lines, 2026, 2).amount).toBe(5031.5)
+    expect(calculateModelAmount("130", lines, 2026, 1).amount).toBe(0)
   })
 })

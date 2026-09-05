@@ -331,6 +331,10 @@ export async function confirmA3ZipImport(
       fileName,
       format: encodeImportFormatLabel("wk-asesor", "zip"),
       status: "PENDIENTE",
+      fiscalResultsJson:
+        parsed.fiscalResults && parsed.fiscalResults.length > 0
+          ? JSON.stringify(parsed.fiscalResults)
+          : null,
       uploadedById,
     },
   })
@@ -448,6 +452,10 @@ export async function startParsedA3Import(
       fileName,
       format: encodeImportFormatLabel("wk-asesor", "zip"),
       status: "PENDIENTE",
+      fiscalResultsJson:
+        enriched.fiscalResults && enriched.fiscalResults.length > 0
+          ? JSON.stringify(enriched.fiscalResults)
+          : null,
       uploadedById,
     },
   })

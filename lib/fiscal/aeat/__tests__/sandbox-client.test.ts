@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import { validateWithOfficialAeatPipeline } from "@/lib/fiscal/aeat/sandbox-client"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
@@ -14,9 +14,18 @@ const detail303 = {
   breakdown: [],
 } as FiscalModelDetailResponse
 
+beforeAll(() => {
+  vi.stubEnv("AEAT_DEVELOPER_NIF", "B12345674")
+  vi.stubEnv("AEAT_PROGRAM_VERSION", "0102")
+})
+
+afterAll(() => {
+  vi.unstubAllEnvs()
+})
+
 describe("validateWithOfficialAeatPipeline", () => {
   it("valida localmente conforme al diseño DR303 cuando no hay sandbox", async () => {
-    const result = await validateWithOfficialAeatPipeline(detail303, "EMPRESA TEST SL", "B12345678")
+    const result = await validateWithOfficialAeatPipeline(detail303, "EMPRESA TEST SL", "B12345674")
     expect(result.valid).toBe(true)
     expect(result.source).toBe("local-design")
     expect(result.sandboxConfigured).toBe(false)

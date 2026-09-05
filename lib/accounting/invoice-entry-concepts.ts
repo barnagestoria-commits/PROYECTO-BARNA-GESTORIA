@@ -1,5 +1,6 @@
 import type { AccountingCommandCode, AccountingEntryLine } from "@/lib/types/accounting-entry"
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
+import { formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
 
 export type InvoiceConceptCommand = Extract<AccountingCommandCode, "17" | "34">
 
@@ -18,6 +19,14 @@ export interface InvoiceConceptOptions {
   invoiceNumber: string
   thirdPartyLabel?: string
   invoiceMode?: "emitida" | "recibida"
+  /** NIF-IVA intracomunitario del tercero (p. ej. IE6388047V) para modelo 349. */
+  euVatId?: string
+}
+
+export function buildRetentionConcept(partyLabel: string): string {
+  const party = formatPartyLabel(partyLabel)
+  if (!party) return "Reten./TERCERO"
+  return `Reten./${party}`
 }
 
 export function isInvoiceConceptCommand(
@@ -89,6 +98,17 @@ function isExpenseAccount(cuenta: string): boolean {
   return /^6[0-9]/.test(digits) && !isVatAccountRecibida(cuenta)
 }
 
+function isIrpfAccount(cuenta: string): boolean {
+  const digits = accountDigits(cuenta)
+  return digits.startsWith("473") || digits.startsWith("4751")
+}
+
+function vatConceptPrefix(code: InvoiceConceptCommand, cuenta: string): string | null {
+  if (code === "17" && isVatAccountEmitida(cuenta)) return "IVA R./"
+  if (code === "34" && isVatAccountRecibida(cuenta)) return "IVA S./"
+  return null
+}
+
 export function buildLineConceptForInvoice(
   line: Pick<AccountingEntryLine, "cuenta" | "concepto">,
   code: InvoiceConceptCommand,
@@ -97,13 +117,20 @@ export function buildLineConceptForInvoice(
 ): string {
   const partyLabel = resolveThirdPartyLabel(allLines, options)
   const invoiceNumber = options.invoiceNumber
+  const euVatSuffix = options.euVatId ? ` ${formatEuVatIdForAeat(options.euVatId)}` : ""
+
+  const vatPrefix = vatConceptPrefix(code, line.cuenta)
+  if (vatPrefix) {
+    return `${vatPrefix}${partyLabel}${euVatSuffix}`
+  }
+
+  if (isIrpfAccount(line.cuenta)) {
+    return buildRetentionConcept(partyLabel)
+  }
 
   if (code === "17") {
     if (isThirdPartyAccountPrefix(line.cuenta)) {
       return buildInvoiceLineConcept("17", invoiceNumber)
-    }
-    if (isVatAccountEmitida(line.cuenta)) {
-      return `IVA R./${partyLabel}`
     }
     if (isIncomeAccount(line.cuenta)) {
       return `Ventas a ${partyLabel}`
@@ -113,9 +140,6 @@ export function buildLineConceptForInvoice(
   if (code === "34") {
     if (isThirdPartyAccountPrefix(line.cuenta)) {
       return buildInvoiceLineConcept("34", invoiceNumber)
-    }
-    if (isVatAccountRecibida(line.cuenta)) {
-      return `IVA S./${partyLabel}`
     }
     if (isExpenseAccount(line.cuenta)) {
       return `Gasto a ${partyLabel}`
@@ -131,6 +155,7 @@ export function isInvoiceConceptAccountLine(
 ): boolean {
   const digits = accountDigits(cuenta)
   if (!digits) return false
+  if (isIrpfAccount(cuenta)) return true
 
   if (code === "17") {
     return isVatAccountEmitida(cuenta) || isIncomeAccount(cuenta)
@@ -146,6 +171,7 @@ export function applyInvoiceConceptsToLines<
     invoiceNumber: options.invoiceNumber,
     thirdPartyLabel: options.thirdPartyLabel,
     invoiceMode: options.invoiceMode ?? (code === "17" ? "emitida" : "recibida"),
+    euVatId: options.euVatId,
   }
 
   return lines.map((line) => {

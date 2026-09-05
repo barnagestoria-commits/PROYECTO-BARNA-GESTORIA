@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { parseNativeA3ExportFiles } from "@/lib/imports/a3/parse-a3-native-export"
+import {
+  parseNativeA3ExportFiles,
+  parseNativeFiscalResults,
+} from "@/lib/imports/a3/parse-a3-native-export"
 
 const HEADER_SIZE = 512
 const RECORD_SIZE = 132
@@ -63,5 +66,27 @@ describe("A3 native RC/EC journal variant", () => {
       const haber = entry.lines.reduce((sum, line) => sum + line.haber, 0)
       expect(debe).toBeCloseTo(haber, 2)
     }
+  })
+
+  it("reads quarterly 115, 130 and 303 results from the DA RES record", () => {
+    const da = Buffer.alloc(128 + 260)
+    const record = da.subarray(128)
+    record.write("A", 0, "latin1")
+    record.write("RES", 2, "latin1")
+    record.writeInt32LE(116549, 31)
+    record.writeInt32LE(503150, 36)
+    record.writeInt32LE(129137, 71)
+    record.writeInt32LE(596692, 76)
+    record.writeInt32LE(57472, 131)
+    record.writeInt32LE(58428, 136)
+
+    expect(parseNativeFiscalResults(da, 2026)).toEqual([
+      { modelCode: "130", year: 2026, quarter: 1, amount: 1165.49, source: "A3_DA_RES" },
+      { modelCode: "130", year: 2026, quarter: 2, amount: 5031.5, source: "A3_DA_RES" },
+      { modelCode: "303", year: 2026, quarter: 1, amount: 1291.37, source: "A3_DA_RES" },
+      { modelCode: "303", year: 2026, quarter: 2, amount: 5966.92, source: "A3_DA_RES" },
+      { modelCode: "115", year: 2026, quarter: 1, amount: 574.72, source: "A3_DA_RES" },
+      { modelCode: "115", year: 2026, quarter: 2, amount: 584.28, source: "A3_DA_RES" },
+    ])
   })
 })

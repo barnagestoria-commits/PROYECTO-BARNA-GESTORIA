@@ -93,6 +93,16 @@ export async function GET(request: Request, { params }: RouteContext) {
         break
       case "txt": {
         const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif)
+        if (detail.modelCode === "303" && !bundle.validation.valid) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "El fichero DR303 contiene errores de validación y no puede descargarse.",
+              issues: bundle.validation.issues,
+            },
+            { status: 422 },
+          )
+        }
         buffer = bundle.telematicFile ?? undefined
         contentType = "text/plain; charset=iso-8859-1"
         aeatValidation = bundle.validation

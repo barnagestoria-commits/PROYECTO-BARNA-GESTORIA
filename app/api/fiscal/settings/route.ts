@@ -35,6 +35,7 @@ export async function PATCH(request: Request) {
       model111Enabled: body.model111Enabled,
       model115Enabled: body.model115Enabled,
       model123Enabled: body.model123Enabled,
+      model130Enabled: body.model130Enabled,
       model180Enabled: body.model180Enabled,
       model190Enabled: body.model190Enabled,
       model303Enabled: body.model303Enabled,

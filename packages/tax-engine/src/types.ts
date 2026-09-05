@@ -1,6 +1,33 @@
 export type TaxPeriodCode = "1T" | "2T" | "3T" | "4T" | "0A" | string
 
-export type TaxDeclarationType = "I" | "G" | "N" | "U" | "C"
+export type TaxDeclarationType = "C" | "D" | "G" | "I" | "N" | "U" | "V" | "X"
+
+export interface Model303FilingOptions {
+  exclusivelyForal?: boolean
+  registeredMonthlyRefund?: boolean
+  jointReturn?: boolean
+  cashBasisSubject?: boolean
+  cashBasisRecipient?: boolean
+  specialProrataOption?: boolean
+  specialProrataRevocation?: boolean
+  bankruptcy?: {
+    /** Fecha DDMMYYYY del auto de declaración de concurso. */
+    orderDate: string
+    type: "PRE" | "POST"
+  }
+  voluntarySii?: boolean
+  /** Obligatorio para 4T: exoneración del modelo 390. */
+  annualSummaryExempt?: boolean
+  /** Obligatorio para 4T: volumen anual de operaciones distinto de cero. */
+  annualOperationsNonZero?: boolean
+}
+
+export interface TaxSoftwareIdentity {
+  /** Identificador de cuatro posiciones de la versión del software. */
+  version: string
+  /** NIF legal de la entidad desarrolladora del software. */
+  developerNif: string
+}
 
 export interface TaxReturnContext {
   modelCode: string
@@ -9,6 +36,8 @@ export interface TaxReturnContext {
   companyNif: string
   companyName: string
   declarationType?: TaxDeclarationType
+  model303?: Model303FilingOptions
+  software?: TaxSoftwareIdentity
   /** Versión normativa AEAT, p. ej. AEAT:303:2026:1T:101 */
   versionKey?: string
 }

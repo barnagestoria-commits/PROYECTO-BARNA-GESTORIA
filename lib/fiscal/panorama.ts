@@ -10,8 +10,6 @@ import {
   collectEntryLines,
   extractGenericModelLiquidationDetail,
   extractModel111LiquidationDetail,
-  extractModel111NrcAccrualLines,
-  extractModel111NrcPaymentDetail,
   extractModel303LiquidationDetail,
   isIntracomunitariaLine,
   isModel111RetentionLine,
@@ -50,6 +48,13 @@ export const FISCAL_MODEL_DEFINITIONS: FiscalModelDefinition[] = [
     prismaCode: "M123",
     label: "Modelo 123",
     description: "Retenciones e ingresos a cuenta — Dividendos y capital mobiliario",
+    block: "IRPF",
+  },
+  {
+    code: "130",
+    prismaCode: "M130",
+    label: "Modelo 130",
+    description: "IRPF — Pago fraccionado en estimación directa",
     block: "IRPF",
   },
   {
@@ -289,43 +294,6 @@ export function calculateModelAmount(
         }
       }
 
-      const nrcPayment = extractModel111NrcPaymentDetail(lines, year, quarter)
-      if (nrcPayment) {
-        const breakdownLines = expandLiquidationEntry(lines, nrcPayment.entryId, nrcPayment.contributingLineId)
-        for (const line of collectEntryLines(lines, nrcPayment.entryId)) entryIds.add(line.entry.id)
-        return {
-          amount: nrcPayment.amount,
-          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
-          entryIds,
-          breakdown: [
-            {
-              key: "nrc-pago",
-              label: `Pago NRC Modelo 111 (${quarter}T)`,
-              total: nrcPayment.amount,
-              lines: breakdownLines,
-            },
-          ],
-        }
-      }
-
-      const nrcAccrualLines = extractModel111NrcAccrualLines(lines, year, quarter)
-      if (nrcAccrualLines.length > 0) {
-        const breakdownLines = expandMatchedLinesToEntries(lines, nrcAccrualLines, (line) =>
-          round2(decimalToNumber(line.debe)),
-        )
-        for (const line of nrcAccrualLines) entryIds.add(line.entry.id)
-        const total = round2(
-          breakdownLines
-            .filter((line) => line.category === "contributing")
-            .reduce((sum, line) => sum + line.signedAmount, 0),
-        )
-        return {
-          amount: total,
-          lineCount: nrcAccrualLines.length,
-          entryIds,
-          breakdown: [{ key: "nrc-accrual", label: "Ingreso NRC Modelo 111", total, lines: breakdownLines }],
-        }
-      }
     }
 
     const matched = periodLines.filter(isModel111RetentionLine)
@@ -368,7 +336,70 @@ export function calculateModelAmount(
     }
   }
 
+  if (modelCode === "130") {
+    if (quarter !== "annual") {
+      const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "130")
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(
+          lines,
+          liquidation.entryId,
+          liquidation.contributingLineId,
+        )
+        for (const line of collectEntryLines(lines, liquidation.entryId)) {
+          entryIds.add(line.entry.id)
+        }
+        return {
+          amount: Math.abs(liquidation.amount),
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: `Liquidación Modelo 130 (${quarter}T)`,
+              total: Math.abs(liquidation.amount),
+              lines: breakdownLines,
+            },
+          ],
+        }
+      }
+    }
+
+    return {
+      amount: 0,
+      lineCount: 0,
+      entryIds,
+      breakdown: [],
+    }
+  }
+
   if (modelCode === "115") {
+    if (quarter !== "annual") {
+      const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "115")
+      if (liquidation) {
+        const breakdownLines = expandLiquidationEntry(
+          lines,
+          liquidation.entryId,
+          liquidation.contributingLineId,
+        )
+        for (const line of collectEntryLines(lines, liquidation.entryId)) {
+          entryIds.add(line.entry.id)
+        }
+        return {
+          amount: Math.abs(liquidation.amount),
+          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+          entryIds,
+          breakdown: [
+            {
+              key: "liquidacion",
+              label: `Liquidación Modelo 115 (${quarter}T)`,
+              total: Math.abs(liquidation.amount),
+              lines: breakdownLines,
+            },
+          ],
+        }
+      }
+    }
+
     const matched = periodLines.filter(isModel115RentalRetentionLine)
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
@@ -735,6 +766,8 @@ export function prismaCodeToModelId(code: FiscalModelCode): FiscalModelId {
       return "115"
     case "M123":
       return "123"
+    case "M130":
+      return "130"
     case "M180":
       return "180"
     case "M190":

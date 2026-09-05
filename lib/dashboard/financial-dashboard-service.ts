@@ -344,6 +344,7 @@ async function buildFiscalAlerts(companyId: string, year: number, quarter: numbe
     M111: "Modelo 111",
     M115: "Modelo 115",
     M123: "Modelo 123",
+    M130: "Modelo 130",
     M180: "Modelo 180",
     M190: "Modelo 190",
     M303: "Modelo 303",

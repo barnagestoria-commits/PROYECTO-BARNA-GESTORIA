@@ -23,9 +23,81 @@ import type {
 } from "@/lib/types/fiscal-panorama"
 import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summary"
 import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
+import type { A3ImportedFiscalResult } from "@/lib/imports/a3/types"
 
 function declarationKey(year: number, quarter: number, modelCode: FiscalModelCode): string {
   return `${year}-${quarter}-${modelCode}`
+}
+
+type ImportedFiscalResultMap = Map<string, number>
+
+function importedFiscalResultKey(
+  modelCode: string,
+  year: number,
+  quarter: number,
+): string {
+  return `${modelCode}-${year}-${quarter}`
+}
+
+async function fetchImportedFiscalResults(
+  companyId: string,
+  year: number,
+): Promise<ImportedFiscalResultMap> {
+  const imports = await prisma.accountingDataImport.findMany({
+    where: {
+      companyId,
+      status: "PROCESADO",
+      fiscalResultsJson: { not: null },
+    },
+    select: { fiscalResultsJson: true },
+    orderBy: { createdAt: "desc" },
+    take: 20,
+  })
+  const resultMap: ImportedFiscalResultMap = new Map()
+
+  for (const item of imports) {
+    if (!item.fiscalResultsJson) continue
+    try {
+      const results = JSON.parse(item.fiscalResultsJson) as A3ImportedFiscalResult[]
+      for (const result of results) {
+        if (
+          result.year !== year ||
+          !["115", "130", "303"].includes(result.modelCode) ||
+          result.quarter < 1 ||
+          result.quarter > 4 ||
+          !Number.isFinite(result.amount)
+        ) {
+          continue
+        }
+        const key = importedFiscalResultKey(result.modelCode, result.year, result.quarter)
+        if (!resultMap.has(key)) resultMap.set(key, result.amount)
+      }
+    } catch {
+      // Una importación antigua o dañada no debe bloquear el panorama fiscal.
+    }
+  }
+
+  return resultMap
+}
+
+function importedAmountForPeriod(
+  results: ImportedFiscalResultMap,
+  modelCode: FiscalModelId,
+  year: number,
+  quarter: 1 | 2 | 3 | 4 | "annual",
+): number | undefined {
+  if (quarter !== "annual") {
+    return results.get(importedFiscalResultKey(modelCode, year, quarter))
+  }
+
+  const quarterly = ([1, 2, 3, 4] as const).map((item) =>
+    results.get(importedFiscalResultKey(modelCode, year, item)),
+  )
+  return quarterly.some((amount) => amount !== undefined)
+    ? Math.round(
+        quarterly.reduce<number>((sum, amount) => sum + (amount ?? 0), 0) * 100,
+      ) / 100
+    : undefined
 }
 
 function buildDeclarationMap(declarations: FiscalDeclaration[]) {
@@ -56,6 +128,10 @@ function buildCell(
     lineCount,
     href: buildDetailHref(modelCode, year, period),
   }
+}
+
+export async function fetchFiscalYearLines(companyId: string, year: number): Promise<RawEntryLine[]> {
+  return fetchYearLines(companyId, year)
 }
 
 async function fetchYearLines(companyId: string, year: number): Promise<RawEntryLine[]> {
@@ -97,6 +173,7 @@ function computeRowCells(
   year: number,
   allLines: RawEntryLine[],
   declarationMap: Map<string, FiscalDeclaration>,
+  importedResults: ImportedFiscalResultMap,
 ): Record<FiscalPeriodKey, FiscalPanoramaCell> {
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)!
   const cells = {} as Record<FiscalPeriodKey, FiscalPanoramaCell>
@@ -123,7 +200,9 @@ function computeRowCells(
   for (const period of ["q1", "q2", "q3", "q4"] as const) {
     const quarter = Number(period.replace("q", "")) as 1 | 2 | 3 | 4
     const result = calculateModelAmount(modelCode, allLines, year, quarter)
-    quarterlyAmounts.push(result.amount)
+    const amount =
+      importedAmountForPeriod(importedResults, modelCode, year, quarter) ?? result.amount
+    quarterlyAmounts.push(amount)
 
     const declaration = declarationMap.get(
       declarationKey(year, quarter, model.prismaCode),
@@ -133,7 +212,7 @@ function computeRowCells(
       modelCode,
       year,
       period,
-      result.amount,
+      amount,
       result.lineCount,
       result.entryIds.size,
       declaration?.status,
@@ -182,9 +261,10 @@ export async function buildFiscalPanorama(
   const activeDefinitions = FISCAL_MODEL_DEFINITIONS.filter((model) =>
     activeModels.includes(model.code),
   )
-  const [allLines, declarations] = await Promise.all([
+  const [allLines, declarations, importedResults] = await Promise.all([
     fetchYearLines(companyId, year),
     prisma.fiscalDeclaration.findMany({ where: { companyId, year } }),
+    fetchImportedFiscalResults(companyId, year),
   ])
 
   const declarationMap = buildDeclarationMap(declarations)
@@ -197,7 +277,7 @@ export async function buildFiscalPanorama(
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
-        cells: computeRowCells(model.code, year, allLines, declarationMap),
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults),
       })),
     },
     {
@@ -207,7 +287,7 @@ export async function buildFiscalPanorama(
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
-        cells: computeRowCells(model.code, year, allLines, declarationMap),
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults),
       })),
     },
     {
@@ -217,7 +297,7 @@ export async function buildFiscalPanorama(
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
-        cells: computeRowCells(model.code, year, allLines, declarationMap),
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults),
       })),
     },
   ].filter((block) => block.rows.length > 0)
@@ -227,7 +307,22 @@ export async function buildFiscalPanorama(
 
   for (const period of FISCAL_PERIOD_KEYS) {
     const quarter = periodKeyToQuarter(period)
-    const taxSummary = calculateTaxSummary(allLines, year, quarter)
+    const importedOverrides = {
+      "115": importedAmountForPeriod(importedResults, "115", year, quarter),
+      "130": importedAmountForPeriod(importedResults, "130", year, quarter),
+      "303": importedAmountForPeriod(importedResults, "303", year, quarter),
+    }
+    const taxSummary = calculateTaxSummary(allLines, year, quarter, {
+      ...(importedOverrides["115"] !== undefined
+        ? { "115": importedOverrides["115"] }
+        : {}),
+      ...(importedOverrides["130"] !== undefined
+        ? { "130": importedOverrides["130"] }
+        : {}),
+      ...(importedOverrides["303"] !== undefined
+        ? { "303": importedOverrides["303"] }
+        : {}),
+    })
 
     const amount = taxSummary.totalAPagarDevolver
 
@@ -264,6 +359,7 @@ export async function buildFiscalPanorama(
       retenciones111: taxSummary.retenciones111,
       retenciones115: taxSummary.retenciones115,
       retenciones123: taxSummary.retenciones123,
+      pagos130: taxSummary.pagos130,
       retenciones180: taxSummary.retenciones180,
       totalAPagarDevolver: taxSummary.totalAPagarDevolver,
       resultLabel: taxSummary.label,
@@ -295,7 +391,10 @@ export async function buildFiscalModelDetail(
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   if (!model) return null
 
-  const allLines = await fetchYearLines(companyId, year)
+  const [allLines, importedResults] = await Promise.all([
+    fetchYearLines(companyId, year),
+    fetchImportedFiscalResults(companyId, year),
+  ])
   let result = calculateModelAmount(modelCode, allLines, year, quarter)
 
   // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
@@ -317,6 +416,28 @@ export async function buildFiscalModelDetail(
     )
     if (sourceResult.lineCount > 0) {
       result = sourceResult
+    }
+  }
+
+  const importedAmount = importedAmountForPeriod(
+    importedResults,
+    modelCode,
+    year,
+    quarter,
+  )
+  if (importedAmount !== undefined) {
+    result = {
+      ...result,
+      amount: importedAmount,
+      breakdown: [
+        {
+          key: "resultado-importado-a3",
+          label: "Resultado fiscal importado de A3",
+          total: importedAmount,
+          lines: [],
+        },
+        ...result.breakdown,
+      ],
     }
   }
 
@@ -367,6 +488,7 @@ export function isValidModelCode(value: string): value is FiscalModelId {
     value === "111" ||
     value === "115" ||
     value === "123" ||
+    value === "130" ||
     value === "180" ||
     value === "190" ||
     value === "303" ||

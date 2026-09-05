@@ -1,3 +1,4 @@
+import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import type { RawEntryLine } from "@/lib/fiscal/panorama"
 
@@ -279,13 +280,7 @@ export function isIntracomunitariaLine(line: RawEntryLine): boolean {
 
   const trimmedConcept = line.concepto.trim()
   if (/^IVA\s+[SR]\./i.test(trimmedConcept)) {
-    const euVat = concept.match(/\b([A-Z]{2})[\s-]?[A-Z0-9]{8,12}\b/gi) ?? []
-    if (
-      euVat.some((match) => {
-        const prefix = match.replace(/[\s-]/g, "").slice(0, 2).toUpperCase()
-        return prefix !== "ES" && /^[A-Z]{2}$/.test(prefix)
-      })
-    ) {
+    if (extractPrimaryEuVatId(concept)) {
       return true
     }
     if (

@@ -8,7 +8,18 @@ import { FISCAL_MODEL_DEFINITIONS } from "@/lib/fiscal/panorama"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 import { ArrowRight, FileSpreadsheet } from "lucide-react"
 
-const VALID_MODELS = new Set(["111", "115", "123", "180", "190", "303", "347", "349", "390"])
+const VALID_MODELS = new Set([
+  "111",
+  "115",
+  "123",
+  "130",
+  "180",
+  "190",
+  "303",
+  "347",
+  "349",
+  "390",
+])
 
 export default function FiscalModelHubPage() {
   const params = useParams<{ model: string }>()

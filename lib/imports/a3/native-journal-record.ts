@@ -35,23 +35,6 @@ function formatIsoDate(year: number, month: number, day: number): string {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
 }
 
-function daysInMonth(year: number, month: number): number {
-  return new Date(Date.UTC(year, month, 0)).getUTCDate()
-}
-
-/** A3 agrupa apuntes por fichero mensual (*1A.DAT = enero, etc.). */
-export function alignNativeDateToFileMonth(
-  isoDate: string,
-  fiscalYear: number,
-  fileMonth: number,
-): string {
-  const parsedMonth = Number(isoDate.slice(5, 7))
-  if (parsedMonth === fileMonth) return isoDate
-
-  const day = Math.min(Math.max(Number(isoDate.slice(8, 10)) || 1, 1), daysInMonth(fiscalYear, fileMonth))
-  return formatIsoDate(fiscalYear, fileMonth, day)
-}
-
 function dateFromDayOfYear(year: number, dayOfYear: number): string | null {
   if (dayOfYear < 1 || dayOfYear > 366) return null
   const date = new Date(Date.UTC(year, 0, dayOfYear))
@@ -106,6 +89,46 @@ export function nativeEntryLookupKey(rec: ImportBytes): string {
   return rec.subarray(15, 20).toString("hex")
 }
 
+export function decodeNativeAccountingDate(
+  rec: ImportBytes,
+  fiscalYear: number,
+): string | null {
+  if (rec.length < 18) return null
+  const encoded = (rec[15] ?? 0) * 0x10000 + (rec[16] ?? 0) * 0x100 + (rec[17] ?? 0)
+  const rawDate = encoded - 0x312d00
+  if (rawDate < 0 || rawDate > 999999) return null
+
+  const digits = String(rawDate).padStart(6, "0")
+  const shortYear = Number(digits.slice(0, 2))
+  const month = Number(digits.slice(2, 4))
+  const day = Number(digits.slice(4, 6))
+  const century = Math.floor(fiscalYear / 100) * 100
+  let year = century + shortYear
+  if (year - fiscalYear > 50) year -= 100
+  if (fiscalYear - year > 50) year += 100
+
+  const date = new Date(Date.UTC(year, month - 1, day))
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null
+  }
+
+  return formatIsoDate(year, month, day)
+}
+
+export function nativeJournalReference(rec: ImportBytes): number | null {
+  if (rec.length < 126) return null
+  const value =
+    (rec[122] ?? 0) * 0x1000000 +
+    (rec[123] ?? 0) * 0x10000 +
+    (rec[124] ?? 0) * 0x100 +
+    (rec[125] ?? 0)
+  return value > 0 ? value : null
+}
+
 /** Número de línea contable A3 (2=tercero, 3=IVA, 5=retención, 6=base). */
 export function nativeJournalLineSequence(rec: ImportBytes): number {
   const sequence = rec[22] ?? 0
@@ -142,6 +165,9 @@ export function extractNativeDate(
   fileMonth: number,
   headerDate?: string | null,
 ): string {
+  const binaryDate = decodeNativeAccountingDate(rec, fiscalYear)
+  if (binaryDate) return binaryDate
+
   if (headerDate && /^\d{8}$/.test(headerDate)) {
     return `${headerDate.slice(0, 4)}-${headerDate.slice(4, 6)}-${headerDate.slice(6, 8)}`
   }
@@ -159,21 +185,6 @@ export function extractNativeDate(
   const ymd = concept.match(/(20[2-9]\d)(0[1-9]|1[0-2])(0[1-9]|[12][0-9]|3[01])/)
   if (ymd) {
     return `${ymd[1]}-${ymd[2]}-${ymd[3]}`
-  }
-
-  const dayOfYear = rec[20] ?? 0
-  if (dayOfYear >= 1 && dayOfYear <= 366) {
-    const iso = dateFromDayOfYear(fiscalYear, dayOfYear)
-    if (iso) {
-      const month = Number(iso.slice(5, 7))
-      if (month === fileMonth || Math.abs(month - fileMonth) <= 1) {
-        return iso
-      }
-    }
-  }
-
-  if (dayOfYear >= 1 && dayOfYear <= 31) {
-    return formatIsoDate(fiscalYear, fileMonth, dayOfYear)
   }
 
   return formatIsoDate(fiscalYear, fileMonth, 1)
@@ -201,6 +212,16 @@ export function resolveNativeAccountFromMarker(
       return dh === "H"
         ? registry.defaultBankAccount ?? padAccountCode12(GENERIC_BANK)
         : padAccountCode12(RETENCION_PRACTICADAS)
+    }
+    if (/MODELO\s+115/i.test(upper)) {
+      return dh === "H"
+        ? registry.defaultBankAccount ?? padAccountCode12(GENERIC_BANK)
+        : padAccountCode12(RETENCION_PRACTICADAS)
+    }
+    if (/MODELO\s+130/i.test(upper)) {
+      return dh === "H"
+        ? registry.defaultBankAccount ?? padAccountCode12(GENERIC_BANK)
+        : registry.defaultRetencionAccount ?? padAccountCode12(GENERIC_RETENCION)
     }
     if (/IMPUESTOS|TRIBUTOS|NRC/i.test(upper)) {
       return padAccountCode12(RETENCION_PRACTICADAS)

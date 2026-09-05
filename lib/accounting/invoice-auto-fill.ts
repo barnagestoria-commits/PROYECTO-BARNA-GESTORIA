@@ -5,8 +5,11 @@ import { isEmitidaThirdPartyAccount } from "@/lib/accounting/account-suggestions
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import {
   applyInvoiceConceptsToLines,
+  buildRetentionConcept,
   isInvoiceConceptCommand,
+  resolveThirdPartyLabel,
 } from "@/lib/accounting/invoice-entry-concepts"
+import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
 import { findVatRateType } from "@/lib/accounting/vat-catalog"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
@@ -72,6 +75,7 @@ export function applyTreatmentToEntryLines(
   options: {
     activeCommand?: string | null
     thirdPartyRow?: number
+    thirdPartyLabel?: string
   } = {},
 ): AccountingEntryLine[] {
   const thirdIdx =
@@ -106,12 +110,16 @@ export function applyTreatmentToEntryLines(
 
   const hasIrpf = Boolean(treatment.defaultIrpfPercent && treatment.defaultIrpfPercent > 0)
   const irpfIdx = next.findIndex((line) => isIrpfAccount(line.cuenta))
+  const partyLabel = resolveThirdPartyLabel(next, {
+    thirdPartyLabel: options.thirdPartyLabel,
+    invoiceMode: emitida ? "emitida" : "recibida",
+  })
 
   if (hasIrpf) {
     const irpfLine: AccountingEntryLine = {
       id: createLineId(),
       cuenta: formatAccountCodeDisplay(irpfAccount),
-      concepto: emitida ? "Retención IRPF" : "Retención practicada",
+      concepto: buildRetentionConcept(partyLabel),
       debe: 0,
       haber: 0,
     }
@@ -213,6 +221,7 @@ export function buildFullInvoiceEntry(
     invoiceNumber: nextDetails.invoiceNumber,
     thirdPartyLabel: nextDetails.thirdPartyName,
     invoiceMode: options.invoiceMode,
+    euVatId: resolveIntracomEuVatId(nextDetails),
   })
 
   const documento = nextDetails.invoiceNumber.trim()
@@ -281,4 +290,11 @@ export function ensureMinimumInvoiceLines(lines: AccountingEntryLine[]): Account
     padded.push(createEmptyLine())
   }
   return padded
+}
+
+function resolveIntracomEuVatId(details: InvoiceEntryDetails): string | undefined {
+  const uses349 = details.vatLines.some((line) => line.taxForm === "349")
+  if (!uses349) return undefined
+  const euVat = extractPrimaryEuVatId(details.nif)
+  return euVat ? formatEuVatIdForAeat(euVat) : undefined
 }

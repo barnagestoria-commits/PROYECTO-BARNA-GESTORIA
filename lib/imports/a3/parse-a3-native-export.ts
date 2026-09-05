@@ -15,9 +15,9 @@ import {
   extractNativeDate,
   extractNativeDocument,
   extractNativePostAmountMarker,
-  alignNativeDateToFileMonth,
   nativeEntryGroupKey,
   nativeEntryLookupKey,
+  nativeJournalReference,
   nativeJournalLineSequence,
   nativeJournalLineRecordStart,
   NATIVE_JOURNAL_CONCEPT_START,
@@ -53,7 +53,14 @@ import {
   lookupUniqueVendorAccount,
   subaccountsFromVendorRegistry,
 } from "@/lib/imports/a3/native-vendor-accounts"
-import type { A3FixedAsset, A3JournalEntry, A3JournalLine, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
+import type {
+  A3FixedAsset,
+  A3ImportedFiscalResult,
+  A3JournalEntry,
+  A3JournalLine,
+  A3Subaccount,
+  A3ThirdParty,
+} from "@/lib/imports/a3/types"
 import {
   isAamDatBuffer,
   parseAamDatFixedAssets,
@@ -97,6 +104,7 @@ export interface A3NativeParseResult {
   subaccounts: A3Subaccount[]
   thirdParties: A3ThirdParty[]
   fixedAssets: A3FixedAsset[]
+  fiscalResults: A3ImportedFiscalResult[]
   companyCode: string | null
   fiscalYear: number | null
   recordTypes: string[]
@@ -108,6 +116,58 @@ function parseAmountFromMatch(raw: string): number {
   if (!digits) return 0
   const normalized = digits.slice(-11).padStart(11, "0")
   return Number.parseInt(normalized, 10) / 100
+}
+
+function readSignedInt32Le(buffer: ImportBytes, offset: number): number | null {
+  if (offset < 0 || offset + 4 > buffer.length) return null
+  const unsigned =
+    (buffer[offset] ?? 0) +
+    (buffer[offset + 1] ?? 0) * 0x100 +
+    (buffer[offset + 2] ?? 0) * 0x10000 +
+    (buffer[offset + 3] ?? 0) * 0x1000000
+  return unsigned >= 0x80000000 ? unsigned - 0x100000000 : unsigned
+}
+
+export function parseNativeFiscalResults(
+  buffer: ImportBytes | undefined,
+  fiscalYear: number | null,
+): A3ImportedFiscalResult[] {
+  if (!buffer || !fiscalYear || buffer.length < 128 + 260) return []
+
+  let resultRecord: ImportBytes | null = null
+  for (let offset = 128; offset + 260 <= buffer.length; offset += 260) {
+    const record = buffer.subarray(offset, offset + 260)
+    if (
+      record[0] === 0x41 &&
+      record[1] === 0x00 &&
+      decodeA3Text(record.subarray(2, 5)).toUpperCase() === "RES"
+    ) {
+      resultRecord = record
+      break
+    }
+  }
+  if (!resultRecord) return []
+
+  const layouts: Array<{ modelCode: A3ImportedFiscalResult["modelCode"]; offset: number }> = [
+    { modelCode: "130", offset: 31 },
+    { modelCode: "303", offset: 71 },
+    { modelCode: "115", offset: 131 },
+  ]
+  const results: A3ImportedFiscalResult[] = []
+  for (const layout of layouts) {
+    for (let quarter = 1; quarter <= 4; quarter += 1) {
+      const cents = readSignedInt32Le(resultRecord, layout.offset + (quarter - 1) * 5)
+      if (!cents) continue
+      results.push({
+        modelCode: layout.modelCode,
+        year: fiscalYear,
+        quarter: quarter as 1 | 2 | 3 | 4,
+        amount: Math.round(cents) / 100,
+        source: "A3_DA_RES",
+      })
+    }
+  }
+  return results
 }
 
 function cleanConcept(raw: string): string {
@@ -389,20 +449,13 @@ function parseNativeJournalFile(
     const conceptClean = extractNativeConcept(text, dhIndex)
     const lookupKey = nativeEntryLookupKey(rec)
     const header = headerIndex.get(lookupKey)
-    const headerMonth = header?.fecha ? Number(header.fecha.slice(4, 6)) : null
-    const headerDateForLine =
-      header?.fecha && headerMonth === month ? header.fecha : null
     const documento = extractNativeDocument(conceptClean, header?.documento)
     const concept = documento
       ? conceptClean.replace(new RegExp(`${documento.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`), "").trim()
       : conceptClean
     const seq = nativeJournalLineSequence(rec)
     const entryKey = nativeEntryGroupKey(rec)
-    const fecha = alignNativeDateToFileMonth(
-      extractNativeDate(conceptClean, rec, fiscalYear, month, headerDateForLine),
-      fiscalYear,
-      month,
-    )
+    const fecha = extractNativeDate(conceptClean, rec, fiscalYear, month, header?.fecha)
 
     parsedLines.push({
       entryKey,
@@ -422,7 +475,10 @@ function parseNativeJournalFile(
   }
 
   const grouped = new Map<string, A3JournalLine[]>()
-  const groupMeta = new Map<string, { concept: string; documento: string; lookupKey: string }>()
+  const groupMeta = new Map<
+    string,
+    { concept: string; documento: string; lookupKey: string; refNumber: number | null }
+  >()
   const entryParties = new Map<string, { name: string; priority: number }>()
 
   for (const parsed of parsedLines) {
@@ -469,6 +525,7 @@ function parseNativeJournalFile(
         concept: parsed.line.concepto,
         documento: parsed.line.documento ?? "",
         lookupKey: parsed.lookupKey,
+        refNumber: nativeJournalReference(parsed.record),
       })
     }
   }
@@ -478,11 +535,7 @@ function parseNativeJournalFile(
     if (lines.length === 0) continue
     const meta = groupMeta.get(entryKey)
     const header = meta ? headerIndex.get(meta.lookupKey) : undefined
-    const headerDate = header?.fecha
-    const headerMonth = headerDate ? Number(headerDate.slice(4, 6)) : null
-    const entryFecha = headerDate && headerMonth === month
-      ? `${headerDate.slice(0, 4)}-${headerDate.slice(4, 6)}-${headerDate.slice(6, 8)}`
-      : lines[0].fecha
+    const entryFecha = lines[0].fecha
     const normalizedLines = lines.map((line) => ({ ...line, fecha: entryFecha }))
     entries.push({
       fecha: entryFecha,
@@ -490,7 +543,7 @@ function parseNativeJournalFile(
       concepto: header?.concepto ?? meta?.concept ?? normalizedLines[0].concepto,
       lines: normalizedLines,
       recordTypes: ["Apunte nativo (.DAT)"],
-      refNumber: header?.refNumber,
+      refNumber: meta?.refNumber ?? header?.refNumber,
     })
   }
 
@@ -904,6 +957,12 @@ export function parseNativeA3ExportFiles(
   const fiscalYear = inferFiscalYearFromBuffers(
     sampleBuffers.length > 0 ? sampleBuffers : [...fileIndex.values()].map((entry) => entry.buffer),
   )
+  const fiscalResults = parseNativeFiscalResults(
+    [...fileIndex.values()].find((entry) =>
+      /^\d{6}DA\.DAT$/i.test(normalizeA3BaseName(entry.path)),
+    )?.buffer,
+    fiscalYear,
+  )
 
   const tcliproData = parseTcliproFromIndex(fileIndex)
   const subaccountLists: A3Subaccount[][] = []
@@ -1056,6 +1115,7 @@ export function parseNativeA3ExportFiles(
     subaccounts: finalSubaccounts,
     thirdParties,
     fixedAssets,
+    fiscalResults,
     companyCode,
     fiscalYear,
     recordTypes,

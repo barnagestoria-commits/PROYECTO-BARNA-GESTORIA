@@ -31,6 +31,13 @@ export function buildModel303Page03000(casillas: Map<string, number>): string {
     writeAt(record, field.position, formatted, field.length)
   }
 
+  const activityCasillas = [
+    "01", "03", "04", "06", "07", "09", "10", "11", "12", "13",
+    "28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38", "39",
+  ]
+  const hasActivity = activityCasillas.some((casilla) => (casillas.get(casilla) ?? 0) !== 0)
+  writeAt(record, 425, hasActivity ? " " : "X", 1)
+
   writeAt(record, 1006, "</T30303000>", 12)
   return recordToString(record)
 }

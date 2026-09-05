@@ -45,6 +45,44 @@ export function normalizeNif(value: string | null | undefined): string {
   return (value ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 9).padEnd(9, " ")
 }
 
+export function isValidSpanishTaxId(value: string | null | undefined): boolean {
+  const normalized = (value ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase()
+  const controlLetters = "TRWAGMYFPDXBNJZSQVHLCKE"
+
+  if (/^\d{8}[A-Z]$/.test(normalized)) {
+    return normalized[8] === controlLetters[Number(normalized.slice(0, 8)) % 23]
+  }
+
+  if (/^[XYZ]\d{7}[A-Z]$/.test(normalized)) {
+    const number = Number(
+      `${({ X: "0", Y: "1", Z: "2" } as const)[normalized[0] as "X" | "Y" | "Z"]}${normalized.slice(1, 8)}`,
+    )
+    return normalized[8] === controlLetters[number % 23]
+  }
+
+  if (/^[KLM]\d{7}[A-Z]$/.test(normalized)) {
+    return normalized[8] === controlLetters[Number(normalized.slice(1, 8)) % 23]
+  }
+
+  if (!/^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$/.test(normalized)) {
+    return false
+  }
+
+  const digits = normalized.slice(1, 8).split("").map(Number)
+  const evenSum = digits[1] + digits[3] + digits[5]
+  const oddSum = [digits[0], digits[2], digits[4], digits[6]].reduce((sum, digit) => {
+    const doubled = digit * 2
+    return sum + Math.floor(doubled / 10) + (doubled % 10)
+  }, 0)
+  const controlDigit = (10 - ((evenSum + oddSum) % 10)) % 10
+  const controlLetter = "JABCDEFGHI"[controlDigit]
+  const actualControl = normalized[8]
+
+  if ("ABEH".includes(normalized[0])) return actualControl === String(controlDigit)
+  if ("KPQS".includes(normalized[0])) return actualControl === controlLetter
+  return actualControl === String(controlDigit) || actualControl === controlLetter
+}
+
 export function normalizeCompanyName(value: string): string {
   return value
     .toUpperCase()

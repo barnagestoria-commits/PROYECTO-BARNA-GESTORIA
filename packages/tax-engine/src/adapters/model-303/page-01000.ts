@@ -24,8 +24,18 @@ function quarterToPeriod(period: string): string {
 function resolveDeclarationType(cuota71: number, explicit?: TaxReturnContext["declarationType"]): string {
   if (explicit) return explicit
   if (cuota71 > 0) return "I"
-  if (cuota71 < 0) return "G"
+  if (cuota71 < 0) return "C"
   return "N"
+}
+
+function yesNo(value: boolean | undefined): "1" | "2" {
+  return value ? "1" : "2"
+}
+
+function lastPeriodFlag(period: string, value: boolean | undefined): "0" | "1" | "2" {
+  if (period !== "4T") return "0"
+  if (value === undefined) return "0"
+  return value ? "1" : "2"
 }
 
 function cuotaForBase(baseCasilla: string, casillas: Map<string, number>): number {
@@ -59,9 +69,26 @@ export function buildModel303Page01000(
   writeAt(record, 103, String(context.year).padStart(4, "0"), 4)
   writeAt(record, 107, period.padEnd(2, " ").slice(0, 2), 2)
 
-  for (let pos = 109; pos <= 130; pos += 1) {
-    writeAt(record, pos, "2", 1)
+  const options = context.model303 ?? {}
+  writeAt(record, 109, yesNo(options.exclusivelyForal), 1)
+  writeAt(record, 110, yesNo(options.registeredMonthlyRefund), 1)
+  // Este adaptador solo genera régimen general; "3" significa NO (solo RG).
+  writeAt(record, 111, "3", 1)
+  writeAt(record, 112, yesNo(options.jointReturn), 1)
+  writeAt(record, 113, yesNo(options.cashBasisSubject), 1)
+  writeAt(record, 114, yesNo(options.cashBasisRecipient), 1)
+  writeAt(record, 115, yesNo(options.specialProrataOption), 1)
+  writeAt(record, 116, yesNo(options.specialProrataRevocation), 1)
+  writeAt(record, 117, yesNo(Boolean(options.bankruptcy)), 1)
+  if (options.bankruptcy) {
+    writeAt(record, 118, options.bankruptcy.orderDate, 8)
+    writeAt(record, 126, options.bankruptcy.type === "PRE" ? "1" : "2", 1)
   }
+  writeAt(record, 127, yesNo(options.voluntarySii), 1)
+  writeAt(record, 128, lastPeriodFlag(period, options.annualSummaryExempt), 1)
+  writeAt(record, 129, lastPeriodFlag(period, options.annualOperationsNonZero), 1)
+  // Nota 8: para periodos trimestrales el valor obligatorio es 0.
+  writeAt(record, 130, "0", 1)
 
   for (const field of MODEL_303_PAGE_01000_FIELDS) {
     if (field.kind === "percent") continue

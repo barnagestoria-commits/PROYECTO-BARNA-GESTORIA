@@ -1,5 +1,5 @@
 import { PDFDocument } from "pdf-lib"
-import { describe, expect, it } from "vitest"
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest"
 import {
   buildModel303EngineResult,
   summarizeModel303EngineResult,
@@ -65,16 +65,25 @@ function detail303(): FiscalModelDetailResponse {
   }
 }
 
+beforeAll(() => {
+  vi.stubEnv("AEAT_DEVELOPER_NIF", "B12345674")
+  vi.stubEnv("AEAT_PROGRAM_VERSION", "0102")
+})
+
+afterAll(() => {
+  vi.unstubAllEnvs()
+})
+
 describe("modelo 303 end-to-end", () => {
   it("uses one engine result for casillas, traceability and DR303 export", () => {
-    const result = buildModel303EngineResult(detail303(), "EMPRESA TEST SL", "B12345678")
+    const result = buildModel303EngineResult(detail303(), "EMPRESA TEST SL", "B12345674")
     const summary = summarizeModel303EngineResult(result)
     const byCode = new Map(summary.casillas.map((casilla) => [casilla.code, casilla]))
 
     expect(summary.engine).toBe("@gestoria/tax-engine")
     expect(summary.versionKey).toBe("AEAT:303:2026:DR303e26v101")
     expect(summary.valid).toBe(true)
-    expect(summary.filename).toBe("30320261T_B12345678.303")
+    expect(summary.filename).toBe("30320261T_B12345674.303")
     expect(byCode.get("01")?.amount).toBe(1000)
     expect(byCode.get("03")?.amount).toBe(210)
     expect(byCode.get("28")?.amount).toBe(500)
@@ -88,7 +97,7 @@ describe("modelo 303 end-to-end", () => {
     const buffer = await generateOfficialDraftPdf(
       detail303(),
       "EMPRESA TEST SL",
-      "B12345678",
+      "B12345674",
     )
     const pdf = await PDFDocument.load(buffer)
 

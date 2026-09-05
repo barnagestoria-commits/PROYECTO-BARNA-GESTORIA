@@ -193,6 +193,7 @@ async function parseA3ZipFileMap(
       subaccounts: native.subaccounts,
       thirdParties: native.thirdParties,
       fixedAssets: native.fixedAssets,
+      fiscalResults: native.fiscalResults,
       warnings: native.warnings,
     }
   }

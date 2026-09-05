@@ -1,6 +1,6 @@
 # Motor tributario AEAT — Fase 1 (implementación inicial)
 
-**Rama:** `cursor/aeat-303-end-to-end`
+**Rama de corrección DR303:** `cursor/fix-dr303-official-compliance`
 **Alcance:** paquete `@gestoria/tax-engine`, adaptador **303 DR303**, PDF/UI, trazabilidad, persistencia y exportación fiscal.
 
 ## Qué está implementado
@@ -9,7 +9,8 @@
    - `AeatSourceRegistry` con fuentes oficiales 303/2026
    - `TaxFactLedger` + `TaxRuleEngine` (casillas 303)
    - Adaptador `exportModel303Dr303` conforme a **DR303e26v101** (envolvente `<T3030…>`, páginas 01000 + 03000)
-   - Validación estructural del fichero generado
+   - Validación estructural, semántica y aritmética del fichero generado
+   - Indicadores 109-130, tipo de declaración, marca sin actividad e identidad del software según notas oficiales
 
 2. **Integración app** (`lib/fiscal/aeat/`):
    - `tax-engine-bridge.ts` — conecta panorama fiscal → tax-engine
@@ -27,6 +28,7 @@
    - El PDF oficial recibe las mismas casillas que el exportador DR303.
    - La pantalla muestra versión, fuente oficial, validación y trazabilidad.
    - La descarga **Fichero AEAT .303** persiste el borrador y el artefacto exportado.
+   - Una validación con errores bloquea la descarga; no se sobrescriben declaraciones ya presentadas.
    - Si existe un asiento de liquidación, el detalle se reconstruye desde los asientos origen.
 
 ## Cómo probar
@@ -37,6 +39,8 @@ npm test -- lib/fiscal/__tests__/generate-aeat-txt-303.test.ts
 npm run db:migrate   # aplica tablas tax_*
 npm run dev          # UI → exportar modelo 303 trimestral → descarga .303
 ```
+
+La exportación exige `AEAT_DEVELOPER_NIF` con el NIF legal y válido de la entidad desarrolladora. El adaptador certificado actualmente cubre régimen general trimestral sin supuestos especiales; en 4T exige informar expresamente los indicadores anuales 128 y 129.
 
 ## Pendiente (Fase 1 restante / Fase 2)
 

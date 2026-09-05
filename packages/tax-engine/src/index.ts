@@ -1,5 +1,6 @@
 export type {
   AeatOfficialSourceMeta,
+  Model303FilingOptions,
   TaxCasillaValue,
   TaxDeclarationType,
   TaxExportArtifact,
@@ -8,6 +9,7 @@ export type {
   TaxPeriodCode,
   TaxReturnContext,
   TaxReturnDraft,
+  TaxSoftwareIdentity,
   TaxValidationIssue,
   TaxValidationResult,
 } from "./types"
@@ -16,6 +18,7 @@ export {
   formatAeatNumAmount,
   formatAeatPercent,
   formatAeatSignedAmount,
+  isValidSpanishTaxId,
   normalizeCompanyName,
   normalizeNif,
   roundEuro,
@@ -48,7 +51,6 @@ export {
   buildModel303Dr303File,
   buildModel303Filename,
   TAX_ENGINE_PROGRAM_VERSION,
-  TAX_ENGINE_DEVELOPER_NIF,
 } from "./adapters/model-303/envelope"
 
 export { validateModel303Export } from "./adapters/model-303/validate"

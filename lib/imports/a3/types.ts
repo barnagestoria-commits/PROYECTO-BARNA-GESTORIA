@@ -56,6 +56,14 @@ export interface A3JournalEntry {
   refNumber?: number
 }
 
+export interface A3ImportedFiscalResult {
+  modelCode: "115" | "130" | "303"
+  year: number
+  quarter: 1 | 2 | 3 | 4
+  amount: number
+  source: "A3_DA_RES"
+}
+
 export interface A3ZipContents {
   fileNames: string[]
   subaccountSource: "subcuent.txt" | "subcue.dat" | "suenlace" | null
@@ -81,6 +89,7 @@ export interface A3ImportPreview {
   subaccounts: A3Subaccount[]
   thirdParties: A3ThirdParty[]
   fixedAssets: A3FixedAsset[]
+  fiscalResults?: A3ImportedFiscalResult[]
   warnings: string[]
 }
 

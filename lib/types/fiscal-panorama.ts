@@ -1,4 +1,14 @@
-export type FiscalModelId = "111" | "115" | "123" | "180" | "190" | "303" | "347" | "349" | "390"
+export type FiscalModelId =
+  | "111"
+  | "115"
+  | "123"
+  | "130"
+  | "180"
+  | "190"
+  | "303"
+  | "347"
+  | "349"
+  | "390"
 
 export type FiscalPeriodKey = "q1" | "q2" | "q3" | "q4" | "annual"
 
@@ -39,6 +49,7 @@ export interface FiscalPanoramaSummary {
       retenciones111: number
       retenciones115: number
       retenciones123: number
+      pagos130: number
       retenciones180: number
       totalAPagarDevolver: number
       resultLabel: string

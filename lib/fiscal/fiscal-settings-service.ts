@@ -13,6 +13,7 @@ function mapRecordToDto(record: {
   model111Enabled: boolean
   model115Enabled: boolean
   model123Enabled: boolean
+  model130Enabled: boolean
   model180Enabled: boolean
   model190Enabled: boolean
   model303Enabled: boolean
@@ -25,6 +26,7 @@ function mapRecordToDto(record: {
     model111Enabled: record.model111Enabled,
     model115Enabled: record.model115Enabled,
     model123Enabled: record.model123Enabled,
+    model130Enabled: record.model130Enabled,
     model180Enabled: record.model180Enabled,
     model190Enabled: record.model190Enabled,
     model303Enabled: record.model303Enabled,

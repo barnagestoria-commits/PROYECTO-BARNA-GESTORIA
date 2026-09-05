@@ -91,6 +91,7 @@ export function profileRecordToDto(
       model111: fiscalSettings.model111Enabled,
       model115: fiscalSettings.model115Enabled,
       model123: fiscalSettings.model123Enabled,
+      model130: fiscalSettings.model130Enabled,
       model180: fiscalSettings.model180Enabled,
       model190: fiscalSettings.model190Enabled,
       model303: fiscalSettings.model303Enabled,
@@ -147,6 +148,7 @@ export function profileDtoToRecordData(profile: GestoriaClientProfileDto) {
     localesJson: JSON.stringify(profile.locales),
     impresosJson: JSON.stringify({
       model123: impresos.model123,
+      model130: impresos.model130,
       model190: impresos.model190,
       model232: impresos.model232 ?? profile.presentation.model232Enabled,
       model347: impresos.model347,

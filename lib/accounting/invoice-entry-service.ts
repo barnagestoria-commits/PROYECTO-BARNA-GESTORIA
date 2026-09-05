@@ -2,7 +2,11 @@ import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { calculateTotals } from "@/lib/accounting/command-templates"
-import { buildInvoiceLineConcept } from "@/lib/accounting/invoice-entry-concepts"
+import {
+  applyInvoiceConceptsToLines,
+  buildInvoiceLineConcept,
+} from "@/lib/accounting/invoice-entry-concepts"
+import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
 import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { resolveOrCreateThirdParty } from "@/lib/accounting/third-party-service"
@@ -23,6 +27,28 @@ function parseInvoiceDate(fechaFactura: string): Date {
     throw new Error("La fecha de factura no es válida.")
   }
   return date
+}
+
+function finalizeOcrInvoiceLines(
+  lines: Array<{
+    sortOrder: number
+    cuenta: string
+    concepto: string
+    debe: number
+    haber: number
+  }>,
+  commandCode: "17" | "34",
+  invoice: InvoiceOcrResult,
+) {
+  const euVatId =
+    invoice.isIntracomunitaria ? extractPrimaryEuVatId(invoice.cif) ?? undefined : undefined
+
+  return applyInvoiceConceptsToLines(lines, commandCode, {
+    invoiceNumber: invoice.numeroFactura,
+    thirdPartyLabel: invoice.proveedor,
+    invoiceMode: commandCode === "17" ? "emitida" : "recibida",
+    euVatId: euVatId ?? undefined,
+  })
 }
 
 function buildReceivedInvoiceLines(
@@ -64,7 +90,7 @@ function buildReceivedInvoiceLines(
     haber: 0,
   })
 
-  return lines
+  return finalizeOcrInvoiceLines(lines, "34", invoice)
 }
 
 function buildIssuedInvoiceLines(
@@ -104,7 +130,7 @@ function buildIssuedInvoiceLines(
     haber: baseImponible,
   })
 
-  return lines
+  return finalizeOcrInvoiceLines(lines, "17", invoice)
 }
 
 export async function createInvoiceAccountingEntry(params: {

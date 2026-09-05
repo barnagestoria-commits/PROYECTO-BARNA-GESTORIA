@@ -144,14 +144,23 @@ export async function persistModel303EngineResult(options: PersistModel303Option
       })
     }
 
+    const returnKey = {
+      companyId: options.companyId,
+      versionId: version.id,
+      year: context.year,
+      period: context.period,
+    }
+    const existingReturn = await tx.taxReturn.findUnique({
+      where: { companyId_versionId_year_period: returnKey },
+      select: { id: true, status: true },
+    })
+    if (existingReturn?.status === TaxReturnStatus.SUBMITTED) {
+      throw new Error("La declaración ya fue presentada y no puede regenerarse ni sobrescribirse.")
+    }
+
     const taxReturn = await tx.taxReturn.upsert({
       where: {
-        companyId_versionId_year_period: {
-          companyId: options.companyId,
-          versionId: version.id,
-          year: context.year,
-          period: context.period,
-        },
+        companyId_versionId_year_period: returnKey,
       },
       update: { status },
       create: {

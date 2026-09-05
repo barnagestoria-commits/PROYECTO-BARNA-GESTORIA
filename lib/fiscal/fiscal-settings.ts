@@ -6,6 +6,7 @@ export interface CompanyFiscalSettingsDto {
   model111Enabled: boolean
   model115Enabled: boolean
   model123Enabled: boolean
+  model130Enabled: boolean
   model180Enabled: boolean
   model190Enabled: boolean
   model303Enabled: boolean
@@ -66,6 +67,12 @@ export const FISCAL_MODEL_OPTIONS: Array<{
     periodicity: "trimestral",
   },
   {
+    id: "130",
+    label: "Modelo 130",
+    description: "IRPF — pago fraccionado en estimación directa",
+    periodicity: "trimestral",
+  },
+  {
     id: "349",
     label: "Modelo 349",
     description: "IVA — operaciones intracomunitarias",
@@ -109,6 +116,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model111Enabled: false,
     model115Enabled: false,
     model123Enabled: false,
+    model130Enabled: false,
     model180Enabled: false,
     model190Enabled: false,
     model303Enabled: false,
@@ -121,6 +129,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model111Enabled: true,
     model115Enabled: false,
     model123Enabled: false,
+    model130Enabled: true,
     model180Enabled: false,
     model190Enabled: false,
     model303Enabled: true,
@@ -133,6 +142,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model111Enabled: true,
     model115Enabled: true,
     model123Enabled: true,
+    model130Enabled: false,
     model180Enabled: true,
     model190Enabled: true,
     model303Enabled: true,
@@ -145,6 +155,7 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model111Enabled: true,
     model115Enabled: true,
     model123Enabled: true,
+    model130Enabled: false,
     model180Enabled: true,
     model190Enabled: true,
     model303Enabled: true,
@@ -165,6 +176,8 @@ export function isModelEnabled(
       return settings.model115Enabled
     case "123":
       return settings.model123Enabled
+    case "130":
+      return settings.model130Enabled
     case "180":
       return settings.model180Enabled
     case "190":
@@ -208,6 +221,7 @@ export type FiscalModelSettingsKey =
   | "model111Enabled"
   | "model115Enabled"
   | "model123Enabled"
+  | "model130Enabled"
   | "model180Enabled"
   | "model190Enabled"
   | "model303Enabled"
@@ -223,6 +237,8 @@ export function settingsKeyForModel(model: FiscalModelId): FiscalModelSettingsKe
       return "model115Enabled"
     case "123":
       return "model123Enabled"
+    case "130":
+      return "model130Enabled"
     case "180":
       return "model180Enabled"
     case "190":
@@ -238,7 +254,7 @@ export function settingsKeyForModel(model: FiscalModelId): FiscalModelSettingsKe
   }
 }
 
-const QUARTERLY_MODELS = new Set<FiscalModelId>(["111", "115", "123", "303", "349"])
+const QUARTERLY_MODELS = new Set<FiscalModelId>(["111", "115", "123", "130", "303", "349"])
 const ANNUAL_ONLY_MODELS = new Set<FiscalModelId>(["180", "190", "347", "390"])
 
 export function isQuarterlyModel(model: FiscalModelId): boolean {
@@ -257,6 +273,7 @@ export const ANNUAL_SUMMARY_MODELS: FiscalModelId[] = [
   "111",
   "115",
   "123",
+  "130",
   "180",
   "190",
   "303",
@@ -269,6 +286,7 @@ export type FiscalImpresosMergeInput = Partial<{
   model111: boolean
   model115: boolean
   model123: boolean
+  model130: boolean
   model180: boolean
   model190: boolean
   model303: boolean
@@ -286,6 +304,7 @@ export function mergeImpresosIntoFiscalSettings(
     model111Enabled: impresos.model111 ?? settings.model111Enabled,
     model115Enabled: impresos.model115 ?? settings.model115Enabled,
     model123Enabled: impresos.model123 ?? settings.model123Enabled,
+    model130Enabled: impresos.model130 ?? settings.model130Enabled,
     model180Enabled: impresos.model180 ?? settings.model180Enabled,
     model190Enabled: impresos.model190 ?? settings.model190Enabled,
     model303Enabled: impresos.model303 ?? settings.model303Enabled,
