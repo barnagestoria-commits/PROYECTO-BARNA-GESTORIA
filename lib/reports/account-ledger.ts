@@ -92,10 +92,33 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
     map.set(cuenta, current)
   }
 
+  const codes = [...map.keys()]
+  const [thirdParties, subaccounts] = await Promise.all([
+    codes.length === 0
+      ? []
+      : prisma.thirdParty.findMany({
+          where: { companyId: query.companyId },
+          select: { accountCode: true, name: true },
+        }),
+    codes.length === 0
+      ? []
+      : prisma.ledgerSubaccount.findMany({
+          where: { companyId: query.companyId },
+          select: { accountCode: true, name: true },
+        }),
+  ])
+
+  const names = new Map<string, string>()
+  for (const row of [...thirdParties, ...subaccounts]) {
+    const code = normalizeCuenta(row.accountCode)
+    const name = row.name.trim()
+    if (code && name) names.set(code, name)
+  }
+
   const balances: AccountBalance[] = Array.from(map.entries())
     .map(([cuenta, totals]) => ({
       cuenta,
-      label: getAccountLabel(cuenta),
+      label: names.get(cuenta) ?? getAccountLabel(cuenta),
       totalDebe: round2(totals.totalDebe),
       totalHaber: round2(totals.totalHaber),
       saldo: round2(totals.totalDebe - totals.totalHaber),

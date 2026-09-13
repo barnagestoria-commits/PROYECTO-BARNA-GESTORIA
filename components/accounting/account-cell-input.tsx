@@ -11,6 +11,7 @@ interface AccountCellInputProps {
   onChange: (value: string) => void
   onCreateAccountPrefix?: (prefix: NewAccountPrefix) => void
   onOpenAccountExtract?: (accountCode: string) => void
+  onOpenCompanyExtract?: () => void
   onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
   onFocus?: () => void
   onBlur?: () => void
@@ -35,6 +36,7 @@ export function AccountCellInput({
   onChange,
   onCreateAccountPrefix,
   onOpenAccountExtract,
+  onOpenCompanyExtract,
   onKeyDown,
   onFocus,
   onBlur,
@@ -64,6 +66,11 @@ export function AccountCellInput({
 
     if (isConfirmKey && isExtractCommand(value)) {
       event.preventDefault()
+      onChange("")
+      if (onOpenCompanyExtract) {
+        onOpenCompanyExtract()
+        return
+      }
       if (!tryOpenExtract()) {
         onKeyDown?.(event)
       }

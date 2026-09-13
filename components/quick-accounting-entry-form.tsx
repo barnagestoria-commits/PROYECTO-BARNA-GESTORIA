@@ -655,6 +655,35 @@ export function QuickAccountingEntryForm() {
     }))
   }, [fecha])
 
+  const openAccountExtract = useCallback((row: number, explicitAccount?: string) => {
+    const account =
+      explicitAccount ??
+      (lines[row]?.cuenta && isValidAccountValue(lines[row].cuenta)
+        ? lines[row].cuenta
+        : lastAccountByRow.current.get(row) ??
+          lines.find((line) => isValidAccountValue(line.cuenta))?.cuenta ??
+          null)
+
+    if (!account) {
+      setSubmitError(null)
+      setCompanyExtractOpen(true)
+      return
+    }
+
+    setSubmitError(null)
+    setMovementsAccount(account)
+    setMovementsDialogOpen(true)
+  }, [lines])
+
+  const openCompanyExtract = useCallback(() => {
+    if (!activeCompany?.id) {
+      setSubmitError("No hay empresa activa para consultar el extracto.")
+      return
+    }
+    setSubmitError(null)
+    setCompanyExtractOpen(true)
+  }, [activeCompany?.id])
+
   const applyCodigoFromRow = useCallback(
     async (row: number, raw: string): Promise<boolean> => {
       if (row !== 0) return false
@@ -665,6 +694,12 @@ export function QuickAccountingEntryForm() {
         setCodigoDraft("")
         return false
       }
+      if (trimmed.toUpperCase() === "EX") {
+        setCodigoDraft("")
+        setCommandHint(null)
+        openCompanyExtract()
+        return true
+      }
       const code = parseCommandInput(trimmed)
       if (!code) {
         setCommandHint(`Código "${trimmed}" no reconocido. Use 17, 34, 16, 57 o 303, o deje vacío para apunte manual.`)
@@ -674,7 +709,7 @@ export function QuickAccountingEntryForm() {
       await applyCommand(code)
       return true
     },
-    [applyCommand],
+    [applyCommand, openCompanyExtract],
   )
 
   const validateAccountBeforeAdvance = useCallback(
@@ -863,34 +898,6 @@ export function QuickAccountingEntryForm() {
     [applyInvoiceTotalFromLine],
   )
 
-  const openAccountExtract = useCallback((row: number, explicitAccount?: string) => {
-    const account =
-      explicitAccount ??
-      (lines[row]?.cuenta && isValidAccountValue(lines[row].cuenta)
-        ? lines[row].cuenta
-        : lastAccountByRow.current.get(row) ??
-          lines.find((line) => isValidAccountValue(line.cuenta))?.cuenta ??
-          null)
-
-    if (!account) {
-      setSubmitError("Introduce una cuenta contable antes de consultar EX.")
-      return
-    }
-
-    setSubmitError(null)
-    setMovementsAccount(account)
-    setMovementsDialogOpen(true)
-  }, [lines])
-
-  const openCompanyExtract = useCallback(() => {
-    if (!activeCompany?.id) {
-      setSubmitError("No hay empresa activa para consultar el extracto.")
-      return
-    }
-    setSubmitError(null)
-    setCompanyExtractOpen(true)
-  }, [activeCompany?.id])
-
   const handleExtractAccountSelect = useCallback((accountCode: string) => {
     setMovementsAccount(accountCode)
     setMovementsDialogOpen(true)
@@ -908,7 +915,7 @@ export function QuickAccountingEntryForm() {
       }
       if (event.key === "F8") {
         event.preventDefault()
-        openAccountExtract(activeCell.row)
+        openCompanyExtract()
       }
 
       if (isEntryNavigationBlocked()) return
@@ -949,7 +956,7 @@ export function QuickAccountingEntryForm() {
     focusCell,
     isEntryNavigationBlocked,
     navigateCommittedEntry,
-    openAccountExtract,
+    openCompanyExtract,
     openSelectedCommittedEntry,
     selectCommittedEntry,
     selectedCommittedEntryId,
@@ -1008,7 +1015,7 @@ export function QuickAccountingEntryForm() {
       return "Indique el Código de Predefinido o Pulse F4"
     }
     if (activeCell.field === "cuenta") {
-      return "F4 · Plan contable · F6 · Buscar NIF · EX · extracto de cuenta"
+      return "F4 · Plan contable · F6 · Buscar NIF · EX · extracto de cuentas (balance)"
     }
     if (activeCommand) {
       return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
@@ -1162,7 +1169,7 @@ export function QuickAccountingEntryForm() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-graphite-500">
-              Tab entre campos · F4 plan contable · F6 NIF · F8 extracto cuenta
+              Tab entre campos · F4 plan contable · F6 NIF · EX extracto de cuentas
             </p>
             <button
               type="button"
@@ -1463,6 +1470,7 @@ export function QuickAccountingEntryForm() {
                           onOpenAccountExtract={(accountCode) =>
                             openAccountExtract(rowIndex, accountCode)
                           }
+                          onOpenCompanyExtract={openCompanyExtract}
                           extractAccountCode={lastAccountByRow.current.get(rowIndex) ?? null}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "cuenta" })}
                           inputRef={(el) => registerRef(rowIndex, "cuenta", el)}
