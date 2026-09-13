@@ -28,8 +28,39 @@ import {
   isInvoiceConceptAccountLine,
   isInvoiceConceptCommand,
 } from "@/lib/accounting/invoice-entry-concepts"
+import {
+  buildFullInvoiceEntry,
+  getInvoiceThirdPartyTotal,
+  isDerivedInvoiceAmountAccount,
+  isInvoiceThirdPartyTotalAmount,
+} from "@/lib/accounting/invoice-auto-fill"
+import type { AccountingCommandCode } from "@/lib/types/accounting-entry"
 import { cn } from "@/lib/utils"
 import { formatEntryRefLabel } from "@/lib/accounting/entry-ref-service"
+
+function resolveInvoiceMode(
+  commandCode: string | null | undefined,
+  lines: AccountingEntryLine[],
+): "emitida" | "recibida" {
+  if (commandCode === "34") return "recibida"
+  if (commandCode === "17") return "emitida"
+  if (lines.some((line) => isEmitidaThirdPartyAccount(line.cuenta))) return "emitida"
+  return "recibida"
+}
+
+function rebuildInvoiceFromTotal(
+  lines: AccountingEntryLine[],
+  details: InvoiceEntryDetails,
+  commandCode: string | null | undefined,
+  total: number,
+) {
+  const invoiceMode = resolveInvoiceMode(commandCode, lines)
+  return buildFullInvoiceEntry(lines, details, {
+    activeCommand: (commandCode as AccountingCommandCode | null) ?? null,
+    invoiceMode,
+    total,
+  })
+}
 
 interface EditAccountingEntryDialogProps {
   open: boolean
@@ -68,12 +99,10 @@ export function EditAccountingEntryDialog({
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
 
-  const invoiceMode = useMemo((): "emitida" | "recibida" => {
-    if (entry?.commandCode === "34") return "recibida"
-    if (entry?.commandCode === "17") return "emitida"
-    if (lines.some((line) => isEmitidaThirdPartyAccount(line.cuenta))) return "emitida"
-    return "recibida"
-  }, [entry?.commandCode, lines])
+  const invoiceMode = useMemo(
+    () => resolveInvoiceMode(entry?.commandCode, lines),
+    [entry?.commandCode, lines],
+  )
 
   const showInvoicePanel = useMemo(() => {
     if (!entry) return false
@@ -96,8 +125,18 @@ export function EditAccountingEntryDialog({
         if (cancelled) return
         setEntry(data.entry)
         setFecha(data.entry.fecha)
-        setLines(mapEntryLines(data.entry))
-        setInvoiceDetails(getEditableInvoiceDetails(data.entry))
+        const mapped = mapEntryLines(data.entry)
+        const details = getEditableInvoiceDetails(data.entry)
+        const mode = resolveInvoiceMode(data.entry.commandCode, mapped)
+        const total = getInvoiceThirdPartyTotal(mapped, mode)
+        if (details && total > 0) {
+          const built = rebuildInvoiceFromTotal(mapped, details, data.entry.commandCode, total)
+          setLines(built.lines)
+          setInvoiceDetails(built.details)
+        } else {
+          setLines(mapped)
+          setInvoiceDetails(details)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -118,6 +157,40 @@ export function EditAccountingEntryDialog({
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)))
   }
 
+  const handleLineAmountChange = (
+    line: AccountingEntryLine,
+    field: "debe" | "haber",
+    amount: number,
+  ) => {
+    if (invoiceDetails && isInvoiceThirdPartyTotalAmount(line, field, invoiceMode) && amount > 0) {
+      const nextLines = lines.map((item) =>
+        item.id === line.id
+          ? field === "debe"
+            ? { ...item, debe: amount, haber: 0 }
+            : { ...item, haber: amount, debe: 0 }
+          : item,
+      )
+      const built = rebuildInvoiceFromTotal(nextLines, invoiceDetails, entry?.commandCode, amount)
+      setLines(built.lines)
+      setInvoiceDetails(built.details)
+      return
+    }
+
+    updateLine(line.id, field === "debe" ? { debe: amount, haber: 0 } : { haber: amount, debe: 0 })
+  }
+
+  const handleInvoiceDetailsChange = (nextDetails: InvoiceEntryDetails) => {
+    const total = getInvoiceThirdPartyTotal(lines, invoiceMode)
+    if (total > 0) {
+      const built = rebuildInvoiceFromTotal(lines, nextDetails, entry?.commandCode, total)
+      setLines(built.lines)
+      setInvoiceDetails(built.details)
+      return
+    }
+
+    setInvoiceDetails(nextDetails)
+  }
+
   const addLine = () => {
     setLines((prev) => [...prev, createEmptyLine()])
   }
@@ -127,42 +200,16 @@ export function EditAccountingEntryDialog({
   }
 
   const applyInvoiceTotals = useCallback(
-    (amounts: { base: number; quota: number; total: number }) => {
-      setLines((prev) => {
-        const thirdIdx = prev.findIndex((line) => isThirdPartyAccountPrefix(line.cuenta))
-        const vatIdx = prev.findIndex((line) => /^47[27]/.test(line.cuenta.replace(/\D/g, "")))
-        const baseIdx = prev.findIndex((line) => /^[67]/.test(line.cuenta.replace(/\D/g, "")))
-
-        const thirdPartyIndex = thirdIdx >= 0 ? thirdIdx : 0
-        const vatIndex = vatIdx >= 0 ? vatIdx : 1
-        const baseIndex = baseIdx >= 0 ? baseIdx : 2
-        const emitida =
-          entry?.commandCode === "17" ||
-          (entry?.commandCode !== "34" && isEmitidaThirdPartyAccount(prev[thirdPartyIndex]?.cuenta ?? ""))
-
-        const next = prev.map((line, index) => {
-          if (emitida) {
-            if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
-            if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
-            if (index === baseIndex) return { ...line, debe: 0, haber: amounts.base }
-          } else {
-            if (index === thirdPartyIndex) return { ...line, debe: 0, haber: amounts.total }
-            if (index === vatIndex) return { ...line, debe: amounts.quota, haber: 0 }
-            if (index === baseIndex) return { ...line, debe: amounts.base, haber: 0 }
-          }
-          return line
-        })
-
-        return entry?.commandCode && isInvoiceConceptCommand(entry.commandCode)
-          ? applyInvoiceConceptsToLines(next, entry.commandCode, {
-              invoiceNumber: invoiceDetails?.invoiceNumber ?? "",
-              thirdPartyLabel: invoiceDetails?.thirdPartyName ?? "",
-              invoiceMode: entry.commandCode === "17" ? "emitida" : "recibida",
-            })
-          : next
-      })
+    (amounts: { base: number; quota: number; total: number; irpf?: number }) => {
+      if (!invoiceDetails) return
+      const currentTotal = getInvoiceThirdPartyTotal(lines, invoiceMode)
+      const total = currentTotal > 0 ? currentTotal : amounts.total
+      if (total <= 0) return
+      const built = rebuildInvoiceFromTotal(lines, invoiceDetails, entry?.commandCode, total)
+      setLines(built.lines)
+      setInvoiceDetails(built.details)
     },
-    [entry?.commandCode, invoiceDetails?.invoiceNumber, invoiceDetails?.thirdPartyName],
+    [entry?.commandCode, invoiceDetails, invoiceMode, lines],
   )
 
   useEffect(() => {
@@ -353,10 +400,11 @@ export function EditAccountingEntryDialog({
                     : null
               }
               details={invoiceDetails}
-              onChange={setInvoiceDetails}
+              onChange={handleInvoiceDetailsChange}
               onApplyTotals={applyInvoiceTotals}
               onOpenPgcChart={() => undefined}
               onOpenNifLookup={() => undefined}
+              deriveFromTotal
             />
           )}
 
@@ -377,6 +425,8 @@ export function EditAccountingEntryDialog({
                     entry.commandCode !== null &&
                     isInvoiceConceptCommand(entry.commandCode) &&
                     isInvoiceConceptAccountLine(line.cuenta, entry.commandCode)
+                  const derivedAmount =
+                    showInvoicePanel && isDerivedInvoiceAmountAccount(line.cuenta)
 
                   return (
                   <tr key={line.id} className="border-t border-sand-100">
@@ -409,10 +459,24 @@ export function EditAccountingEntryDialog({
                         type="number"
                         step="0.01"
                         value={line.debe || ""}
+                        readOnly={derivedAmount}
+                        tabIndex={derivedAmount ? -1 : undefined}
                         onChange={(event) =>
-                          updateLine(line.id, { debe: Number.parseFloat(event.target.value) || 0 })
+                          handleLineAmountChange(
+                            line,
+                            "debe",
+                            Number.parseFloat(event.target.value) || 0,
+                          )
                         }
-                        className="h-9 text-right font-mono"
+                        className={cn(
+                          "h-9 text-right font-mono",
+                          derivedAmount && "bg-sand-50 text-graphite-600",
+                        )}
+                        title={
+                          derivedAmount
+                            ? "Se calcula desde el total del cliente o proveedor"
+                            : undefined
+                        }
                       />
                     </td>
                     <td className="px-2 py-1">
@@ -420,10 +484,24 @@ export function EditAccountingEntryDialog({
                         type="number"
                         step="0.01"
                         value={line.haber || ""}
+                        readOnly={derivedAmount}
+                        tabIndex={derivedAmount ? -1 : undefined}
                         onChange={(event) =>
-                          updateLine(line.id, { haber: Number.parseFloat(event.target.value) || 0 })
+                          handleLineAmountChange(
+                            line,
+                            "haber",
+                            Number.parseFloat(event.target.value) || 0,
+                          )
                         }
-                        className="h-9 text-right font-mono"
+                        className={cn(
+                          "h-9 text-right font-mono",
+                          derivedAmount && "bg-sand-50 text-graphite-600",
+                        )}
+                        title={
+                          derivedAmount
+                            ? "Se calcula desde el total del cliente o proveedor"
+                            : undefined
+                        }
                       />
                     </td>
                     <td className="px-1 py-1">

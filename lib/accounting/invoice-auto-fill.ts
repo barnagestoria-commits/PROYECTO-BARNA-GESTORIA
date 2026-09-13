@@ -23,19 +23,24 @@ function accountDigits(cuenta: string): string {
   return cuenta.replace(/\D/g, "")
 }
 
-function isVatAccount(cuenta: string): boolean {
+export function isVatAccount(cuenta: string): boolean {
   const digits = accountDigits(cuenta)
   return digits.startsWith("472") || digits.startsWith("477")
 }
 
-function isBaseAccount(cuenta: string): boolean {
+export function isBaseAccount(cuenta: string): boolean {
   const digits = accountDigits(cuenta)
   return /^[567]/.test(digits) && !isVatAccount(cuenta) && !isThirdPartyAccountPrefix(cuenta)
 }
 
-function isIrpfAccount(cuenta: string): boolean {
+export function isIrpfAccount(cuenta: string): boolean {
   const digits = accountDigits(cuenta)
   return digits.startsWith("473") || digits.startsWith("4751")
+}
+
+/** Cuotas de IVA, base e IRPF: se calculan desde el total del tercero. */
+export function isDerivedInvoiceAmountAccount(cuenta: string): boolean {
+  return isVatAccount(cuenta) || isBaseAccount(cuenta) || isIrpfAccount(cuenta)
 }
 
 export function applyTreatmentToInvoiceDetails(
@@ -193,6 +198,55 @@ export function syncInvoiceDetailsFromAmounts(
   return { ...details, vatLines }
 }
 
+export function getInvoiceThirdPartyTotal(
+  lines: AccountingEntryLine[],
+  invoiceMode: "emitida" | "recibida",
+): number {
+  const line = lines.find((item) => isThirdPartyAccountPrefix(item.cuenta))
+  if (!line) return 0
+  return invoiceMode === "emitida" ? line.debe : line.haber
+}
+
+export function syncInvoiceIrpfLine(
+  lines: AccountingEntryLine[],
+  details: InvoiceEntryDetails,
+  options: {
+    invoiceMode: "emitida" | "recibida"
+    irpfAmount: number
+  },
+): AccountingEntryLine[] {
+  const irpfIdx = lines.findIndex((line) => isIrpfAccount(line.cuenta))
+  const hasIrpf = details.applyIrpf && options.irpfAmount > 0
+  const account =
+    details.irpfAccount?.trim() || (options.invoiceMode === "emitida" ? "4731" : "4751")
+
+  if (!hasIrpf) {
+    return irpfIdx >= 0 ? lines.filter((_, index) => index !== irpfIdx) : lines
+  }
+
+  const partyLabel = resolveThirdPartyLabel(lines, {
+    thirdPartyLabel: details.thirdPartyName,
+    invoiceMode: options.invoiceMode,
+  })
+  const nextLine: AccountingEntryLine = {
+    id: irpfIdx >= 0 ? lines[irpfIdx].id : createLineId(),
+    cuenta: formatAccountCodeDisplay(account),
+    concepto: buildRetentionConcept(partyLabel),
+    debe: options.invoiceMode === "emitida" ? options.irpfAmount : 0,
+    haber: options.invoiceMode === "emitida" ? 0 : options.irpfAmount,
+  }
+
+  if (irpfIdx >= 0) {
+    return lines.map((line, index) => (index === irpfIdx ? { ...line, ...nextLine, id: line.id } : line))
+  }
+
+  const thirdIdx = lines.findIndex((line) => isThirdPartyAccountPrefix(line.cuenta))
+  const insertAt = thirdIdx >= 0 ? thirdIdx + 1 : 1
+  const next = [...lines]
+  next.splice(insertAt, 0, nextLine)
+  return next
+}
+
 export function buildFullInvoiceEntry(
   lines: AccountingEntryLine[],
   details: InvoiceEntryDetails,
@@ -206,6 +260,10 @@ export function buildFullInvoiceEntry(
   const nextDetails = syncInvoiceDetailsFromAmounts(details, amounts)
 
   let nextLines = ensureMinimumInvoiceLines(lines)
+  nextLines = syncInvoiceIrpfLine(nextLines, nextDetails, {
+    invoiceMode: options.invoiceMode,
+    irpfAmount: amounts.irpf,
+  })
   nextLines = applyInvoiceAmountsToLines(nextLines, amounts, {
     activeCommand: options.activeCommand ?? undefined,
   })

@@ -33,6 +33,8 @@ interface InvoiceEntryPanelProps {
   onApplyTotals: (totals: { base: number; quota: number; total: number; irpf?: number }) => void
   onOpenPgcChart: () => void
   onOpenNifLookup: () => void
+  /** La base y la cuota salen del total del tercero; no se editan a mano. */
+  deriveFromTotal?: boolean
 }
 
 function LookupButton({ label, onClick }: { label: string; onClick: () => void }) {
@@ -57,6 +59,7 @@ export function InvoiceEntryPanel({
   onApplyTotals,
   onOpenPgcChart,
   onOpenNifLookup,
+  deriveFromTotal = false,
 }: InvoiceEntryPanelProps) {
   const totals = sumInvoiceTotals(details.vatLines)
   const irpfQuota =
@@ -130,11 +133,13 @@ export function InvoiceEntryPanel({
               Datos de factura
             </div>
             <p className="text-sm text-graphite-600">
-              {isManual
-                ? "Asiento manual con datos de factura"
-                : isReceived
-                  ? "Factura recibida · proveedor"
-                  : "Factura emitida · cliente"}
+              {deriveFromTotal
+                ? "Introduce solo el total en la cuenta de cliente o proveedor. Base, IVA y retención se calculan solas."
+                : isManual
+                  ? "Asiento manual con datos de factura"
+                  : isReceived
+                    ? "Factura recibida · proveedor"
+                    : "Factura emitida · cliente"}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -310,11 +315,22 @@ export function InvoiceEntryPanel({
                         step="0.01"
                         min="0"
                         value={line.base || ""}
+                        readOnly={deriveFromTotal}
+                        tabIndex={deriveFromTotal ? -1 : undefined}
                         onChange={(event) =>
                           updateVatLine(line.id, { base: Number.parseFloat(event.target.value) || 0 })
                         }
                         onKeyDown={handlePanelApplyKeyDown}
-                        className="h-8 text-right font-mono"
+                        className={
+                          deriveFromTotal
+                            ? "h-8 bg-sand-50 text-right font-mono text-graphite-600"
+                            : "h-8 text-right font-mono"
+                        }
+                        title={
+                          deriveFromTotal
+                            ? "Se calcula desde el total del cliente o proveedor"
+                            : undefined
+                        }
                       />
                     </td>
                     <td className="px-2 py-1">

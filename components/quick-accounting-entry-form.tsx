@@ -416,6 +416,8 @@ export function QuickAccountingEntryForm() {
 
   const applyAccountTreatment = useCallback(
     async (accountCode: string, targetRow = 0) => {
+      if (!isThirdPartyAccountPrefix(accountCode)) return
+
       try {
         const data = await apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
           `/api/accounting/account-treatment?accountCode=${encodeURIComponent(accountCode)}`,

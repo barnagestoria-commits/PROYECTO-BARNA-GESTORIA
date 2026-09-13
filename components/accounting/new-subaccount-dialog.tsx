@@ -160,11 +160,6 @@ export function NewSubaccountDialog({
               parentCode: prefix,
               accountCode: fixedAccountCode ?? undefined,
               name,
-              address,
-              phone,
-              email,
-              notes,
-              treatment,
             }),
           },
         )
@@ -243,7 +238,7 @@ export function NewSubaccountDialog({
               />
             </div>
           )}
-          <div className={`space-y-1.5 ${isThirdParty ? "sm:col-span-2" : "sm:col-span-2"}`}>
+          <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="new-account-name">
               {isThirdParty ? "Razón social / Nombre" : "Nombre de la subcuenta"}
             </Label>
@@ -251,53 +246,59 @@ export function NewSubaccountDialog({
               id="new-account-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder={isThirdParty ? undefined : "Multas y sanciones"}
+              placeholder={isThirdParty ? undefined : "Comisiones, hosting, multas…"}
               autoFocus={!isThirdParty}
             />
           </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="new-account-address">Domicilio</Label>
-            <Input
-              id="new-account-address"
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-account-phone">Teléfono</Label>
-            <Input
-              id="new-account-phone"
-              value={phone}
-              onChange={(event) => setPhone(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="new-account-email">Email</Label>
-            <Input
-              id="new-account-email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="new-account-notes">Observaciones</Label>
-            <Textarea
-              id="new-account-notes"
-              value={notes}
-              onChange={(event) => setNotes(event.target.value)}
-              rows={2}
-            />
-          </div>
+          {isThirdParty && (
+            <>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="new-account-address">Domicilio</Label>
+                <Input
+                  id="new-account-address"
+                  value={address}
+                  onChange={(event) => setAddress(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-account-phone">Teléfono</Label>
+                <Input
+                  id="new-account-phone"
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-account-email">Email</Label>
+                <Input
+                  id="new-account-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label htmlFor="new-account-notes">Observaciones</Label>
+                <Textarea
+                  id="new-account-notes"
+                  value={notes}
+                  onChange={(event) => setNotes(event.target.value)}
+                  rows={2}
+                />
+              </div>
+            </>
+          )}
         </div>
 
-        <div data-tour="onboarding-new-account">
-          <AccountTreatmentFields
-            value={treatment}
-            onChange={setTreatment}
-            showCounterpart={isThirdParty}
-          />
-        </div>
+        {isThirdParty && (
+          <div data-tour="onboarding-new-account">
+            <AccountTreatmentFields
+              value={treatment}
+              onChange={setTreatment}
+              showCounterpart
+            />
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-red-700" role="alert">
