@@ -1,5 +1,20 @@
+import type { AccountingPlanType, CompanyClientProfile } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
+import {
+  createDefaultPresentationConfig,
+  type GestoriaPresentationConfig,
+} from "@/lib/contabilidad/gestoria-presentation-config"
+import {
+  buildChartBalanceRows,
+  countAccountsWithMovement,
+  type MovementTotals,
+} from "@/lib/reports/build-chart-balances"
+import {
+  describeCompanyChartPlan,
+  getPlanAccountCodes,
+  type CompanyChartPlanInfo,
+} from "@/lib/reports/pgc-chart-plans"
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import {
   cuentaSortKey,
@@ -34,7 +49,70 @@ function buildDateRange(year: number, fromMonth?: number, toMonth?: number) {
   return { start, end }
 }
 
-export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountBalance[]> {
+function parsePresentationConfig(
+  value: string | null | undefined,
+  fallback: GestoriaPresentationConfig,
+): GestoriaPresentationConfig {
+  if (!value) return fallback
+  try {
+    const parsed = JSON.parse(value) as GestoriaPresentationConfig
+    return {
+      ...fallback,
+      ...parsed,
+      annualAccounts: { ...fallback.annualAccounts, ...parsed.annualAccounts },
+      corporateTax: { ...fallback.corporateTax, ...parsed.corporateTax },
+      booksLegalization: { ...fallback.booksLegalization, ...parsed.booksLegalization },
+    }
+  } catch {
+    return fallback
+  }
+}
+
+function defaultPlanForClientProfile(clientProfile: CompanyClientProfile | null): {
+  planType: AccountingPlanType
+  entityType: "fisica" | "juridica"
+} {
+  if (clientProfile === "PERSONA_FISICA" || clientProfile === "AUTONOMO") {
+    return { planType: "PGC_MICRO", entityType: "fisica" }
+  }
+  return { planType: "PGC_PYME", entityType: "juridica" }
+}
+
+export async function resolveCompanyChartPlan(companyId: string): Promise<CompanyChartPlanInfo> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      gestoriaProfile: {
+        select: {
+          accountingPlanType: true,
+          entityType: true,
+          presentationConfigJson: true,
+        },
+      },
+      fiscalSettings: {
+        select: { clientProfile: true },
+      },
+    },
+  })
+
+  if (company?.gestoriaProfile) {
+    const entityType: "fisica" | "juridica" =
+      company.gestoriaProfile.entityType === "PERSONA_FISICA" ? "fisica" : "juridica"
+    const presentation = parsePresentationConfig(
+      company.gestoriaProfile.presentationConfigJson,
+      createDefaultPresentationConfig(entityType),
+    )
+    return describeCompanyChartPlan(company.gestoriaProfile.accountingPlanType, presentation)
+  }
+
+  const inferred = defaultPlanForClientProfile(company?.fiscalSettings?.clientProfile ?? null)
+  return describeCompanyChartPlan(
+    inferred.planType,
+    createDefaultPresentationConfig(inferred.entityType),
+  )
+}
+
+async function loadMovementTotals(query: LedgerQuery): Promise<Map<string, MovementTotals>> {
   const { start, end } = buildDateRange(query.year, query.fromMonth, query.toMonth)
 
   const lines = await prisma.entryLine.findMany({
@@ -92,30 +170,38 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
     map.set(cuenta, current)
   }
 
-  const codes = [...map.keys()]
+  return map
+}
+
+async function loadOpenedAccountNames(companyId: string) {
   const [thirdParties, subaccounts] = await Promise.all([
-    codes.length === 0
-      ? []
-      : prisma.thirdParty.findMany({
-          where: { companyId: query.companyId },
-          select: { accountCode: true, name: true },
-        }),
-    codes.length === 0
-      ? []
-      : prisma.ledgerSubaccount.findMany({
-          where: { companyId: query.companyId },
-          select: { accountCode: true, name: true },
-        }),
+    prisma.thirdParty.findMany({
+      where: { companyId },
+      select: { accountCode: true, name: true },
+    }),
+    prisma.ledgerSubaccount.findMany({
+      where: { companyId },
+      select: { accountCode: true, name: true },
+    }),
   ])
 
-  const names = new Map<string, string>()
-  for (const row of [...thirdParties, ...subaccounts]) {
-    const code = normalizeCuenta(row.accountCode)
-    const name = row.name.trim()
-    if (code && name) names.set(code, name)
-  }
+  return [...thirdParties, ...subaccounts]
+    .map((row) => ({
+      code: normalizeCuenta(row.accountCode),
+      name: row.name.trim(),
+    }))
+    .filter((row) => row.code && row.name)
+}
 
-  const balances: AccountBalance[] = Array.from(map.entries())
+export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountBalance[]> {
+  const [movements, openedAccounts] = await Promise.all([
+    loadMovementTotals(query),
+    loadOpenedAccountNames(query.companyId),
+  ])
+
+  const names = new Map(openedAccounts.map((row) => [row.code, row.name]))
+
+  return Array.from(movements.entries())
     .map(([cuenta, totals]) => ({
       cuenta,
       label: names.get(cuenta) ?? getAccountLabel(cuenta),
@@ -125,8 +211,42 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
       level: getAccountLevel(cuenta),
     }))
     .sort((a, b) => cuentaSortKey(a.cuenta).localeCompare(cuentaSortKey(b.cuenta)))
+}
 
-  return balances
+export async function fetchCompanyChartExtract(query: LedgerQuery): Promise<{
+  plan: CompanyChartPlanInfo
+  rows: AccountBalance[]
+  totalDebe: number
+  totalHaber: number
+  accountsWithMovement: number
+}> {
+  const [plan, movements, openedAccounts] = await Promise.all([
+    resolveCompanyChartPlan(query.companyId),
+    loadMovementTotals(query),
+    loadOpenedAccountNames(query.companyId),
+  ])
+
+  const rows = buildChartBalanceRows({
+    planCodes: getPlanAccountCodes(plan.accountingPlanType),
+    openedAccounts,
+    movements,
+    detailLevel: plan.detailLevel,
+  })
+
+  let totalDebe = 0
+  let totalHaber = 0
+  for (const totals of movements.values()) {
+    totalDebe += totals.totalDebe
+    totalHaber += totals.totalHaber
+  }
+
+  return {
+    plan,
+    rows,
+    totalDebe: round2(totalDebe),
+    totalHaber: round2(totalHaber),
+    accountsWithMovement: countAccountsWithMovement(rows),
+  }
 }
 
 export async function buildReportMeta(

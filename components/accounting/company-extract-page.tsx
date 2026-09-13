@@ -24,7 +24,7 @@ export function CompanyExtractPage() {
         <div>
           <h1 className="text-xl font-semibold text-pine-900">Extracto de cuentas</h1>
           <p className="mt-1 text-sm text-graphite-600">
-            Balance de sumas y saldos de tu contabilidad. Misma vista que en gestoría.
+            Plan contable configurado con debe, haber y saldo. También las cuentas a cero.
           </p>
         </div>
         <div className="space-y-1.5">

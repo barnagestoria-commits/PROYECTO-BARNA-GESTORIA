@@ -1,3 +1,5 @@
+import { PGC_CHART_NAMES } from "@/lib/reports/pgc-chart-plans"
+
 const GROUP_LABELS: Record<string, string> = {
   "10": "Capital",
   "11": "Reservas",
@@ -116,6 +118,8 @@ export function getAccountLabel(cuenta: string): string {
   const prefix2 = digits.slice(0, 2)
 
   return (
+    PGC_CHART_NAMES[digits] ??
+    PGC_CHART_NAMES[prefix3] ??
     ACCOUNT_LABELS[prefix3] ??
     GROUP_LABELS[prefix3] ??
     GROUP_LABELS[prefix2] ??
