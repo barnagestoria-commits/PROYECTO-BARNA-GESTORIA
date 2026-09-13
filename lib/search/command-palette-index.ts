@@ -56,6 +56,13 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
     "diario",
     "contabilización",
   ]),
+  navItem(
+    "nav-extracto",
+    "Ir a Extracto de cuentas",
+    "/dashboard/informes/extracto",
+    "Balance de debe, haber y saldo",
+    ["extracto", "sumas", "saldos", "balance", "mayor"],
+  ),
   navItem("nav-fiscal", "Ir a Modelos fiscales", "/dashboard/fiscal", "Vista panorámica trimestral", [
     "impuestos",
     "fiscal",

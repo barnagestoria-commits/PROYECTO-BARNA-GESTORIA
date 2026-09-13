@@ -884,7 +884,7 @@ export function QuickAccountingEntryForm() {
 
   const openCompanyExtract = useCallback(() => {
     if (!activeCompany?.id) {
-      setSubmitError("Selecciona una empresa cliente para consultar el extracto.")
+      setSubmitError("No hay empresa activa para consultar el extracto.")
       return
     }
     setSubmitError(null)

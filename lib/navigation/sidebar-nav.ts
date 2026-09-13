@@ -203,6 +203,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Consulta de cuentas PGC",
           },
           {
+            label: "Extracto de cuentas",
+            href: "/dashboard/informes/extracto",
+            description: "Balance de debe, haber y saldo por cuenta",
+          },
+          {
             label: "Sumas y saldos",
             href: "/dashboard/informes/sumas-saldos",
             description: "Mayor resumido por cuenta",
@@ -317,6 +322,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Pérdidas y ganancias",
             href: "/dashboard/informes/pyg",
             description: "Cuenta de resultados",
+          },
+          {
+            label: "Extracto de cuentas",
+            href: "/dashboard/informes/extracto",
+            description: "Debe, haber y saldo de todas las cuentas",
           },
           {
             label: "Sumas y saldos",

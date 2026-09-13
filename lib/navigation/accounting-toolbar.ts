@@ -33,6 +33,13 @@ export const ACCOUNTING_TOOLBAR_GROUPS: AccountingToolbarGroup[] = [
         pdfReportType: "balance",
       },
       {
+        id: "extracto",
+        label: "Extracto de cuentas",
+        description: "Balance de debe, haber y saldo",
+        href: "/dashboard/informes/extracto",
+        pdfReportType: "sumas-saldos",
+      },
+      {
         id: "sumas-saldos",
         label: "Sumas y Saldos",
         description: "Mayor resumido por cuenta",
@@ -188,6 +195,7 @@ export function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/fiscal/resumen")) return "Resumen fiscal"
   if (pathname.startsWith("/dashboard/fiscal")) return "Vista Panorámica Fiscal"
   if (pathname.includes("/informes/balance")) return "Balance de Situación"
+  if (pathname.includes("/informes/extracto")) return "Extracto de cuentas"
   if (pathname.includes("/informes/sumas-saldos")) return "Sumas y Saldos"
   if (pathname.includes("/informes/pyg")) return "Pérdidas y Ganancias"
   if (pathname.includes("/informes/certificados/modelo-180")) return "Certificados Mod. 180"
