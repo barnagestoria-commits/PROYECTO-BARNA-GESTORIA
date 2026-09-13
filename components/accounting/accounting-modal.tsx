@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, type ReactNode } from "react"
-import { X } from "lucide-react"
+import { ArrowLeft, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 interface AccountingModalProps {
@@ -9,6 +9,8 @@ interface AccountingModalProps {
   title: string
   subtitle?: string
   onClose: () => void
+  onBack?: () => void
+  backLabel?: string
   children: ReactNode
   footer?: ReactNode
   className?: string
@@ -19,6 +21,8 @@ export function AccountingModal({
   title,
   subtitle,
   onClose,
+  onBack,
+  backLabel = "Volver",
   children,
   footer,
   className,
@@ -34,11 +38,14 @@ export function AccountingModal({
   useEffect(() => {
     if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose()
+      if (event.key === "Escape") {
+        if (onBack) onBack()
+        else onClose()
+      }
     }
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [open, onClose])
+  }, [open, onBack, onClose])
 
   if (!open) return null
 
@@ -59,12 +66,25 @@ export function AccountingModal({
         aria-modal="true"
         aria-labelledby="accounting-modal-title"
       >
-        <div className="flex items-start justify-between border-b border-sand-200 bg-sand-50 px-4 py-3">
-          <div>
-            <h2 id="accounting-modal-title" className="text-lg font-semibold text-pine-900">
-              {title}
-            </h2>
-            {subtitle && <p className="mt-0.5 text-sm text-graphite-500">{subtitle}</p>}
+        <div className="flex items-start justify-between gap-3 border-b border-sand-200 bg-sand-50 px-4 py-3">
+          <div className="flex min-w-0 items-start gap-2">
+            {onBack ? (
+              <button
+                type="button"
+                onClick={onBack}
+                className="mt-0.5 rounded-lg p-2 text-graphite-500 hover:bg-white hover:text-pine-900"
+                aria-label={backLabel}
+                title={backLabel}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+            ) : null}
+            <div className="min-w-0">
+              <h2 id="accounting-modal-title" className="text-lg font-semibold text-pine-900">
+                {title}
+              </h2>
+              {subtitle && <p className="mt-0.5 text-sm text-graphite-500">{subtitle}</p>}
+            </div>
           </div>
           <button
             type="button"

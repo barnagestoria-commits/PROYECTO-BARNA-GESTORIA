@@ -28,10 +28,7 @@ export function CompanyExtractDialog({
         <CompanyExtractPanel
           year={year}
           onSelectAccount={onSelectAccount}
-          onDoubleSelectAccount={(accountCode) => {
-            onSelectAccount?.(accountCode)
-            onClose()
-          }}
+          onDoubleSelectAccount={onSelectAccount}
         />
       ) : null}
     </AccountingModal>

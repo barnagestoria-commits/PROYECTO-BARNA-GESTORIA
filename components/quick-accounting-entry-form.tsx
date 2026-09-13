@@ -153,6 +153,7 @@ export function QuickAccountingEntryForm() {
   const [movementsDialogOpen, setMovementsDialogOpen] = useState(false)
   const [movementsAccount, setMovementsAccount] = useState<string | null>(null)
   const [companyExtractOpen, setCompanyExtractOpen] = useState(false)
+  const [returnToCompanyExtract, setReturnToCompanyExtract] = useState(false)
   const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const [movementsRefreshKey, setMovementsRefreshKey] = useState(0)
   const [committedEntries, setCommittedEntries] = useState<CommittedEntry[]>([])
@@ -899,6 +900,8 @@ export function QuickAccountingEntryForm() {
   )
 
   const handleExtractAccountSelect = useCallback((accountCode: string) => {
+    setReturnToCompanyExtract(true)
+    setCompanyExtractOpen(false)
     setMovementsAccount(accountCode)
     setMovementsDialogOpen(true)
   }, [])
@@ -1758,9 +1761,20 @@ export function QuickAccountingEntryForm() {
         refreshKey={movementsRefreshKey}
         onOpenEntry={(entryId) => setEditEntryId(entryId)}
         onEntryDeleted={() => setMovementsRefreshKey((value) => value + 1)}
+        onBack={
+          returnToCompanyExtract
+            ? () => {
+                setMovementsDialogOpen(false)
+                setMovementsAccount(null)
+                setReturnToCompanyExtract(false)
+                setCompanyExtractOpen(true)
+              }
+            : undefined
+        }
         onClose={() => {
           setMovementsDialogOpen(false)
           setMovementsAccount(null)
+          setReturnToCompanyExtract(false)
         }}
       />
 

@@ -66,6 +66,7 @@ export function CompanyExtractPage() {
         open={movementsAccount !== null}
         cuenta={movementsAccount}
         year={year}
+        onBack={() => setMovementsAccount(null)}
         onClose={() => setMovementsAccount(null)}
       />
     </div>

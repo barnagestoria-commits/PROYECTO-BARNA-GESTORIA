@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2, X } from "lucide-react"
+import { ArrowLeft, Loader2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { apiFetch } from "@/lib/api-client"
@@ -14,6 +14,7 @@ interface AccountMovementsDialogProps {
   year?: number
   refreshKey?: number
   onClose: () => void
+  onBack?: () => void
   onOpenEntry?: (entryId: string) => void
   onEntryDeleted?: () => void
 }
@@ -24,6 +25,7 @@ export function AccountMovementsDialog({
   year = new Date().getFullYear(),
   refreshKey = 0,
   onClose,
+  onBack,
   onOpenEntry,
   onEntryDeleted,
 }: AccountMovementsDialogProps) {
@@ -89,6 +91,8 @@ export function AccountMovementsDialog({
       title="Extracto de cuenta"
       subtitle={cuenta ? `EX · Movimientos del ejercicio ${year}` : undefined}
       onClose={onClose}
+      onBack={onBack}
+      backLabel="Volver al extracto de cuentas"
       className="max-w-5xl"
     >
       {isLoading ? (
@@ -102,6 +106,12 @@ export function AccountMovementsDialog({
         </p>
       ) : summary ? (
         <div className="space-y-4">
+          {onBack ? (
+            <Button type="button" variant="outline" size="sm" onClick={onBack}>
+              <ArrowLeft className="h-4 w-4" />
+              Volver al extracto de cuentas
+            </Button>
+          ) : null}
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
             <div className="font-semibold">
               {summary.formattedCuenta} · {summary.label}
