@@ -1812,6 +1812,7 @@ export function QuickAccountingEntryForm() {
         onClose={() => setPgcDialogOpen(false)}
         onSelect={handlePgcSelect}
         ledgerSubaccounts={ledgerSubaccounts}
+        thirdParties={thirdParties}
       />
 
       <NifAccountDialog

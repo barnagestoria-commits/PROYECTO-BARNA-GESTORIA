@@ -5,7 +5,9 @@ import { Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { searchChartAccounts } from "@/lib/accounting/pgc-accounts"
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
+import type { ThirdPartyAccountOption } from "@/lib/accounting/account-suggestions"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
+import { apiFetch } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 
 interface PgcChartDialogProps {
@@ -13,6 +15,7 @@ interface PgcChartDialogProps {
   onClose: () => void
   onSelect: (accountCode: string, accountName: string) => void
   ledgerSubaccounts?: LedgerSubaccountOption[]
+  thirdParties?: ThirdPartyAccountOption[]
 }
 
 export function PgcChartDialog({
@@ -20,22 +23,61 @@ export function PgcChartDialog({
   onClose,
   onSelect,
   ledgerSubaccounts = [],
+  thirdParties = [],
 }: PgcChartDialogProps) {
   const [query, setQuery] = useState("")
+  const [catalog, setCatalog] = useState<{
+    ledger: LedgerSubaccountOption[]
+    parties: ThirdPartyAccountOption[]
+  } | null>(null)
 
   useEffect(() => {
     if (open) {
       setQuery("")
+    } else {
+      setCatalog(null)
     }
   }, [open])
+
+  useEffect(() => {
+    if (!open) return
+
+    let cancelled = false
+
+    void Promise.all([
+      apiFetch<{ success: true; thirdParties: ThirdPartyAccountOption[] }>("/api/accounting/third-parties"),
+      apiFetch<{ success: true; subaccounts: LedgerSubaccountOption[] }>(
+        "/api/accounting/ledger-subaccounts",
+      ),
+    ])
+      .then(([parties, ledger]) => {
+        if (cancelled) return
+        setCatalog({
+          parties: parties.thirdParties,
+          ledger: ledger.subaccounts,
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setCatalog(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
+  const openedLedger = catalog?.ledger ?? ledgerSubaccounts
+  const openedParties = catalog?.parties ?? thirdParties
 
   const accounts = useMemo(
     () =>
       searchChartAccounts(query, {
-        ledgerSubaccounts,
+        ledgerSubaccounts: openedLedger,
+        thirdParties: openedParties,
         limit: 100,
       }),
-    [ledgerSubaccounts, query],
+    [openedLedger, openedParties, query],
   )
 
   const showEmptyState = query.trim().length > 0 && accounts.length === 0
@@ -48,7 +90,7 @@ export function PgcChartDialog({
       onClose={onClose}
       footer={
         <p className="text-xs text-graphite-500">
-          Busca por código (430) o por nombre (clientes, IVA, bancos…). Pulsa Enter o haz clic para
+          Busca por código (430.2) o por nombre (Tipay, clientes, IVA…). Pulsa Enter o haz clic para
           asignar la cuenta.
         </p>
       }
@@ -59,7 +101,7 @@ export function PgcChartDialog({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por código o descripción..."
+            placeholder="Buscar por código, subcuenta o descripción..."
             className="h-10 pl-10"
             autoFocus
           />
@@ -83,10 +125,16 @@ export function PgcChartDialog({
                     onClose()
                   }}
                 >
-                  <td className="px-3 py-2 font-mono font-semibold text-pine-900">{account.code}</td>
+                  <td
+                    className={`px-3 py-2 font-mono text-pine-900 ${
+                      account.source === "pgc" ? "font-semibold" : ""
+                    }`}
+                  >
+                    {account.code}
+                  </td>
                   <td className="px-3 py-2 text-graphite-700">
                     {account.name}
-                    {account.source === "ledger" && (
+                    {account.source !== "pgc" && (
                       <span className="ml-2 text-xs text-graphite-400">Subcuenta</span>
                     )}
                   </td>

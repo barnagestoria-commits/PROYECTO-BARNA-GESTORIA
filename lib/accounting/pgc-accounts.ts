@@ -1,5 +1,6 @@
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 
 export interface PgcAccount {
   code: string
@@ -11,7 +12,14 @@ export interface ChartAccountOption {
   code: string
   name: string
   accountCode: string
-  source: "pgc" | "ledger"
+  source: "pgc" | "ledger" | "tercero"
+}
+
+export interface ChartAccountSearchParty {
+  accountCode: string
+  formattedAccountCode?: string
+  name: string
+  cif?: string
 }
 
 const COMMON_ACCOUNTS = [
@@ -193,7 +201,7 @@ function scoreAccountMatch(
   if (!normalizedQuery) return 0
 
   const tokens = normalizedQuery.split(/\s+/).filter(Boolean)
-  const code = account.code
+  const code = normalizePgcSearchText(account.code)
   const name = normalizePgcSearchText(account.name)
   const searchText = account.searchText
 
@@ -249,12 +257,66 @@ function ledgerToSearchableAccount(account: LedgerSubaccountOption): {
   }
 }
 
+function thirdPartyToSearchableAccount(party: ChartAccountSearchParty): {
+  code: string
+  name: string
+  searchText: string
+} {
+  const formatted = party.formattedAccountCode || formatAccountCodeDisplay(party.accountCode)
+  return {
+    code: party.accountCode,
+    name: party.name,
+    searchText: normalizePgcSearchText(
+      [party.accountCode, formatted, party.name, party.cif ?? ""].join(" "),
+    ),
+  }
+}
+
+function toLedgerOption(account: LedgerSubaccountOption): ChartAccountOption {
+  return {
+    code: account.formattedAccountCode,
+    name: account.name,
+    accountCode: account.accountCode,
+    source: "ledger",
+  }
+}
+
+function toThirdPartyOption(party: ChartAccountSearchParty): ChartAccountOption {
+  return {
+    code: party.formattedAccountCode || formatAccountCodeDisplay(party.accountCode),
+    name: party.name,
+    accountCode: party.accountCode,
+    source: "tercero",
+  }
+}
+
+function dedupeChartAccounts(accounts: ChartAccountOption[]): ChartAccountOption[] {
+  const seen = new Set<string>()
+  return accounts.filter((item) => {
+    const key = item.accountCode.replace(/\D/g, "") || item.accountCode
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export function searchChartAccounts(
   query: string,
-  options?: { ledgerSubaccounts?: LedgerSubaccountOption[]; limit?: number },
+  options?: {
+    ledgerSubaccounts?: LedgerSubaccountOption[]
+    thirdParties?: ChartAccountSearchParty[]
+    limit?: number
+  },
 ): ChartAccountOption[] {
   const limit = options?.limit ?? 100
+  const ledger = options?.ledgerSubaccounts ?? []
+  const thirdParties = options?.thirdParties ?? []
   const normalized = normalizePgcSearchText(query)
+
+  const openedOptions: ChartAccountOption[] = [
+    ...thirdParties.map(toThirdPartyOption),
+    ...ledger.map(toLedgerOption),
+  ]
 
   const pgcResults: ChartAccountOption[] = searchPgcAccounts(query, limit).map((account) => ({
     code: account.code,
@@ -264,44 +326,40 @@ export function searchChartAccounts(
   }))
 
   if (!normalized) {
-    const ledgerResults = (options?.ledgerSubaccounts ?? []).slice(0, limit).map((account) => ({
-      code: account.formattedAccountCode,
-      name: account.name,
-      accountCode: account.accountCode,
-      source: "ledger" as const,
-    }))
-    return [...pgcResults, ...ledgerResults].slice(0, limit)
+    return dedupeChartAccounts([...openedOptions, ...pgcResults]).slice(0, limit)
   }
 
-  const ledgerResults = (options?.ledgerSubaccounts ?? [])
-    .map((account) => {
-      const searchable = ledgerToSearchableAccount(account)
-      return {
-        option: {
-          code: account.formattedAccountCode,
-          name: account.name,
-          accountCode: account.accountCode,
-          source: "ledger" as const,
-        },
-        score: scoreAccountMatch(searchable, query),
-      }
-    })
-    .filter((item) => item.score >= 0)
-    .sort(
-      (a, b) =>
-        b.score - a.score ||
-        a.option.accountCode.localeCompare(b.option.accountCode, undefined, { numeric: true }),
-    )
-    .map((item) => item.option)
+  const scoredOpened = [
+    ...thirdParties.map((party) => {
+      const score = scoreAccountMatch(thirdPartyToSearchableAccount(party), query)
+      return { option: toThirdPartyOption(party), score: score < 0 ? score : score + 25 }
+    }),
+    ...ledger.map((account) => {
+      const score = scoreAccountMatch(ledgerToSearchableAccount(account), query)
+      return { option: toLedgerOption(account), score: score < 0 ? score : score + 25 }
+    }),
+  ].filter((item) => item.score >= 0)
 
-  const merged = [...pgcResults, ...ledgerResults]
-  const seen = new Set<string>()
+  const scoredPgc = pgcResults.map((option) => ({
+    option,
+    score: scoreAccountMatch(
+      {
+        code: option.accountCode,
+        name: option.name,
+        searchText: buildSearchText(option.accountCode, option.name),
+      },
+      query,
+    ),
+  }))
 
-  return merged
-    .filter((item) => {
-      if (seen.has(item.accountCode)) return false
-      seen.add(item.accountCode)
-      return true
-    })
-    .slice(0, limit)
+  return dedupeChartAccounts(
+    [...scoredOpened, ...scoredPgc]
+      .filter((item) => item.score >= 0)
+      .sort(
+        (a, b) =>
+          b.score - a.score ||
+          a.option.accountCode.localeCompare(b.option.accountCode, undefined, { numeric: true }),
+      )
+      .map((item) => item.option),
+  ).slice(0, limit)
 }
