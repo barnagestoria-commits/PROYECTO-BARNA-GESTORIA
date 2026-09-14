@@ -4,6 +4,7 @@ import { fetchReportData, serializeReportData } from "@/lib/reports/fetch-report
 import {
   VALID_REPORT_TYPES,
   parseReportQueryFromUrl,
+  toLedgerQueryFields,
 } from "@/lib/reports/report-query"
 import type { ReportType } from "@/lib/reports/types"
 
@@ -31,13 +32,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: parsed.error }, { status: 400 })
     }
 
-    const report = await fetchReportData(reportType, {
-      companyId,
-      year: parsed.year,
-      fromMonth: parsed.fromMonth,
-      toMonth: parsed.toMonth,
-      costCenterId: parsed.costCenterId,
-    })
+    const report = await fetchReportData(reportType, toLedgerQueryFields(companyId, parsed))
 
     return NextResponse.json({
       success: true,

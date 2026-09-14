@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   aggregateMovementsByDetail,
   buildChartBalanceRows,
+  buildMovementBalanceRows,
   countAccountsWithMovement,
 } from "@/lib/reports/build-chart-balances"
 import { getPlanAccountCodes } from "@/lib/reports/pgc-chart-plans"
@@ -108,5 +109,42 @@ describe("build-chart-balances", () => {
 
     expect(rows.find((row) => row.cuenta === "41000001")?.totalHaber).toBe(61.92)
     expect(rows.find((row) => row.cuenta === "410")?.totalHaber).toBe(0)
+  })
+
+  it("lists Elgueta-style balances at the chosen detail level", () => {
+    const movements = new Map([
+      ["41000002", { totalDebe: 0, totalHaber: 46.15 }],
+      ["41000035", { totalDebe: 0, totalHaber: 6222.06 }],
+      ["43000019", { totalDebe: 60766.2, totalHaber: 0 }],
+      ["60100000", { totalDebe: 2746.85, totalHaber: 0 }],
+      ["60100001", { totalDebe: 5217.42, totalHaber: 0 }],
+      ["62120000", { totalDebe: 6100.06, totalHaber: 0 }],
+    ])
+    const names = new Map([
+      ["41000002", "GALP ENERGIA ESPAÑA SAU"],
+      ["41000035", "ASOROTNIC SL"],
+      ["43000019", "FERNANDEZ VEGA PAULA GABRIELA"],
+      ["60100001", "COMPRA MATERIAL DE CONSTRUCCI"],
+    ])
+
+    const subcuentas = buildMovementBalanceRows(movements, names, "SUBCUENTAS")
+    expect(subcuentas.find((row) => row.cuenta === "41000002")?.label).toBe("GALP ENERGIA ESPAÑA SAU")
+    expect(subcuentas.find((row) => row.cuenta === "41000035")?.label).toBe("ASOROTNIC SL")
+    expect(subcuentas.find((row) => row.cuenta === "60100000")?.totalDebe).toBe(2746.85)
+    expect(subcuentas.find((row) => row.cuenta === "60100001")?.totalDebe).toBe(5217.42)
+
+    const nivel4 = buildMovementBalanceRows(movements, names, "NIVEL_4")
+    expect(nivel4.find((row) => row.cuenta === "4100")?.totalHaber).toBe(6268.21)
+    expect(nivel4.find((row) => row.cuenta === "4300")?.totalDebe).toBe(60766.2)
+    expect(nivel4.find((row) => row.cuenta === "6010")?.totalDebe).toBe(7964.27)
+    expect(nivel4.find((row) => row.cuenta === "6212")?.totalDebe).toBe(6100.06)
+    expect(nivel4.find((row) => row.cuenta === "41000002")).toBeUndefined()
+
+    const nivel3 = buildMovementBalanceRows(movements, names, "NIVEL_3")
+    expect(nivel3.find((row) => row.cuenta === "410")?.totalHaber).toBe(6268.21)
+    expect(nivel3.find((row) => row.cuenta === "430")?.totalDebe).toBe(60766.2)
+    expect(nivel3.find((row) => row.cuenta === "601")?.totalDebe).toBe(7964.27)
+    expect(nivel3.find((row) => row.cuenta === "621")?.totalDebe).toBe(6100.06)
+    expect(nivel3.map((row) => row.cuenta)).toEqual(["410", "430", "601", "621"])
   })
 })

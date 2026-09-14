@@ -4,27 +4,16 @@ import { buildPdfFilename, generateReportPdf } from "@/lib/reports/pdf/generate-
 import { prisma } from "@/lib/db"
 import type { ReportType } from "@/lib/reports/types"
 import { REPORT_LABELS } from "@/lib/reports/types"
+import {
+  VALID_REPORT_TYPES,
+  parseReportQueryFromUrl,
+  toLedgerQueryFields,
+} from "@/lib/reports/report-query"
 
 export const runtime = "nodejs"
 
-const VALID_TYPES = new Set<ReportType>(["balance", "sumas-saldos", "pyg"])
-
 interface RouteContext {
   params: Promise<{ reportType: string }>
-}
-
-function parseYear(value: string | null): number | null {
-  if (!value) return new Date().getFullYear()
-  const year = Number.parseInt(value, 10)
-  if (!Number.isFinite(year) || year < 2000 || year > 2100) return null
-  return year
-}
-
-function parseMonth(value: string | null): number | undefined {
-  if (!value) return undefined
-  const month = Number.parseInt(value, 10)
-  if (!Number.isFinite(month) || month < 1 || month > 12) return undefined
-  return month
 }
 
 export async function GET(request: Request, { params }: RouteContext) {
@@ -33,22 +22,17 @@ export async function GET(request: Request, { params }: RouteContext) {
     const { companyId } = await requireActiveCompany(request)
     const reportType = reportTypeParam as ReportType
 
-    if (!VALID_TYPES.has(reportType)) {
+    if (!VALID_REPORT_TYPES.has(reportType)) {
       return NextResponse.json(
-        { success: false, error: `Informe no válido. Opciones: ${[...VALID_TYPES].join(", ")}` },
+        { success: false, error: `Informe no válido. Opciones: ${[...VALID_REPORT_TYPES].join(", ")}` },
         { status: 400 },
       )
     }
 
-    const url = new URL(request.url)
-    const year = parseYear(url.searchParams.get("year"))
-    if (year === null) {
-      return NextResponse.json({ success: false, error: "Ejercicio no válido." }, { status: 400 })
+    const parsed = parseReportQueryFromUrl(new URL(request.url))
+    if ("error" in parsed) {
+      return NextResponse.json({ success: false, error: parsed.error }, { status: 400 })
     }
-
-    const fromMonth = parseMonth(url.searchParams.get("fromMonth"))
-    const toMonth = parseMonth(url.searchParams.get("toMonth"))
-    const costCenterId = url.searchParams.get("costCenterId")?.trim() || undefined
 
     const company = await prisma.company.findUnique({
       where: { id: companyId },
@@ -59,15 +43,9 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Empresa no encontrada." }, { status: 404 })
     }
 
-    const pdfBuffer = await generateReportPdf(reportType, {
-      companyId,
-      year,
-      fromMonth,
-      toMonth,
-      costCenterId,
-    })
+    const pdfBuffer = await generateReportPdf(reportType, toLedgerQueryFields(companyId, parsed))
 
-    const filename = buildPdfFilename(reportType, company.name, year)
+    const filename = buildPdfFilename(reportType, company.name, parsed.year)
     const encodedFilename = encodeURIComponent(filename)
 
     return new NextResponse(new Uint8Array(pdfBuffer), {

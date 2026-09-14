@@ -3,6 +3,7 @@ import { createPdfBuffer } from "@/lib/reports/pdf/pdfmake-client"
 import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
 import { fetchReportData } from "@/lib/reports/fetch-report-data"
 import { formatAmount, formatDateTimeEs, formatEuro } from "@/lib/reports/format"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type {
   BalanceReportData,
   PygReportData,
@@ -34,7 +35,7 @@ function labelCell(label: string, level: number): TableCell {
 }
 
 function cuentaCell(cuenta: string): TableCell {
-  return { text: cuenta, fontSize: 8 }
+  return { text: formatAccountCodeDisplay(cuenta), fontSize: 8 }
 }
 
 function amountCell(value: number): TableCell {

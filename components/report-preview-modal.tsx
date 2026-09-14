@@ -1,9 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { ReportExportButtons } from "@/components/report-export-buttons"
 import { ReportPreviewContent, type SerializedPreview } from "@/components/report-preview-content"
+import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { ReportType } from "@/lib/reports/types"
 import { Loader2, X } from "lucide-react"
 
@@ -15,6 +16,8 @@ interface ReportPreviewModalProps {
   isLoading: boolean
   error: string | null
   year: number
+  costCenterId?: string
+  detailLevel?: GestoriaAccountDetailLevel
 }
 
 export function ReportPreviewModal({
@@ -25,6 +28,8 @@ export function ReportPreviewModal({
   isLoading,
   error,
   year,
+  costCenterId,
+  detailLevel,
 }: ReportPreviewModalProps) {
   useEffect(() => {
     if (!open) return
@@ -78,6 +83,8 @@ export function ReportPreviewModal({
           <ReportExportButtons
             reportType={reportType}
             year={year}
+            costCenterId={costCenterId}
+            detailLevel={detailLevel}
             disabled={isLoading || !!error}
           />
         </div>

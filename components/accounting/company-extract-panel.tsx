@@ -5,10 +5,8 @@ import { Loader2 } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
-import {
-  ACCOUNT_DETAIL_LEVEL_OPTIONS,
-  type GestoriaAccountDetailLevel,
-} from "@/lib/contabilidad/gestoria-presentation-config"
+import { AccountDetailLevelPicker } from "@/components/accounting/account-detail-level-picker"
+import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { CompanyChartPlanInfo } from "@/lib/reports/pgc-chart-plans"
 import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
 
@@ -26,13 +24,6 @@ interface CompanyExtractPanelProps {
   year: number
   onSelectAccount?: (accountCode: string) => void
   onDoubleSelectAccount?: (accountCode: string) => void
-}
-
-const DETAIL_HINT: Record<GestoriaAccountDetailLevel, string> = {
-  NIVEL_3: "Vista general: 410, 629, 705. Las subcuentas se agrupan en la cuenta de 3 dígitos.",
-  NIVEL_4: "Cuentas genéricas de 4 dígitos: 4100, 6212, 4751.",
-  SUBCUENTAS:
-    "Como A3: 410.00001 Catcher, 430.00019 Fernández Vega, 601.00001, etc., cada una en su línea.",
 }
 
 export function CompanyExtractPanel({
@@ -75,23 +66,7 @@ export function CompanyExtractPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        {ACCOUNT_DETAIL_LEVEL_OPTIONS.map((option) => (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => setDetailLevel(option.id)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
-              detailLevel === option.id
-                ? "border-emerald-700 bg-emerald-800 text-white"
-                : "border-sand-300 bg-white text-graphite-700 hover:border-emerald-400"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
-      </div>
-      <p className="text-xs text-graphite-500">{DETAIL_HINT[detailLevel]}</p>
+      <AccountDetailLevelPicker value={detailLevel} onChange={setDetailLevel} />
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-emerald-800">

@@ -3,6 +3,7 @@ import {
   expandPlanCodesForDetail,
   getChartAccountName,
 } from "@/lib/reports/pgc-chart-plans"
+import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import {
   cuentaSortKey,
   getAccountLevel,
@@ -47,6 +48,25 @@ export function aggregateMovementsByDetail(
     if (key) add(key, totals)
   }
   return aggregated
+}
+
+export function buildMovementBalanceRows(
+  movements: Map<string, MovementTotals>,
+  names: Map<string, string>,
+  detailLevel: GestoriaAccountDetailLevel,
+): AccountBalance[] {
+  const aggregated = aggregateMovementsByDetail(movements, detailLevel)
+
+  return Array.from(aggregated.entries())
+    .map(([cuenta, totals]) => ({
+      cuenta,
+      label: names.get(cuenta) ?? getAccountLabel(cuenta),
+      totalDebe: round2(totals.totalDebe),
+      totalHaber: round2(totals.totalHaber),
+      saldo: round2(totals.totalDebe - totals.totalHaber),
+      level: getAccountLevel(cuenta),
+    }))
+    .sort((a, b) => cuentaSortKey(a.cuenta).localeCompare(cuentaSortKey(b.cuenta)))
 }
 
 export function buildChartBalanceRows(input: {

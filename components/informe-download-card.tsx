@@ -19,6 +19,8 @@ import type { ReportType } from "@/lib/reports/types"
 import { apiFetch } from "@/lib/api-client"
 import { Eye, FileText, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { AccountDetailLevelPicker } from "@/components/accounting/account-detail-level-picker"
+import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 
 interface CostCenterOption {
   id: string
@@ -50,9 +52,15 @@ export function InformeDownloadCard({
   const [bundleLoading, setBundleLoading] = useState<"annual" | "trimestral" | "listados" | null>(null)
   const [costCenters, setCostCenters] = useState<CostCenterOption[]>([])
   const [selectedCostCenterId, setSelectedCostCenterId] = useState("")
+  const [detailLevel, setDetailLevel] = useState<GestoriaAccountDetailLevel>("SUBCUENTAS")
   const currentYear = new Date().getFullYear()
 
   const supportsCostCenterFilter = reportType === "balance" || reportType === "pyg"
+  const supportsDetailLevel = reportType === "balance" || reportType === "pyg" || reportType === "sumas-saldos"
+  const reportOptions = {
+    costCenterId: selectedCostCenterId || undefined,
+    detailLevel: supportsDetailLevel ? detailLevel : undefined,
+  }
 
   useEffect(() => {
     if (!activeCompany?.id || !supportsCostCenterFilter) {
@@ -77,11 +85,7 @@ export function InformeDownloadCard({
     setPreviewData(null)
 
     try {
-      const preview = await fetchReportPreview(
-        reportType,
-        currentYear,
-        selectedCostCenterId || undefined,
-      )
+      const preview = await fetchReportPreview(reportType, currentYear, reportOptions)
       setPreviewData(preview)
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "No se pudo cargar la vista previa.")
@@ -96,7 +100,7 @@ export function InformeDownloadCard({
     setError(null)
     try {
       if (scope === "listados") {
-        await downloadListadosBundleZip(currentYear)
+        await downloadListadosBundleZip(currentYear, reportOptions)
       } else {
         await downloadFiscalBundleZip(currentYear, scope)
       }
@@ -139,6 +143,9 @@ export function InformeDownloadCard({
 
             {reportType ? (
               <>
+                {supportsDetailLevel && (
+                  <AccountDetailLevelPicker value={detailLevel} onChange={setDetailLevel} />
+                )}
                 {supportsCostCenterFilter && costCenters.length > 0 && (
                   <div className="space-y-1.5">
                     <Label htmlFor="report-cost-center" className="text-xs text-graphite-600">
@@ -159,7 +166,13 @@ export function InformeDownloadCard({
                     </select>
                   </div>
                 )}
-                <ReportExportButtons reportType={reportType} year={currentYear} disabled={!canExport} />
+                <ReportExportButtons
+                  reportType={reportType}
+                  year={currentYear}
+                  costCenterId={reportOptions.costCenterId}
+                  detailLevel={reportOptions.detailLevel}
+                  disabled={!canExport}
+                />
               </>
             ) : isResumenAnual ? (
               <div className="space-y-4">
@@ -266,6 +279,8 @@ export function InformeDownloadCard({
           isLoading={previewLoading}
           error={previewError}
           year={currentYear}
+          costCenterId={reportOptions.costCenterId}
+          detailLevel={reportOptions.detailLevel}
         />
       )}
     </>

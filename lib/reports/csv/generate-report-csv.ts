@@ -1,5 +1,6 @@
 import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
 import { fetchReportData } from "@/lib/reports/fetch-report-data"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type { LedgerQuery } from "@/lib/reports/account-ledger"
 import type {
   BalanceReportData,
@@ -39,7 +40,7 @@ function buildSumasSaldosCsv(data: SumasSaldosReportData): string {
     csvRow(["Cuenta", "Descripción", "Debe", "Haber", "Saldo"]),
     ...rows.map((row) =>
       csvRow([
-        row.cuenta,
+        formatAccountCodeDisplay(row.cuenta),
         `${"  ".repeat(row.level)}${row.label}`,
         row.totalDebe.toFixed(2),
         row.totalHaber.toFixed(2),
@@ -61,7 +62,7 @@ function buildBalanceCsv(data: BalanceReportData): string {
   for (const section of data.activo) {
     lines.push(csvRow(["", section.title, "", "", ""]))
     for (const row of section.rows) {
-      lines.push(csvRow(["", "", row.cuenta, `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
     }
     lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
   }
@@ -72,7 +73,7 @@ function buildBalanceCsv(data: BalanceReportData): string {
   for (const section of data.pasivo) {
     lines.push(csvRow(["", section.title, "", "", ""]))
     for (const row of section.rows) {
-      lines.push(csvRow(["", "", row.cuenta, `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
     }
     lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
   }
@@ -91,7 +92,7 @@ function buildPygCsv(data: PygReportData): string {
   for (const section of data.ingresos) {
     lines.push(csvRow(["", section.title, "", "", ""]))
     for (const row of section.rows) {
-      lines.push(csvRow(["", "", row.cuenta, `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
     }
     lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
   }
@@ -102,7 +103,7 @@ function buildPygCsv(data: PygReportData): string {
   for (const section of data.gastos) {
     lines.push(csvRow(["", section.title, "", "", ""]))
     for (const row of section.rows) {
-      lines.push(csvRow(["", "", row.cuenta, `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
     }
     lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
   }

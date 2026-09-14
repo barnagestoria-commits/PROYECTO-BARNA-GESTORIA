@@ -8,6 +8,7 @@ import {
 } from "@/lib/contabilidad/gestoria-presentation-config"
 import {
   buildChartBalanceRows,
+  buildMovementBalanceRows,
   countAccountsWithMovement,
   type MovementTotals,
 } from "@/lib/reports/build-chart-balances"
@@ -16,13 +17,7 @@ import {
   getPlanAccountCodes,
   type CompanyChartPlanInfo,
 } from "@/lib/reports/pgc-chart-plans"
-import { getAccountLabel } from "@/lib/reports/pgc-labels"
-import {
-  cuentaSortKey,
-  getAccountLevel,
-  normalizeCuenta,
-  round2,
-} from "@/lib/reports/format"
+import { normalizeCuenta, round2 } from "@/lib/reports/format"
 import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
 
 export interface LedgerQuery {
@@ -31,6 +26,7 @@ export interface LedgerQuery {
   fromMonth?: number
   toMonth?: number
   costCenterId?: string
+  detailLevel?: GestoriaAccountDetailLevel
 }
 
 export function buildPeriodLabel(year: number, fromMonth?: number, toMonth?: number): string {
@@ -202,16 +198,11 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
 
   const names = new Map(openedAccounts.map((row) => [row.code, row.name]))
 
-  return Array.from(movements.entries())
-    .map(([cuenta, totals]) => ({
-      cuenta,
-      label: names.get(cuenta) ?? getAccountLabel(cuenta),
-      totalDebe: round2(totals.totalDebe),
-      totalHaber: round2(totals.totalHaber),
-      saldo: round2(totals.totalDebe - totals.totalHaber),
-      level: getAccountLevel(cuenta),
-    }))
-    .sort((a, b) => cuentaSortKey(a.cuenta).localeCompare(cuentaSortKey(b.cuenta)))
+  return buildMovementBalanceRows(
+    movements,
+    names,
+    query.detailLevel ?? "SUBCUENTAS",
+  )
 }
 
 export async function fetchCompanyChartExtract(

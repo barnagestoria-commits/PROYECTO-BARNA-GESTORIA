@@ -155,7 +155,7 @@ export function InvoiceTemplateDesigner() {
         <CardHeader>
           <CardTitle className="text-pine-900">Diseño visual</CardTitle>
           <CardDescription>
-            Personaliza la factura emitida al estilo Holded: colores, logo, tabla y bloques visibles.
+            Personaliza la factura emitida: colores, logo, tabla y bloques visibles.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -226,7 +226,7 @@ export function InvoiceTemplateDesigner() {
               onChange={(e) => setTemplate({ ...template, tableStyle: e.target.value as InvoiceTableStyle })}
               className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="striped">Rayada (Holded clásico)</option>
+              <option value="striped">Rayada</option>
               <option value="classic">Cabecera sólida</option>
               <option value="minimal">Minimalista</option>
             </select>

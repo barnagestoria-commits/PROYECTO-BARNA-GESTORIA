@@ -1,6 +1,7 @@
 "use client"
 
 import { formatAmount, formatEuro } from "@/lib/reports/format"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type {
   BalanceReportData,
   PygReportData,
@@ -84,7 +85,7 @@ function SectionTable({
               <TableBody>
                 {section.rows.map((row) => (
                   <TableRow key={row.cuenta}>
-                    <TableCell className="font-mono text-xs">{row.cuenta}</TableCell>
+                    <TableCell className="font-mono text-xs">{formatAccountCodeDisplay(row.cuenta)}</TableCell>
                     <TableCell className="text-sm">
                       <IndentLabel text={row.label} level={row.level} />
                     </TableCell>
@@ -133,7 +134,7 @@ function SumasSaldosPreview({ data }: { data: SerializedPreview & { type: "sumas
             <TableBody>
               {rows.map((row) => (
                 <TableRow key={row.cuenta}>
-                  <TableCell className="font-mono text-xs">{row.cuenta}</TableCell>
+                  <TableCell className="font-mono text-xs">{formatAccountCodeDisplay(row.cuenta)}</TableCell>
                   <TableCell className="text-sm">
                     <IndentLabel text={row.label} level={row.level} />
                   </TableCell>

@@ -182,8 +182,7 @@ export function GestoriaPresentationPage() {
             Presentación fiscal y cuentas anuales
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-graphite-500">
-            Plan contable, balances, impuesto de sociedades, modelo 232 y legalización de libros —
-            como en A3SOC al dar de alta un cliente.
+            Plan contable, balances, impuesto de sociedades, modelo 232 y legalización de libros.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">

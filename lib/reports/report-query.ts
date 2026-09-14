@@ -1,12 +1,30 @@
+import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { ReportType } from "@/lib/reports/types"
 
 export const VALID_REPORT_TYPES = new Set<ReportType>(["balance", "sumas-saldos", "pyg"])
+
+const ACCOUNT_DETAIL_LEVELS = new Set<GestoriaAccountDetailLevel>([
+  "NIVEL_3",
+  "NIVEL_4",
+  "SUBCUENTAS",
+])
 
 export interface ParsedReportQuery {
   year: number
   fromMonth?: number
   toMonth?: number
   costCenterId?: string
+  detailLevel: GestoriaAccountDetailLevel
+}
+
+export function parseAccountDetailLevel(
+  value: string | null | undefined,
+  fallback: GestoriaAccountDetailLevel = "SUBCUENTAS",
+): GestoriaAccountDetailLevel {
+  if (value && ACCOUNT_DETAIL_LEVELS.has(value as GestoriaAccountDetailLevel)) {
+    return value as GestoriaAccountDetailLevel
+  }
+  return fallback
 }
 
 export function parseYear(value: string | null): number | null {
@@ -32,6 +50,18 @@ export function parseReportQueryFromUrl(url: URL): ParsedReportQuery | { error: 
     fromMonth: parseMonth(url.searchParams.get("fromMonth")),
     toMonth: parseMonth(url.searchParams.get("toMonth")),
     costCenterId,
+    detailLevel: parseAccountDetailLevel(url.searchParams.get("detail")),
+  }
+}
+
+export function toLedgerQueryFields(companyId: string, parsed: ParsedReportQuery) {
+  return {
+    companyId,
+    year: parsed.year,
+    fromMonth: parsed.fromMonth,
+    toMonth: parsed.toMonth,
+    costCenterId: parsed.costCenterId,
+    detailLevel: parsed.detailLevel,
   }
 }
 

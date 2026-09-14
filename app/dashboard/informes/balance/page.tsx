@@ -8,7 +8,7 @@ export default function BalancePage() {
     <div className="mx-auto max-w-2xl space-y-4">
       <InformeDownloadCard
         title="Balance de Situación"
-        description="Estado de situación patrimonial con activo, pasivo y patrimonio neto a fecha de cierre."
+        description="Estado de situación patrimonial con activo, pasivo y patrimonio neto. Elige el nivel de detalle al listar: cuentas de nivel 3, nivel 4 o subcuentas."
         icon={Scale}
         reportType="balance"
       />

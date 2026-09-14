@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs"
 import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
 import { fetchReportData } from "@/lib/reports/fetch-report-data"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type { LedgerQuery } from "@/lib/reports/account-ledger"
 import type {
   BalanceReportData,
@@ -73,7 +74,7 @@ function buildSumasSaldosSheet(workbook: ExcelJS.Workbook, data: SumasSaldosRepo
   rows.forEach((row, index) => {
     const excelRow = sheet.getRow(startRow + 1 + index)
     excelRow.values = [
-      row.cuenta,
+      formatAccountCodeDisplay(row.cuenta),
       `${"  ".repeat(row.level)}${row.label}`,
       row.totalDebe,
       row.totalHaber,
@@ -129,7 +130,7 @@ function addSectionRows(
 
     for (const row of section.rows) {
       const excelRow = sheet.getRow(rowIndex)
-      excelRow.values = [row.cuenta, `${"  ".repeat(row.level)}${row.label}`, row.amount]
+      excelRow.values = [formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount]
       excelRow.getCell(3).numFmt = "#,##0.00"
       rowIndex++
     }

@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
-import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import { buildReportMeta, fetchCompanyChartExtract } from "@/lib/reports/account-ledger"
-
-const DETAIL_LEVELS = new Set<GestoriaAccountDetailLevel>(["NIVEL_3", "NIVEL_4", "SUBCUENTAS"])
-
-function parseDetailLevel(value: string | null): GestoriaAccountDetailLevel {
-  if (value && DETAIL_LEVELS.has(value as GestoriaAccountDetailLevel)) {
-    return value as GestoriaAccountDetailLevel
-  }
-  return "SUBCUENTAS"
-}
+import { parseAccountDetailLevel } from "@/lib/reports/report-query"
 
 export async function GET(request: Request) {
   try {
@@ -18,7 +9,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url)
     const yearParam = url.searchParams.get("year")
     const year = yearParam ? Number.parseInt(yearParam, 10) : new Date().getFullYear()
-    const detailLevel = parseDetailLevel(url.searchParams.get("detail"))
+    const detailLevel = parseAccountDetailLevel(url.searchParams.get("detail"))
 
     const [meta, extract] = await Promise.all([
       buildReportMeta(companyId, "Extracto de cuentas", year),

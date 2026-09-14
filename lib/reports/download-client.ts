@@ -1,6 +1,13 @@
+import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { ReportType } from "@/lib/reports/types"
 import type { ReportExportFormat } from "@/lib/reports/export-formats"
 import type { SerializedPreview } from "@/components/report-preview-content"
+
+export interface ReportDownloadParams {
+  year?: number
+  costCenterId?: string
+  detailLevel?: GestoriaAccountDetailLevel
+}
 
 async function downloadReportBlob(
   url: string,
@@ -38,40 +45,44 @@ async function downloadReportBlob(
 function getReportUrl(
   type: ReportType,
   format: ReportExportFormat | "preview",
-  year?: number,
-  costCenterId?: string,
+  params: ReportDownloadParams = {},
 ): string {
-  const y = year ?? new Date().getFullYear()
-  const params = new URLSearchParams({ year: String(y) })
-  if (costCenterId) params.set("costCenterId", costCenterId)
-  return `/api/reports/${type}/${format}?${params.toString()}`
+  const y = params.year ?? new Date().getFullYear()
+  const search = new URLSearchParams({ year: String(y) })
+  if (params.costCenterId) search.set("costCenterId", params.costCenterId)
+  if (params.detailLevel) search.set("detail", params.detailLevel)
+  return `/api/reports/${type}/${format}?${search.toString()}`
 }
 
 export function getReportPdfUrl(type: ReportType, year?: number): string {
-  return getReportUrl(type, "pdf", year)
+  return getReportUrl(type, "pdf", { year })
 }
 
 export function getReportExcelUrl(type: ReportType, year?: number): string {
-  return getReportUrl(type, "xlsx", year)
+  return getReportUrl(type, "xlsx", { year })
 }
 
 export function getReportCsvUrl(type: ReportType, year?: number): string {
-  return getReportUrl(type, "csv", year)
+  return getReportUrl(type, "csv", { year })
 }
 
 export function getReportZipUrl(type: ReportType, year?: number): string {
-  return getReportUrl(type, "zip", year)
+  return getReportUrl(type, "zip", { year })
 }
 
-export function getListadosBundleZipUrl(year?: number): string {
-  const y = year ?? new Date().getFullYear()
-  return `/api/reports/bundle/zip?year=${y}`
+export function getListadosBundleZipUrl(params: ReportDownloadParams = {}): string {
+  const y = params.year ?? new Date().getFullYear()
+  const search = new URLSearchParams({ year: String(y) })
+  if (params.costCenterId) search.set("costCenterId", params.costCenterId)
+  if (params.detailLevel) search.set("detail", params.detailLevel)
+  return `/api/reports/bundle/zip?${search.toString()}`
 }
 
 export async function downloadReport(
   type: ReportType,
   format: ReportExportFormat,
   year?: number,
+  options: Omit<ReportDownloadParams, "year"> = {},
 ): Promise<void> {
   const labels: Record<ReportExportFormat, string> = {
     pdf: "PDF",
@@ -81,7 +92,7 @@ export async function downloadReport(
   }
 
   await downloadReportBlob(
-    getReportUrl(type, format, year),
+    getReportUrl(type, format, { year, ...options }),
     `${type}.${format === "xlsx" ? "xlsx" : format}`,
     `No se pudo generar el ${labels[format]}.`,
   )
@@ -103,9 +114,12 @@ export async function downloadReportZip(type: ReportType, year?: number): Promis
   await downloadReport(type, "zip", year)
 }
 
-export async function downloadListadosBundleZip(year?: number): Promise<void> {
+export async function downloadListadosBundleZip(
+  year?: number,
+  options: Omit<ReportDownloadParams, "year"> = {},
+): Promise<void> {
   await downloadReportBlob(
-    getListadosBundleZipUrl(year),
+    getListadosBundleZipUrl({ year, ...options }),
     "listados-contables.zip",
     "No se pudo generar el paquete ZIP de listados.",
   )
@@ -114,9 +128,9 @@ export async function downloadListadosBundleZip(year?: number): Promise<void> {
 export async function fetchReportPreview(
   type: ReportType,
   year?: number,
-  costCenterId?: string,
+  options: Omit<ReportDownloadParams, "year"> = {},
 ): Promise<SerializedPreview> {
-  const response = await fetch(getReportUrl(type, "preview", year, costCenterId), {
+  const response = await fetch(getReportUrl(type, "preview", { year, ...options }), {
     credentials: "include",
   })
   const data = await response.json()

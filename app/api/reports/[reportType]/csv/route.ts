@@ -6,6 +6,7 @@ import {
   VALID_REPORT_TYPES,
   buildReportFilename,
   parseReportQueryFromUrl,
+  toLedgerQueryFields,
 } from "@/lib/reports/report-query"
 import type { ReportType } from "@/lib/reports/types"
 import { REPORT_LABELS } from "@/lib/reports/types"
@@ -43,13 +44,7 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Empresa no encontrada." }, { status: 404 })
     }
 
-    const csvBuffer = await generateReportCsv(reportType, {
-      companyId,
-      year: parsed.year,
-      fromMonth: parsed.fromMonth,
-      toMonth: parsed.toMonth,
-      costCenterId: parsed.costCenterId,
-    })
+    const csvBuffer = await generateReportCsv(reportType, toLedgerQueryFields(companyId, parsed))
 
     const filename = buildReportFilename(reportType, company.name, parsed.year, "csv")
     const encodedFilename = encodeURIComponent(filename)

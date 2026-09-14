@@ -2,7 +2,11 @@ import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { generateListadosBundleZip } from "@/lib/reports/zip/generate-report-zip"
 import { prisma } from "@/lib/db"
-import { buildListadosBundleFilename, parseReportQueryFromUrl } from "@/lib/reports/report-query"
+import {
+  buildListadosBundleFilename,
+  parseReportQueryFromUrl,
+  toLedgerQueryFields,
+} from "@/lib/reports/report-query"
 
 export const runtime = "nodejs"
 
@@ -24,12 +28,7 @@ export async function GET(request: Request) {
     }
 
     const zipBuffer = await generateListadosBundleZip(
-      {
-        companyId,
-        year: parsed.year,
-        fromMonth: parsed.fromMonth,
-        toMonth: parsed.toMonth,
-      },
+      toLedgerQueryFields(companyId, parsed),
       company.name,
     )
 

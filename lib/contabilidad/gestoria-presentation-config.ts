@@ -1,10 +1,10 @@
 import type { AccountingPlanType } from "@prisma/client"
 import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
 
-/** Nivel de detalle en balances y legalización de libros (como A3). */
+/** Nivel de detalle en balances y legalización de libros. */
 export type GestoriaAccountDetailLevel = "NIVEL_3" | "NIVEL_4" | "SUBCUENTAS"
 
-/** Formatos de balance de situación (códigos A3SOC). */
+/** Formatos de balance de situación. */
 export type GestoriaBalanceFormatId =
   | "BALANCE_PYMES"
   | "BALANCE_NORMAL"
@@ -40,7 +40,7 @@ export interface GestoriaBooksLegalizationConfig {
   accountDetailLevel: GestoriaAccountDetailLevel
 }
 
-/** Configuración de presentación fiscal y contable (A3SOC: IS, cuentas anuales, libros, 232). */
+/** Configuración de presentación fiscal y contable (IS, cuentas anuales, libros, 232). */
 export interface GestoriaPresentationConfig {
   balanceFormat: GestoriaBalanceFormatId
   profitLossFormat: GestoriaProfitLossFormatId

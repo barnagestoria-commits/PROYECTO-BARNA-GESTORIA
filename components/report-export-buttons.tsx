@@ -7,6 +7,7 @@ import {
   downloadReport,
   type FiscalExportFormat,
 } from "@/lib/reports/download-client"
+import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import {
   FISCAL_EXPORT_DESCRIPTIONS,
   FISCAL_EXPORT_FORMATS,
@@ -35,6 +36,8 @@ const TOOLBAR_FORMAT_ORDER = ["xlsx", "csv", "pdf", "zip"] as const
 interface ReportExportButtonsProps {
   reportType: ReportType
   year?: number
+  costCenterId?: string
+  detailLevel?: GestoriaAccountDetailLevel
   disabled?: boolean
   variant?: "default" | "toolbar-mobile" | "toolbar-desktop"
   className?: string
@@ -43,6 +46,8 @@ interface ReportExportButtonsProps {
 export function ReportExportButtons({
   reportType,
   year,
+  costCenterId,
+  detailLevel,
   disabled = false,
   variant = "default",
   className,
@@ -53,7 +58,7 @@ export function ReportExportButtons({
   const handleDownload = async (format: ReportExportFormat) => {
     setDownloading(format)
     try {
-      await downloadReport(reportType, format, currentYear)
+      await downloadReport(reportType, format, currentYear, { costCenterId, detailLevel })
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "No se pudo descargar el informe.")
     } finally {
