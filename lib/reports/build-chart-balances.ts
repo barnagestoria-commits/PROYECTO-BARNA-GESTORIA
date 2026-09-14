@@ -32,9 +32,7 @@ function toChartKey(cuenta: string, detailLevel: GestoriaAccountDetailLevel): st
 export function aggregateMovementsByDetail(
   movements: Map<string, MovementTotals>,
   detailLevel: GestoriaAccountDetailLevel,
-  openedCodes: string[] = [],
 ): Map<string, MovementTotals> {
-  const opened = new Set(openedCodes.map((code) => normalizeCuenta(code)).filter(Boolean))
   const aggregated = new Map<string, MovementTotals>()
 
   const add = (key: string, totals: MovementTotals) => {
@@ -47,11 +45,7 @@ export function aggregateMovementsByDetail(
   for (const [cuenta, totals] of movements) {
     const code = normalizeCuenta(cuenta)
     if (!code) continue
-    if (opened.has(code) && code.length > 3) {
-      add(code, totals)
-      continue
-    }
-    if (detailLevel === "SUBCUENTAS") {
+    if (code.length > 3 || detailLevel === "SUBCUENTAS") {
       add(code, totals)
       continue
     }
@@ -67,11 +61,7 @@ export function buildChartBalanceRows(input: {
   detailLevel: GestoriaAccountDetailLevel
 }): AccountBalance[] {
   const planCodes = expandPlanCodesForDetail(input.planCodes, input.detailLevel)
-  const aggregated = aggregateMovementsByDetail(
-    input.movements,
-    input.detailLevel,
-    input.openedAccounts.map((row) => row.code),
-  )
+  const aggregated = aggregateMovementsByDetail(input.movements, input.detailLevel)
   const rows = new Map<string, AccountBalance>()
 
   const upsert = (cuenta: string, label: string, preferLabel = false) => {

@@ -94,7 +94,7 @@ export function CompanyExtractPanel({
             PyG {extract.plan.profitLossCode !== "—" ? `${extract.plan.profitLossCode} ` : ""}
             {extract.plan.profitLossLabel}
             {" · "}
-            {extract.plan.detailLevelLabel}
+            Extracto con subcuentas
           </p>
         ) : null}
         <div className="flex flex-wrap gap-4">
@@ -129,6 +129,7 @@ export function CompanyExtractPanel({
             {extract.rows.map((row) => {
               const hasMovement =
                 row.totalDebe !== 0 || row.totalHaber !== 0 || row.saldo !== 0
+              const isSubaccount = row.cuenta.replace(/\D/g, "").length > 3
               return (
                 <tr
                   key={row.cuenta}
@@ -138,8 +139,12 @@ export function CompanyExtractPanel({
                   onClick={() => onSelectAccount?.(row.cuenta)}
                   onDoubleClick={() => onDoubleSelectAccount?.(row.cuenta)}
                 >
-                  <td className="px-3 py-2 font-mono">{formatAccountCodeDisplay(row.cuenta)}</td>
-                  <td className="px-3 py-2">{row.label}</td>
+                  <td className={`px-3 py-2 font-mono ${isSubaccount ? "pl-8" : "font-semibold"}`}>
+                    {formatAccountCodeDisplay(row.cuenta)}
+                  </td>
+                  <td className={`px-3 py-2 ${isSubaccount && hasMovement ? "font-medium" : ""}`}>
+                    {row.label}
+                  </td>
                   <td className="px-3 py-2 text-right font-mono tabular-nums">
                     {formatEuro(row.totalDebe)}
                   </td>
@@ -157,8 +162,8 @@ export function CompanyExtractPanel({
       </div>
 
       <p className="text-xs text-graphite-500">
-        Se muestra el plan contable configurado, también con saldo cero. Clic en una cuenta
-        para consultar su extracto detallado de movimientos.
+        Se muestra el plan y, debajo de cada grupo, las subcuentas creadas (410.00001, etc.),
+        también a cero. Clic en una cuenta para ver sus movimientos.
       </p>
     </div>
   )

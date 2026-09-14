@@ -230,7 +230,8 @@ export async function fetchCompanyChartExtract(query: LedgerQuery): Promise<{
     planCodes: getPlanAccountCodes(plan.accountingPlanType),
     openedAccounts,
     movements,
-    detailLevel: plan.detailLevel,
+    // EX siempre lista subcuentas abiertas, como A3eco. El nivel 3/4 es para cuentas anuales.
+    detailLevel: "SUBCUENTAS",
   })
 
   let totalDebe = 0

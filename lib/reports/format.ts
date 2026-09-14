@@ -30,7 +30,7 @@ export function accountMatchesQuery(storedCuenta: string, queryCuenta: string): 
 }
 
 export function cuentaSortKey(cuenta: string): string {
-  return normalizeCuenta(cuenta).padStart(12, "0")
+  return normalizeCuenta(cuenta).padEnd(12, "0")
 }
 
 export function getAccountLevel(cuenta: string): number {
