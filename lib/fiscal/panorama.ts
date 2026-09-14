@@ -186,6 +186,180 @@ function signedSoportadoAmount(line: RawEntryLine): number {
   return round2(decimalToNumber(line.debe) - decimalToNumber(line.haber))
 }
 
+function signedIngresoAmount(line: RawEntryLine): number {
+  return round2(decimalToNumber(line.haber) - decimalToNumber(line.debe))
+}
+
+function signedGastoAmount(line: RawEntryLine): number {
+  return round2(decimalToNumber(line.debe) - decimalToNumber(line.haber))
+}
+
+function isModel130IncomeLine(line: RawEntryLine): boolean {
+  return matchesAccountPrefix(line.cuenta, ["7"])
+}
+
+function isModel130ExpenseLine(line: RawEntryLine): boolean {
+  return matchesAccountPrefix(line.cuenta, ["6"])
+}
+
+function isModel130WithholdingSufferedLine(line: RawEntryLine): boolean {
+  return matchesAccountPrefix(line.cuenta, ["473"])
+}
+
+function filterLinesThroughQuarter(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): RawEntryLine[] {
+  const start = new Date(`${year}-01-01T00:00:00.000Z`)
+  const { end } = getQuarterDateRange(year, quarter)
+  return lines.filter((line) => {
+    const fecha = line.entry.fecha
+    return fecha >= start && fecha <= end
+  })
+}
+
+function calculateModel130FromActivity(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+): ModelAmountResult {
+  const ytdLines = filterLinesThroughQuarter(lines, year, quarter)
+  const incomeLines = ytdLines.filter(isModel130IncomeLine)
+  const expenseLines = ytdLines.filter(isModel130ExpenseLine)
+  const withholdingLines = ytdLines.filter(isModel130WithholdingSufferedLine)
+
+  const ingresos = round2(incomeLines.reduce((sum, line) => sum + signedIngresoAmount(line), 0))
+  const gastos = round2(expenseLines.reduce((sum, line) => sum + signedGastoAmount(line), 0))
+  const rendimiento = round2(ingresos - gastos)
+  const cuota = rendimiento > 0 ? round2(rendimiento * 0.2) : 0
+  const retenciones = round2(
+    withholdingLines.reduce((sum, line) => sum + signedGastoAmount(line), 0),
+  )
+  const retencionesSoportadas = Math.max(0, retenciones)
+
+  let previousPaid = 0
+  for (let previous = 1 as 1 | 2 | 3 | 4; previous < quarter; previous = (previous + 1) as 1 | 2 | 3 | 4) {
+    previousPaid = round2(previousPaid + calculateModel130Amount(lines, year, previous).amount)
+  }
+
+  const amount = Math.max(0, round2(cuota - retencionesSoportadas - previousPaid))
+  const entryIds = new Set<string>()
+  for (const line of [...incomeLines, ...expenseLines, ...withholdingLines]) {
+    entryIds.add(line.entry.id)
+  }
+
+  return {
+    amount,
+    lineCount: incomeLines.length + expenseLines.length + withholdingLines.length,
+    entryIds,
+    breakdown: [
+      {
+        key: "ingresos",
+        label: "Ingresos computables (grupo 7)",
+        total: ingresos,
+        lines: expandMatchedLinesToEntries(lines, incomeLines, signedIngresoAmount),
+      },
+      {
+        key: "gastos",
+        label: "Gastos computables (grupo 6)",
+        total: gastos,
+        lines: expandMatchedLinesToEntries(lines, expenseLines, signedGastoAmount),
+      },
+      {
+        key: "cuota",
+        label: "20 % del rendimiento neto",
+        total: cuota,
+        lines: [],
+      },
+      {
+        key: "retenciones-soportadas",
+        label: "Retenciones soportadas (473)",
+        total: retencionesSoportadas,
+        lines: expandMatchedLinesToEntries(lines, withholdingLines, signedGastoAmount),
+      },
+      {
+        key: "pagos-previos",
+        label: "Pagos fraccionados anteriores del ejercicio",
+        total: previousPaid,
+        lines: [],
+      },
+      {
+        key: "resultado",
+        label: "Pago fraccionado del periodo",
+        total: amount,
+        lines: [],
+      },
+    ],
+  }
+}
+
+function calculateModel130Amount(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4 | "annual",
+): ModelAmountResult {
+  const empty: ModelAmountResult = {
+    amount: 0,
+    lineCount: 0,
+    entryIds: new Set(),
+    breakdown: [],
+  }
+
+  if (quarter === "annual") {
+    const quarterly = ([1, 2, 3, 4] as const).map((item) => calculateModel130Amount(lines, year, item))
+    const entryIds = new Set<string>()
+    for (const result of quarterly) {
+      for (const id of result.entryIds) entryIds.add(id)
+    }
+    return {
+      amount: round2(quarterly.reduce((sum, result) => sum + result.amount, 0)),
+      lineCount: quarterly.reduce((sum, result) => sum + result.lineCount, 0),
+      entryIds,
+      breakdown: [
+        {
+          key: "resultado",
+          label: "Suma de pagos fraccionados del ejercicio",
+          total: round2(quarterly.reduce((sum, result) => sum + result.amount, 0)),
+          lines: [],
+        },
+      ],
+    }
+  }
+
+  const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "130")
+  if (liquidation) {
+    const breakdownLines = expandLiquidationEntry(
+      lines,
+      liquidation.entryId,
+      liquidation.contributingLineId,
+    )
+    const entryIds = new Set<string>()
+    for (const line of collectEntryLines(lines, liquidation.entryId)) {
+      entryIds.add(line.entry.id)
+    }
+    return {
+      amount: Math.abs(liquidation.amount),
+      lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+      entryIds,
+      breakdown: [
+        {
+          key: "liquidacion",
+          label: `Liquidación Modelo 130 (${quarter}T)`,
+          total: Math.abs(liquidation.amount),
+          lines: breakdownLines,
+        },
+      ],
+    }
+  }
+
+  const activity = calculateModel130FromActivity(lines, year, quarter)
+  if (activity.lineCount === 0 && Math.abs(activity.amount) < 0.01) {
+    return empty
+  }
+  return activity
+}
+
 export interface ModelAmountResult {
   amount: number
   lineCount: number
@@ -337,39 +511,7 @@ export function calculateModelAmount(
   }
 
   if (modelCode === "130") {
-    if (quarter !== "annual") {
-      const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "130")
-      if (liquidation) {
-        const breakdownLines = expandLiquidationEntry(
-          lines,
-          liquidation.entryId,
-          liquidation.contributingLineId,
-        )
-        for (const line of collectEntryLines(lines, liquidation.entryId)) {
-          entryIds.add(line.entry.id)
-        }
-        return {
-          amount: Math.abs(liquidation.amount),
-          lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
-          entryIds,
-          breakdown: [
-            {
-              key: "liquidacion",
-              label: `Liquidación Modelo 130 (${quarter}T)`,
-              total: Math.abs(liquidation.amount),
-              lines: breakdownLines,
-            },
-          ],
-        }
-      }
-    }
-
-    return {
-      amount: 0,
-      lineCount: 0,
-      entryIds,
-      breakdown: [],
-    }
+    return calculateModel130Amount(lines, year, quarter)
   }
 
   if (modelCode === "115") {

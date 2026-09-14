@@ -193,6 +193,16 @@ export function isModelEnabled(
   }
 }
 
+export function inferClientProfile(input: {
+  accountType?: "GESTORIA" | "CLIENTE_FINAL" | "EMPRESA" | null
+  entityType?: "PERSONA_FISICA" | "PERSONA_JURIDICA" | null
+}): CompanyClientProfile {
+  if (input.entityType === "PERSONA_FISICA" || input.accountType === "CLIENTE_FINAL") {
+    return "AUTONOMO"
+  }
+  return "PYME"
+}
+
 export function getEnabledModels(settings: CompanyFiscalSettingsDto): FiscalModelId[] {
   return FISCAL_MODEL_OPTIONS.filter((model) => isModelEnabled(settings, model.id)).map(
     (model) => model.id,

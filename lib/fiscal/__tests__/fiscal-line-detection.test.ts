@@ -355,4 +355,40 @@ describe("fiscal line detection", () => {
     expect(calculateModelAmount("130", lines, 2026, 2).amount).toBe(5031.5)
     expect(calculateModelAmount("130", lines, 2026, 1).amount).toBe(0)
   })
+
+  it("calculates modelo 130 from ingresos and gastos when the model has no liquidation entry", () => {
+    const lines: RawEntryLine[] = [
+      line({
+        id: "venta",
+        concepto: "Nuestra factura N. 1",
+        cuenta: "7050001",
+        debe: 0,
+        haber: 1000,
+        entry: {
+          id: "e-venta",
+          fecha: new Date("2026-08-15T12:00:00.000Z"),
+          concepto: "17",
+        },
+      }),
+      line({
+        id: "gasto",
+        concepto: "Su factura N. 2",
+        cuenta: "6290001",
+        debe: 200,
+        haber: 0,
+        entry: {
+          id: "e-gasto",
+          fecha: new Date("2026-08-20T12:00:00.000Z"),
+          concepto: "34",
+        },
+      }),
+    ]
+
+    expect(calculateModelAmount("130", lines, 2026, 1).amount).toBe(0)
+    expect(calculateModelAmount("130", lines, 2026, 2).amount).toBe(0)
+    expect(calculateModelAmount("130", lines, 2026, 3).amount).toBe(160)
+    expect(calculateModelAmount("130", lines, 2026, 3).breakdown.some((item) => item.key === "ingresos")).toBe(
+      true,
+    )
+  })
 })

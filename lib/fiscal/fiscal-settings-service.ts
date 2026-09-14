@@ -2,6 +2,7 @@ import type { CompanyClientProfile } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import {
   DEFAULT_SETTINGS_BY_PROFILE,
+  inferClientProfile,
   mergeImpresosIntoFiscalSettings,
   type CompanyFiscalSettingsDto,
   getEnabledModels,
@@ -45,6 +46,27 @@ function parseImpresosJson(value: string | null | undefined): Partial<Record<str
   }
 }
 
+async function inferProfileForCompany(companyId: string): Promise<CompanyClientProfile> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      account: { select: { accountType: true } },
+      gestoriaProfile: { select: { entityType: true } },
+    },
+  })
+
+  return inferClientProfile({
+    accountType: company?.account.accountType,
+    entityType: company?.gestoriaProfile?.entityType,
+  })
+}
+
+function omitUndefined<T extends Record<string, unknown>>(payload: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(payload).filter(([, value]) => value !== undefined),
+  ) as Partial<T>
+}
+
 async function mergeGestoriaImpresos(
   companyId: string,
   settings: CompanyFiscalSettingsDto,
@@ -65,9 +87,10 @@ export async function getOrCreateCompanyFiscalSettings(
     where: { companyId },
   })
 
+  const inferredProfile = existing ? null : await inferProfileForCompany(companyId)
   const base = existing
     ? mapRecordToDto(existing)
-    : DEFAULT_SETTINGS_BY_PROFILE.PYME
+    : DEFAULT_SETTINGS_BY_PROFILE[inferredProfile ?? "PYME"]
 
   return mergeGestoriaImpresos(companyId, base)
 }
@@ -76,18 +99,20 @@ export async function updateCompanyFiscalSettings(
   companyId: string,
   payload: Partial<CompanyFiscalSettingsDto>,
 ): Promise<CompanyFiscalSettingsDto> {
-  const profile = payload.clientProfile
-  const profileDefaults = profile ? DEFAULT_SETTINGS_BY_PROFILE[profile] : null
+  const cleanPayload = omitUndefined(payload)
+  const inferredProfile = await inferProfileForCompany(companyId)
+  const profile = (cleanPayload.clientProfile as CompanyClientProfile | undefined) ?? inferredProfile
+  const profileDefaults = DEFAULT_SETTINGS_BY_PROFILE[profile]
 
   const updated = await prisma.companyFiscalSettings.upsert({
     where: { companyId },
     create: {
       companyId,
-      ...(profileDefaults ?? DEFAULT_SETTINGS_BY_PROFILE.PYME),
-      ...payload,
+      ...profileDefaults,
+      ...cleanPayload,
     },
     update: {
-      ...payload,
+      ...cleanPayload,
     },
   })
 

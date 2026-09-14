@@ -112,28 +112,43 @@ export function buildOfficialModel115Sections(detail: FiscalModelDetailResponse)
 
 export function buildOfficialModel130Sections(detail: FiscalModelDetailResponse): DraftSection[] {
   const total = Math.abs(detail.amount)
+  const ingresos = sectionTotal(detail, "ingresos")
+  const gastos = sectionTotal(detail, "gastos")
+  const cuota = sectionTotal(detail, "cuota")
+  const retenciones = sectionTotal(detail, "retenciones-soportadas")
+  const previos = sectionTotal(detail, "pagos-previos")
+  const hasActivity = detail.breakdown.some((section) => section.key === "ingresos" || section.key === "gastos")
 
   return [
     {
       id: "pago-fraccionado",
       title: "Pago fraccionado — Estimación directa",
-      casillas: [
-        casillaAmount(
-          "130-07",
-          "07",
-          "Pago fraccionado del periodo",
-          total,
-          "liquidacion",
-        ),
-        casillaAmount(
-          "130-19",
-          "19",
-          "Total a ingresar",
-          total,
-          "liquidacion",
-          "Resultado del periodo",
-        ),
-      ],
+      casillas: hasActivity
+        ? [
+            casillaAmount("130-01", "01", "Ingresos computables", ingresos, "ingresos"),
+            casillaAmount("130-02", "02", "Gastos computables", gastos, "gastos"),
+            casillaAmount("130-04", "04", "20 % del rendimiento neto", cuota, "cuota"),
+            casillaAmount(
+              "130-05",
+              "05",
+              "Retenciones e ingresos a cuenta soportados",
+              retenciones,
+              "retenciones-soportadas",
+            ),
+            casillaAmount(
+              "130-06",
+              "06",
+              "Pagos fraccionados anteriores del ejercicio",
+              previos,
+              "pagos-previos",
+            ),
+            casillaAmount("130-07", "07", "Pago fraccionado del periodo", total, "resultado"),
+            casillaAmount("130-19", "19", "Total a ingresar", total, "resultado", "Resultado del periodo"),
+          ]
+        : [
+            casillaAmount("130-07", "07", "Pago fraccionado del periodo", total, "liquidacion"),
+            casillaAmount("130-19", "19", "Total a ingresar", total, "liquidacion", "Resultado del periodo"),
+          ],
     },
   ]
 }
