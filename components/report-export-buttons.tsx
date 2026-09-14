@@ -85,6 +85,8 @@ interface FiscalExportButtonsProps {
   disabled?: boolean
   className?: string
   compact?: boolean
+  /** En barras inferiores, el menú debe abrirse hacia arriba para no recortarse. */
+  menuPlacement?: "top" | "bottom"
 }
 
 export function FiscalExportButtons({
@@ -94,6 +96,7 @@ export function FiscalExportButtons({
   disabled = false,
   className,
   compact = false,
+  menuPlacement = "bottom",
 }: FiscalExportButtonsProps) {
   const [downloading, setDownloading] = useState<FiscalExportFormat | null>(null)
   const currentYear = year ?? new Date().getFullYear()
@@ -145,6 +148,8 @@ export function FiscalExportButtons({
     disabled,
     variant: compact ? "toolbar-desktop" : "default",
     className,
+    menuPlacement,
+    highlightTxt: compact,
     onDownload: handleDownload,
   })
 }
@@ -164,6 +169,7 @@ function ExportFormatDropdown<T extends string>({
   downloading,
   disabled,
   variant,
+  menuPlacement = "bottom",
   onDownload,
 }: {
   formats: readonly T[]
@@ -172,6 +178,7 @@ function ExportFormatDropdown<T extends string>({
   downloading: T | null
   disabled: boolean
   variant: "toolbar-mobile" | "toolbar-desktop"
+  menuPlacement?: "top" | "bottom"
   onDownload: (format: T) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -233,7 +240,8 @@ function ExportFormatDropdown<T extends string>({
         <div
           role="menu"
           className={cn(
-            "absolute right-0 top-full z-50 mt-1 min-w-[9.5rem] overflow-hidden rounded-md border py-1 shadow-xl",
+            "absolute right-0 z-[80] min-w-[11rem] overflow-hidden rounded-md border py-1 shadow-xl",
+            menuPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1",
             isMobile ? "border-emerald-800/60 bg-emerald-950" : "border-gray-200 bg-white",
           )}
         >
@@ -278,6 +286,8 @@ function renderFormatButtons<T extends string>({
   disabled,
   variant,
   className,
+  menuPlacement = "bottom",
+  highlightTxt = false,
   onDownload,
 }: {
   formats: readonly T[]
@@ -287,19 +297,47 @@ function renderFormatButtons<T extends string>({
   disabled: boolean
   variant: "default" | "toolbar-mobile" | "toolbar-desktop"
   className?: string
+  menuPlacement?: "top" | "bottom"
+  highlightTxt?: boolean
   onDownload: (format: T) => void
 }) {
   if (variant === "toolbar-mobile" || variant === "toolbar-desktop") {
+    const txtFormat = highlightTxt ? formats.find((format) => format === "txt") : undefined
+    const menuFormats = txtFormat ? formats.filter((format) => format !== "txt") : formats
+
     return (
-      <ExportFormatDropdown
-        formats={formats}
-        labels={labels}
-        descriptions={descriptions}
-        downloading={downloading}
-        disabled={disabled}
-        variant={variant}
-        onDownload={onDownload}
-      />
+      <div className={cn("flex shrink-0 flex-wrap items-center gap-1", className)}>
+        {txtFormat ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={disabled || downloading !== null}
+            title={descriptions[txtFormat]}
+            className="shrink-0 gap-2 border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50"
+            onClick={() => onDownload(txtFormat)}
+          >
+            {downloading === txtFormat ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            TXT Hacienda
+          </Button>
+        ) : null}
+        {menuFormats.length > 0 ? (
+          <ExportFormatDropdown
+            formats={menuFormats}
+            labels={labels}
+            descriptions={descriptions}
+            downloading={downloading}
+            disabled={disabled}
+            variant={variant}
+            menuPlacement={menuPlacement}
+            onDownload={onDownload}
+          />
+        ) : null}
+      </div>
     )
   }
 

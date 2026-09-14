@@ -24,7 +24,6 @@ import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import { apiFetch } from "@/lib/api-client"
 import { cn } from "@/lib/utils"
 import {
-  FileText,
   Loader2,
   RefreshCw,
   Calculator,
@@ -112,7 +111,8 @@ export function FiscalModelDraftView({
 
   return (
     <>
-      <div className="mx-auto max-w-5xl overflow-hidden shadow-md">
+      <div className="mx-auto max-w-5xl shadow-md">
+        <div className="overflow-x-auto">
         {detail.modelCode === "303" ? (
           <Model303EngineStatus
             modelParam={modelParam}
@@ -168,50 +168,55 @@ export function FiscalModelDraftView({
             {successMessage ?? errorMessage}
           </div>
         )}
+        </div>
 
-        <div className="sticky bottom-0 z-20 flex flex-wrap items-center gap-2 border border-black bg-[#f0f0f0]/95 px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)] backdrop-blur-sm">
-          <p className="mr-2 hidden text-xs text-neutral-700 lg:block">
-            Modelo {draft.modelCode} · {draft.nif} · {draft.periodLabel} {draft.year}
-          </p>
-          {draft.supportsGenerateEntry && (
+        <div className="sticky bottom-0 z-30 overflow-visible border border-black bg-[#f0f0f0] px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs text-neutral-700">
+              Modelo {draft.modelCode} · {draft.nif} · {draft.periodLabel} {draft.year}
+            </p>
+            {draft.supportsGenerateEntry && (
+              <Button
+                type="button"
+                size="sm"
+                disabled={isGenerating || draft.hasExistingLiquidation}
+                onClick={() => void handleGenerateEntry()}
+                className="gap-2 bg-[#1a4480] hover:bg-[#153a6b]"
+              >
+                {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpenCheck className="h-4 w-4" />}
+                Generar asiento
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"
-              disabled={isGenerating || draft.hasExistingLiquidation}
-              onClick={() => void handleGenerateEntry()}
-              className="gap-2 bg-[#1a4480] hover:bg-[#153a6b]"
+              variant="outline"
+              className="gap-2 border-black"
+              onClick={() => openDetail(undefined, "Detalle cálculo / Declaración")}
             >
-              {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <BookOpenCheck className="h-4 w-4" />}
-              Generar asiento
+              <Calculator className="h-4 w-4" />
+              Detalle cálculo
             </Button>
-          )}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="gap-2 border-black"
-            onClick={() => openDetail(undefined, "Detalle cálculo / Declaración")}
-          >
-            <Calculator className="h-4 w-4" />
-            Detalle cálculo
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            className="gap-2 border-black"
-            disabled={isRefreshing}
-            onClick={() => void handleRefresh()}
-          >
-            {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Actualizar borrador
-          </Button>
-          <div className="ml-auto flex min-w-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-            <span className="hidden text-xs text-neutral-600 lg:inline">
-              <FileText className="mr-1 inline h-3.5 w-3.5" />
-              Fichero telemático / exportación
-            </span>
-            <FiscalExportButtons model={modelParam} quarter={quarterParam} year={year} compact />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-2 border-black"
+              disabled={isRefreshing}
+              onClick={() => void handleRefresh()}
+            >
+              {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Actualizar borrador
+            </Button>
+            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
+              <FiscalExportButtons
+                model={modelParam}
+                quarter={quarterParam}
+                year={year}
+                compact
+                menuPlacement="top"
+              />
+            </div>
           </div>
         </div>
       </div>
