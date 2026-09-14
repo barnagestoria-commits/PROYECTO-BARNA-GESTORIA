@@ -43,7 +43,6 @@ import {
 import {
   applyInvoiceConceptsToLines,
   INVOICE_CONCEPT_PREFIX,
-  isInvoiceConceptAccountLine,
   isInvoiceConceptCommand,
 } from "@/lib/accounting/invoice-entry-concepts"
 import {
@@ -65,6 +64,11 @@ import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-
 import {
   isEmitidaThirdPartyAccount,
 } from "@/lib/accounting/account-suggestions"
+import {
+  parseDottedAccountShortcut,
+  resolveAccountShortcut,
+  toShortcutCandidates,
+} from "@/lib/accounting/account-shortcut"
 import {
   applyInvoiceAmountsToLines,
   applyTreatmentToEntryLines,
@@ -416,7 +420,16 @@ export function QuickAccountingEntryForm() {
   )
 
   const applyAccountTreatment = useCallback(
-    async (accountCode: string, targetRow = 0) => {
+    async (accountCode: string, targetRow = 0, thirdPartyLabel?: string) => {
+      const partyName = thirdPartyLabel?.trim()
+      if (partyName) {
+        setFocusedThirdParty(partyName)
+        setInvoiceDetails((prev) => ({
+          ...prev,
+          thirdPartyName: partyName,
+        }))
+      }
+
       if (!isThirdPartyAccountPrefix(accountCode)) return
 
       try {
@@ -424,20 +437,40 @@ export function QuickAccountingEntryForm() {
           `/api/accounting/account-treatment?accountCode=${encodeURIComponent(accountCode)}`,
         )
 
-        if (!data.treatment) return
-
-        setInvoiceDetails((prev) => applyTreatmentToInvoiceDetails(prev, data.treatment!))
-        setLines((prev) =>
-          applyTreatmentToEntryLines(prev, data.treatment!, {
-            activeCommand,
-            thirdPartyRow: targetRow,
-          }),
-        )
+        setLines((prev) => {
+          let next = prev
+          if (data.treatment) {
+            next = applyTreatmentToEntryLines(next, data.treatment, {
+              activeCommand,
+              thirdPartyRow: targetRow,
+              thirdPartyLabel: partyName,
+            })
+            setInvoiceDetails((prevDetails) =>
+              applyTreatmentToInvoiceDetails(prevDetails, data.treatment!),
+            )
+          }
+          if (isInvoiceConceptCommand(activeCommand) && partyName) {
+            next = applyInvoiceConceptsToLines(next, activeCommand, {
+              invoiceNumber: invoiceDetails.invoiceNumber,
+              thirdPartyLabel: partyName,
+              invoiceMode,
+            })
+          }
+          return next
+        })
       } catch {
-        // Sin parametrización: se mantienen plantillas por defecto
+        if (isInvoiceConceptCommand(activeCommand) && partyName) {
+          setLines((prev) =>
+            applyInvoiceConceptsToLines(prev, activeCommand, {
+              invoiceNumber: invoiceDetails.invoiceNumber,
+              thirdPartyLabel: partyName,
+              invoiceMode,
+            }),
+          )
+        }
       }
     },
-    [activeCommand],
+    [activeCommand, invoiceDetails.invoiceNumber, invoiceMode],
   )
 
   const applyAccountAssignment = useCallback(
@@ -446,28 +479,37 @@ export function QuickAccountingEntryForm() {
       targetRow = 0,
     ) => {
       lastAccountByRow.current.set(targetRow, assignment.formattedAccountCode)
-      setLines((prev) =>
-        prev.map((line, index) =>
+      setLines((prev) => {
+        let next = prev.map((line, index) =>
           index === targetRow
             ? {
                 ...line,
                 cuenta: assignment.formattedAccountCode,
-                concepto: assignment.name,
+                concepto: isInvoiceConceptCommand(activeCommand)
+                  ? line.concepto
+                  : assignment.name || line.concepto,
               }
             : line,
-        ),
-      )
-      if (assignment.cif) {
-        setFocusedThirdParty(assignment.name)
-        setInvoiceDetails((prev) => ({
-          ...prev,
-          nif: assignment.cif ?? prev.nif,
-          thirdPartyName: assignment.name,
-        }))
-      }
+        )
+        if (isInvoiceConceptCommand(activeCommand) && assignment.name) {
+          next = applyInvoiceConceptsToLines(next, activeCommand, {
+            invoiceNumber: invoiceDetails.invoiceNumber,
+            thirdPartyLabel: assignment.name,
+            invoiceMode,
+          })
+        }
+        return next
+      })
+      setFocusedThirdParty(assignment.name)
+      setInvoiceDetails((prev) => ({
+        ...prev,
+        nif: assignment.cif || prev.nif,
+        thirdPartyName: assignment.name || prev.thirdPartyName,
+      }))
       void applyAccountTreatment(
         assignment.accountCode ?? assignment.formattedAccountCode,
         targetRow,
+        assignment.name,
       )
       requestAnimationFrame(() => {
         const line = lines[targetRow]
@@ -480,7 +522,7 @@ export function QuickAccountingEntryForm() {
         focusCell(targetRow, side)
       })
     },
-    [applyAccountTreatment, focusCell, lines, navigationContext, prefillLineAmount],
+    [applyAccountTreatment, activeCommand, invoiceDetails.invoiceNumber, invoiceMode, focusCell, lines, navigationContext, prefillLineAmount],
   )
 
   const applyInvoiceTotalsAndFocus = useCallback(
@@ -720,19 +762,79 @@ export function QuickAccountingEntryForm() {
         return true
       }
 
+      const shortcut = resolveAccountShortcut(
+        line.cuenta,
+        toShortcutCandidates(thirdParties, ledgerSubaccounts),
+      )
+      if (shortcut) {
+        lastAccountByRow.current.set(row, shortcut.formattedAccountCode)
+        setLines((prev) => {
+          let next = prev.map((item, index) =>
+            index === row
+              ? {
+                  ...item,
+                  cuenta: shortcut.formattedAccountCode,
+                }
+              : item,
+          )
+          if (isInvoiceConceptCommand(activeCommand) && shortcut.name) {
+            next = applyInvoiceConceptsToLines(next, activeCommand, {
+              invoiceNumber: invoiceDetails.invoiceNumber,
+              thirdPartyLabel: shortcut.name,
+              invoiceMode,
+            })
+          }
+          return next
+        })
+        setFocusedThirdParty(shortcut.name)
+        setInvoiceDetails((prev) => ({
+          ...prev,
+          nif: shortcut.cif || prev.nif,
+          thirdPartyName: shortcut.name || prev.thirdPartyName,
+        }))
+        void applyAccountTreatment(shortcut.accountCode, row, shortcut.name)
+        return true
+      }
+
       const year = Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()
       try {
         const data = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
           `/api/accounting/accounts/exists?code=${encodeURIComponent(line.cuenta)}&year=${year}`,
         )
-        if (data.exists) return true
+        if (data.exists) {
+          if (data.formattedAccountCode && data.formattedAccountCode !== line.cuenta) {
+            setLines((prev) =>
+              prev.map((item, index) =>
+                index === row ? { ...item, cuenta: data.formattedAccountCode } : item,
+              ),
+            )
+          }
+          if (data.label && isThirdPartyAccountPrefix(data.accountCode)) {
+            setFocusedThirdParty(data.label)
+            setInvoiceDetails((prev) => ({
+              ...prev,
+              thirdPartyName: data.label ?? prev.thirdPartyName,
+            }))
+            void applyAccountTreatment(data.accountCode, row, data.label ?? undefined)
+          }
+          return true
+        }
         setMissingAccountState({ row, year: data.year, account: data })
         return false
       } catch {
         return true
       }
     },
-    [fecha, lines],
+    [
+      activeCommand,
+      applyAccountTreatment,
+      fecha,
+      invoiceDetails.invoiceNumber,
+      invoiceMode,
+      ledgerSubaccounts,
+      lines,
+      thirdParties,
+    ],
   )
 
   const maybePromptAnalytic = useCallback(
@@ -1038,6 +1140,37 @@ export function QuickAccountingEntryForm() {
     setSubmitSuccess(null)
 
     try {
+      const candidates = toShortcutCandidates(thirdParties, ledgerSubaccounts)
+      const resolvedLines = lines.map((line) => {
+        const shortcut = resolveAccountShortcut(line.cuenta, candidates)
+        return shortcut ? { ...line, cuenta: shortcut.formattedAccountCode } : line
+      })
+      const expandedShortcut = resolvedLines.some((line, index) => line.cuenta !== lines[index]?.cuenta)
+      const originalThird = lines.find((line) => isThirdPartyAccountPrefix(line.cuenta) || parseDottedAccountShortcut(line.cuenta))
+      const party =
+        (originalThird ? resolveAccountShortcut(originalThird.cuenta, candidates) : null) ??
+        (() => {
+          const thirdLine = resolvedLines.find((line) => isThirdPartyAccountPrefix(line.cuenta))
+          if (!thirdLine) return null
+          const digits = thirdLine.cuenta.replace(/\D/g, "")
+          const found =
+            thirdParties.find((item) => item.accountCode.replace(/\D/g, "") === digits) ??
+            ledgerSubaccounts.find((item) => item.accountCode.replace(/\D/g, "") === digits)
+          return found ? { name: found.name, cif: "cif" in found ? found.cif : undefined } : null
+        })()
+      const linesToSave =
+        expandedShortcut && party?.name && isInvoiceConceptCommand(activeCommand)
+          ? applyInvoiceConceptsToLines(resolvedLines, activeCommand, {
+              invoiceNumber: invoiceDetails.invoiceNumber,
+              thirdPartyLabel: party.name,
+              invoiceMode,
+            })
+          : resolvedLines
+      const detailsToSave =
+        expandedShortcut && party?.name
+          ? { ...invoiceDetails, nif: party.cif || invoiceDetails.nif, thirdPartyName: party.name }
+          : invoiceDetails
+
       const data = await apiFetch<{
         success: true
         entry: { id: string; refNumber: number; fecha: string }
@@ -1046,11 +1179,11 @@ export function QuickAccountingEntryForm() {
         body: JSON.stringify({
           fecha,
           commandCode: activeCommand,
-          issueDate: showInvoicePanel ? invoiceDetails.issueDate : null,
-          operationDate: showInvoicePanel ? invoiceDetails.operationDate : null,
-          invoiceNumber: showInvoicePanel ? invoiceDetails.invoiceNumber : null,
-          invoiceDetails: showInvoicePanel ? invoiceDetails : null,
-          lines: lines.map(({ id, cuenta, concepto, debe, haber }) => ({
+          issueDate: showInvoicePanel ? detailsToSave.issueDate : null,
+          operationDate: showInvoicePanel ? detailsToSave.operationDate : null,
+          invoiceNumber: showInvoicePanel ? detailsToSave.invoiceNumber : null,
+          invoiceDetails: showInvoicePanel ? detailsToSave : null,
+          lines: linesToSave.map(({ id, cuenta, concepto, debe, haber }) => ({
             cuenta,
             concepto,
             debe,
@@ -1375,10 +1508,6 @@ export function QuickAccountingEntryForm() {
                   const warnings = validationByLine.get(line.id) ?? []
                   const hasWarning = warnings.length > 0
                   const isActiveRow = activeCell.row === rowIndex
-                  const invoiceConceptLocked =
-                    isInvoiceConceptCommand(activeCommand) &&
-                    (isInvoiceConceptAccountLine(line.cuenta, activeCommand) ||
-                      isThirdPartyAccountPrefix(line.cuenta))
                   const rowContext: EntryNavigationContext = {
                     ...navigationContext,
                     lines,
@@ -1433,19 +1562,9 @@ export function QuickAccountingEntryForm() {
                           onChange={(e) => updateLine(line.id, { concepto: e.target.value })}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "concepto" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "concepto")}
-                          readOnly={invoiceConceptLocked || conceptSkippable}
-                          tabIndex={invoiceConceptLocked || conceptSkippable ? -1 : undefined}
-                          className={cn(
-                            "h-9",
-                            (invoiceConceptLocked || conceptSkippable) &&
-                              "bg-sand-50 text-graphite-600",
-                          )}
+                          tabIndex={conceptSkippable ? -1 : undefined}
+                          className="h-9"
                           placeholder="Descripción"
-                          title={
-                            invoiceConceptLocked
-                              ? "Edita el número en Documen. o Datos de factura"
-                              : undefined
-                          }
                           aria-label={`Concepto línea ${rowIndex + 1}`}
                         />
                       </td>

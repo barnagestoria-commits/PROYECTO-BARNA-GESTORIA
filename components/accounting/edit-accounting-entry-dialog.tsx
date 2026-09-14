@@ -25,10 +25,19 @@ import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import {
   applyInvoiceConceptsToLines,
   INVOICE_CONCEPT_PREFIX,
-  isInvoiceConceptAccountLine,
-  isInvoiceConceptCommand,
 } from "@/lib/accounting/invoice-entry-concepts"
 import {
+  parseDottedAccountShortcut,
+  resolveAccountShortcut,
+  toShortcutCandidates,
+} from "@/lib/accounting/account-shortcut"
+import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
+import type { ThirdPartyAccountOption } from "@/lib/accounting/account-suggestions"
+import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
+import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
+import {
+  applyTreatmentToEntryLines,
+  applyTreatmentToInvoiceDetails,
   buildFullInvoiceEntry,
   getInvoiceThirdPartyTotal,
   isDerivedInvoiceAmountAccount,
@@ -36,6 +45,7 @@ import {
 } from "@/lib/accounting/invoice-auto-fill"
 import type { AccountingCommandCode } from "@/lib/types/accounting-entry"
 import { cn } from "@/lib/utils"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { formatEntryRefLabel } from "@/lib/accounting/entry-ref-service"
 
 function resolveInvoiceMode(
@@ -95,6 +105,8 @@ export function EditAccountingEntryDialog({
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [thirdParties, setThirdParties] = useState<ThirdPartyAccountOption[]>([])
+  const [ledgerSubaccounts, setLedgerSubaccounts] = useState<LedgerSubaccountOption[]>([])
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -131,7 +143,13 @@ export function EditAccountingEntryDialog({
         const total = getInvoiceThirdPartyTotal(mapped, mode)
         if (details && total > 0) {
           const built = rebuildInvoiceFromTotal(mapped, details, data.entry.commandCode, total)
-          setLines(built.lines)
+          const savedConcepts = new Map(mapped.map((line) => [line.id, line.concepto]))
+          setLines(
+            built.lines.map((line) => ({
+              ...line,
+              concepto: savedConcepts.get(line.id) ?? line.concepto,
+            })),
+          )
           setInvoiceDetails(built.details)
         } else {
           setLines(mapped)
@@ -153,8 +171,180 @@ export function EditAccountingEntryDialog({
     }
   }, [entryId, open])
 
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    Promise.all([
+      apiFetch<{ success: true; thirdParties: ThirdPartyAccountOption[] }>("/api/accounting/third-parties"),
+      apiFetch<{ success: true; subaccounts: LedgerSubaccountOption[] }>(
+        "/api/accounting/ledger-subaccounts",
+      ),
+    ])
+      .then(([parties, ledger]) => {
+        if (cancelled) return
+        setThirdParties(parties.thirdParties)
+        setLedgerSubaccounts(ledger.subaccounts)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setThirdParties([])
+        setLedgerSubaccounts([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open])
+
   const updateLine = (lineId: string, patch: Partial<AccountingEntryLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)))
+  }
+
+  const shortcutCandidates = useMemo(
+    () => toShortcutCandidates(thirdParties, ledgerSubaccounts),
+    [ledgerSubaccounts, thirdParties],
+  )
+
+  const applyPartyToInvoice = useCallback(
+    (
+      nextLines: AccountingEntryLine[],
+      partyName: string,
+      commandCode: string | null | undefined,
+    ) => {
+      const command = commandCode === "17" || commandCode === "34" ? commandCode : null
+      if (!partyName || !command) return nextLines
+      return applyInvoiceConceptsToLines(nextLines, command, {
+        invoiceNumber: invoiceDetails?.invoiceNumber ?? "",
+        thirdPartyLabel: partyName,
+        invoiceMode,
+      })
+    },
+    [invoiceDetails?.invoiceNumber, invoiceMode],
+  )
+
+  const lookupExactParty = useCallback(
+    (rawCuenta: string) => {
+      const digits = rawCuenta.replace(/\D/g, "")
+      if (!digits) return null
+      const party = thirdParties.find((item) => item.accountCode.replace(/\D/g, "") === digits)
+      if (party) {
+        return {
+          accountCode: party.accountCode.replace(/\D/g, ""),
+          formattedAccountCode: formatAccountCodeDisplay(party.accountCode),
+          name: party.name,
+          cif: party.cif,
+          source: "tercero" as const,
+        }
+      }
+      const ledger = ledgerSubaccounts.find((item) => item.accountCode.replace(/\D/g, "") === digits)
+      if (!ledger) return null
+      return {
+        accountCode: ledger.accountCode.replace(/\D/g, ""),
+        formattedAccountCode: formatAccountCodeDisplay(ledger.accountCode),
+        name: ledger.name,
+        cif: undefined,
+        source: "ledger" as const,
+      }
+    },
+    [ledgerSubaccounts, thirdParties],
+  )
+
+  const lookupPartyForAccount = useCallback(
+    (rawCuenta: string) => {
+      return resolveAccountShortcut(rawCuenta, shortcutCandidates) ?? lookupExactParty(rawCuenta)
+    },
+    [lookupExactParty, shortcutCandidates],
+  )
+
+  const thirdPartyCuenta = lines.find((line) => isThirdPartyAccountPrefix(line.cuenta))?.cuenta
+
+  useEffect(() => {
+    if (!open || !entry || !thirdPartyCuenta) return
+    if (invoiceDetails?.thirdPartyName.trim()) return
+
+    const party = lookupExactParty(thirdPartyCuenta)
+    if (!party?.name || party.source !== "tercero") return
+
+    setInvoiceDetails((prev) =>
+      prev
+        ? {
+            ...prev,
+            nif: party.cif || prev.nif,
+            thirdPartyName: party.name,
+          }
+        : prev,
+    )
+    setLines((prev) => applyPartyToInvoice(prev, party.name, entry.commandCode))
+  }, [
+    applyPartyToInvoice,
+    entry,
+    invoiceDetails?.thirdPartyName,
+    lookupExactParty,
+    open,
+    thirdPartyCuenta,
+  ])
+
+  const commitAccountLine = async (line: AccountingEntryLine, rawCuenta: string) => {
+    const shortcut = lookupPartyForAccount(rawCuenta)
+    let resolvedCode = shortcut?.formattedAccountCode ?? rawCuenta
+    let partyName = shortcut?.name
+    let partyCif = shortcut?.cif
+
+    if (!shortcut) {
+      try {
+        const data = await apiFetch<{ success: true } & AccountExistenceResult>(
+          `/api/accounting/accounts/exists?code=${encodeURIComponent(rawCuenta)}`,
+        )
+        if (data.formattedAccountCode) {
+          resolvedCode = data.formattedAccountCode
+        }
+        if (data.exists && data.label && isThirdPartyAccountPrefix(data.accountCode)) {
+          partyName = data.label
+        }
+      } catch {
+        // Si no hay catálogo, se deja el código tecleado.
+      }
+    }
+
+    const applyParty = Boolean(partyName && isThirdPartyAccountPrefix(resolvedCode))
+
+    setLines((prev) => {
+      const withAccount = prev.map((item) =>
+        item.id === line.id ? { ...item, cuenta: resolvedCode } : item,
+      )
+      return applyParty ? applyPartyToInvoice(withAccount, partyName ?? "", entry?.commandCode) : withAccount
+    })
+
+    if (applyParty && partyName) {
+      setInvoiceDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              nif: partyCif || prev.nif,
+              thirdPartyName: partyName,
+            }
+          : prev,
+      )
+    }
+
+    if (!isThirdPartyAccountPrefix(resolvedCode)) return
+
+    try {
+      const data = await apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
+        `/api/accounting/account-treatment?accountCode=${encodeURIComponent(resolvedCode)}`,
+      )
+      if (!data.treatment) return
+
+      setInvoiceDetails((prev) => (prev ? applyTreatmentToInvoiceDetails(prev, data.treatment!) : prev))
+      setLines((prev) => {
+        const treated = applyTreatmentToEntryLines(prev, data.treatment!, {
+          activeCommand: entry?.commandCode,
+          thirdPartyLabel: partyName,
+        })
+        return applyPartyToInvoice(treated, partyName ?? "", entry?.commandCode)
+      })
+    } catch {
+      // Sin parametrización: se mantienen las líneas actuales
+    }
   }
 
   const handleLineAmountChange = (
@@ -212,17 +402,6 @@ export function EditAccountingEntryDialog({
     [entry?.commandCode, invoiceDetails, invoiceMode, lines],
   )
 
-  useEffect(() => {
-    if (!entry?.commandCode || !isInvoiceConceptCommand(entry.commandCode)) return
-    setLines((prev) =>
-      applyInvoiceConceptsToLines(prev, entry.commandCode as "17" | "34", {
-        invoiceNumber: invoiceDetails?.invoiceNumber ?? "",
-        thirdPartyLabel: invoiceDetails?.thirdPartyName ?? "",
-        invoiceMode: entry.commandCode === "17" ? "emitida" : "recibida",
-      }),
-    )
-  }, [entry?.commandCode, invoiceDetails?.invoiceNumber, invoiceDetails?.thirdPartyName])
-
   const handleDelete = async () => {
     if (!entryId || !entry || isDeleting) return
 
@@ -253,16 +432,35 @@ export function EditAccountingEntryDialog({
     setError(null)
 
     try {
+      const candidates = toShortcutCandidates(thirdParties, ledgerSubaccounts)
+      const resolvedLines = lines.map((line) => {
+        const shortcut = resolveAccountShortcut(line.cuenta, candidates)
+        return shortcut ? { ...line, cuenta: shortcut.formattedAccountCode } : line
+      })
+      const expandedShortcut = resolvedLines.some((line, index) => line.cuenta !== lines[index]?.cuenta)
+      const thirdLine = resolvedLines.find(
+        (line) => isThirdPartyAccountPrefix(line.cuenta) || Boolean(parseDottedAccountShortcut(line.cuenta)),
+      )
+      const party = thirdLine ? lookupPartyForAccount(thirdLine.cuenta) : null
+      const linesToSave =
+        expandedShortcut && party?.name
+          ? applyPartyToInvoice(resolvedLines, party.name, entry.commandCode)
+          : resolvedLines
+      const detailsToSave =
+        expandedShortcut && party?.name && invoiceDetails
+          ? { ...invoiceDetails, nif: party.cif || invoiceDetails.nif, thirdPartyName: party.name }
+          : invoiceDetails
+
       await apiFetch(`/api/accounting/entries/${entryId}`, {
         method: "PATCH",
         body: JSON.stringify({
           fecha,
-          issueDate: invoiceDetails?.issueDate ?? entry.issueDate,
-          operationDate: invoiceDetails?.operationDate ?? entry.operationDate,
-          invoiceNumber: invoiceDetails?.invoiceNumber ?? entry.invoiceNumber,
-          invoiceDetails: showInvoicePanel ? invoiceDetails : null,
+          issueDate: detailsToSave?.issueDate ?? entry.issueDate,
+          operationDate: detailsToSave?.operationDate ?? entry.operationDate,
+          invoiceNumber: detailsToSave?.invoiceNumber ?? entry.invoiceNumber,
+          invoiceDetails: showInvoicePanel ? detailsToSave : null,
           commandCode: entry.commandCode,
-          lines: lines.map(({ cuenta, concepto, debe, haber }) => ({
+          lines: linesToSave.map(({ cuenta, concepto, debe, haber }) => ({
             cuenta,
             concepto,
             debe,
@@ -421,10 +619,6 @@ export function EditAccountingEntryDialog({
               </thead>
               <tbody>
                 {lines.map((line) => {
-                  const invoiceConceptLocked =
-                    entry.commandCode !== null &&
-                    isInvoiceConceptCommand(entry.commandCode) &&
-                    isInvoiceConceptAccountLine(line.cuenta, entry.commandCode)
                   const derivedAmount =
                     showInvoicePanel && isDerivedInvoiceAmountAccount(line.cuenta)
 
@@ -434,6 +628,9 @@ export function EditAccountingEntryDialog({
                       <Input
                         value={line.cuenta}
                         onChange={(event) => updateLine(line.id, { cuenta: event.target.value })}
+                        onBlur={(event) => {
+                          void commitAccountLine(line, event.target.value)
+                        }}
                         className="h-9 font-mono"
                       />
                     </td>
@@ -441,17 +638,7 @@ export function EditAccountingEntryDialog({
                       <Input
                         value={line.concepto}
                         onChange={(event) => updateLine(line.id, { concepto: event.target.value })}
-                        readOnly={invoiceConceptLocked}
-                        tabIndex={invoiceConceptLocked ? -1 : undefined}
-                        className={cn(
-                          "h-9",
-                          invoiceConceptLocked && "bg-sand-50 text-graphite-600",
-                        )}
-                        title={
-                          invoiceConceptLocked
-                            ? "Edita el número de factura en Datos de factura"
-                            : undefined
-                        }
+                        className="h-9"
                       />
                     </td>
                     <td className="px-2 py-1">

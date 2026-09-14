@@ -1,4 +1,8 @@
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import {
+  resolveAccountShortcut,
+  toShortcutCandidates,
+} from "@/lib/accounting/account-shortcut"
 import { searchPgcAccounts, type PgcAccount } from "@/lib/accounting/pgc-accounts"
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
 import {
@@ -102,6 +106,21 @@ export function searchAccountSuggestions(
   const preferPrefix = options?.preferPrefix?.replace(/\./g, "")
 
   const createMatches = createAccountSuggestions(query)
+  const shortcut = resolveAccountShortcut(
+    query,
+    toShortcutCandidates(thirdParties, ledgerSubaccounts),
+  )
+  const shortcutMatches: AccountSuggestion[] = shortcut
+    ? [
+        {
+          id: `shortcut-${shortcut.accountCode}`,
+          code: shortcut.accountCode,
+          label: shortcut.formattedAccountCode,
+          subtitle: shortcut.name,
+          source: shortcut.source === "tercero" ? "tercero" : "ledger",
+        },
+      ]
+    : []
 
   const thirdPartyMatches = thirdParties
     .filter((party) => {
@@ -136,13 +155,20 @@ export function searchAccountSuggestions(
       ? []
       : searchPgcAccounts(normalized || preferPrefix || "", limit).map(pgcToSuggestion)
 
-  const merged = [...createMatches, ...thirdPartyMatches, ...ledgerMatches, ...pgcMatches]
+  const merged = [
+    ...shortcutMatches,
+    ...createMatches,
+    ...thirdPartyMatches,
+    ...ledgerMatches,
+    ...pgcMatches,
+  ]
   const seen = new Set<string>()
 
   return merged
     .filter((item) => {
-      if (seen.has(item.id)) return false
+      if (seen.has(item.id) || seen.has(`code:${item.code}`)) return false
       seen.add(item.id)
+      seen.add(`code:${item.code}`)
       return true
     })
     .slice(0, limit)

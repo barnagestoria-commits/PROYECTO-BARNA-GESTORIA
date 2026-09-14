@@ -1,6 +1,13 @@
 import { prisma } from "@/lib/db"
 import { PGC_ACCOUNTS } from "@/lib/accounting/pgc-accounts"
 import {
+  isThirdPartyDottedShortcut,
+  parseDottedAccountShortcut,
+  resolveAccountShortcut,
+  toShortcutCandidates,
+  unresolvedDottedShortcut,
+} from "@/lib/accounting/account-shortcut"
+import {
   isThirdPartyAccountPrefix,
   resolveAccountParentCode,
 } from "@/lib/accounting/new-account-prefix"
@@ -79,10 +86,61 @@ export async function countMissingImportSubaccounts(
   return missing
 }
 
+async function resolveShortcutFromCompany(
+  companyId: string,
+  rawCode: string,
+): Promise<AccountExistenceResult | null> {
+  if (!parseDottedAccountShortcut(rawCode)) return null
+
+  const [thirdParties, subaccounts] = await Promise.all([
+    prisma.thirdParty.findMany({
+      where: { companyId },
+      select: { accountCode: true, name: true, cif: true },
+    }),
+    prisma.ledgerSubaccount.findMany({
+      where: { companyId },
+      select: { accountCode: true, name: true, parentCode: true },
+    }),
+  ])
+
+  const resolved = resolveAccountShortcut(
+    rawCode,
+    toShortcutCandidates(thirdParties, subaccounts),
+  )
+  if (!resolved) return null
+
+  return {
+    exists: true,
+    accountCode: resolved.accountCode,
+    formattedAccountCode: resolved.formattedAccountCode,
+    parentCode: inferParentCodeFromAccount(resolved.accountCode),
+    isThirdParty: resolved.source === "tercero" || isThirdPartyAccountPrefix(resolved.accountCode),
+    canQuickCreate: false,
+    label: resolved.name,
+  }
+}
+
 export async function checkAccountExists(
   companyId: string,
   rawCode: string,
 ): Promise<AccountExistenceResult> {
+  const shortcut = await resolveShortcutFromCompany(companyId, rawCode)
+  if (shortcut) return shortcut
+
+  const dotted = parseDottedAccountShortcut(rawCode)
+  if (dotted && isThirdPartyDottedShortcut(rawCode)) {
+    const fallback = unresolvedDottedShortcut(dotted)
+    return {
+      exists: false,
+      accountCode: fallback.fallbackAccountCode,
+      formattedAccountCode: fallback.formattedAccountCode,
+      parentCode: fallback.parentCode,
+      isThirdParty: isThirdPartyAccountPrefix(fallback.parentCode),
+      canQuickCreate: true,
+      label: null,
+    }
+  }
+
   const digits = normalizeCuenta(rawCode)
   const formattedAccountCode = formatDisplay(digits)
 
