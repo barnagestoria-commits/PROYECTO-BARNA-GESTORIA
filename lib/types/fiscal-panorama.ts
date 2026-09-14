@@ -77,6 +77,10 @@ export interface FiscalModelBreakdownLine {
   haber: number
   signedAmount: number
   category?: string
+  /** NIF/CIF o NIF-IVA UE del tercero, resuelto desde directorio o concepto. */
+  nif?: string
+  /** Razón social del tercero, resuelta desde directorio o concepto. */
+  nombre?: string
   /** Línea IVA intracomunitaria usada para clave y NIF-IVA cuando la contributing es la base imponible. */
   model349SourceLineId?: string
 }

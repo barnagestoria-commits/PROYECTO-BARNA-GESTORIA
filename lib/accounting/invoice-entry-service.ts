@@ -47,6 +47,7 @@ function finalizeOcrInvoiceLines(
     invoiceNumber: invoice.numeroFactura,
     thirdPartyLabel: invoice.proveedor,
     invoiceMode: commandCode === "17" ? "emitida" : "recibida",
+    nif: invoice.cif,
     euVatId: euVatId ?? undefined,
   })
 }

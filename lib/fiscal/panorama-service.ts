@@ -24,6 +24,7 @@ import type {
 import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summary"
 import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
 import type { A3ImportedFiscalResult } from "@/lib/imports/a3/types"
+import { enrichBreakdownWithPartyIdentity } from "@/lib/fiscal/party-identification"
 
 function declarationKey(year: number, quarter: number, modelCode: FiscalModelCode): string {
   return `${year}-${quarter}-${modelCode}`
@@ -405,9 +406,13 @@ export async function buildFiscalModelDetail(
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   if (!model) return null
 
-  const [allLines, importedResults] = await Promise.all([
+  const [allLines, importedResults, thirdParties] = await Promise.all([
     fetchYearLines(companyId, year),
     fetchImportedFiscalResults(companyId, year),
+    prisma.thirdParty.findMany({
+      where: { companyId },
+      select: { accountCode: true, cif: true, name: true },
+    }),
   ])
   let result = calculateModelAmount(modelCode, allLines, year, quarter)
 
@@ -493,7 +498,15 @@ export async function buildFiscalModelDetail(
     amount: result.amount,
     status,
     statusLabel,
-    breakdown: result.breakdown,
+    breakdown: enrichBreakdownWithPartyIdentity(
+      result.breakdown,
+      allLines.map((line) => ({
+        entryId: line.entry.id,
+        cuenta: line.cuenta,
+        concepto: line.concepto,
+      })),
+      thirdParties,
+    ),
   }
 }
 

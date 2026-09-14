@@ -10,7 +10,11 @@ export function allContributingLines(detail: FiscalModelDetailResponse) {
 }
 
 export function countPerceptores(detail: FiscalModelDetailResponse): number {
-  return new Set(allContributingLines(detail).map((line) => line.entryId)).size
+  return new Set(
+    allContributingLines(detail).map((line) =>
+      (line.nif?.trim() || line.entryId).toUpperCase(),
+    ),
+  ).size
 }
 
 export function sumContributing(detail: FiscalModelDetailResponse): number {

@@ -16,7 +16,9 @@ function retentionFromLines(
 ): { perceptores: number; retenciones: number; base: number } {
   const lines = detail.breakdown.flatMap((section) => section.lines).filter((line) => line.category === "contributing")
   const matched = lines.filter(filter)
-  const perceptores = new Set(matched.map((line) => line.entryId)).size
+  const perceptores = new Set(
+    matched.map((line) => (line.nif?.trim() || line.entryId).toUpperCase()),
+  ).size
   const retenciones = round2(matched.reduce((sum, line) => sum + line.signedAmount, 0))
   return { perceptores, retenciones, base: deriveBaseFromRetention(retenciones) }
 }

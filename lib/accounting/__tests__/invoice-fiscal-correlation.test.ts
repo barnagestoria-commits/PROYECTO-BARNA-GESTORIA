@@ -163,7 +163,7 @@ describe("invoice concepts correlate with fiscal impresos", () => {
     )
 
     const vatLine = raw.find((line) => isIvaRepercutidoBridgeLine(line))
-    expect(vatLine?.concepto).toBe("IVA R./CLIENTE-DEMO-SL")
+    expect(vatLine?.concepto).toBe("IVA R./CLIENTE-DEMO-SL B12345678")
 
     const result = calculateModelAmount("303", raw, 2026, 1)
     expect(result.amount).toBe(210)

@@ -219,8 +219,9 @@ export function QuickAccountingEntryForm() {
       invoiceNumber: invoiceDetails.invoiceNumber,
       thirdPartyLabel: invoiceDetails.thirdPartyName || focusedThirdParty || "",
       invoiceMode,
+      nif: invoiceDetails.nif,
     }),
-    [focusedThirdParty, invoiceDetails.invoiceNumber, invoiceDetails.thirdPartyName, invoiceMode],
+    [focusedThirdParty, invoiceDetails.invoiceNumber, invoiceDetails.nif, invoiceDetails.thirdPartyName, invoiceMode],
   )
 
   const loadThirdParties = useCallback(async () => {
@@ -458,6 +459,7 @@ export function QuickAccountingEntryForm() {
               invoiceNumber: invoiceDetails.invoiceNumber,
               thirdPartyLabel: partyName,
               invoiceMode,
+              nif: invoiceDetails.nif,
             })
           }
           return next
@@ -469,6 +471,7 @@ export function QuickAccountingEntryForm() {
               invoiceNumber: invoiceDetails.invoiceNumber,
               thirdPartyLabel: partyName,
               invoiceMode,
+              nif: invoiceDetails.nif,
             }),
           )
         }
@@ -500,6 +503,7 @@ export function QuickAccountingEntryForm() {
             invoiceNumber: invoiceDetails.invoiceNumber,
             thirdPartyLabel: assignment.name,
             invoiceMode,
+            nif: assignment.cif || invoiceDetails.nif,
           })
         }
         return next
@@ -786,6 +790,7 @@ export function QuickAccountingEntryForm() {
               invoiceNumber: invoiceDetails.invoiceNumber,
               thirdPartyLabel: shortcut.name,
               invoiceMode,
+              nif: shortcut.cif || invoiceDetails.nif,
             })
           }
           return next
@@ -1168,6 +1173,7 @@ export function QuickAccountingEntryForm() {
               invoiceNumber: invoiceDetails.invoiceNumber,
               thirdPartyLabel: party.name,
               invoiceMode,
+              nif: party.cif || invoiceDetails.nif,
             })
           : resolvedLines
       const detailsToSave =

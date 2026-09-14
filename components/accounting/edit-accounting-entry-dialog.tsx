@@ -228,6 +228,7 @@ export function EditAccountingEntryDialog({
       nextLines: AccountingEntryLine[],
       partyName: string,
       commandCode: string | null | undefined,
+      partyCif?: string,
     ) => {
       const command = commandCode === "17" || commandCode === "34" ? commandCode : null
       if (!partyName || !command) return nextLines
@@ -235,9 +236,10 @@ export function EditAccountingEntryDialog({
         invoiceNumber: invoiceDetails?.invoiceNumber ?? "",
         thirdPartyLabel: partyName,
         invoiceMode,
+        nif: partyCif || invoiceDetails?.nif,
       })
     },
-    [invoiceDetails?.invoiceNumber, invoiceMode],
+    [invoiceDetails?.invoiceNumber, invoiceDetails?.nif, invoiceMode],
   )
 
   const lookupExactParty = useCallback(
@@ -292,7 +294,7 @@ export function EditAccountingEntryDialog({
           }
         : prev,
     )
-    setLines((prev) => applyPartyToInvoice(prev, party.name, entry.commandCode))
+    setLines((prev) => applyPartyToInvoice(prev, party.name, entry.commandCode, party.cif))
   }, [
     applyPartyToInvoice,
     entry,
@@ -315,7 +317,7 @@ export function EditAccountingEntryDialog({
       const withAccount = prev.map((item) =>
         item.id === lineId ? { ...item, cuenta: resolvedCode } : item,
       )
-      return applyParty ? applyPartyToInvoice(withAccount, partyName ?? "", entry?.commandCode) : withAccount
+      return applyParty ? applyPartyToInvoice(withAccount, partyName ?? "", entry?.commandCode, partyCif) : withAccount
     })
 
     if (applyParty && partyName) {
@@ -344,7 +346,7 @@ export function EditAccountingEntryDialog({
           activeCommand: entry?.commandCode,
           thirdPartyLabel: partyName,
         })
-        return applyPartyToInvoice(treated, partyName ?? "", entry?.commandCode)
+        return applyPartyToInvoice(treated, partyName ?? "", entry?.commandCode, partyCif)
       })
     } catch {
       // Sin parametrización: se mantienen las líneas actuales
@@ -546,7 +548,7 @@ export function EditAccountingEntryDialog({
       const party = thirdLine ? lookupPartyForAccount(thirdLine.cuenta) : null
       const linesToSave =
         expandedShortcut && party?.name
-          ? applyPartyToInvoice(resolvedLines, party.name, entry.commandCode)
+          ? applyPartyToInvoice(resolvedLines, party.name, entry.commandCode, party.cif)
           : resolvedLines
       const detailsToSave =
         expandedShortcut && party?.name && invoiceDetails

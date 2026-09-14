@@ -1,5 +1,6 @@
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import type { DraftSection } from "@/lib/fiscal/model-draft/types"
+import { extractSpanishTaxId } from "@/lib/fiscal/party-identification"
 import {
   casillaAmount,
   countPerceptores,
@@ -9,17 +10,14 @@ import {
   sumContributing,
 } from "@/lib/fiscal/official-layouts/shared"
 
-function extractSpanishNif(text: string): string | null {
-  const match = text.match(/\b([A-Z]\d{7}[A-Z0-9]|\d{8}[A-Z])\b/i)
-  return match?.[1]?.toUpperCase() ?? null
-}
-
 function countDeclarados(detail: FiscalModelDetailResponse): number {
   const lines = detail.breakdown.flatMap((section) => section.lines.filter((line) => line.category === "contributing"))
   const keys = new Set<string>()
   for (const line of lines) {
-    const nif = extractSpanishNif(`${line.concepto} ${line.entryConcept ?? ""}`)
-    keys.add(nif ?? line.entryId)
+    const nif =
+      line.nif?.trim() ||
+      extractSpanishTaxId(`${line.concepto} ${line.entryConcept ?? ""}`)
+    keys.add((nif || line.entryId).toUpperCase())
   }
   return keys.size
 }

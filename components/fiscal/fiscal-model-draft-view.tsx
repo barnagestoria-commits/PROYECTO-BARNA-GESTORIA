@@ -14,7 +14,11 @@ import { Model303EngineStatus } from "@/components/fiscal/model-303-engine-statu
 import { getDraftTableLayout, getResultCasillaLabel } from "@/lib/fiscal/official-layouts"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { buildFiscalModelDraft } from "@/lib/fiscal/model-draft/build-model-draft"
-import { buildCalculationDetailRows } from "@/lib/fiscal/model-draft/calculation-rows"
+import {
+  buildCalculationDetailRows,
+  calculationClaveColumnLabel,
+  describeCalculationClave,
+} from "@/lib/fiscal/model-draft/calculation-rows"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import { apiFetch } from "@/lib/api-client"
@@ -216,7 +220,9 @@ export function FiscalModelDraftView({
         open={detailOpen}
         title={detailTitle}
         rows={detailRows}
-        nifColumnLabel={draft.modelCode === "349" ? "NIF-IVA UE" : "NIF"}
+        nifColumnLabel={draft.modelCode === "349" ? "NIF-IVA UE" : "NIF / CIF"}
+        claveColumnLabel={calculationClaveColumnLabel(draft.modelCode)}
+        describeClave={(clave) => describeCalculationClave(draft.modelCode, clave)}
         onClose={() => setDetailOpen(false)}
         onOpenEntry={(entryId) => {
           setDetailOpen(false)

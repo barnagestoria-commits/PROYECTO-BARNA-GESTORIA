@@ -1,6 +1,7 @@
 import type { AccountingCommandCode, AccountingEntryLine } from "@/lib/types/accounting-entry"
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
+import { extractSpanishTaxId } from "@/lib/fiscal/party-identification"
 
 export type InvoiceConceptCommand = Extract<AccountingCommandCode, "17" | "34">
 
@@ -19,8 +20,16 @@ export interface InvoiceConceptOptions {
   invoiceNumber: string
   thirdPartyLabel?: string
   invoiceMode?: "emitida" | "recibida"
+  /** NIF/CIF español del tercero para modelos 303, 111, 347, etc. */
+  nif?: string
   /** NIF-IVA intracomunitario del tercero (p. ej. IE6388047V) para modelo 349. */
   euVatId?: string
+}
+
+function spanishNifSuffix(options: Pick<InvoiceConceptOptions, "nif" | "euVatId">): string {
+  if (options.euVatId) return ""
+  const nif = extractSpanishTaxId(options.nif ?? "")
+  return nif ? ` ${nif}` : ""
 }
 
 export function buildRetentionConcept(partyLabel: string): string {
@@ -121,11 +130,11 @@ export function buildLineConceptForInvoice(
 
   const vatPrefix = vatConceptPrefix(code, line.cuenta)
   if (vatPrefix) {
-    return `${vatPrefix}${partyLabel}${euVatSuffix}`
+    return `${vatPrefix}${partyLabel}${spanishNifSuffix(options)}${euVatSuffix}`
   }
 
   if (isIrpfAccount(line.cuenta)) {
-    return buildRetentionConcept(partyLabel)
+    return `${buildRetentionConcept(partyLabel)}${spanishNifSuffix(options)}`
   }
 
   if (code === "17") {
@@ -171,6 +180,7 @@ export function applyInvoiceConceptsToLines<
     invoiceNumber: options.invoiceNumber,
     thirdPartyLabel: options.thirdPartyLabel,
     invoiceMode: options.invoiceMode ?? (code === "17" ? "emitida" : "recibida"),
+    nif: options.nif,
     euVatId: options.euVatId,
   }
 

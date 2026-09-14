@@ -279,6 +279,7 @@ export function buildFullInvoiceEntry(
     invoiceNumber: nextDetails.invoiceNumber,
     thirdPartyLabel: nextDetails.thirdPartyName,
     invoiceMode: options.invoiceMode,
+    nif: nextDetails.nif,
     euVatId: resolveIntracomEuVatId(nextDetails),
   })
 

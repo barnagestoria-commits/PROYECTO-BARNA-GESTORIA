@@ -20,6 +20,8 @@ interface FiscalCalculationDetailDialogProps {
   subtitle?: string
   rows: CalculationDetailRow[]
   nifColumnLabel?: string
+  claveColumnLabel?: string
+  describeClave?: (clave: string) => string | undefined
   onClose: () => void
   onOpenEntry?: (entryId: string) => void
 }
@@ -30,6 +32,8 @@ export function FiscalCalculationDetailDialog({
   subtitle,
   rows,
   nifColumnLabel = "NIF",
+  claveColumnLabel = "Clave",
+  describeClave,
   onClose,
   onOpenEntry,
 }: FiscalCalculationDetailDialogProps) {
@@ -52,7 +56,7 @@ export function FiscalCalculationDetailDialog({
               <TableHead>Cuenta contable</TableHead>
               <TableHead>{nifColumnLabel}</TableHead>
               <TableHead>Nombre o razón social</TableHead>
-              <TableHead>Clave</TableHead>
+              <TableHead>{claveColumnLabel}</TableHead>
               <TableHead className="text-right">Importe</TableHead>
             </TableRow>
           </TableHeader>
@@ -75,7 +79,7 @@ export function FiscalCalculationDetailDialog({
                   <p className="text-xs text-graphite-500">{row.concepto}</p>
                 </TableCell>
                 <TableCell className="font-mono text-xs">
-                  <span title={isModel349Clave(row.claveOperacion) ? formatModel349Clave(row.claveOperacion) : undefined}>
+                  <span title={describeClave?.(row.claveOperacion) ?? (isModel349Clave(row.claveOperacion) ? formatModel349Clave(row.claveOperacion) : undefined)}>
                     {row.claveOperacion}
                   </span>
                 </TableCell>
