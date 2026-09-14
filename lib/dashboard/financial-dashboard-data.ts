@@ -97,7 +97,8 @@ export function formatEuro(amount: number, options?: { signed?: boolean }): stri
   const formatted = new Intl.NumberFormat("es-ES", {
     style: "currency",
     currency: "EUR",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(Math.abs(amount))
 
   if (options?.signed && amount < 0) return `-${formatted}`

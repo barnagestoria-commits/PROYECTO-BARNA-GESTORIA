@@ -169,9 +169,9 @@ export function FinancialAnalyticsDashboard({
   uploadHref = "/dashboard/compras/facturas-recibidas",
 }: FinancialAnalyticsDashboardProps) {
   const { session, activeCompany } = useRequireAuth()
-  const [dateRange, setDateRange] = useState<DateRangeKey>("this_month")
+  const [dateRange, setDateRange] = useState<DateRangeKey>("this_year")
   const [data, setData] = useState<FinancialDashboardData>(() =>
-    createEmptyFinancialDashboardData("this_month"),
+    createEmptyFinancialDashboardData("this_year"),
   )
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -324,7 +324,12 @@ export function FinancialAnalyticsDashboard({
                     tick={{ fill: "#6a6a6a", fontSize: 12 }}
                     axisLine={false}
                     tickLine={false}
-                    tickFormatter={(v) => `${Math.round(v / 1000)}k`}
+                    tickFormatter={(v) => {
+                      if (Math.abs(v) >= 1000) {
+                        return `${Math.round(v / 1000)}k`
+                      }
+                      return new Intl.NumberFormat("es-ES", { maximumFractionDigits: 0 }).format(v)
+                    }}
                   />
                   <Tooltip content={<ChartTooltip />} />
                   <Legend

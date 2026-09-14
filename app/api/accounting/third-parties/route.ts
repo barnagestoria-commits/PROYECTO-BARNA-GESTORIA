@@ -64,6 +64,7 @@ export async function POST(request: Request) {
       accountPrefix?: string
       cif?: string
       name?: string
+      accountCode?: string
       treatment?: AccountTreatmentConfigInput
     }
 
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
       meta.code,
       body.cif,
       body.name,
+      body.accountCode,
     )
 
     if (body.treatment) {

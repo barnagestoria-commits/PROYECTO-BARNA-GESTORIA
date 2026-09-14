@@ -5,6 +5,7 @@ import { BookOpen } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { CompanyExtractPanel } from "@/components/accounting/company-extract-panel"
 import { AccountMovementsDialog } from "@/components/accounting/account-movements-dialog"
+import { EditAccountDialog } from "@/components/accounting/edit-account-dialog"
 import { InformeDownloadCard } from "@/components/informe-download-card"
 import { Label } from "@/components/ui/label"
 
@@ -17,6 +18,8 @@ export function CompanyExtractPage() {
   )
   const [year, setYear] = useState(currentYear)
   const [movementsAccount, setMovementsAccount] = useState<string | null>(null)
+  const [editAccount, setEditAccount] = useState<{ cuenta: string; label: string } | null>(null)
+  const [extractRefresh, setExtractRefresh] = useState(0)
 
   return (
     <div className="space-y-6">
@@ -51,7 +54,11 @@ export function CompanyExtractPage() {
       ) : (
         <CompanyExtractPanel
           year={year}
+          refreshKey={extractRefresh}
           onSelectAccount={(accountCode) => setMovementsAccount(accountCode)}
+          onEditAccount={(accountCode, accountName) =>
+            setEditAccount({ cuenta: accountCode, label: accountName })
+          }
         />
       )}
 
@@ -66,8 +73,25 @@ export function CompanyExtractPage() {
         open={movementsAccount !== null}
         cuenta={movementsAccount}
         year={year}
+        refreshKey={extractRefresh}
         onBack={() => setMovementsAccount(null)}
         onClose={() => setMovementsAccount(null)}
+        onEditAccount={(accountCode, accountName) =>
+          setEditAccount({ cuenta: accountCode, label: accountName })
+        }
+      />
+
+      <EditAccountDialog
+        open={editAccount !== null}
+        accountCode={editAccount?.cuenta ?? null}
+        accountName={editAccount?.label}
+        onClose={() => setEditAccount(null)}
+        onSaved={(account) => {
+          setExtractRefresh((value) => value + 1)
+          if (movementsAccount && movementsAccount.replace(/\D/g, "") === account.fromAccountCode) {
+            setMovementsAccount(account.formattedAccountCode)
+          }
+        }}
       />
     </div>
   )

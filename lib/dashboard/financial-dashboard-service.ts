@@ -302,6 +302,9 @@ function buildRecentTransactions(
 
       const type: RecentTransaction["type"] = ingresos >= gastos ? "ingreso" : "gasto"
       const amount = type === "ingreso" ? round2(ingresos) : round2(-gastos)
+      const settled = entryLines.some((line) => normalizeCuenta(line.cuenta).startsWith("57"))
+      const status: RecentTransaction["status"] =
+        thirdPartyLine && !settled ? "pendiente" : "pagada"
 
       return {
         id: sample.entryId,
@@ -309,7 +312,7 @@ function buildRecentTransactions(
         date: sample.fecha.toISOString().split("T")[0],
         amount,
         type,
-        status: "pagada" as const,
+        status,
         reference: sample.invoiceNumber ?? `Asiento ${sample.refNumber}`,
         sortDate: sample.fecha,
         sortRef: sample.refNumber,
@@ -361,47 +364,6 @@ async function buildFiscalAlerts(companyId: string, year: number, quarter: numbe
   }))
 }
 
-async function fetchRecentEntryLines(companyId: string, limit: number): Promise<LineRow[]> {
-  const entries = await prisma.accountingEntry.findMany({
-    where: { companyId },
-    orderBy: [{ fecha: "desc" }, { refNumber: "desc" }],
-    take: limit,
-    select: { id: true },
-  })
-
-  if (entries.length === 0) return []
-
-  const lines = await prisma.entryLine.findMany({
-    where: { entryId: { in: entries.map((entry) => entry.id) } },
-    select: {
-      cuenta: true,
-      debe: true,
-      haber: true,
-      concepto: true,
-      entry: {
-        select: {
-          id: true,
-          refNumber: true,
-          fecha: true,
-          invoiceNumber: true,
-        },
-      },
-    },
-    orderBy: [{ entry: { fecha: "desc" } }, { sortOrder: "asc" }],
-  })
-
-  return lines.map((line) => ({
-    cuenta: line.cuenta,
-    debe: decimalToNumber(line.debe),
-    haber: decimalToNumber(line.haber),
-    concepto: line.concepto,
-    fecha: line.entry.fecha,
-    entryId: line.entry.id,
-    refNumber: line.entry.refNumber,
-    invoiceNumber: line.entry.invoiceNumber,
-  }))
-}
-
 async function fetchLines(companyId: string, from: Date, to: Date): Promise<LineRow[]> {
   const lines = await prisma.entryLine.findMany({
     where: {
@@ -449,14 +411,16 @@ export async function buildFinancialDashboardData(
   }
 
   const resolved = resolveRange(rangeKey)
-  const fetchFrom = resolved.previous.start < resolved.current.start
-    ? resolved.previous.start
+  const evolutionStart = resolved.evolutionMonths[0]
+    ? startOfMonth(resolved.evolutionMonths[0].year, resolved.evolutionMonths[0].month)
     : resolved.current.start
+  const fetchFrom = [resolved.previous.start, resolved.current.start, evolutionStart].reduce(
+    (earliest, date) => (date < earliest ? date : earliest),
+  )
   const fetchTo = resolved.current.end
 
-  const [lines, recentLines, thirdParties] = await Promise.all([
+  const [lines, thirdParties] = await Promise.all([
     fetchLines(companyId, fetchFrom, fetchTo),
-    fetchRecentEntryLines(companyId, 8),
     prisma.thirdParty.findMany({
       where: { companyId },
       select: { accountCode: true, name: true },
@@ -501,7 +465,10 @@ export async function buildFinancialDashboardData(
     },
     evolution: buildEvolution(lines, resolved.evolutionMonths),
     expenseCategories: buildExpenseCategories(lines, resolved.current),
-    transactions: buildRecentTransactions(recentLines, thirdPartyNames),
+    transactions: buildRecentTransactions(
+      lines.filter((line) => isWithinPeriod(line.fecha, resolved.current)),
+      thirdPartyNames,
+    ),
     alerts,
   }
 }

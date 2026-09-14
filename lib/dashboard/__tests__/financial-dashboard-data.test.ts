@@ -22,6 +22,7 @@ describe("financial dashboard data", () => {
 
   it("formats currency and percent helpers", () => {
     expect(formatEuro(0)).toContain("0")
+    expect(formatEuro(404.9)).toMatch(/404/)
     expect(formatEuro(1250, { signed: true })).toContain("+")
     expect(formatPercent(0)).toBe("0.0%")
     expect(formatPercent(12.4)).toBe("+12.4%")

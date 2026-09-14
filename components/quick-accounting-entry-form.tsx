@@ -89,6 +89,7 @@ import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 import { AccountMovementsDialog } from "@/components/accounting/account-movements-dialog"
 import { CompanyExtractDialog } from "@/components/accounting/company-extract-dialog"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
+import { EditAccountDialog } from "@/components/accounting/edit-account-dialog"
 import { EntryRefSearchBar } from "@/components/accounting/entry-ref-search-bar"
 import { SegmentedDateInput } from "@/components/accounting/segmented-date-input"
 import { normalizeCuenta } from "@/lib/reports/format"
@@ -159,6 +160,7 @@ export function QuickAccountingEntryForm() {
   const [companyExtractOpen, setCompanyExtractOpen] = useState(false)
   const [returnToCompanyExtract, setReturnToCompanyExtract] = useState(false)
   const [editEntryId, setEditEntryId] = useState<string | null>(null)
+  const [editAccount, setEditAccount] = useState<{ cuenta: string; label: string } | null>(null)
   const [movementsRefreshKey, setMovementsRefreshKey] = useState(0)
   const [committedEntries, setCommittedEntries] = useState<CommittedEntry[]>([])
   const [selectedCommittedEntryId, setSelectedCommittedEntryId] = useState<string | null>(null)
@@ -340,6 +342,7 @@ export function QuickAccountingEntryForm() {
       pgcDialogOpen ||
       nifDialogOpen ||
       editEntryId !== null ||
+      editAccount !== null ||
       movementsDialogOpen ||
       companyExtractOpen ||
       newSubaccountPrefix !== null ||
@@ -349,6 +352,7 @@ export function QuickAccountingEntryForm() {
   }, [
     analyticDialog,
     companyExtractOpen,
+    editAccount,
     editEntryId,
     missingAccountState,
     movementsDialogOpen,
@@ -1895,6 +1899,9 @@ export function QuickAccountingEntryForm() {
           setMovementsAccount(null)
           setReturnToCompanyExtract(false)
         }}
+        onEditAccount={(accountCode, accountName) =>
+          setEditAccount({ cuenta: accountCode, label: accountName })
+        }
       />
 
       <CompanyExtractDialog
@@ -1902,6 +1909,25 @@ export function QuickAccountingEntryForm() {
         year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
         onClose={() => setCompanyExtractOpen(false)}
         onSelectAccount={handleExtractAccountSelect}
+        refreshKey={movementsRefreshKey}
+        onEditAccount={(accountCode, accountName) =>
+          setEditAccount({ cuenta: accountCode, label: accountName })
+        }
+      />
+
+      <EditAccountDialog
+        open={editAccount !== null}
+        accountCode={editAccount?.cuenta ?? null}
+        accountName={editAccount?.label}
+        onClose={() => setEditAccount(null)}
+        onSaved={(account) => {
+          setMovementsRefreshKey((value) => value + 1)
+          void loadThirdParties()
+          void loadLedgerSubaccounts()
+          if (movementsAccount && movementsAccount.replace(/\D/g, "") === account.fromAccountCode) {
+            setMovementsAccount(account.formattedAccountCode)
+          }
+        }}
       />
 
       <EditAccountingEntryDialog

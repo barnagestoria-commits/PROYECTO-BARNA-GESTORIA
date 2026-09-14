@@ -136,6 +136,7 @@ export function ContactsPage() {
             accountPrefix: "430",
             cif: data.nif,
             name: data.razonSocial,
+            accountCode: data.cuentaCliente || undefined,
           }),
         }),
       )
@@ -149,12 +150,44 @@ export function ContactsPage() {
             accountPrefix: "400",
             cif: data.nif,
             name: data.razonSocial,
+            accountCode: data.cuentaProveedor || undefined,
           }),
         }),
       )
     }
 
     await Promise.all(requests)
+  }
+
+  const persistAccountChange = async (
+    fromAccountCode: string | undefined,
+    toAccountCode: string,
+    name: string,
+    accountPrefix?: "430" | "400",
+    nif?: string,
+  ) => {
+    if (!toAccountCode.trim()) return
+    if (fromAccountCode?.trim()) {
+      await apiFetch("/api/accounting/accounts/reassign", {
+        method: "POST",
+        body: JSON.stringify({
+          fromAccountCode,
+          toAccountCode,
+          name,
+        }),
+      })
+      return
+    }
+    if (!accountPrefix || !nif) return
+    await apiFetch("/api/accounting/third-parties", {
+      method: "POST",
+      body: JSON.stringify({
+        accountPrefix,
+        cif: nif,
+        name,
+        accountCode: toAccountCode,
+      }),
+    })
   }
 
   const handleSubmit = async (data: NewContactFormData) => {
@@ -179,6 +212,40 @@ export function ContactsPage() {
       setIsSaving(true)
       try {
         await persistThirdParty(data)
+        await loadContacts()
+        setModalOpen(false)
+        setEditingContact(null)
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "No se pudo guardar el contacto.",
+        )
+      } finally {
+        setIsSaving(false)
+      }
+      return
+    }
+
+    if (editingContact && !isDemoMode) {
+      setIsSaving(true)
+      try {
+        if (data.cuentaCliente) {
+          await persistAccountChange(
+            editingContact.cuentaCliente,
+            data.cuentaCliente,
+            data.razonSocial,
+            "430",
+            data.nif,
+          )
+        }
+        if (data.cuentaProveedor) {
+          await persistAccountChange(
+            editingContact.cuentaProveedor,
+            data.cuentaProveedor,
+            data.razonSocial,
+            "400",
+            data.nif,
+          )
+        }
         await loadContacts()
         setModalOpen(false)
         setEditingContact(null)

@@ -210,7 +210,9 @@ export function NewContactModal({
           {(showClienteAccount || showProveedorAccount) && (
             <div className="mb-6 grid gap-3 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-4 sm:grid-cols-2">
               <p className="sm:col-span-2 text-xs font-medium text-emerald-800">
-                Cuentas contables sugeridas automáticamente
+                {mode === "edit"
+                  ? "Si cambias 430.3 a 430.2, el extracto y los asientos se actualizan con la misma cuenta."
+                  : "Puedes indicar 430.2; se guarda como 430.0002 y queda enlazada al extracto."}
               </p>
               {showClienteAccount && (
                 <div>

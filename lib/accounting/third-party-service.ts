@@ -13,6 +13,10 @@ import {
   THIRD_PARTY_PREFIX,
   type ThirdPartyResolution,
 } from "@/lib/accounting/third-party-types"
+import {
+  accountCodeLookupVariants,
+  resolvePreferredAccountCode,
+} from "@/lib/accounting/account-code-edit"
 
 function normalizeAccountDigits(accountCode: string): string {
   return accountCode.replace(/\D/g, "")
@@ -326,11 +330,33 @@ function accountPrefixToType(prefix: string): ThirdPartyType {
   return prefix === "430" ? "CLIENTE" : "PROVEEDOR"
 }
 
+async function assertAccountCodeAvailable(companyId: string, accountCode: string) {
+  const variants = accountCodeLookupVariants(accountCode)
+  const [thirdParty, ledger] = await Promise.all([
+    prisma.thirdParty.findFirst({
+      where: { companyId, accountCode: { in: variants } },
+      select: { name: true, accountCode: true },
+    }),
+    prisma.ledgerSubaccount.findFirst({
+      where: { companyId, accountCode: { in: variants } },
+      select: { name: true, accountCode: true },
+    }),
+  ])
+
+  const occupant = thirdParty ?? ledger
+  if (!occupant) return
+
+  throw new Error(
+    `La cuenta ${formatAccountCodeDisplay(accountCode)} ya está ocupada${occupant.name ? ` (${occupant.name})` : ""}.`,
+  )
+}
+
 export async function previewThirdPartyWithPrefix(
   companyId: string,
   accountPrefix: string,
   cif: string,
   name: string,
+  preferredAccountCode?: string,
 ): Promise<ThirdPartyResolution> {
   const normalizedCif = normalizeCif(cif)
   if (!normalizedCif) {
@@ -362,8 +388,15 @@ export async function previewThirdPartyWithPrefix(
     await purgeDemoThirdParties(companyId)
   }
 
-  const nextSequence = await findNextAccountSequenceForPrefix(companyId, accountPrefix)
-  const accountCode = buildAccountCode(accountPrefix, nextSequence)
+  const preferred = preferredAccountCode?.trim()
+    ? resolvePreferredAccountCode(preferredAccountCode, accountPrefix)
+    : null
+  if (preferred) {
+    await assertAccountCodeAvailable(companyId, preferred)
+  }
+
+  const accountCode =
+    preferred ?? buildAccountCode(accountPrefix, await findNextAccountSequenceForPrefix(companyId, accountPrefix))
 
   return {
     type,
@@ -381,8 +414,15 @@ export async function resolveOrCreateThirdPartyWithPrefix(
   accountPrefix: string,
   cif: string,
   name: string,
+  preferredAccountCode?: string,
 ): Promise<ThirdPartyResolution> {
-  const preview = await previewThirdPartyWithPrefix(companyId, accountPrefix, cif, name)
+  const preview = await previewThirdPartyWithPrefix(
+    companyId,
+    accountPrefix,
+    cif,
+    name,
+    preferredAccountCode,
+  )
 
   if (!preview.isNew && preview.thirdPartyId) {
     if (preview.name !== name.trim() && name.trim()) {

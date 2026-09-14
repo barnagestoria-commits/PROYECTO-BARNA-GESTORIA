@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   try {
     const { companyId } = await requireActiveCompany(request)
     const url = new URL(request.url)
-    const rangeParam = url.searchParams.get("range") ?? "this_month"
+    const rangeParam = url.searchParams.get("range") ?? "this_year"
 
     if (!VALID_RANGES.has(rangeParam as DateRangeKey)) {
       return NextResponse.json({ success: false, error: "Rango no válido." }, { status: 400 })

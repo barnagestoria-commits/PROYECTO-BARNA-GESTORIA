@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, Loader2, X } from "lucide-react"
+import { ArrowLeft, Loader2, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { apiFetch } from "@/lib/api-client"
@@ -17,6 +17,7 @@ interface AccountMovementsDialogProps {
   onBack?: () => void
   onOpenEntry?: (entryId: string) => void
   onEntryDeleted?: () => void
+  onEditAccount?: (accountCode: string, accountName: string) => void
 }
 
 export function AccountMovementsDialog({
@@ -28,6 +29,7 @@ export function AccountMovementsDialog({
   onBack,
   onOpenEntry,
   onEntryDeleted,
+  onEditAccount,
 }: AccountMovementsDialogProps) {
   const [summary, setSummary] = useState<AccountMovementsSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -113,8 +115,22 @@ export function AccountMovementsDialog({
             </Button>
           ) : null}
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
-            <div className="font-semibold">
-              {summary.formattedCuenta} · {summary.label}
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="font-semibold">
+                {summary.formattedCuenta} · {summary.label}
+              </div>
+              {onEditAccount && cuenta ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-emerald-300 bg-white text-emerald-900"
+                  onClick={() => onEditAccount(cuenta, summary.label)}
+                >
+                  <Pencil className="mr-1 h-3.5 w-3.5" />
+                  Editar cuenta
+                </Button>
+              ) : null}
             </div>
             <div className="mt-1 flex flex-wrap gap-4">
               <span>Debe: {formatEuro(summary.totalDebe)}</span>

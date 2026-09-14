@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, Search } from "lucide-react"
+import { Loader2, Pencil, Search } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
 import { extractAccountMatchesSearch } from "@/lib/accounting/extract-account-search"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { AccountDetailLevelPicker } from "@/components/accounting/account-detail-level-picker"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { CompanyChartPlanInfo } from "@/lib/reports/pgc-chart-plans"
@@ -26,14 +27,18 @@ interface CompanyExtractPanelProps {
   year: number
   onSelectAccount?: (accountCode: string) => void
   onDoubleSelectAccount?: (accountCode: string) => void
+  onEditAccount?: (accountCode: string, accountName: string) => void
   autoFocusSearch?: boolean
+  refreshKey?: number
 }
 
 export function CompanyExtractPanel({
   year,
   onSelectAccount,
   onDoubleSelectAccount,
+  onEditAccount,
   autoFocusSearch = false,
+  refreshKey = 0,
 }: CompanyExtractPanelProps) {
   const [extract, setExtract] = useState<CompanyExtractResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -65,7 +70,7 @@ export function CompanyExtractPanel({
     return () => {
       cancelled = true
     }
-  }, [year, detailLevel])
+  }, [year, detailLevel, refreshKey])
 
   const activeDetail = extract?.detailLevel ?? detailLevel
   const visibleRows = useMemo(() => {
@@ -149,12 +154,13 @@ export function CompanyExtractPanel({
                   <th className="px-3 py-2 text-right">Debe</th>
                   <th className="px-3 py-2 text-right">Haber</th>
                   <th className="px-3 py-2 text-right">Saldo</th>
+                  {onEditAccount ? <th className="w-10 px-1 py-2" /> : null}
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-graphite-500">
+                    <td colSpan={onEditAccount ? 6 : 5} className="px-3 py-10 text-center text-sm text-graphite-500">
                       Ninguna cuenta coincide con «{search.trim()}».
                     </td>
                   </tr>
@@ -188,6 +194,25 @@ export function CompanyExtractPanel({
                         <td className="px-3 py-2 text-right font-mono tabular-nums">
                           {formatEuro(row.saldo)}
                         </td>
+                        {onEditAccount ? (
+                          <td className="px-1 py-1">
+                            {isSubaccount ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-emerald-800 hover:bg-emerald-50"
+                                title="Editar cuenta"
+                                onClick={(event) => {
+                                  event.stopPropagation()
+                                  onEditAccount(row.cuenta, row.label)
+                                }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            ) : null}
+                          </td>
+                        ) : null}
                       </tr>
                     )
                   })

@@ -8,6 +8,8 @@ interface CompanyExtractDialogProps {
   year: number
   onClose: () => void
   onSelectAccount?: (accountCode: string) => void
+  onEditAccount?: (accountCode: string, accountName: string) => void
+  refreshKey?: number
 }
 
 export function CompanyExtractDialog({
@@ -15,6 +17,8 @@ export function CompanyExtractDialog({
   year,
   onClose,
   onSelectAccount,
+  onEditAccount,
+  refreshKey,
 }: CompanyExtractDialogProps) {
   return (
     <AccountingModal
@@ -29,7 +33,9 @@ export function CompanyExtractDialog({
           year={year}
           onSelectAccount={onSelectAccount}
           onDoubleSelectAccount={onSelectAccount}
+          onEditAccount={onEditAccount}
           autoFocusSearch
+          refreshKey={refreshKey}
         />
       ) : null}
     </AccountingModal>
