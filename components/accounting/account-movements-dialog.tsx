@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ArrowLeft, Loader2, Pencil, X } from "lucide-react"
+import { Loader2, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { apiFetch } from "@/lib/api-client"
@@ -108,12 +108,6 @@ export function AccountMovementsDialog({
         </p>
       ) : summary ? (
         <div className="space-y-4">
-          {onBack ? (
-            <Button type="button" variant="outline" size="sm" onClick={onBack}>
-              <ArrowLeft className="h-4 w-4" />
-              Volver al extracto de cuentas
-            </Button>
-          ) : null}
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="font-semibold">
