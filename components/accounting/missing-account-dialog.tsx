@@ -27,6 +27,7 @@ export function MissingAccountDialog({
       title="Cuenta no dada de alta"
       subtitle={`Ejercicio ${year}`}
       onClose={onCancel}
+      layer="nested"
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onCancel}>

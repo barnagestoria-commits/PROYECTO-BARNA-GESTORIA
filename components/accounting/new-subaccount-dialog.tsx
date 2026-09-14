@@ -192,6 +192,7 @@ export function NewSubaccountDialog({
       }
       onClose={onClose}
       className="max-w-xl"
+      layer="nested"
       footer={
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose}>

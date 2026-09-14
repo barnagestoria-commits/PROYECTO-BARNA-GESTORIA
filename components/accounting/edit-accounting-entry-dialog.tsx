@@ -1,12 +1,17 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, Plus, Save, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
+import { MissingAccountDialog } from "@/components/accounting/missing-account-dialog"
+import {
+  NewSubaccountDialog,
+  type AccountCreationResult,
+} from "@/components/accounting/new-subaccount-dialog"
 import { apiFetch } from "@/lib/api-client"
 import {
   calculateTotals,
@@ -21,7 +26,11 @@ import type { InvoiceEntryDetails } from "@/lib/types/invoice-entry-details"
 import {
   isEmitidaThirdPartyAccount,
 } from "@/lib/accounting/account-suggestions"
-import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
+import {
+  isThirdPartyAccountPrefix,
+  parseNewAccountPrefix,
+  type NewAccountPrefix,
+} from "@/lib/accounting/new-account-prefix"
 import {
   applyInvoiceConceptsToLines,
   INVOICE_CONCEPT_PREFIX,
@@ -107,6 +116,13 @@ export function EditAccountingEntryDialog({
   const [isDeleting, setIsDeleting] = useState(false)
   const [thirdParties, setThirdParties] = useState<ThirdPartyAccountOption[]>([])
   const [ledgerSubaccounts, setLedgerSubaccounts] = useState<LedgerSubaccountOption[]>([])
+  const [missingAccount, setMissingAccount] = useState<AccountExistenceResult | null>(null)
+  const [pendingLineId, setPendingLineId] = useState<string | null>(null)
+  const [newSubaccountPrefix, setNewSubaccountPrefix] = useState<NewAccountPrefix | null>(null)
+  const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
+  const lastCommittedCuenta = useRef(new Map<string, string>())
+  const pendingLineIdRef = useRef<string | null>(null)
+  const createdAccountRef = useRef(false)
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -125,6 +141,11 @@ export function EditAccountingEntryDialog({
     if (!open || !entryId) {
       setEntry(null)
       setError(null)
+      setMissingAccount(null)
+      setNewSubaccountPrefix(null)
+      setFixedAccountCode(null)
+      setPendingLineId(null)
+      pendingLineIdRef.current = null
       return
     }
 
@@ -138,6 +159,7 @@ export function EditAccountingEntryDialog({
         setEntry(data.entry)
         setFecha(data.entry.fecha)
         const mapped = mapEntryLines(data.entry)
+        lastCommittedCuenta.current = new Map(mapped.map((line) => [line.id, line.cuenta]))
         const details = getEditableInvoiceDetails(data.entry)
         const mode = resolveInvoiceMode(data.entry.commandCode, mapped)
         const total = getInvoiceThirdPartyTotal(mapped, mode)
@@ -171,29 +193,26 @@ export function EditAccountingEntryDialog({
     }
   }, [entryId, open])
 
+  const loadCatalogs = useCallback(async () => {
+    try {
+      const [parties, ledger] = await Promise.all([
+        apiFetch<{ success: true; thirdParties: ThirdPartyAccountOption[] }>("/api/accounting/third-parties"),
+        apiFetch<{ success: true; subaccounts: LedgerSubaccountOption[] }>(
+          "/api/accounting/ledger-subaccounts",
+        ),
+      ])
+      setThirdParties(parties.thirdParties)
+      setLedgerSubaccounts(ledger.subaccounts)
+    } catch {
+      setThirdParties([])
+      setLedgerSubaccounts([])
+    }
+  }, [])
+
   useEffect(() => {
     if (!open) return
-    let cancelled = false
-    Promise.all([
-      apiFetch<{ success: true; thirdParties: ThirdPartyAccountOption[] }>("/api/accounting/third-parties"),
-      apiFetch<{ success: true; subaccounts: LedgerSubaccountOption[] }>(
-        "/api/accounting/ledger-subaccounts",
-      ),
-    ])
-      .then(([parties, ledger]) => {
-        if (cancelled) return
-        setThirdParties(parties.thirdParties)
-        setLedgerSubaccounts(ledger.subaccounts)
-      })
-      .catch(() => {
-        if (cancelled) return
-        setThirdParties([])
-        setLedgerSubaccounts([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open])
+    void loadCatalogs()
+  }, [open, loadCatalogs])
 
   const updateLine = (lineId: string, patch: Partial<AccountingEntryLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)))
@@ -283,33 +302,18 @@ export function EditAccountingEntryDialog({
     thirdPartyCuenta,
   ])
 
-  const commitAccountLine = async (line: AccountingEntryLine, rawCuenta: string) => {
-    const shortcut = lookupPartyForAccount(rawCuenta)
-    let resolvedCode = shortcut?.formattedAccountCode ?? rawCuenta
-    let partyName = shortcut?.name
-    let partyCif = shortcut?.cif
-
-    if (!shortcut) {
-      try {
-        const data = await apiFetch<{ success: true } & AccountExistenceResult>(
-          `/api/accounting/accounts/exists?code=${encodeURIComponent(rawCuenta)}`,
-        )
-        if (data.formattedAccountCode) {
-          resolvedCode = data.formattedAccountCode
-        }
-        if (data.exists && data.label && isThirdPartyAccountPrefix(data.accountCode)) {
-          partyName = data.label
-        }
-      } catch {
-        // Si no hay catálogo, se deja el código tecleado.
-      }
-    }
-
+  const applyResolvedAccount = async (
+    lineId: string,
+    resolvedCode: string,
+    partyName?: string,
+    partyCif?: string,
+  ) => {
+    lastCommittedCuenta.current.set(lineId, resolvedCode)
     const applyParty = Boolean(partyName && isThirdPartyAccountPrefix(resolvedCode))
 
     setLines((prev) => {
       const withAccount = prev.map((item) =>
-        item.id === line.id ? { ...item, cuenta: resolvedCode } : item,
+        item.id === lineId ? { ...item, cuenta: resolvedCode } : item,
       )
       return applyParty ? applyPartyToInvoice(withAccount, partyName ?? "", entry?.commandCode) : withAccount
     })
@@ -345,6 +349,104 @@ export function EditAccountingEntryDialog({
     } catch {
       // Sin parametrización: se mantienen las líneas actuales
     }
+  }
+
+  const restorePendingLine = () => {
+    const lineId = pendingLineIdRef.current
+    if (!lineId) return
+    const previous = lastCommittedCuenta.current.get(lineId) ?? ""
+    setLines((prev) => prev.map((item) => (item.id === lineId ? { ...item, cuenta: previous } : item)))
+    pendingLineIdRef.current = null
+    setPendingLineId(null)
+  }
+
+  const promptMissingAccount = (lineId: string, account: AccountExistenceResult) => {
+    pendingLineIdRef.current = lineId
+    setPendingLineId(lineId)
+    setMissingAccount(account)
+  }
+
+  const commitAccountLine = async (line: AccountingEntryLine, rawCuenta: string) => {
+    const trimmed = rawCuenta.trim()
+    if (!trimmed) {
+      lastCommittedCuenta.current.set(line.id, "")
+      updateLine(line.id, { cuenta: "" })
+      return
+    }
+
+    const createPrefix = parseNewAccountPrefix(trimmed)
+    if (createPrefix) {
+      pendingLineIdRef.current = line.id
+      setPendingLineId(line.id)
+      createdAccountRef.current = false
+      setFixedAccountCode(null)
+      setNewSubaccountPrefix(createPrefix)
+      return
+    }
+
+    const shortcut = lookupPartyForAccount(trimmed)
+    if (shortcut) {
+      await applyResolvedAccount(line.id, shortcut.formattedAccountCode, shortcut.name, shortcut.cif)
+      return
+    }
+
+    try {
+      const year = Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()
+      const data = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
+        `/api/accounting/accounts/exists?code=${encodeURIComponent(trimmed)}&year=${year}`,
+      )
+
+      if (!data.exists) {
+        promptMissingAccount(line.id, data)
+        return
+      }
+
+      const resolvedCode = data.formattedAccountCode || trimmed
+      const partyName =
+        data.label && isThirdPartyAccountPrefix(data.accountCode) ? data.label : undefined
+      await applyResolvedAccount(line.id, resolvedCode, partyName)
+    } catch {
+      lastCommittedCuenta.current.set(line.id, trimmed)
+      updateLine(line.id, { cuenta: trimmed })
+    }
+  }
+
+  const handleMissingAccountConfirm = () => {
+    if (!missingAccount?.parentCode) return
+    createdAccountRef.current = false
+    setFixedAccountCode(missingAccount.accountCode)
+    setNewSubaccountPrefix(missingAccount.parentCode)
+    setMissingAccount(null)
+  }
+
+  const handleMissingAccountCancel = () => {
+    setMissingAccount(null)
+    restorePendingLine()
+  }
+
+  const handleSubaccountCreated = async (result: AccountCreationResult) => {
+    const lineId = pendingLineIdRef.current
+    createdAccountRef.current = true
+    if (!lineId) return
+
+    const formatted = result.resolution.formattedAccountCode
+    const name = result.resolution.name
+    const cif = result.kind === "third-party" ? result.resolution.cif : undefined
+    await applyResolvedAccount(lineId, formatted, name, cif)
+    await loadCatalogs()
+    pendingLineIdRef.current = null
+    setPendingLineId(null)
+  }
+
+  const handleCreateAccountClose = () => {
+    if (!createdAccountRef.current) {
+      restorePendingLine()
+    }
+    createdAccountRef.current = false
+    setNewSubaccountPrefix(null)
+    setFixedAccountCode(null)
+    pendingLineIdRef.current = null
+    setPendingLineId(null)
   }
 
   const handleLineAmountChange = (
@@ -451,6 +553,21 @@ export function EditAccountingEntryDialog({
           ? { ...invoiceDetails, nif: party.cif || invoiceDetails.nif, thirdPartyName: party.name }
           : invoiceDetails
 
+      const year = Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()
+      for (const line of linesToSave) {
+        const code = line.cuenta.trim()
+        if (!code || parseNewAccountPrefix(code)) continue
+        if (resolveAccountShortcut(code, candidates)) continue
+        const data = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
+          `/api/accounting/accounts/exists?code=${encodeURIComponent(code)}&year=${year}`,
+        )
+        if (!data.exists) {
+          promptMissingAccount(line.id, data)
+          setIsSaving(false)
+          return
+        }
+      }
+
       await apiFetch(`/api/accounting/entries/${entryId}`, {
         method: "PATCH",
         body: JSON.stringify({
@@ -477,14 +594,20 @@ export function EditAccountingEntryDialog({
     }
   }
 
+  const closeEditor = () => {
+    if (missingAccount || newSubaccountPrefix) return
+    onClose()
+  }
+
   return (
+    <>
     <AccountingModal
       open={open}
       title="Modificación de apunte"
       subtitle={
         entry ? formatEntryRefLabel(entry.refNumber, entry.commandCode) : undefined
       }
-      onClose={onClose}
+      onClose={closeEditor}
       className="max-w-6xl"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -498,7 +621,7 @@ export function EditAccountingEntryDialog({
             )}
           </div>
           <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={closeEditor}>
               Cancelar
             </Button>
             <Button
@@ -730,5 +853,20 @@ export function EditAccountingEntryDialog({
         </div>
       ) : null}
     </AccountingModal>
+    <MissingAccountDialog
+      open={missingAccount !== null}
+      year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
+      account={missingAccount}
+      onConfirm={handleMissingAccountConfirm}
+      onCancel={handleMissingAccountCancel}
+    />
+    <NewSubaccountDialog
+      open={newSubaccountPrefix !== null}
+      prefix={newSubaccountPrefix}
+      fixedAccountCode={fixedAccountCode}
+      onClose={handleCreateAccountClose}
+      onCreated={handleSubaccountCreated}
+    />
+    </>
   )
 }
