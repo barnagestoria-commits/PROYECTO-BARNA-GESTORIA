@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import {
   createDefaultPresentationConfig,
+  type GestoriaAccountDetailLevel,
   type GestoriaPresentationConfig,
 } from "@/lib/contabilidad/gestoria-presentation-config"
 import {
@@ -213,12 +214,16 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
     .sort((a, b) => cuentaSortKey(a.cuenta).localeCompare(cuentaSortKey(b.cuenta)))
 }
 
-export async function fetchCompanyChartExtract(query: LedgerQuery): Promise<{
+export async function fetchCompanyChartExtract(
+  query: LedgerQuery,
+  detailLevel: GestoriaAccountDetailLevel = "SUBCUENTAS",
+): Promise<{
   plan: CompanyChartPlanInfo
   rows: AccountBalance[]
   totalDebe: number
   totalHaber: number
   accountsWithMovement: number
+  detailLevel: GestoriaAccountDetailLevel
 }> {
   const [plan, movements, openedAccounts] = await Promise.all([
     resolveCompanyChartPlan(query.companyId),
@@ -230,8 +235,7 @@ export async function fetchCompanyChartExtract(query: LedgerQuery): Promise<{
     planCodes: getPlanAccountCodes(plan.accountingPlanType),
     openedAccounts,
     movements,
-    // EX siempre lista subcuentas abiertas, como A3eco. El nivel 3/4 es para cuentas anuales.
-    detailLevel: "SUBCUENTAS",
+    detailLevel,
   })
 
   let totalDebe = 0
@@ -247,6 +251,7 @@ export async function fetchCompanyChartExtract(query: LedgerQuery): Promise<{
     totalDebe: round2(totalDebe),
     totalHaber: round2(totalHaber),
     accountsWithMovement: countAccountsWithMovement(rows),
+    detailLevel,
   }
 }
 

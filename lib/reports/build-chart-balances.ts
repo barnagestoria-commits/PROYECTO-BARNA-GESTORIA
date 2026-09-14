@@ -43,13 +43,8 @@ export function aggregateMovementsByDetail(
   }
 
   for (const [cuenta, totals] of movements) {
-    const code = normalizeCuenta(cuenta)
-    if (!code) continue
-    if (code.length > 3 || detailLevel === "SUBCUENTAS") {
-      add(code, totals)
-      continue
-    }
-    add(toChartKey(code, detailLevel), totals)
+    const key = toChartKey(cuenta, detailLevel)
+    if (key) add(key, totals)
   }
   return aggregated
 }
@@ -84,8 +79,10 @@ export function buildChartBalanceRows(input: {
     upsert(code, getChartAccountName(code))
   }
 
-  for (const opened of input.openedAccounts) {
-    upsert(opened.code, opened.name, true)
+  if (input.detailLevel === "SUBCUENTAS") {
+    for (const opened of input.openedAccounts) {
+      upsert(opened.code, opened.name, true)
+    }
   }
 
   for (const cuenta of aggregated.keys()) {

@@ -31,16 +31,16 @@ describe("build-chart-balances", () => {
     expect(countAccountsWithMovement(rows)).toBe(3)
   })
 
-  it("always lists opened subaccounts like Catcher 410.1, even at nivel 3", () => {
+  it("groups Catcher into 410 at nivel 3", () => {
     const movements = new Map([
       ["41000001", { totalDebe: 0, totalHaber: 61.92 }],
       ["62900001", { totalDebe: 51.17, totalHaber: 0 }],
     ])
 
     const aggregated = aggregateMovementsByDetail(movements, "NIVEL_3")
-    expect(aggregated.get("41000001")?.totalHaber).toBe(61.92)
-    expect(aggregated.get("410")?.totalHaber ?? 0).toBe(0)
-    expect(aggregated.get("62900001")?.totalDebe).toBe(51.17)
+    expect(aggregated.get("410")?.totalHaber).toBe(61.92)
+    expect(aggregated.get("629")?.totalDebe).toBe(51.17)
+    expect(aggregated.get("41000001")).toBeUndefined()
 
     const rows = buildChartBalanceRows({
       planCodes: getPlanAccountCodes("PGC_PYME"),
@@ -52,10 +52,21 @@ describe("build-chart-balances", () => {
       detailLevel: "NIVEL_3",
     })
 
-    expect(rows.find((row) => row.cuenta === "41000001")?.label).toBe("Catcher Marketplace SL")
-    expect(rows.find((row) => row.cuenta === "41000001")?.totalHaber).toBe(61.92)
-    expect(rows.find((row) => row.cuenta === "410")?.totalHaber).toBe(0)
-    expect(rows.find((row) => row.cuenta === "62900001")?.label).toBe("Comisiones Catcher")
+    expect(rows.find((row) => row.cuenta === "41000001")).toBeUndefined()
+    expect(rows.find((row) => row.cuenta === "410")?.totalHaber).toBe(61.92)
+    expect(rows.find((row) => row.cuenta === "629")?.totalDebe).toBe(51.17)
+  })
+
+  it("splits generic 4-digit accounts at nivel 4", () => {
+    const aggregated = aggregateMovementsByDetail(
+      new Map([
+        ["62120000", { totalDebe: 6100.06, totalHaber: 0 }],
+        ["47510000", { totalDebe: 0, totalHaber: 1159 }],
+      ]),
+      "NIVEL_4",
+    )
+    expect(aggregated.get("6212")?.totalDebe).toBe(6100.06)
+    expect(aggregated.get("4751")?.totalHaber).toBe(1159)
   })
 
   it("uses a smaller chart for microempresas than for PGC general", () => {
@@ -75,7 +86,7 @@ describe("build-chart-balances", () => {
       planCodes: getPlanAccountCodes("PGC_PYME"),
       openedAccounts: [{ code: "41000001", name: "Catcher Marketplace SL" }],
       movements: new Map([["41000001", { totalDebe: 0, totalHaber: 61.92 }]]),
-      detailLevel: "NIVEL_3",
+      detailLevel: "SUBCUENTAS",
     })
     const codes = rows.map((row) => row.cuenta)
     const group = codes.indexOf("410")
@@ -87,12 +98,12 @@ describe("build-chart-balances", () => {
     expect(nextGroup).toBe(catcher + 1)
   })
 
-  it("lists used subaccounts even if they are not in the master file", () => {
+  it("lists used subaccounts at subcuenta level even if they are not in the master file", () => {
     const rows = buildChartBalanceRows({
       planCodes: getPlanAccountCodes("PGC_PYME"),
       openedAccounts: [],
       movements: new Map([["41000001", { totalDebe: 0, totalHaber: 61.92 }]]),
-      detailLevel: "NIVEL_3",
+      detailLevel: "SUBCUENTAS",
     })
 
     expect(rows.find((row) => row.cuenta === "41000001")?.totalHaber).toBe(61.92)
