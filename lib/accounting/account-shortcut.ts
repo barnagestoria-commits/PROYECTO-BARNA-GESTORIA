@@ -69,6 +69,12 @@ function sequenceAfterGroup(accountCode: string, group: string): number | null {
   return Number.isFinite(sequence) ? sequence : null
 }
 
+export function accountMatchesDottedShortcut(accountCode: string, raw: string): boolean {
+  const parsed = parseDottedAccountShortcut(raw)
+  if (!parsed) return false
+  return sequenceAfterGroup(accountCode, parsed.group) === parsed.sequence
+}
+
 function toResolved(candidate: AccountShortcutCandidate): ResolvedAccountShortcut {
   const accountCode = digitsOf(candidate.accountCode)
   return {

@@ -29,6 +29,7 @@ export function CompanyExtractDialog({
           year={year}
           onSelectAccount={onSelectAccount}
           onDoubleSelectAccount={onSelectAccount}
+          autoFocusSearch
         />
       ) : null}
     </AccountingModal>

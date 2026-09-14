@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Loader2 } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { Loader2, Search } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
+import { extractAccountMatchesSearch } from "@/lib/accounting/extract-account-search"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { AccountDetailLevelPicker } from "@/components/accounting/account-detail-level-picker"
+import { Input } from "@/components/ui/input"
 import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { CompanyChartPlanInfo } from "@/lib/reports/pgc-chart-plans"
 import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
@@ -24,17 +26,20 @@ interface CompanyExtractPanelProps {
   year: number
   onSelectAccount?: (accountCode: string) => void
   onDoubleSelectAccount?: (accountCode: string) => void
+  autoFocusSearch?: boolean
 }
 
 export function CompanyExtractPanel({
   year,
   onSelectAccount,
   onDoubleSelectAccount,
+  autoFocusSearch = false,
 }: CompanyExtractPanelProps) {
   const [extract, setExtract] = useState<CompanyExtractResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [detailLevel, setDetailLevel] = useState<GestoriaAccountDetailLevel>("SUBCUENTAS")
+  const [search, setSearch] = useState("")
 
   useEffect(() => {
     let cancelled = false
@@ -63,10 +68,28 @@ export function CompanyExtractPanel({
   }, [year, detailLevel])
 
   const activeDetail = extract?.detailLevel ?? detailLevel
+  const visibleRows = useMemo(() => {
+    if (!extract) return []
+    return extract.rows.filter((row) => extractAccountMatchesSearch(row, search))
+  }, [extract, search])
+  const hasSearch = search.trim().length > 0
 
   return (
     <div className="space-y-4">
-      <AccountDetailLevelPicker value={detailLevel} onChange={setDetailLevel} />
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <AccountDetailLevelPicker value={detailLevel} onChange={setDetailLevel} />
+        <div className="relative w-full lg:max-w-sm lg:pt-5">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite-400" />
+          <Input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Buscar por cuenta o descripción…"
+            className="h-10 pl-10"
+            aria-label="Buscar en el extracto de cuentas"
+            autoFocus={autoFocusSearch}
+          />
+        </div>
+      </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-16 text-emerald-800">
@@ -99,6 +122,11 @@ export function CompanyExtractPanel({
               <span>
                 Cuentas: <strong>{extract.rows.length}</strong>
               </span>
+              {hasSearch ? (
+                <span>
+                  Coincidencias: <strong>{visibleRows.length}</strong>
+                </span>
+              ) : null}
               <span>
                 Con movimiento:{" "}
                 <strong>{extract.accountsWithMovement ?? extract.rows.length}</strong>
@@ -124,38 +152,46 @@ export function CompanyExtractPanel({
                 </tr>
               </thead>
               <tbody>
-                {extract.rows.map((row) => {
-                  const hasMovement =
-                    row.totalDebe !== 0 || row.totalHaber !== 0 || row.saldo !== 0
-                  const isSubaccount =
-                    activeDetail === "SUBCUENTAS" && row.cuenta.replace(/\D/g, "").length > 3
-                  return (
-                    <tr
-                      key={row.cuenta}
-                      className={`cursor-pointer border-t border-sand-100 hover:bg-emerald-50/70 ${
-                        hasMovement ? "text-graphite-900" : "text-graphite-400"
-                      }`}
-                      onClick={() => onSelectAccount?.(row.cuenta)}
-                      onDoubleClick={() => onDoubleSelectAccount?.(row.cuenta)}
-                    >
-                      <td className={`px-3 py-2 font-mono ${isSubaccount ? "pl-8" : "font-semibold"}`}>
-                        {formatAccountCodeDisplay(row.cuenta)}
-                      </td>
-                      <td className={`px-3 py-2 ${isSubaccount && hasMovement ? "font-medium" : ""}`}>
-                        {row.label}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums">
-                        {formatEuro(row.totalDebe)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums">
-                        {formatEuro(row.totalHaber)}
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono tabular-nums">
-                        {formatEuro(row.saldo)}
-                      </td>
-                    </tr>
-                  )
-                })}
+                {visibleRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-10 text-center text-sm text-graphite-500">
+                      Ninguna cuenta coincide con «{search.trim()}».
+                    </td>
+                  </tr>
+                ) : (
+                  visibleRows.map((row) => {
+                    const hasMovement =
+                      row.totalDebe !== 0 || row.totalHaber !== 0 || row.saldo !== 0
+                    const isSubaccount =
+                      activeDetail === "SUBCUENTAS" && row.cuenta.replace(/\D/g, "").length > 3
+                    return (
+                      <tr
+                        key={row.cuenta}
+                        className={`cursor-pointer border-t border-sand-100 hover:bg-emerald-50/70 ${
+                          hasMovement ? "text-graphite-900" : "text-graphite-400"
+                        }`}
+                        onClick={() => onSelectAccount?.(row.cuenta)}
+                        onDoubleClick={() => onDoubleSelectAccount?.(row.cuenta)}
+                      >
+                        <td className={`px-3 py-2 font-mono ${isSubaccount ? "pl-8" : "font-semibold"}`}>
+                          {formatAccountCodeDisplay(row.cuenta)}
+                        </td>
+                        <td className={`px-3 py-2 ${isSubaccount && hasMovement ? "font-medium" : ""}`}>
+                          {row.label}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums">
+                          {formatEuro(row.totalDebe)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums">
+                          {formatEuro(row.totalHaber)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono tabular-nums">
+                          {formatEuro(row.saldo)}
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
               </tbody>
             </table>
           </div>
