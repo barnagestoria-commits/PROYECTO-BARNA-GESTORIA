@@ -20,6 +20,15 @@ export function normalizeCuenta(cuenta: string): string {
   return cuenta.replace(/\D/g, "").trim()
 }
 
+/** Una cuenta de grupo (410) incluye sus subcuentas (410.00001). */
+export function accountMatchesQuery(storedCuenta: string, queryCuenta: string): boolean {
+  const stored = normalizeCuenta(storedCuenta)
+  const query = normalizeCuenta(queryCuenta)
+  if (!stored || !query) return false
+  if (stored === query) return true
+  return stored.startsWith(query) && stored.length > query.length
+}
+
 export function cuentaSortKey(cuenta: string): string {
   return normalizeCuenta(cuenta).padStart(12, "0")
 }

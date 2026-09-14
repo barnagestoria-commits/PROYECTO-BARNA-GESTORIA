@@ -32,17 +32,30 @@ function toChartKey(cuenta: string, detailLevel: GestoriaAccountDetailLevel): st
 export function aggregateMovementsByDetail(
   movements: Map<string, MovementTotals>,
   detailLevel: GestoriaAccountDetailLevel,
+  openedCodes: string[] = [],
 ): Map<string, MovementTotals> {
-  if (detailLevel === "SUBCUENTAS") return new Map(movements)
-
+  const opened = new Set(openedCodes.map((code) => normalizeCuenta(code)).filter(Boolean))
   const aggregated = new Map<string, MovementTotals>()
-  for (const [cuenta, totals] of movements) {
-    const key = toChartKey(cuenta, detailLevel)
-    if (!key) continue
+
+  const add = (key: string, totals: MovementTotals) => {
     const current = aggregated.get(key) ?? { totalDebe: 0, totalHaber: 0 }
     current.totalDebe += totals.totalDebe
     current.totalHaber += totals.totalHaber
     aggregated.set(key, current)
+  }
+
+  for (const [cuenta, totals] of movements) {
+    const code = normalizeCuenta(cuenta)
+    if (!code) continue
+    if (opened.has(code) && code.length > 3) {
+      add(code, totals)
+      continue
+    }
+    if (detailLevel === "SUBCUENTAS") {
+      add(code, totals)
+      continue
+    }
+    add(toChartKey(code, detailLevel), totals)
   }
   return aggregated
 }
@@ -54,7 +67,11 @@ export function buildChartBalanceRows(input: {
   detailLevel: GestoriaAccountDetailLevel
 }): AccountBalance[] {
   const planCodes = expandPlanCodesForDetail(input.planCodes, input.detailLevel)
-  const aggregated = aggregateMovementsByDetail(input.movements, input.detailLevel)
+  const aggregated = aggregateMovementsByDetail(
+    input.movements,
+    input.detailLevel,
+    input.openedAccounts.map((row) => row.code),
+  )
   const rows = new Map<string, AccountBalance>()
 
   const upsert = (cuenta: string, label: string, preferLabel = false) => {
@@ -77,10 +94,8 @@ export function buildChartBalanceRows(input: {
     upsert(code, getChartAccountName(code))
   }
 
-  if (input.detailLevel === "SUBCUENTAS") {
-    for (const opened of input.openedAccounts) {
-      upsert(opened.code, opened.name, true)
-    }
+  for (const opened of input.openedAccounts) {
+    upsert(opened.code, opened.name, true)
   }
 
   for (const cuenta of aggregated.keys()) {

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
-import { normalizeCuenta, round2 } from "@/lib/reports/format"
+import { accountMatchesQuery, normalizeCuenta, round2 } from "@/lib/reports/format"
 
 export interface AccountMovementRow {
   id: string
@@ -30,7 +30,7 @@ export interface AccountMovementsSummary {
 }
 
 function matchesCuenta(stored: string, target: string): boolean {
-  return normalizeCuenta(stored) === normalizeCuenta(target)
+  return accountMatchesQuery(stored, target)
 }
 
 export async function fetchAccountMovements(
@@ -46,15 +46,28 @@ export async function fetchAccountMovements(
   const start = new Date(`${year}-01-01T00:00:00.000Z`)
   const end = new Date(`${year}-12-31T23:59:59.999Z`)
 
-  const priorLines = await prisma.entryLine.findMany({
-    where: {
-      entry: {
-        companyId,
-        fecha: { lt: start },
+  const [priorLines, nameRecord] = await Promise.all([
+    prisma.entryLine.findMany({
+      where: {
+        entry: {
+          companyId,
+          fecha: { lt: start },
+        },
       },
-    },
-    select: { cuenta: true, debe: true, haber: true },
-  })
+      select: { cuenta: true, debe: true, haber: true },
+    }),
+    prisma.thirdParty.findFirst({
+      where: { companyId, accountCode: { in: [normalized, cuenta] } },
+      select: { name: true },
+    }).then(async (party) => {
+      if (party?.name.trim()) return party.name.trim()
+      const ledger = await prisma.ledgerSubaccount.findFirst({
+        where: { companyId, accountCode: { in: [normalized, cuenta] } },
+        select: { name: true },
+      })
+      return ledger?.name.trim() || null
+    }),
+  ])
 
   const openingBalance = round2(
     priorLines
@@ -120,7 +133,7 @@ export async function fetchAccountMovements(
   return {
     cuenta: normalized,
     formattedCuenta: formatAccountCodeDisplay(normalized),
-    label: getAccountLabel(normalized),
+    label: nameRecord ?? getAccountLabel(normalized),
     year,
     openingBalance,
     totalDebe,
