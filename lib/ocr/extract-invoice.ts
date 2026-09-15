@@ -1,6 +1,7 @@
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { extractTextFromPdf, hasUsableExtractedText } from "@/lib/ocr/extract-pdf-text"
-import { extractInvoiceFromText } from "@/lib/ocr/extract-invoice-deepseek"
+import { imageBufferToDataUrl, renderPdfPageDataUrls } from "@/lib/ocr/extract-pdf-pages"
+import { extractInvoicesFromDocument } from "@/lib/ocr/extract-invoice-deepseek"
 import { OcrExtractionError } from "@/lib/ocr/errors"
 
 interface ExtractInvoiceInput {
@@ -31,29 +32,53 @@ function isPdf(mimeType: string, fileName: string): boolean {
   return mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")
 }
 
+async function safePdfText(buffer: Buffer): Promise<string> {
+  try {
+    return await extractTextFromPdf(buffer)
+  } catch (error) {
+    console.error("[ocr] pdf-text", error)
+    return ""
+  }
+}
+
+async function safePdfScreenshots(buffer: Buffer): Promise<string[]> {
+  try {
+    return await renderPdfPageDataUrls(buffer)
+  } catch (error) {
+    console.error("[ocr] pdf-screenshot", error)
+    return []
+  }
+}
+
 /**
- * Extrae datos de factura usando texto del PDF y un modelo de IA para estructurar los campos.
- * Las imágenes deben contener texto legible o convertirse a PDF con texto seleccionable.
+ * Extrae una o varias facturas/tickets desde PDF (texto + fotos de página) o imagen.
  */
-export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<InvoiceOcrResult> {
+export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<InvoiceOcrResult[]> {
   const mimeType = resolveMimeType(input.mimeType, input.fileName)
 
   if (isPdf(mimeType, input.fileName)) {
-    const pdfText = await extractTextFromPdf(input.buffer)
+    const [pdfText, pageImages] = await Promise.all([
+      safePdfText(input.buffer),
+      safePdfScreenshots(input.buffer),
+    ])
 
-    if (hasUsableExtractedText(pdfText)) {
-      return extractInvoiceFromText(pdfText)
+    const text = hasUsableExtractedText(pdfText) ? pdfText : pdfText.trim()
+    if (!text && pageImages.length === 0) {
+      throw new OcrExtractionError(
+        "No se pudo leer el PDF. Prueba con un archivo más nítido o sube fotos de cada ticket.",
+      )
     }
 
-    throw new OcrExtractionError(
-      "No se pudo extraer texto del PDF. Usa facturas con texto seleccionable (no escaneadas sin OCR).",
-    )
+    return extractInvoicesFromDocument({
+      text,
+      imageDataUrls: pageImages,
+    })
   }
 
   if (mimeType.startsWith("image/")) {
-    throw new OcrExtractionError(
-      "No se pudo analizar la imagen. Sube un PDF con texto seleccionable o una foto nítida de la factura.",
-    )
+    return extractInvoicesFromDocument({
+      imageDataUrls: [imageBufferToDataUrl(input.buffer, mimeType)],
+    })
   }
 
   throw new OcrExtractionError("Formato de archivo no soportado.")

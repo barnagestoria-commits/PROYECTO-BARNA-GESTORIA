@@ -51,7 +51,7 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const data = await extractInvoiceData({
+    const invoices = await extractInvoiceData({
       buffer,
       mimeType: file.type,
       fileName: file.name,
@@ -59,7 +59,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json<InvoiceOcrResponse>({
       success: true,
-      data,
+      data: invoices[0],
+      invoices,
       fileName: file.name,
       companyId,
       processedAt: new Date().toISOString(),

@@ -36,6 +36,7 @@ interface InvoiceValidationFormProps {
   fileName: string
   initialData: InvoiceOcrResult
   documentType?: "factura-recibida" | "factura-emitida"
+  progressLabel?: string
   onConfirm: (data: InvoiceOcrResult) => void
   onCancel: () => void
   isSubmitting?: boolean
@@ -52,6 +53,7 @@ export function InvoiceValidationForm({
   fileName,
   initialData,
   documentType = "factura-recibida",
+  progressLabel,
   onConfirm,
   onCancel,
   isSubmitting = false,
@@ -222,6 +224,7 @@ export function InvoiceValidationForm({
         <div className="mb-6 flex items-center gap-2 rounded-lg bg-gray-50 p-3 text-sm text-gray-600">
           <FileText className="h-4 w-4 shrink-0" />
           <span className="truncate">{fileName}</span>
+          {progressLabel ? <span className="ml-auto shrink-0 font-medium text-emerald-800">{progressLabel}</span> : null}
         </div>
 
         {(formData.isIntracomunitaria || formData.isSujetoPasivo) && (

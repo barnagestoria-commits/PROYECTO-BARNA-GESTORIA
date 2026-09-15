@@ -28,6 +28,7 @@ export interface InvoiceOcrResult {
 export interface InvoiceOcrResponse {
   success: true
   data: InvoiceOcrResult
+  invoices?: InvoiceOcrResult[]
   fileName: string
   companyId: string
   processedAt: string

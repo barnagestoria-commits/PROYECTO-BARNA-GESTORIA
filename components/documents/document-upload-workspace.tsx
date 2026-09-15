@@ -27,6 +27,9 @@ interface PendingValidation {
   file: File
   fileName: string
   ocrData: InvoiceOcrResult
+  remainingInvoices: InvoiceOcrResult[]
+  invoiceIndex: number
+  invoiceCount: number
 }
 
 interface DocumentUploadWorkspaceProps {
@@ -100,7 +103,7 @@ function DocumentUploadWorkspaceContent({
     await loadDocuments()
   }
 
-  const processInvoiceOcr = async (file: File): Promise<InvoiceOcrResult> => {
+  const processInvoiceOcr = async (file: File): Promise<InvoiceOcrResult[]> => {
     if (!session?.activeCompanyId) {
       throw new Error("Selecciona una empresa antes de subir facturas.")
     }
@@ -109,12 +112,14 @@ function DocumentUploadWorkspaceContent({
     formData.append("file", file)
     formData.append("companyId", session.activeCompanyId)
 
-    const result = await apiFormFetch<{ success: true; data: InvoiceOcrResult }>(
-      "/api/invoices/ocr",
-      formData,
-    )
+    const result = await apiFormFetch<{
+      success: true
+      data: InvoiceOcrResult
+      invoices?: InvoiceOcrResult[]
+    }>("/api/invoices/ocr", formData)
 
-    return result.data
+    const invoices = result.invoices?.length ? result.invoices : [result.data]
+    return invoices
   }
 
   const processNextInQueue = async (queue: File[]) => {
@@ -126,11 +131,14 @@ function DocumentUploadWorkspaceContent({
     setOcrError(null)
 
     try {
-      const ocrData = await processInvoiceOcr(currentFile)
+      const invoices = await processInvoiceOcr(currentFile)
       setPendingValidation({
         file: currentFile,
         fileName: currentFile.name,
-        ocrData,
+        ocrData: invoices[0],
+        remainingInvoices: invoices.slice(1),
+        invoiceIndex: 1,
+        invoiceCount: invoices.length,
       })
     } catch (error) {
       setOcrError(error instanceof Error ? error.message : "Error al procesar la factura.")
@@ -190,10 +198,20 @@ function DocumentUploadWorkspaceContent({
         `Factura contabilizada: asiento ${result.accounting.commandCode} con cuenta ${result.accounting.thirdParty.formattedAccountCode} (${actionLabel}).`,
       )
       await loadDocuments()
-      setPendingValidation(null)
 
-      if (validationQueue.length > 0) {
-        await processNextInQueue(validationQueue)
+      if (pendingValidation.remainingInvoices.length > 0) {
+        const [nextInvoice, ...rest] = pendingValidation.remainingInvoices
+        setPendingValidation({
+          ...pendingValidation,
+          ocrData: nextInvoice,
+          remainingInvoices: rest,
+          invoiceIndex: pendingValidation.invoiceIndex + 1,
+        })
+      } else {
+        setPendingValidation(null)
+        if (validationQueue.length > 0) {
+          await processNextInQueue(validationQueue)
+        }
       }
     } catch (error) {
       setOcrError(error instanceof Error ? error.message : "Error al confirmar la factura.")
@@ -262,9 +280,9 @@ function DocumentUploadWorkspaceContent({
             <CardContent className="flex items-center gap-3 py-6">
               <Loader2 className="h-5 w-5 animate-spin text-emerald-700" />
               <div>
-                <p className="font-medium text-emerald-800">Analizando factura con IA...</p>
+                <p className="font-medium text-emerald-800">Analizando facturas y tickets con IA...</p>
                 <p className="text-sm text-emerald-700">
-                  Procesando para {activeCompany?.name}. Puede tardar unos segundos.
+                  Leemos el texto y las imágenes del PDF. Si hay varios tickets, los iremos mostrando uno a uno.
                 </p>
               </div>
             </CardContent>
@@ -281,8 +299,14 @@ function DocumentUploadWorkspaceContent({
 
         {pendingValidation && (
           <InvoiceValidationForm
+            key={`${pendingValidation.fileName}-${pendingValidation.invoiceIndex}`}
             fileName={pendingValidation.fileName}
             initialData={pendingValidation.ocrData}
+            progressLabel={
+              pendingValidation.invoiceCount > 1
+                ? `Factura ${pendingValidation.invoiceIndex} de ${pendingValidation.invoiceCount}`
+                : undefined
+            }
             onConfirm={handleConfirmValidation}
             onCancel={handleCancelValidation}
             isSubmitting={isConfirming}
