@@ -143,11 +143,12 @@ export function ContactsPage() {
     }
 
     if (data.tipo === "proveedor" || data.tipo === "ambos") {
+      const supplierPrefix = data.cuentaProveedor.replace(/\D/g, "").startsWith("410") ? "410" : "400"
       requests.push(
         apiFetch("/api/accounting/third-parties", {
           method: "POST",
           body: JSON.stringify({
-            accountPrefix: "400",
+            accountPrefix: supplierPrefix,
             cif: data.nif,
             name: data.razonSocial,
             accountCode: data.cuentaProveedor || undefined,
@@ -163,7 +164,7 @@ export function ContactsPage() {
     fromAccountCode: string | undefined,
     toAccountCode: string,
     name: string,
-    accountPrefix?: "430" | "400",
+    accountPrefix?: "430" | "400" | "410",
     nif?: string,
   ) => {
     if (!toAccountCode.trim()) return
@@ -238,11 +239,14 @@ export function ContactsPage() {
           )
         }
         if (data.cuentaProveedor) {
+          const supplierPrefix = data.cuentaProveedor.replace(/\D/g, "").startsWith("410")
+            ? "410"
+            : "400"
           await persistAccountChange(
             editingContact.cuentaProveedor,
             data.cuentaProveedor,
             data.razonSocial,
-            "400",
+            supplierPrefix,
             data.nif,
           )
         }

@@ -357,6 +357,7 @@ export async function previewThirdPartyWithPrefix(
   cif: string,
   name: string,
   preferredAccountCode?: string,
+  options?: { reuseExisting?: boolean },
 ): Promise<ThirdPartyResolution> {
   const normalizedCif = normalizeCif(cif)
   if (!normalizedCif) {
@@ -367,7 +368,7 @@ export async function previewThirdPartyWithPrefix(
   const existing = await findThirdPartyByCif(companyId, type, normalizedCif)
 
   if (existing) {
-    if (!existing.accountCode.startsWith(accountPrefix)) {
+    if (!existing.accountCode.startsWith(accountPrefix) && !options?.reuseExisting) {
       throw new Error(
         `Este NIF ya está registrado con la cuenta ${formatAccountCodeDisplay(existing.accountCode)}.`,
       )
@@ -415,6 +416,7 @@ export async function resolveOrCreateThirdPartyWithPrefix(
   cif: string,
   name: string,
   preferredAccountCode?: string,
+  options?: { reuseExisting?: boolean },
 ): Promise<ThirdPartyResolution> {
   const preview = await previewThirdPartyWithPrefix(
     companyId,
@@ -422,6 +424,7 @@ export async function resolveOrCreateThirdPartyWithPrefix(
     cif,
     name,
     preferredAccountCode,
+    options,
   )
 
   if (!preview.isNew && preview.thirdPartyId) {

@@ -11,6 +11,8 @@ export interface RecargoEquivalencia {
   cuota: number
 }
 
+export type InvoicePurchaseNature = "mercaderias" | "suministros" | "reparaciones" | "servicios"
+
 export interface InvoiceOcrResult {
   proveedor: string
   cif: string
@@ -23,6 +25,11 @@ export interface InvoiceOcrResult {
   total: number
   isIntracomunitaria: boolean
   isSujetoPasivo: boolean
+  naturalezaCompra?: InvoicePurchaseNature
+  accountPrefix?: "400" | "410" | "430"
+  expenseAccount?: string
+  classificationReason?: string
+  preferredAccountCode?: string
 }
 
 export interface InvoiceOcrResponse {

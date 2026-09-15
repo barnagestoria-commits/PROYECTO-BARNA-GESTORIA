@@ -19,6 +19,11 @@ describe("resolveEditedAccountCode", () => {
     expect(() => resolveEditedAccountCode("410.1", "4300003")).toThrow(/grupo 430/)
   })
 
+  it("allows moving a supplier between 400 and 410", () => {
+    expect(resolveEditedAccountCode("410.5", "4000002")).toBe("4100005")
+    expect(resolveEditedAccountCode("400.3", "4100001")).toBe("4000003")
+  })
+
   it("resolves a preferred new account like 430.2 to 4300002", () => {
     expect(resolvePreferredAccountCode("430.2", "430")).toBe("4300002")
     expect(resolvePreferredAccountCode("430.0002", "430")).toBe("4300002")

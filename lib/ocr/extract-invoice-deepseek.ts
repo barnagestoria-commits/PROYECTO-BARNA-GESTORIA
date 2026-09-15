@@ -1,6 +1,7 @@
 import OpenAI from "openai"
 import type { ChatCompletionContentPart } from "openai/resources/chat/completions"
 import type { InvoiceOcrResult, TipoIva } from "@/lib/types/invoice"
+import { parsePurchaseNature } from "@/lib/accounting/invoice-supplier-classification"
 import { OcrConfigError, OcrExtractionError } from "@/lib/ocr/errors"
 import {
   applyFiscalRules,
@@ -40,6 +41,12 @@ Normativa fiscal especial:
 1) isIntracomunitaria = true: proveedor UE, VAT no ES, IVA 0% o exento.
 2) isSujetoPasivo = true: "inversión del sujeto pasivo" o "artículo 84.Uno.2º". Entonces cuota_iva = 0 y recargo_equivalencia = null.
 
+NATURALEZA DE LA COMPRA (naturalezaCompra), según lo que compra el receptor, no el nombre comercial:
+- "suministros": combustible, estación de servicio, luz, gas, agua.
+- "reparaciones": taller, recambios, filtros, mantenimiento del vehículo u otro inmovilizado propio.
+- "servicios": parking, peaje, telefonía, profesionales, seguros, alquiler, software.
+- "mercaderias": solo si son existencias o materia prima para revender.
+
 Responde ÚNICAMENTE con un objeto JSON válido (sin markdown):
 {
   "invoices": [
@@ -54,7 +61,8 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown):
       "iva": 0,
       "total": 0,
       "isIntracomunitaria": false,
-      "isSujetoPasivo": false
+      "isSujetoPasivo": false,
+      "naturalezaCompra": "servicios"
     }
   ]
 }`
@@ -182,6 +190,7 @@ function normalizeInvoiceResult(raw: Record<string, unknown>): InvoiceOcrResult 
     total: total || round2(baseImponible + iva + (recargo_equivalencia?.cuota ?? 0)),
     isIntracomunitaria: parseBooleanField(raw.isIntracomunitaria ?? raw.intracomunitaria),
     isSujetoPasivo: parseBooleanField(raw.isSujetoPasivo ?? raw.sujetoPasivo),
+    naturalezaCompra: parsePurchaseNature(raw.naturalezaCompra ?? raw.naturaleza_compra ?? raw.naturaleza),
   }
 
   return syncInvoiceTotals(result)

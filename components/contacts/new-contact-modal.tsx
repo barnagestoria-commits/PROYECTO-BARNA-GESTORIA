@@ -230,7 +230,7 @@ export function NewContactModal({
               {showProveedorAccount && (
                 <div>
                   <Label htmlFor="cuentaProveedor" className="text-graphite-600">
-                    Cuenta proveedor (400)
+                    Cuenta proveedor / acreedor (400 o 410)
                   </Label>
                   <Input
                     id="cuentaProveedor"

@@ -3,6 +3,8 @@ import { extractInvoiceData } from "@/lib/ocr/extract-invoice"
 import { OcrConfigError, OcrExtractionError } from "@/lib/ocr/errors"
 import type { InvoiceOcrErrorResponse, InvoiceOcrResponse } from "@/lib/types/invoice"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { loadCompanyPurchaseContext } from "@/lib/accounting/company-purchase-context"
+import { withPurchaseClassification } from "@/lib/accounting/invoice-supplier-classification"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -56,11 +58,19 @@ export async function POST(request: Request) {
       mimeType: file.type,
       fileName: file.name,
     })
+    const purchaseContext = await loadCompanyPurchaseContext(companyId)
+    const classifiedInvoices = invoices.map((invoice) =>
+      withPurchaseClassification(invoice, {
+        fileName: file.name,
+        activities: purchaseContext.activities,
+        entityType: purchaseContext.entityType,
+      }),
+    )
 
     return NextResponse.json<InvoiceOcrResponse>({
       success: true,
-      data: invoices[0],
-      invoices,
+      data: classifiedInvoices[0],
+      invoices: classifiedInvoices,
       fileName: file.name,
       companyId,
       processedAt: new Date().toISOString(),

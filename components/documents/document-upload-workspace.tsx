@@ -2,10 +2,11 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Loader2, ScanLine } from "lucide-react"
+import { Calendar, Loader2, ScanLine, Trash2 } from "lucide-react"
 import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
 import { useRequireAuth } from "@/components/auth-provider"
@@ -62,6 +63,8 @@ function DocumentUploadWorkspaceContent({
   const [isConfirming, setIsConfirming] = useState(false)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [validationQueue, setValidationQueue] = useState<File[]>([])
+  const [sessionDocumentIds, setSessionDocumentIds] = useState<string[]>([])
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
 
   const defaultTab = searchParams.get("tab") === "documentos" ? "documents" : "upload"
 
@@ -157,6 +160,7 @@ function DocumentUploadWorkspaceContent({
     }
 
     if (type === "factura-recibida") {
+      setSessionDocumentIds([])
       await processNextInQueue(files)
       return
     }
@@ -175,6 +179,7 @@ function DocumentUploadWorkspaceContent({
     try {
       const result = await apiFetch<{
         success: true
+        document: { id: string }
         accounting: {
           entryId: string
           commandCode: string
@@ -193,6 +198,7 @@ function DocumentUploadWorkspaceContent({
         }),
       })
 
+      setSessionDocumentIds((prev) => [...prev, result.document.id])
       const actionLabel = result.accounting.thirdParty.isNew ? "creada" : "reutilizada"
       setImportMessage(
         `Factura contabilizada: asiento ${result.accounting.commandCode} con cuenta ${result.accounting.thirdParty.formattedAccountCode} (${actionLabel}).`,
@@ -220,11 +226,84 @@ function DocumentUploadWorkspaceContent({
     }
   }
 
-  const handleCancelValidation = async () => {
-    setPendingValidation(null)
+  const handleSkipInvoice = () => {
+    if (!pendingValidation) return
 
-    if (validationQueue.length > 0) {
-      await processNextInQueue(validationQueue)
+    if (pendingValidation.remainingInvoices.length > 0) {
+      const [nextInvoice, ...rest] = pendingValidation.remainingInvoices
+      setPendingValidation({
+        ...pendingValidation,
+        ocrData: nextInvoice,
+        remainingInvoices: rest,
+        invoiceIndex: pendingValidation.invoiceIndex + 1,
+      })
+      return
+    }
+
+    setPendingValidation(null)
+  }
+
+  const handleDiscardBatch = async () => {
+    const confirmedCount = sessionDocumentIds.length
+    const pendingCount =
+      (pendingValidation ? 1 + pendingValidation.remainingInvoices.length : 0) + validationQueue.length
+
+    if (confirmedCount > 0) {
+      const confirmed = window.confirm(
+        `Este lote tiene ${confirmedCount} factura(s) ya confirmada(s). Se eliminarán esos documentos y sus asientos. ¿Descartar todo?`,
+      )
+      if (!confirmed) return
+
+      setIsConfirming(true)
+      try {
+        for (const id of sessionDocumentIds) {
+          await apiFetch(`/api/documents/${id}`, { method: "DELETE" })
+        }
+      } catch (error) {
+        setOcrError(
+          error instanceof Error ? error.message : "No se pudieron eliminar las facturas confirmadas del lote.",
+        )
+        setIsConfirming(false)
+        return
+      }
+      setIsConfirming(false)
+    } else if (pendingCount > 1) {
+      const confirmed = window.confirm(
+        "¿Descartar todas las facturas reconocidas de este lote? Todavía no se ha creado ninguna cuenta ni asiento.",
+      )
+      if (!confirmed) return
+    }
+
+    setPendingValidation(null)
+    setValidationQueue([])
+    setSessionDocumentIds([])
+    setOcrError(null)
+    setImportMessage(
+      "Lote OCR descartado. No queda nada contabilizado de esta prueba. Ya puedes volver a subir el mismo PDF.",
+    )
+    await loadDocuments()
+  }
+
+  const handleDeleteDocument = async (doc: Document) => {
+    if (
+      !window.confirm(
+        `¿Eliminar ${doc.name}? Se borrará el documento y, si estaba contabilizado, su asiento.`,
+      )
+    ) {
+      return
+    }
+
+    setDeletingDocId(doc.id)
+    setOcrError(null)
+    try {
+      await apiFetch(`/api/documents/${doc.id}`, { method: "DELETE" })
+      setSessionDocumentIds((prev) => prev.filter((id) => id !== doc.id))
+      await loadDocuments()
+      setImportMessage("Documento eliminado. Si tenía asiento, también se ha borrado.")
+    } catch (error) {
+      setOcrError(error instanceof Error ? error.message : "No se pudo eliminar el documento.")
+    } finally {
+      setDeletingDocId(null)
     }
   }
 
@@ -301,14 +380,18 @@ function DocumentUploadWorkspaceContent({
           <InvoiceValidationForm
             key={`${pendingValidation.fileName}-${pendingValidation.invoiceIndex}`}
             fileName={pendingValidation.fileName}
+            file={pendingValidation.file}
             initialData={pendingValidation.ocrData}
+            documentType="factura-recibida"
+            remainingCount={pendingValidation.remainingInvoices.length}
             progressLabel={
               pendingValidation.invoiceCount > 1
                 ? `Factura ${pendingValidation.invoiceIndex} de ${pendingValidation.invoiceCount}`
                 : undefined
             }
             onConfirm={handleConfirmValidation}
-            onCancel={handleCancelValidation}
+            onCancel={() => void handleDiscardBatch()}
+            onSkip={handleSkipInvoice}
             isSubmitting={isConfirming}
           />
         )}
@@ -329,6 +412,12 @@ function DocumentUploadWorkspaceContent({
             <CardDescription className="break-words text-pretty leading-relaxed">
               {description}
             </CardDescription>
+            {documentType === "factura-recibida" ? (
+              <p className="pt-2 text-xs text-gray-500">
+                Hasta que pulses Confirmar no se crea ninguna cuenta ni asiento. Puedes descartar el
+                lote entero y volver a subir el mismo PDF.
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent className="overflow-x-hidden px-4 pb-4 sm:px-6 sm:pb-6">
             <FileUpload
@@ -356,8 +445,8 @@ function DocumentUploadWorkspaceContent({
           <CardHeader>
             <CardTitle>{TYPE_LABELS[documentType]} — {activeCompany?.name}</CardTitle>
             <CardDescription>
-              Documentos vinculados al ID de empresa{" "}
-              <code className="text-xs">{session.activeCompanyId}</code>
+              Documentos contabilizados de esta empresa. Eliminar uno borra también su asiento, como
+              al deshacer una importación.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -398,6 +487,20 @@ function DocumentUploadWorkspaceContent({
                       <Badge variant={doc.status === "procesado" ? "default" : "secondary"}>
                         {doc.status === "procesado" ? "Procesado" : "Pendiente"}
                       </Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => void handleDeleteDocument(doc)}
+                        disabled={deletingDocId === doc.id}
+                      >
+                        {deletingDocId === doc.id ? (
+                          <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="mr-1 h-4 w-4" />
+                        )}
+                        Eliminar
+                      </Button>
                     </div>
                   </div>
                 ))}

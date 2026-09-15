@@ -23,6 +23,12 @@ import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
 import { apiFetch } from "@/lib/api-client"
 import { normalizeTaxId } from "@/lib/tax-id"
 import { TIPOS_IVA } from "@/lib/types/invoice"
+import { InvoiceDocumentPreview } from "@/components/invoice-document-preview"
+import {
+  classifyReceivedInvoicePurchase,
+  PURCHASE_EXPENSE_OPTIONS,
+  type ReceivedAccountPrefix,
+} from "@/lib/accounting/invoice-supplier-classification"
 import {
   calculateCuotaIva,
   calculateTotalFromBreakdown,
@@ -34,11 +40,14 @@ import {
 
 interface InvoiceValidationFormProps {
   fileName: string
+  file?: File | null
   initialData: InvoiceOcrResult
   documentType?: "factura-recibida" | "factura-emitida"
   progressLabel?: string
+  remainingCount?: number
   onConfirm: (data: InvoiceOcrResult) => void
   onCancel: () => void
+  onSkip?: () => void
   isSubmitting?: boolean
 }
 
@@ -49,29 +58,62 @@ function formatEuro(value: number): string {
   }).format(value)
 }
 
+function looksLikeCompleteAccountCode(value: string): boolean {
+  const trimmed = value.trim()
+  if (/^\d{2,4}\.\d+$/.test(trimmed)) return true
+  return trimmed.replace(/\D/g, "").length >= 6
+}
+
 export function InvoiceValidationForm({
   fileName,
+  file = null,
   initialData,
   documentType = "factura-recibida",
   progressLabel,
+  remainingCount = 0,
   onConfirm,
   onCancel,
+  onSkip,
   isSubmitting = false,
 }: InvoiceValidationFormProps) {
-  const [formData, setFormData] = useState<InvoiceOcrResult>(() =>
-    syncInvoiceTotals({
+  const [formData, setFormData] = useState<InvoiceOcrResult>(() => {
+    const seeded = syncInvoiceTotals({
       ...initialData,
       cif: normalizeTaxId(initialData.cif),
-    }),
-  )
+    })
+    if (documentType === "factura-emitida") {
+      return { ...seeded, accountPrefix: "430" }
+    }
+    const classified = classifyReceivedInvoicePurchase({
+      proveedor: seeded.proveedor,
+      numeroFactura: seeded.numeroFactura,
+      fileName,
+      naturalezaCompra: seeded.naturalezaCompra,
+    })
+    return {
+      ...seeded,
+      accountPrefix: seeded.accountPrefix ?? classified.accountPrefix,
+      expenseAccount: seeded.expenseAccount ?? classified.expenseAccount,
+      classificationReason: seeded.classificationReason ?? classified.reason,
+    }
+  })
   const [ocrTotal] = useState(initialData.total)
   const [accountPreview, setAccountPreview] = useState<ThirdPartyResolution | null>(null)
   const [accountPreviewError, setAccountPreviewError] = useState<string | null>(null)
   const [isLoadingAccount, setIsLoadingAccount] = useState(false)
+  const [userOverrodeAccounts, setUserOverrodeAccounts] = useState(false)
+  const [accountCodeDraft, setAccountCodeDraft] = useState(initialData.preferredAccountCode ?? "")
+  const [userEditedAccountCode, setUserEditedAccountCode] = useState(Boolean(initialData.preferredAccountCode))
 
   const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
   const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
-  const accountGroupLabel = documentType === "factura-emitida" ? "430" : "400"
+  const selectedPrefix: ReceivedAccountPrefix | "430" =
+    documentType === "factura-emitida"
+      ? "430"
+      : formData.accountPrefix === "400" || formData.accountPrefix === "410"
+        ? formData.accountPrefix
+        : "410"
+  const accountGroupLabel = selectedPrefix
 
   const { baseImponible, iva } = useMemo(
     () => sumDesglose(formData.iva_desglose),
@@ -103,12 +145,20 @@ export function InvoiceValidationForm({
           cif,
           name: formData.proveedor.trim(),
           type: thirdPartyType,
+          prefix: selectedPrefix,
+          reuseExisting: "1",
         })
+        if (userEditedAccountCode && looksLikeCompleteAccountCode(accountCodeDraft)) {
+          params.set("accountCode", accountCodeDraft.trim())
+        }
         const result = await apiFetch<{ success: true; resolution: ThirdPartyResolution }>(
           `/api/accounting/third-parties/resolve?${params.toString()}`,
           { signal: controller.signal },
         )
         setAccountPreview(result.resolution)
+        if (!userEditedAccountCode) {
+          setAccountCodeDraft(result.resolution.formattedAccountCode)
+        }
       } catch (error) {
         if (controller.signal.aborted) return
         setAccountPreview(null)
@@ -126,7 +176,56 @@ export function InvoiceValidationForm({
       clearTimeout(timer)
       controller.abort()
     }
-  }, [formData.cif, formData.proveedor, thirdPartyType])
+  }, [
+    formData.cif,
+    formData.proveedor,
+    thirdPartyType,
+    selectedPrefix,
+    documentType,
+    userEditedAccountCode,
+    accountCodeDraft,
+  ])
+
+  useEffect(() => {
+    if (documentType === "factura-emitida" || userOverrodeAccounts) return
+    if (
+      formData.proveedor === initialData.proveedor &&
+      formData.numeroFactura === initialData.numeroFactura
+    ) {
+      return
+    }
+
+    const classified = classifyReceivedInvoicePurchase({
+      proveedor: formData.proveedor,
+      numeroFactura: formData.numeroFactura,
+      fileName,
+      naturalezaCompra: formData.naturalezaCompra,
+    })
+    setFormData((prev) => {
+      if (
+        prev.accountPrefix === classified.accountPrefix &&
+        prev.expenseAccount === classified.expenseAccount &&
+        prev.classificationReason === classified.reason
+      ) {
+        return prev
+      }
+      return {
+        ...prev,
+        accountPrefix: classified.accountPrefix,
+        expenseAccount: classified.expenseAccount,
+        classificationReason: classified.reason,
+      }
+    })
+  }, [
+    documentType,
+    userOverrodeAccounts,
+    formData.proveedor,
+    formData.numeroFactura,
+    formData.naturalezaCompra,
+    fileName,
+    initialData.proveedor,
+    initialData.numeroFactura,
+  ])
 
   const applyUpdate = (updater: (prev: InvoiceOcrResult) => InvoiceOcrResult) => {
     setFormData((prev) => syncInvoiceTotals(updater(prev)))
@@ -192,12 +291,48 @@ export function InvoiceValidationForm({
     }))
   }
 
+  const handlePrefixChange = (prefix: ReceivedAccountPrefix) => {
+    setUserOverrodeAccounts(true)
+    setUserEditedAccountCode(false)
+    applyUpdate((prev) => ({
+      ...prev,
+      accountPrefix: prefix,
+      expenseAccount:
+        prefix === "400" && (prev.expenseAccount ?? "").startsWith("62")
+          ? "600"
+          : prefix === "410" && (prev.expenseAccount === "600" || !prev.expenseAccount)
+            ? "629"
+            : prev.expenseAccount,
+      classificationReason: "Clasificación revisada al confirmar la factura.",
+    }))
+  }
+
+  const handleAccountCodeDraftChange = (value: string) => {
+    setUserEditedAccountCode(true)
+    setUserOverrodeAccounts(true)
+    setAccountCodeDraft(value)
+    const digits = value.replace(/\D/g, "")
+    if (digits.startsWith("410") && formData.accountPrefix !== "410") {
+      updateField("accountPrefix", "410")
+    } else if (digits.startsWith("400") && formData.accountPrefix !== "400") {
+      updateField("accountPrefix", "400")
+    } else if (digits.startsWith("430") && documentType === "factura-emitida") {
+      updateField("accountPrefix", "430")
+    }
+  }
+
+  const handleExpenseChange = (expenseAccount: string) => {
+    setUserOverrodeAccounts(true)
+    updateField("expenseAccount", expenseAccount)
+  }
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault()
     onConfirm(
       syncInvoiceTotals({
         ...formData,
         cif: normalizeTaxId(formData.cif),
+        preferredAccountCode: accountCodeDraft.trim() || undefined,
       }),
     )
   }
@@ -206,7 +341,11 @@ export function InvoiceValidationForm({
   const showRecargo = !formData.isSujetoPasivo && !formData.isIntracomunitaria
 
   return (
-    <Card className="border-emerald-200 shadow-md">
+    <div className="grid items-start gap-4 xl:grid-cols-2">
+      <div className="order-1 xl:order-2 xl:sticky xl:top-4">
+        <InvoiceDocumentPreview file={file} fileName={fileName} />
+      </div>
+    <Card className="order-2 border-emerald-200 shadow-md xl:order-1">
       <CardHeader>
         <div className="flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -215,7 +354,8 @@ export function InvoiceValidationForm({
               Validación de factura
             </CardTitle>
             <CardDescription>
-              Revisa el desglose de IVA, recargo de equivalencia y confirma que cuadra con el total.
+              Contrasta la factura original, el tipo de tercero (400 o 410) y el desglose de IVA
+              antes de contabilizar.
             </CardDescription>
           </div>
         </div>
@@ -289,7 +429,72 @@ export function InvoiceValidationForm({
           </div>
 
           <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
-            <p className="text-sm font-medium text-emerald-900">Subcuenta contable ({accountGroupLabel})</p>
+            <p className="text-sm font-medium text-emerald-900">
+              {documentType === "factura-emitida" ? "Subcuenta de cliente (430)" : "Tercero y cuenta de gasto"}
+            </p>
+            {documentType !== "factura-emitida" ? (
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="accountPrefix" className="text-xs text-emerald-800">
+                    Tipo de ficha
+                  </Label>
+                  <select
+                    id="accountPrefix"
+                    value={selectedPrefix}
+                    onChange={(e) => handlePrefixChange(e.target.value as ReceivedAccountPrefix)}
+                    className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    <option value="410">410 · Acreedor (servicios)</option>
+                    <option value="400">400 · Proveedor (mercaderías)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="preferredAccountCode" className="text-xs text-emerald-800">
+                    Subcuenta del tercero
+                  </Label>
+                  <Input
+                    id="preferredAccountCode"
+                    value={accountCodeDraft}
+                    onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
+                    className="h-9 font-mono"
+                    placeholder="410.2 · 410.0002"
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <Label htmlFor="expenseAccount" className="text-xs text-emerald-800">
+                    Cuenta de gasto
+                  </Label>
+                  <Input
+                    id="expenseAccount"
+                    list="ocr-expense-accounts"
+                    value={formData.expenseAccount ?? ""}
+                    onChange={(e) => handleExpenseChange(e.target.value)}
+                    className="h-9 font-mono"
+                    placeholder="628 · 622.0001"
+                  />
+                  <datalist id="ocr-expense-accounts">
+                    {PURCHASE_EXPENSE_OPTIONS.map((option) => (
+                      <option key={option.code} value={option.code}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-3 space-y-1">
+                <Label htmlFor="preferredAccountCode" className="text-xs text-emerald-800">
+                  Subcuenta del cliente
+                </Label>
+                <Input
+                  id="preferredAccountCode"
+                  value={accountCodeDraft}
+                  onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
+                  className="h-9 font-mono"
+                  placeholder="430.2 · 430.0002"
+                />
+              </div>
+            )}
             {isLoadingAccount ? (
               <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -310,9 +515,12 @@ export function InvoiceValidationForm({
                 </p>
                 <p className="text-xs text-emerald-800">
                   {accountPreview.isNew
-                    ? `Se creará automáticamente la subcuenta ${accountGroupLabel} correlativa antes del asiento.`
-                    : `Se reutilizará la ficha registrada para el NIF ${accountPreview.cif}.`}
+                    ? `Puedes dejar la propuesta ${accountGroupLabel} o escribir otra, por ejemplo ${accountGroupLabel}.5.`
+                    : `Este NIF ya tiene ficha. Si cambias el código (400 ↔ 410 o el número), se actualizará al confirmar.`}
                 </p>
+                {formData.classificationReason ? (
+                  <p className="text-xs text-emerald-700">{formData.classificationReason}</p>
+                ) : null}
               </div>
             ) : (
               <p className="mt-2 text-sm text-gray-600">Introduce el NIF/CIF para asignar la subcuenta.</p>
@@ -542,8 +750,13 @@ export function InvoiceValidationForm({
           <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
               <X className="mr-2 h-4 w-4" />
-              Cancelar
+              Descartar lote
             </Button>
+            {onSkip && remainingCount > 0 ? (
+              <Button type="button" variant="outline" onClick={onSkip} disabled={isSubmitting}>
+                Saltar esta factura
+              </Button>
+            ) : null}
             <Button type="submit" disabled={isSubmitting} className="bg-emerald-700 hover:bg-emerald-800">
               {isSubmitting ? (
                 <>
@@ -561,5 +774,6 @@ export function InvoiceValidationForm({
         </form>
       </CardContent>
     </Card>
+    </div>
   )
 }

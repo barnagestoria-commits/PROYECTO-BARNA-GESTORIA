@@ -27,6 +27,23 @@ describe("parseInvoiceModelResponse", () => {
     expect(invoices[0].total).toBe(121)
   })
 
+  it("reads naturalezaCompra from the model JSON", () => {
+    const [invoice] = parseInvoiceModelResponse(
+      JSON.stringify({
+        proveedor: "ESTACION SERVICIO MATARO S.L.",
+        cif: "B08348666",
+        numeroFactura: "FT 48282",
+        fechaFactura: "2026-08-15",
+        baseImponible: 6.61,
+        iva: 1.39,
+        total: 8,
+        naturalezaCompra: "suministros",
+      }),
+    )
+
+    expect(invoice.naturalezaCompra).toBe("suministros")
+  })
+
   it("unwraps an invoices array from a ticket bundle", () => {
     const invoices = parseInvoiceModelResponse(
       JSON.stringify({

@@ -11,6 +11,28 @@ export function accountCodeLookupVariants(code: string): string[] {
   return [...new Set([code.trim(), digits, formatted].filter(Boolean))]
 }
 
+function accountFamily(digits: string): "cliente" | "proveedor" | "otro" {
+  if (digits.startsWith("430") || digits === "43") return "cliente"
+  if (
+    digits.startsWith("400") ||
+    digits.startsWith("410") ||
+    digits === "40" ||
+    digits === "41"
+  ) {
+    return "proveedor"
+  }
+  return "otro"
+}
+
+function canRetargetAccount(currentDigits: string, targetPrefix: string): boolean {
+  if (currentDigits.startsWith(targetPrefix)) return true
+  const currentFamily = accountFamily(currentDigits)
+  const resolvedTarget =
+    targetPrefix.length <= 2 ? preferredParentForShortcutGroup(targetPrefix) : targetPrefix
+  const targetFamily = accountFamily(resolvedTarget)
+  return currentFamily !== "otro" && currentFamily === targetFamily
+}
+
 export function resolvePreferredAccountCode(raw: string, groupPrefix: string): string {
   const prefix = groupPrefix.replace(/\D/g, "")
   if (!prefix) {
@@ -31,7 +53,7 @@ export function resolveEditedAccountCode(raw: string, currentAccountCode: string
   if (dotted) {
     const parent =
       dotted.group.length <= 2 ? preferredParentForShortcutGroup(dotted.group) : dotted.group
-    if (!current.startsWith(parent) && !current.startsWith(dotted.group)) {
+    if (!canRetargetAccount(current, parent) && !canRetargetAccount(current, dotted.group)) {
       throw new Error(`La cuenta debe seguir en el grupo ${currentGroup}.`)
     }
     const prefix = parent.length >= 3 ? parent : currentGroup
@@ -45,7 +67,7 @@ export function resolveEditedAccountCode(raw: string, currentAccountCode: string
   if (digits.length <= 3) {
     throw new Error("Indica la subcuenta completa, por ejemplo 430.2 o 430.0002.")
   }
-  if (!digits.startsWith(currentGroup)) {
+  if (!canRetargetAccount(current, digits.slice(0, Math.min(3, digits.length)))) {
     throw new Error(`La cuenta debe seguir en el grupo ${currentGroup}.`)
   }
   return digits

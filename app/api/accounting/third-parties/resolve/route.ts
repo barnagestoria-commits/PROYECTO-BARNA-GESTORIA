@@ -18,6 +18,8 @@ export async function GET(request: Request) {
     const name = url.searchParams.get("name") ?? ""
     const typeParam = url.searchParams.get("type") ?? "PROVEEDOR"
     const prefixParam = url.searchParams.get("prefix")?.trim() ?? ""
+    const reuseExisting = url.searchParams.get("reuseExisting") === "1"
+    const accountCodeParam = url.searchParams.get("accountCode")?.trim() ?? ""
 
     if (!cif.trim()) {
       return NextResponse.json({ success: false, error: "Indica un NIF/CIF." }, { status: 400 })
@@ -37,6 +39,8 @@ export async function GET(request: Request) {
         meta.code,
         cif,
         name,
+        accountCodeParam || undefined,
+        { reuseExisting },
       )
 
       return NextResponse.json({ success: true, resolution })

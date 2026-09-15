@@ -8,9 +8,21 @@ import {
 } from "@/lib/accounting/invoice-entry-concepts"
 import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
 import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
-import { resolveOrCreateThirdParty } from "@/lib/accounting/third-party-service"
-import { thirdPartyTypeFromDocumentType } from "@/lib/accounting/third-party-types"
+import {
+  formatAccountCodeDisplay,
+  thirdPartyTypeFromDocumentType,
+} from "@/lib/accounting/third-party-types"
+import {
+  findThirdPartyByCif,
+  resolveOrCreateThirdParty,
+  resolveOrCreateThirdPartyWithPrefix,
+} from "@/lib/accounting/third-party-service"
+import { loadCompanyPurchaseContext } from "@/lib/accounting/company-purchase-context"
+import {
+  receivedPrefixFromAccountCode,
+  withPurchaseClassification,
+} from "@/lib/accounting/invoice-supplier-classification"
+import { reassignCompanyAccount } from "@/lib/accounting/account-reassign-service"
 import { calculateTotalFromBreakdown, sumDesglose } from "@/lib/invoice-totals"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
@@ -140,29 +152,79 @@ export async function createInvoiceAccountingEntry(params: {
   documentType: "factura-recibida" | "factura-emitida"
   invoice: InvoiceOcrResult
 }): Promise<InvoiceAccountingResult> {
-  const type: ThirdPartyType = thirdPartyTypeFromDocumentType(params.documentType)
+  if (params.documentType === "factura-emitida") {
+    const type: ThirdPartyType = thirdPartyTypeFromDocumentType(params.documentType)
+    const thirdParty = await resolveOrCreateThirdParty(
+      params.companyId,
+      type,
+      params.invoice.cif,
+      params.invoice.proveedor,
+    )
+    const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
+    const defaultIncomeAccount = treatment?.defaultCounterpartAccount
+      ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
+      : "700"
+    const lines = buildIssuedInvoiceLines(params.invoice, thirdParty.accountCode, defaultIncomeAccount)
+    return persistInvoiceEntry(params, thirdParty, "17", lines)
+  }
 
-  const thirdParty = await resolveOrCreateThirdParty(
-    params.companyId,
-    type,
-    params.invoice.cif,
-    params.invoice.proveedor,
-  )
+  const purchaseContext = await loadCompanyPurchaseContext(params.companyId)
+  const invoice = withPurchaseClassification(params.invoice, {
+    activities: purchaseContext.activities,
+    entityType: purchaseContext.entityType,
+  })
+  const preferred = invoice.preferredAccountCode?.trim() || undefined
+  const prefixFromPreferred = preferred
+    ? receivedPrefixFromAccountCode(preferred.replace(/\D/g, ""))
+    : null
+  const prefix =
+    prefixFromPreferred ??
+    (invoice.accountPrefix === "400" || invoice.accountPrefix === "410" ? invoice.accountPrefix : "410")
+  const existingSupplier = await findThirdPartyByCif(params.companyId, "PROVEEDOR", invoice.cif)
+  let thirdParty = existingSupplier
+    ? await resolveOrCreateThirdParty(params.companyId, "PROVEEDOR", invoice.cif, invoice.proveedor)
+    : await resolveOrCreateThirdPartyWithPrefix(
+        params.companyId,
+        prefix,
+        invoice.cif,
+        invoice.proveedor,
+        preferred,
+      )
+
+  if (existingSupplier && preferred) {
+    const reassigned = await reassignCompanyAccount(params.companyId, {
+      fromAccountCode: thirdParty.accountCode,
+      toAccountCode: preferred,
+      name: invoice.proveedor,
+    })
+    thirdParty = {
+      ...thirdParty,
+      accountCode: reassigned.accountCode,
+      formattedAccountCode: reassigned.formattedAccountCode,
+    }
+  }
 
   const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
-  const defaultExpenseAccount = treatment?.defaultCounterpartAccount
-    ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
-    : "600"
-  const defaultIncomeAccount = treatment?.defaultCounterpartAccount
-    ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
-    : "700"
+  const defaultExpenseAccount = params.invoice.expenseAccount?.trim()
+    ? formatAccountCodeDisplay(params.invoice.expenseAccount)
+    : treatment?.defaultCounterpartAccount
+      ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
+      : formatAccountCodeDisplay(invoice.expenseAccount || "629")
 
-  const commandCode = params.documentType === "factura-recibida" ? "34" : "17"
-  const lines =
-    params.documentType === "factura-recibida"
-      ? buildReceivedInvoiceLines(params.invoice, thirdParty.accountCode, defaultExpenseAccount)
-      : buildIssuedInvoiceLines(params.invoice, thirdParty.accountCode, defaultIncomeAccount)
+  const lines = buildReceivedInvoiceLines(invoice, thirdParty.accountCode, defaultExpenseAccount)
+  return persistInvoiceEntry(params, thirdParty, "34", lines)
+}
 
+async function persistInvoiceEntry(
+  params: {
+    companyId: string
+    createdById: string
+    invoice: InvoiceOcrResult
+  },
+  thirdParty: ThirdPartyResolution,
+  commandCode: "17" | "34",
+  lines: ReturnType<typeof buildReceivedInvoiceLines>,
+): Promise<InvoiceAccountingResult> {
   const totals = calculateTotals(
     lines.map((line, index) => ({
       id: `tmp-${index}`,
