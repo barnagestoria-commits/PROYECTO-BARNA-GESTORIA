@@ -1,6 +1,6 @@
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { extractTextFromPdf, hasUsableExtractedText } from "@/lib/ocr/extract-pdf-text"
-import { imageBufferToDataUrl, renderPdfPageDataUrls } from "@/lib/ocr/extract-pdf-pages"
+import { imageBufferToDataUrl, MAX_PDF_PAGES, renderPdfPageDataUrls } from "@/lib/ocr/extract-pdf-pages"
 import { extractInvoicesFromDocument } from "@/lib/ocr/extract-invoice-deepseek"
 import { OcrExtractionError } from "@/lib/ocr/errors"
 
@@ -41,12 +41,17 @@ async function safePdfText(buffer: Buffer): Promise<string> {
   }
 }
 
-async function safePdfScreenshots(buffer: Buffer): Promise<string[]> {
+async function safePdfScreenshots(buffer: Buffer) {
   try {
     return await renderPdfPageDataUrls(buffer)
   } catch (error) {
     console.error("[ocr] pdf-screenshot", error)
-    return []
+    return {
+      dataUrls: [] as string[],
+      totalPages: 0,
+      renderedPages: 0,
+      truncated: false,
+    }
   }
 }
 
@@ -57,22 +62,30 @@ export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<In
   const mimeType = resolveMimeType(input.mimeType, input.fileName)
 
   if (isPdf(mimeType, input.fileName)) {
-    const [pdfText, pageImages] = await Promise.all([
+    const [pdfText, pageRender] = await Promise.all([
       safePdfText(input.buffer),
       safePdfScreenshots(input.buffer),
     ])
 
     const text = hasUsableExtractedText(pdfText) ? pdfText : pdfText.trim()
-    if (!text && pageImages.length === 0) {
+    if (!text && pageRender.dataUrls.length === 0) {
       throw new OcrExtractionError(
         "No se pudo leer el PDF. Prueba con un archivo más nítido o sube fotos de cada ticket.",
       )
     }
 
-    return extractInvoicesFromDocument({
+    const invoices = await extractInvoicesFromDocument({
       text,
-      imageDataUrls: pageImages,
+      imageDataUrls: pageRender.dataUrls,
     })
+
+    if (pageRender.truncated) {
+      console.warn(
+        `[ocr] PDF truncado: ${pageRender.totalPages} páginas, se analizaron las primeras ${MAX_PDF_PAGES}.`,
+      )
+    }
+
+    return invoices
   }
 
   if (mimeType.startsWith("image/")) {

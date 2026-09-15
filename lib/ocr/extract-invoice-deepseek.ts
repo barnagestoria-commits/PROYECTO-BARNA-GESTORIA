@@ -3,6 +3,7 @@ import type { ChatCompletionContentPart } from "openai/resources/chat/completion
 import type { InvoiceOcrResult, TipoIva } from "@/lib/types/invoice"
 import { parsePurchaseNature } from "@/lib/accounting/invoice-supplier-classification"
 import { OcrConfigError, OcrExtractionError } from "@/lib/ocr/errors"
+import { chunkPages, mergeExtractedInvoices } from "@/lib/ocr/invoice-page-batch"
 import {
   applyFiscalRules,
   buildDesgloseFromLegacy,
@@ -265,9 +266,17 @@ function buildUserContent(documentText: string, imageDataUrls: string[]): string
   ]
 }
 
+function isEmptyInvoiceRecognitionError(error: unknown): boolean {
+  return (
+    error instanceof OcrExtractionError &&
+    /no se reconoció ninguna factura/i.test(error.message)
+  )
+}
+
 async function requestStructuredExtraction(
   documentText: string,
   imageDataUrls: string[],
+  options?: { allowEmpty?: boolean },
 ): Promise<InvoiceOcrResult[]> {
   const client = getDeepSeekClient()
   const model = imageDataUrls.length > 0 ? getVisionModel() : getTextModel()
@@ -287,6 +296,9 @@ async function requestStructuredExtraction(
     const sourceText = documentText.replace(/^Texto extraído del PDF:\n\n/i, "")
     return invoices.map((invoice) => applyFiscalRules(invoice, sourceText))
   } catch (error) {
+    if (options?.allowEmpty && isEmptyInvoiceRecognitionError(error)) {
+      return []
+    }
     if (error instanceof OcrConfigError || error instanceof OcrExtractionError) {
       throw error
     }
@@ -314,18 +326,40 @@ export async function extractInvoicesFromDocument(input: {
     )
   }
 
+  const prefixedText = text ? `Texto extraído del PDF:\n\n${text}` : ""
+  const pageChunks = chunkPages(imageDataUrls)
+
   try {
-    return await requestStructuredExtraction(
-      text ? `Texto extraído del PDF:\n\n${text}` : "",
-      imageDataUrls,
-    )
+    if (pageChunks.length <= 1) {
+      return await requestStructuredExtraction(prefixedText, imageDataUrls)
+    }
+
+    const batches: InvoiceOcrResult[][] = []
+    for (const [index, chunk] of pageChunks.entries()) {
+      const chunkText =
+        index === 0
+          ? prefixedText
+          : "Continuación del mismo PDF. Extrae SOLO las facturas o tickets visibles en estas páginas. No repitas las de páginas anteriores."
+      const batch = await requestStructuredExtraction(chunkText, chunk, {
+        allowEmpty: true,
+      })
+      batches.push(batch)
+    }
+
+    const merged = mergeExtractedInvoices(batches)
+    if (merged.length === 0) {
+      throw new OcrExtractionError(
+        "No se reconoció ninguna factura o ticket en el documento. Prueba con un PDF más nítido o sube cada factura por separado.",
+      )
+    }
+    return merged
   } catch (error) {
     if (
       imageDataUrls.length > 0 &&
       text.replace(/\s+/g, " ").trim().length >= 80 &&
       isLikelyVisionUnsupported(error)
     ) {
-      return requestStructuredExtraction(`Texto extraído del PDF:\n\n${text}`, [])
+      return requestStructuredExtraction(prefixedText, [])
     }
     throw error
   }

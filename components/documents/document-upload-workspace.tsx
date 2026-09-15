@@ -361,7 +361,7 @@ function DocumentUploadWorkspaceContent({
               <div>
                 <p className="font-medium text-emerald-800">Analizando facturas y tickets con IA...</p>
                 <p className="text-sm text-emerald-700">
-                  Leemos el texto y las imágenes del PDF. Si hay varios tickets, los iremos mostrando uno a uno.
+                  Leemos todas las páginas del PDF. Si hay varios tickets, los iremos mostrando uno a uno.
                 </p>
               </div>
             </CardContent>

@@ -7,7 +7,7 @@ import { loadCompanyPurchaseContext } from "@/lib/accounting/company-purchase-co
 import { withPurchaseClassification } from "@/lib/accounting/invoice-supplier-classification"
 
 export const runtime = "nodejs"
-export const maxDuration = 60
+export const maxDuration = 180
 
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"]
 const MAX_FILE_SIZE = 10 * 1024 * 1024
