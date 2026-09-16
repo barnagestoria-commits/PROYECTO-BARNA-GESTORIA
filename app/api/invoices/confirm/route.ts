@@ -5,6 +5,8 @@ import { createInvoiceAccountingEntry } from "@/lib/accounting/invoice-entry-ser
 import { DuplicateInvoiceError } from "@/lib/accounting/duplicate-invoice"
 import { getCompanyAccountingSettings } from "@/lib/accounting/analytic-accounting-service"
 import { prisma } from "@/lib/db"
+import { calculateTotalFromBreakdown } from "@/lib/invoice-totals"
+import { parseOcrSettings } from "@/lib/ocr/ocr-settings"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 
 function mapDocumentType(type: string): DocumentType {
@@ -36,7 +38,35 @@ export async function POST(request: Request) {
     }
 
     const settings = await getCompanyAccountingSettings(companyId)
-    const allowDuplicate = settings.ocrBlockDuplicates ? Boolean(body.allowDuplicate) : true
+    const ocrSettings = parseOcrSettings(
+      settings.ocrSettingsJson,
+      settings.ocrBlockDuplicates,
+    )
+
+    if (ocrSettings.requireCif && !body.invoice.cif?.trim()) {
+      return NextResponse.json(
+        { success: false, error: "La configuración OCR exige un NIF/CIF para confirmar." },
+        { status: 400 },
+      )
+    }
+
+    if (ocrSettings.requireTotalsMatch) {
+      const calculatedTotal = calculateTotalFromBreakdown(
+        body.invoice.iva_desglose,
+        body.invoice.recargo_equivalencia,
+      )
+      if (Math.abs(calculatedTotal - body.invoice.total) >= 0.02) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "La configuración OCR exige que el total calculado cuadre con la factura.",
+          },
+          { status: 400 },
+        )
+      }
+    }
+
+    const allowDuplicate = ocrSettings.blockDuplicates ? Boolean(body.allowDuplicate) : true
 
     const accounting = await createInvoiceAccountingEntry({
       companyId,

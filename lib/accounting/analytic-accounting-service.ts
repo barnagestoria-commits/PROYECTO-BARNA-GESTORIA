@@ -16,6 +16,7 @@ export async function getCompanyAccountingSettings(
   return {
     analyticAccountingEnabled: settings?.analyticAccountingEnabled ?? false,
     ocrBlockDuplicates: settings?.ocrBlockDuplicates ?? true,
+    ocrSettingsJson: settings?.ocrSettingsJson ?? null,
   }
 }
 
@@ -29,6 +30,7 @@ export async function upsertCompanyAccountingSettings(
       companyId,
       analyticAccountingEnabled: input.analyticAccountingEnabled ?? false,
       ocrBlockDuplicates: input.ocrBlockDuplicates ?? true,
+      ocrSettingsJson: input.ocrSettingsJson ?? null,
     },
     update: {
       ...(input.analyticAccountingEnabled !== undefined
@@ -37,12 +39,14 @@ export async function upsertCompanyAccountingSettings(
       ...(input.ocrBlockDuplicates !== undefined
         ? { ocrBlockDuplicates: input.ocrBlockDuplicates }
         : {}),
+      ...(input.ocrSettingsJson !== undefined ? { ocrSettingsJson: input.ocrSettingsJson } : {}),
     },
   })
 
   return {
     analyticAccountingEnabled: settings.analyticAccountingEnabled,
     ocrBlockDuplicates: settings.ocrBlockDuplicates,
+    ocrSettingsJson: settings.ocrSettingsJson,
   }
 }
 

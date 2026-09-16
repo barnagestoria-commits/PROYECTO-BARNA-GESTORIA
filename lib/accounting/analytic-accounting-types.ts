@@ -12,6 +12,7 @@ export interface AnalyticDistributionDto extends AnalyticDistributionInput {
 export interface CompanyAccountingSettingsDto {
   analyticAccountingEnabled: boolean
   ocrBlockDuplicates: boolean
+  ocrSettingsJson?: string | null
 }
 
 export function isAnalyticAccount(cuenta: string): boolean {

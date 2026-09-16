@@ -8,17 +8,20 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import {
   AlertCircle,
+  CircleHelp,
   CheckCircle,
   Globe,
   Loader2,
   Plus,
   ScanLine,
   Scale,
+  Settings2,
   Trash2,
   X,
 } from "lucide-react"
 import type { InvoiceOcrResult, IvaDesgloseLine, TipoIva } from "@/lib/types/invoice"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
+import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
 import { apiFetch } from "@/lib/api-client"
 import { normalizeTaxId } from "@/lib/tax-id"
 import { TIPOS_IVA } from "@/lib/types/invoice"
@@ -30,7 +33,13 @@ import {
   SALES_INCOME_OPTIONS,
   type ReceivedAccountPrefix,
 } from "@/lib/accounting/invoice-supplier-classification"
-import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
+import {
+  DEFAULT_OCR_SETTINGS,
+  firstShortcutForAction,
+  matchOcrShortcut,
+  type OcrWorkspaceSettings,
+} from "@/lib/ocr/ocr-settings"
+import { cn } from "@/lib/utils"
 import {
   calculateCuotaIva,
   calculateTotalFromBreakdown,
@@ -49,7 +58,9 @@ interface InvoiceValidationFormProps {
   remainingCount?: number
   invoiceIndex?: number
   invoiceCount?: number
-  ocrBlockDuplicates?: boolean
+  ocrSettings?: OcrWorkspaceSettings
+  enableShortcuts?: boolean
+  onOpenSettings?: () => void
   onConfirm: (data: InvoiceOcrResult, options?: { allowDuplicate?: boolean }) => void
   onCancel: () => void
   onSkip?: () => void
@@ -69,6 +80,18 @@ function looksLikeCompleteAccountCode(value: string): boolean {
   return trimmed.replace(/\D/g, "").length >= 6
 }
 
+function FieldHelp({ text }: { text: string }) {
+  return (
+    <span
+      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-gray-400 hover:text-emerald-700"
+      title={text}
+      aria-label={text}
+    >
+      <CircleHelp className="h-3.5 w-3.5" />
+    </span>
+  )
+}
+
 export function InvoiceValidationForm({
   fileName,
   file = null,
@@ -78,7 +101,9 @@ export function InvoiceValidationForm({
   remainingCount = 0,
   invoiceIndex = 1,
   invoiceCount = 1,
-  ocrBlockDuplicates = true,
+  ocrSettings = DEFAULT_OCR_SETTINGS,
+  enableShortcuts = true,
+  onOpenSettings,
   onConfirm,
   onCancel,
   onSkip,
@@ -125,6 +150,7 @@ export function InvoiceValidationForm({
   const [userEditedAccountCode, setUserEditedAccountCode] = useState(Boolean(initialData.preferredAccountCode))
   const [duplicate, setDuplicate] = useState<DuplicateInvoiceMatch | null>(null)
   const [allowDuplicate, setAllowDuplicate] = useState(false)
+  const [mobilePane, setMobilePane] = useState<"document" | "data">("data")
 
   const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
   const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
@@ -137,7 +163,10 @@ export function InvoiceValidationForm({
   const accountGroupLabel = selectedPrefix
   const pageStart = formData.pagina ?? (invoiceCount > 1 ? invoiceIndex : undefined)
   const pageEnd = formData.paginaFin ?? formData.pagina ?? pageStart
-  const isolatePages = Boolean(pageStart) && (invoiceCount > 1 || Boolean(formData.pagina))
+  const isolatePages =
+    ocrSettings.isolateCurrentInvoice &&
+    Boolean(pageStart) &&
+    (invoiceCount > 1 || Boolean(formData.pagina))
 
   const { baseImponible, iva } = useMemo(
     () => sumDesglose(formData.iva_desglose),
@@ -150,7 +179,12 @@ export function InvoiceValidationForm({
   )
 
   const totalsMatch = Math.abs(calculatedTotal - ocrTotal) < 0.02
-  const confirmBlocked = Boolean(duplicate && ocrBlockDuplicates && !allowDuplicate)
+  const duplicateBlocked = Boolean(duplicate && ocrSettings.blockDuplicates && !allowDuplicate)
+  const totalsBlocked = ocrSettings.requireTotalsMatch && !totalsMatch
+  const cifBlocked = ocrSettings.requireCif && !formData.cif.trim()
+  const confirmBlocked = duplicateBlocked || totalsBlocked || cifBlocked
+  const confirmShortcut = firstShortcutForAction(ocrSettings.shortcuts, "confirm")
+  const skipShortcut = firstShortcutForAction(ocrSettings.shortcuts, "skip")
 
   useEffect(() => {
     const cif = formData.cif.trim()
@@ -320,23 +354,30 @@ export function InvoiceValidationForm({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "F4") {
-        event.preventDefault()
-        if (!isSubmitting && !confirmBlocked) {
-          formRef.current?.requestSubmit()
-        }
-      }
-      if (event.key === "F12") {
-        event.preventDefault()
-        if (isSubmitting) return
+      if (!enableShortcuts) return
+      const action = matchOcrShortcut(ocrSettings.shortcuts, event)
+      if (!action) return
+
+      event.preventDefault()
+      if (isSubmitting) return
+      if (action === "confirm" && !confirmBlocked) formRef.current?.requestSubmit()
+      if (action === "skip") {
         if (onSkip) onSkip()
         else onCancel()
       }
+      if (action === "discard") onCancel()
     }
 
     window.addEventListener("keydown", onKeyDown)
     return () => window.removeEventListener("keydown", onKeyDown)
-  }, [confirmBlocked, isSubmitting, onCancel, onSkip])
+  }, [
+    confirmBlocked,
+    enableShortcuts,
+    isSubmitting,
+    ocrSettings.shortcuts,
+    onCancel,
+    onSkip,
+  ])
 
   const applyUpdate = (updater: (prev: InvoiceOcrResult) => InvoiceOcrResult) => {
     setFormData((prev) => syncInvoiceTotals(updater(prev)))
@@ -459,35 +500,66 @@ export function InvoiceValidationForm({
   const showRecargo = !formData.isSujetoPasivo && !formData.isIntracomunitaria
 
   return (
-    <div className="space-y-3">
-      <div className="sticky top-0 z-20 flex flex-col gap-2 rounded-lg border border-emerald-200 bg-white/95 p-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 text-sm text-gray-600">
+    <div className="space-y-2 pb-20 lg:pb-0">
+      <div className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-end gap-1 border-t border-emerald-200 bg-white/95 p-2 shadow-[0_-6px_24px_rgba(0,0,0,0.08)] backdrop-blur lg:sticky lg:top-0 lg:inset-auto lg:z-30 lg:justify-between lg:rounded-lg lg:border lg:px-3 lg:py-2 lg:shadow-sm">
+        <div className="hidden min-w-0 text-sm text-gray-600 lg:block">
           <p className="flex items-center gap-2 font-medium text-emerald-900">
             <ScanLine className="h-4 w-4 shrink-0" />
             <span className="truncate">{fileName}</span>
           </p>
           {progressLabel ? <p className="mt-0.5 text-xs text-emerald-800">{progressLabel}</p> : null}
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-            <X className="mr-2 h-4 w-4" />
-            Descartar lote
-          </Button>
-          {onSkip && remainingCount > 0 ? (
-            <Button type="button" variant="outline" onClick={onSkip} disabled={isSubmitting}>
-              Saltar esta factura
-              <kbd className="ml-2 rounded border bg-white px-1.5 text-[10px] text-gray-500">F12</kbd>
-            </Button>
-          ) : onSkip ? (
-            <Button type="button" variant="outline" onClick={onSkip} disabled={isSubmitting}>
-              Eliminar esta factura
-              <kbd className="ml-2 rounded border bg-white px-1.5 text-[10px] text-gray-500">F12</kbd>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 lg:flex-none lg:gap-2">
+          {onOpenSettings ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="px-2"
+              onClick={onOpenSettings}
+              disabled={isSubmitting}
+              title="Configurar OCR"
+              aria-label="Configurar OCR"
+            >
+              <Settings2 className="h-4 w-4" />
+              <span className="hidden xl:inline">Configurar OCR</span>
             </Button>
           ) : null}
           <Button
             type="button"
+            variant="outline"
+            size="sm"
+            className="hidden sm:inline-flex"
+            onClick={onCancel}
+            disabled={isSubmitting}
+          >
+            <X className="h-4 w-4" />
+            Descartar lote
+          </Button>
+          {onSkip && remainingCount > 0 ? (
+            <Button type="button" variant="outline" size="sm" onClick={onSkip} disabled={isSubmitting}>
+              Saltar
+              {skipShortcut ? (
+                <kbd className="ml-1 hidden rounded border bg-white px-1 text-[10px] text-gray-500 sm:inline">
+                  {skipShortcut}
+                </kbd>
+              ) : null}
+            </Button>
+          ) : onSkip ? (
+            <Button type="button" variant="outline" size="sm" onClick={onSkip} disabled={isSubmitting}>
+              Eliminar
+              {skipShortcut ? (
+                <kbd className="ml-1 hidden rounded border bg-white px-1 text-[10px] text-gray-500 sm:inline">
+                  {skipShortcut}
+                </kbd>
+              ) : null}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
             disabled={isSubmitting || confirmBlocked}
-            className="bg-emerald-700 hover:bg-emerald-800"
+            className="bg-emerald-700 px-3 hover:bg-emerald-800"
             onClick={() => formRef.current?.requestSubmit()}
           >
             {isSubmitting ? (
@@ -497,32 +569,60 @@ export function InvoiceValidationForm({
               </>
             ) : (
               <>
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Confirmar datos
-                <kbd className="ml-2 rounded border border-emerald-500/40 bg-emerald-800/40 px-1.5 text-[10px]">
-                  F4
-                </kbd>
+                <CheckCircle className="h-4 w-4" />
+                Confirmar
+                {confirmShortcut ? (
+                  <kbd className="ml-1 hidden rounded border border-emerald-500/40 bg-emerald-800/40 px-1 text-[10px] sm:inline">
+                    {confirmShortcut}
+                  </kbd>
+                ) : null}
               </>
             )}
           </Button>
         </div>
       </div>
 
-      <div className="grid items-start gap-4 xl:grid-cols-2">
-        <Card className="border-emerald-200 shadow-md">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-emerald-800">
+      <div className="grid grid-cols-2 gap-1 rounded-lg border bg-gray-50 p-1 lg:hidden">
+        <Button
+          type="button"
+          size="sm"
+          variant={mobilePane === "document" ? "default" : "ghost"}
+          className={mobilePane === "document" ? "bg-emerald-700 hover:bg-emerald-800" : ""}
+          onClick={() => setMobilePane("document")}
+        >
+          Ver documento
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant={mobilePane === "data" ? "default" : "ghost"}
+          className={mobilePane === "data" ? "bg-emerald-700 hover:bg-emerald-800" : ""}
+          onClick={() => setMobilePane("data")}
+        >
+          Datos OCR
+        </Button>
+      </div>
+
+      <div className="grid items-start gap-3 lg:grid-cols-[minmax(0,1.05fr)_minmax(360px,0.95fr)]">
+        <Card
+          className={cn(
+            "border-emerald-200 shadow-sm",
+            mobilePane !== "data" && "hidden lg:block",
+          )}
+        >
+          <CardHeader className="px-3 py-2.5">
+            <CardTitle className="text-base text-emerald-800">
               {documentType === "factura-emitida" ? "Validación de venta" : "Validación de compra"}
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-xs">
               {documentType === "factura-emitida"
-                ? "Contrasta importes, cliente (430) e ingreso (700 o 705) con la factura de esta pantalla."
-                : "Contrasta importes, tercero (400 o 410) y gasto con la factura de esta pantalla."}
+                ? "Revisa importes, cliente e ingreso."
+                : "Revisa importes, tercero y gasto."}
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-lg border bg-gray-50 p-3 text-sm">
-              <div className="grid gap-2 sm:grid-cols-2">
+          <CardContent className="space-y-2 px-3 pb-3">
+            <div className="rounded-md border bg-gray-50 px-2.5 py-2 text-xs">
+              <div className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
                 <div className="flex justify-between gap-3">
                   <span className="text-gray-600">Base imponible</span>
                   <span className="font-medium">{formatEuro(baseImponible)}</span>
@@ -566,21 +666,21 @@ export function InvoiceValidationForm({
             </div>
 
             {duplicate ? (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
-                <p className="font-medium">Factura duplicada</p>
-                <p className="mt-1 text-xs">
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950">
+                <p className="font-medium">Posible factura duplicada</p>
+                <p className="mt-0.5">
                   Ya existe el asiento {duplicate.refNumber} con el nº {duplicate.invoiceNumber} (
                   {new Date(`${duplicate.fecha}T00:00:00`).toLocaleDateString("es-ES")}).
                 </p>
-                <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs">
+                <label className="mt-1.5 flex cursor-pointer items-center gap-2">
                   <input
                     type="checkbox"
                     checked={allowDuplicate}
                     onChange={(event) => setAllowDuplicate(event.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-amber-400 text-emerald-700"
+                    className="h-3.5 w-3.5 rounded border-amber-400 text-emerald-700"
                   />
                   <span>
-                    {ocrBlockDuplicates
+                    {ocrSettings.blockDuplicates
                       ? "Registrar de todos modos. La detección de duplicadas está activa."
                       : "Confirmar aunque coincida con un asiento anterior."}
                   </span>
@@ -588,75 +688,67 @@ export function InvoiceValidationForm({
               </div>
             ) : null}
 
-            {(formData.isIntracomunitaria || formData.isSujetoPasivo) && (
-              <div className="flex flex-wrap gap-2">
-                {formData.isIntracomunitaria && (
-                  <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                    <Globe className="mr-1 h-3 w-3" />
-                    Operación intracomunitaria
-                  </Badge>
-                )}
-                {formData.isSujetoPasivo && (
-                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100">
-                    <Scale className="mr-1 h-3 w-3" />
-                    Inversión del sujeto pasivo
-                  </Badge>
-                )}
+            {totalsBlocked || cifBlocked ? (
+              <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs text-red-800">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                {cifBlocked
+                  ? "La configuración OCR exige un NIF/CIF antes de confirmar."
+                  : "La configuración OCR exige que el total calculado cuadre con la factura."}
               </div>
-            )}
+            ) : null}
 
-            <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2 md:col-span-2">
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-2.5">
+              <div className="grid gap-2 md:grid-cols-[minmax(0,1.5fr)_minmax(130px,0.8fr)_minmax(130px,0.8fr)]">
+                <div className="space-y-1">
                   <Label htmlFor="proveedor">{thirdPartyLabel}</Label>
                   <Input
                     id="proveedor"
                     value={formData.proveedor}
                     onChange={(e) => updateField("proveedor", e.target.value)}
+                    className="h-8"
                     required
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="cif">CIF / VAT</Label>
                   <Input
                     id="cif"
                     value={formData.cif}
                     onChange={(e) => updateField("cif", normalizeTaxId(e.target.value))}
-                    required
+                    className="h-8"
+                    required={ocrSettings.requireCif}
                   />
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <Label htmlFor="numeroFactura">Número de factura</Label>
                   <Input
                     id="numeroFactura"
                     value={formData.numeroFactura}
                     onChange={(e) => updateField("numeroFactura", e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="fechaFactura">Fecha de factura</Label>
-                  <Input
-                    id="fechaFactura"
-                    type="date"
-                    value={formData.fechaFactura}
-                    onChange={(e) => updateField("fechaFactura", e.target.value)}
+                    className="h-8"
                     required
                   />
                 </div>
               </div>
 
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-4">
-                <p className="text-sm font-medium text-emerald-900">
-                  {documentType === "factura-emitida"
-                    ? "Cliente y cuenta de ingreso"
-                    : "Tercero y cuenta de gasto"}
-                </p>
+              <div className="rounded-md border border-emerald-200 bg-emerald-50/60 p-2.5">
                 {documentType !== "factura-emitida" ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="fechaFactura" className="text-xs text-emerald-800">
+                        Fecha
+                      </Label>
+                      <Input
+                        id="fechaFactura"
+                        type="date"
+                        value={formData.fechaFactura}
+                        onChange={(e) => updateField("fechaFactura", e.target.value)}
+                        className="h-8"
+                        required
+                      />
+                    </div>
                     <div className="space-y-1">
                       <Label htmlFor="accountPrefix" className="text-xs text-emerald-800">
                         Tipo de ficha
@@ -665,34 +757,23 @@ export function InvoiceValidationForm({
                         id="accountPrefix"
                         value={selectedPrefix}
                         onChange={(e) => handlePrefixChange(e.target.value as ReceivedAccountPrefix)}
-                        className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                        className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
                       >
                         <option value="410">410 · Acreedor (servicios)</option>
                         <option value="400">400 · Proveedor (mercaderías)</option>
                       </select>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="preferredAccountCode" className="text-xs text-emerald-800">
-                        Subcuenta del tercero
-                      </Label>
-                      <Input
-                        id="preferredAccountCode"
-                        value={accountCodeDraft}
-                        onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
-                        className="h-9 font-mono"
-                        placeholder="410.2 · 410.0002"
-                      />
-                    </div>
-                    <div className="space-y-1 sm:col-span-2">
-                      <Label htmlFor="expenseAccount" className="text-xs text-emerald-800">
+                      <Label htmlFor="expenseAccount" className="flex items-center gap-1 text-xs text-emerald-800">
                         Cuenta de gasto
+                        <FieldHelp text="Puedes usar una cuenta general (628) o una subcuenta propia (628.0001)." />
                       </Label>
                       <Input
                         id="expenseAccount"
                         list="ocr-expense-accounts"
                         value={formData.expenseAccount ?? ""}
                         onChange={(e) => handleExpenseChange(e.target.value)}
-                        className="h-9 font-mono"
+                        className="h-8 font-mono text-xs"
                         placeholder="628 · 622.0001"
                       />
                       <datalist id="ocr-expense-accounts">
@@ -703,9 +784,35 @@ export function InvoiceValidationForm({
                         ))}
                       </datalist>
                     </div>
+                    <div className="space-y-1 sm:col-span-3">
+                      <Label htmlFor="preferredAccountCode" className="flex items-center gap-1 text-xs text-emerald-800">
+                        Subcuenta del tercero
+                        <FieldHelp text="Se reutiliza la ficha del mismo NIF; puedes corregir aquí el código propuesto." />
+                      </Label>
+                      <Input
+                        id="preferredAccountCode"
+                        value={accountCodeDraft}
+                        onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
+                        className="h-8 font-mono text-xs sm:max-w-xs"
+                        placeholder="410.2 · 410.0002"
+                      />
+                    </div>
                   </div>
                 ) : (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="fechaFactura" className="text-xs text-emerald-800">
+                        Fecha
+                      </Label>
+                      <Input
+                        id="fechaFactura"
+                        type="date"
+                        value={formData.fechaFactura}
+                        onChange={(e) => updateField("fechaFactura", e.target.value)}
+                        className="h-8"
+                        required
+                      />
+                    </div>
                     <div className="space-y-1">
                       <Label htmlFor="preferredAccountCode" className="text-xs text-emerald-800">
                         Subcuenta del cliente
@@ -714,7 +821,7 @@ export function InvoiceValidationForm({
                         id="preferredAccountCode"
                         value={accountCodeDraft}
                         onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
-                        className="h-9 font-mono"
+                        className="h-8 font-mono text-xs"
                         placeholder="430.2 · 430.0002"
                       />
                     </div>
@@ -727,7 +834,7 @@ export function InvoiceValidationForm({
                         list="ocr-income-accounts"
                         value={formData.incomeAccount ?? ""}
                         onChange={(e) => handleIncomeChange(e.target.value)}
-                        className="h-9 font-mono"
+                        className="h-8 font-mono text-xs"
                         placeholder="705 · 700"
                       />
                       <datalist id="ocr-income-accounts">
@@ -741,77 +848,122 @@ export function InvoiceValidationForm({
                   </div>
                 )}
                 {isLoadingAccount ? (
-                  <p className="mt-2 flex items-center gap-2 text-sm text-emerald-800">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Buscando ficha y último código disponible…
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-800">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Buscando ficha…
                   </p>
                 ) : accountPreviewError ? (
-                  <p className="mt-2 text-sm text-amber-800">{accountPreviewError}</p>
+                  <p className="mt-1.5 text-xs text-amber-800">{accountPreviewError}</p>
                 ) : accountPreview ? (
-                  <div className="mt-2 space-y-1 text-sm text-emerald-900">
-                    <p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-emerald-900">
+                    <p className="flex items-center gap-1.5">
                       <span className="font-mono font-semibold">{accountPreview.formattedAccountCode}</span>
-                      {" · "}
                       {accountPreview.isNew ? (
-                        <Badge className="bg-emerald-700 text-white hover:bg-emerald-700">Nueva ficha</Badge>
+                        <Badge className="h-5 bg-emerald-700 px-1.5 text-[10px] text-white hover:bg-emerald-700">Nueva ficha</Badge>
                       ) : (
-                        <Badge variant="secondary">Ficha existente</Badge>
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">Ficha existente</Badge>
                       )}
                     </p>
-                    <p className="text-xs text-emerald-800">
-                      {accountPreview.isNew
-                        ? `Puedes dejar la propuesta ${accountGroupLabel} o escribir otra, por ejemplo ${accountGroupLabel}.5.`
-                        : documentType === "factura-emitida"
-                          ? "Este NIF ya tiene ficha de cliente. Si cambias el código, se actualizará al confirmar."
-                          : "Este NIF ya tiene ficha. Si cambias el código (400 ↔ 410 o el número), se actualizará al confirmar."}
-                    </p>
+                    <FieldHelp
+                      text={
+                        accountPreview.isNew
+                          ? `Puedes aceptar la propuesta ${accountGroupLabel} o escribir otra subcuenta.`
+                          : "Este NIF ya tiene ficha. El código se reutilizará al confirmar."
+                      }
+                    />
                     {formData.classificationReason ? (
-                      <p className="text-xs text-emerald-700">{formData.classificationReason}</p>
+                      <FieldHelp text={formData.classificationReason} />
                     ) : null}
                   </div>
                 ) : (
-                  <p className="mt-2 text-sm text-gray-600">Introduce el NIF/CIF para asignar la subcuenta.</p>
+                  <p className="mt-1.5 text-xs text-gray-500">Introduce el NIF/CIF para asignar la subcuenta.</p>
                 )}
               </div>
 
-              <div className="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                <p className="text-sm font-medium text-gray-700">Régimen fiscal especial</p>
-
-                <label className="flex cursor-pointer items-start gap-3">
+              <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-white px-2.5 py-1.5 text-xs">
                   <input
                     type="checkbox"
                     checked={formData.isIntracomunitaria}
                     onChange={(e) => updateField("isIntracomunitaria", e.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600"
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600"
                   />
-                  <span className="text-sm">
-                    <span className="font-medium">Operación intracomunitaria</span>
-                  </span>
+                  <Globe className="h-3.5 w-3.5 text-blue-700" />
+                  Intracomunitaria
                 </label>
 
-                <label className="flex cursor-pointer items-start gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-white px-2.5 py-1.5 text-xs">
                   <input
                     type="checkbox"
                     checked={formData.isSujetoPasivo}
                     onChange={(e) => updateField("isSujetoPasivo", e.target.checked)}
-                    className="mt-1 h-4 w-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600"
+                    className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600"
                   />
-                  <span className="text-sm">
-                    <span className="font-medium">Inversión del sujeto pasivo</span>
-                    <span className="mt-0.5 block text-gray-500">
-                      Cuotas IVA a 0 (autoliquidación en España).
-                    </span>
-                  </span>
+                  <Scale className="h-3.5 w-3.5 text-amber-700" />
+                  Inversión sujeto pasivo
+                  <FieldHelp text="Pone las cuotas de IVA a cero para la autoliquidación en España." />
                 </label>
+
+                {showRecargo ? (
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border bg-white px-2.5 py-1.5 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={formData.recargo_equivalencia !== null}
+                      onChange={(e) => toggleRecargo(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600"
+                    />
+                    Recargo equivalencia
+                  </label>
+                ) : null}
+                </div>
+
+                {formData.recargo_equivalencia ? (
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="recargo-porcentaje" className="text-xs">
+                        Recargo %
+                      </Label>
+                      <Input
+                        id="recargo-porcentaje"
+                        type="number"
+                        step="0.1"
+                        min="0"
+                        value={formData.recargo_equivalencia.porcentaje}
+                        onChange={(e) =>
+                          updateRecargo("porcentaje", round2(parseFloat(e.target.value) || 0))
+                        }
+                        className="h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="recargo-cuota" className="text-xs">
+                        Cuota recargo €
+                      </Label>
+                      <Input
+                        id="recargo-cuota"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={formData.recargo_equivalencia.cuota}
+                        onChange={(e) =>
+                          updateRecargo("cuota", round2(parseFloat(e.target.value) || 0))
+                        }
+                        className="h-8"
+                      />
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label>Desglose de IVA</Label>
+                  <Label className="text-xs">Desglose de IVA</Label>
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
+                    className="h-7 px-2 text-xs"
                     onClick={addDesgloseLine}
                     disabled={ivaLinesDisabled}
                   >
@@ -821,19 +973,19 @@ export function InvoiceValidationForm({
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[520px] text-sm">
+                  <table className="w-full min-w-[500px] text-xs">
                     <thead className="bg-gray-50 text-left text-xs uppercase text-gray-500">
                       <tr>
-                        <th className="px-3 py-2 font-medium">Base imponible (€)</th>
-                        <th className="px-3 py-2 font-medium">Tipo IVA (%)</th>
-                        <th className="px-3 py-2 font-medium">Cuota IVA (€)</th>
-                        <th className="px-3 py-2 w-10" />
+                        <th className="px-2 py-1.5 font-medium">Base imponible (€)</th>
+                        <th className="px-2 py-1.5 font-medium">IVA (%)</th>
+                        <th className="px-2 py-1.5 font-medium">Cuota IVA (€)</th>
+                        <th className="w-9 px-1 py-1.5" />
                       </tr>
                     </thead>
                     <tbody>
                       {formData.iva_desglose.map((line, index) => (
                         <tr key={index} className="border-t">
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-1">
                             <Input
                               type="number"
                               step="0.01"
@@ -845,10 +997,10 @@ export function InvoiceValidationForm({
                                   base_imponible: round2(parseFloat(e.target.value) || 0),
                                 })
                               }
-                              className="h-9"
+                              className="h-8 text-xs"
                             />
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-1">
                             <select
                               value={line.tipo_iva}
                               disabled={ivaLinesDisabled}
@@ -857,7 +1009,7 @@ export function InvoiceValidationForm({
                                   tipo_iva: Number(e.target.value) as TipoIva,
                                 })
                               }
-                              className="flex h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                              className="flex h-8 w-full rounded-md border border-input bg-background px-2 text-xs"
                             >
                               {TIPOS_IVA.map((tipo) => (
                                 <option key={tipo} value={tipo}>
@@ -866,7 +1018,7 @@ export function InvoiceValidationForm({
                               ))}
                             </select>
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-2 py-1">
                             <Input
                               type="number"
                               step="0.01"
@@ -878,14 +1030,15 @@ export function InvoiceValidationForm({
                                   cuota_iva: round2(parseFloat(e.target.value) || 0),
                                 })
                               }
-                              className="h-9"
+                              className="h-8 text-xs"
                             />
                           </td>
-                          <td className="px-3 py-2">
+                          <td className="px-1 py-1">
                             <Button
                               type="button"
                               variant="ghost"
                               size="sm"
+                              className="h-7 w-7 p-0"
                               onClick={() => removeDesgloseLine(index)}
                               disabled={ivaLinesDisabled || formData.iva_desglose.length <= 1}
                             >
@@ -895,11 +1048,11 @@ export function InvoiceValidationForm({
                         </tr>
                       ))}
                     </tbody>
-                    <tfoot className="border-t bg-gray-50 text-sm font-medium">
+                    <tfoot className="border-t bg-gray-50 text-xs font-medium">
                       <tr>
-                        <td className="px-3 py-2">{formatEuro(baseImponible)}</td>
-                        <td className="px-3 py-2 text-gray-500">Subtotal IVA</td>
-                        <td className="px-3 py-2" colSpan={2}>
+                        <td className="px-2 py-1.5">{formatEuro(baseImponible)}</td>
+                        <td className="px-2 py-1.5 text-gray-500">Subtotal IVA</td>
+                        <td className="px-2 py-1.5" colSpan={2}>
                           {formatEuro(iva)}
                         </td>
                       </tr>
@@ -908,56 +1061,16 @@ export function InvoiceValidationForm({
                 </div>
               </div>
 
-              {showRecargo && (
-                <div className="space-y-3 rounded-lg border border-dashed border-gray-300 p-4">
-                  <label className="flex cursor-pointer items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.recargo_equivalencia !== null}
-                      onChange={(e) => toggleRecargo(e.target.checked)}
-                      className="h-4 w-4 rounded border-gray-300 text-emerald-700 focus:ring-emerald-600"
-                    />
-                    <span className="text-sm font-medium">Recargo de equivalencia</span>
-                  </label>
-
-                  {formData.recargo_equivalencia && (
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="recargo-porcentaje">Porcentaje (%)</Label>
-                        <Input
-                          id="recargo-porcentaje"
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={formData.recargo_equivalencia.porcentaje}
-                          onChange={(e) =>
-                            updateRecargo("porcentaje", round2(parseFloat(e.target.value) || 0))
-                          }
-                        />
-                        <p className="text-xs text-gray-500">Habitual: 5,2% · 1,4% · 0,5%</p>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="recargo-cuota">Cuota recargo (€)</Label>
-                        <Input
-                          id="recargo-cuota"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={formData.recargo_equivalencia.cuota}
-                          onChange={(e) =>
-                            updateRecargo("cuota", round2(parseFloat(e.target.value) || 0))
-                          }
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
             </form>
           </CardContent>
         </Card>
 
-        <div className="xl:sticky xl:top-16">
+        <div
+          className={cn(
+            "lg:sticky lg:top-14",
+            mobilePane !== "document" && "hidden lg:block",
+          )}
+        >
           <InvoiceDocumentPreview
             file={file}
             fileName={fileName}

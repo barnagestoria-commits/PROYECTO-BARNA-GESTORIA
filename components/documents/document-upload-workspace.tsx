@@ -6,12 +6,18 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Loader2, ScanLine, Trash2 } from "lucide-react"
+import { Calendar, Loader2, ScanLine, Settings2, Trash2 } from "lucide-react"
 import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
+import { OcrSettingsDialog } from "@/components/documents/ocr-settings-dialog"
 import { useRequireAuth } from "@/components/auth-provider"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
+import {
+  DEFAULT_OCR_SETTINGS,
+  parseOcrSettings,
+  type OcrWorkspaceSettings,
+} from "@/lib/ocr/ocr-settings"
 
 interface Document {
   id: string
@@ -66,7 +72,8 @@ function DocumentUploadWorkspaceContent({
   const [sessionDocumentIds, setSessionDocumentIds] = useState<string[]>([])
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
 
-  const [ocrBlockDuplicates, setOcrBlockDuplicates] = useState(true)
+  const [ocrSettings, setOcrSettings] = useState<OcrWorkspaceSettings>(DEFAULT_OCR_SETTINGS)
+  const [ocrSettingsOpen, setOcrSettingsOpen] = useState(false)
   const [savingOcrSetting, setSavingOcrSetting] = useState(false)
 
   const defaultTab = searchParams.get("tab") === "documentos" ? "documents" : "upload"
@@ -88,11 +95,14 @@ function DocumentUploadWorkspaceContent({
   useEffect(() => {
     if (session?.activeCompanyId) {
       loadDocuments()
-      void apiFetch<{ success: true; settings: { ocrBlockDuplicates?: boolean } }>(
-        "/api/accounting/analytic-settings",
-      )
-        .then((data) => setOcrBlockDuplicates(data.settings.ocrBlockDuplicates ?? true))
-        .catch(() => setOcrBlockDuplicates(true))
+      void apiFetch<{
+        success: true
+        settings: { ocrBlockDuplicates?: boolean; ocrSettingsJson?: string | null }
+      }>("/api/accounting/analytic-settings")
+        .then((data) =>
+          setOcrSettings(parseOcrSettings(data.settings.ocrSettingsJson, data.settings.ocrBlockDuplicates ?? true)),
+        )
+        .catch(() => setOcrSettings(DEFAULT_OCR_SETTINGS))
     }
   }, [session?.activeCompanyId, loadDocuments])
 
@@ -179,16 +189,19 @@ function DocumentUploadWorkspaceContent({
     }
   }
 
-  const handleOcrBlockDuplicatesChange = async (enabled: boolean) => {
-    setOcrBlockDuplicates(enabled)
+  const handleSaveOcrSettings = async (next: OcrWorkspaceSettings) => {
     setSavingOcrSetting(true)
     try {
-      await apiFetch("/api/accounting/analytic-settings", {
+      const data = await apiFetch<{
+        success: true
+        settings: { ocrBlockDuplicates?: boolean; ocrSettingsJson?: string | null }
+      }>("/api/accounting/analytic-settings", {
         method: "PUT",
-        body: JSON.stringify({ ocrBlockDuplicates: enabled }),
+        body: JSON.stringify({ ocr: next }),
       })
+      setOcrSettings(parseOcrSettings(data.settings.ocrSettingsJson, data.settings.ocrBlockDuplicates ?? next.blockDuplicates))
+      setOcrSettingsOpen(false)
     } catch (error) {
-      setOcrBlockDuplicates(!enabled)
       setOcrError(error instanceof Error ? error.message : "No se pudo guardar la configuración OCR.")
     } finally {
       setSavingOcrSetting(false)
@@ -357,7 +370,8 @@ function DocumentUploadWorkspaceContent({
   }
 
   return (
-    <Tabs defaultValue={defaultTab} className="space-y-6">
+    <>
+    <Tabs defaultValue={defaultTab} className={pendingValidation ? "space-y-2" : "space-y-6"}>
       {documentType === "factura-emitida" && (
         <Card className="border-emerald-200 bg-emerald-50/60" data-tour="onboarding-verifactu">
           <CardHeader className="pb-2">
@@ -373,16 +387,18 @@ function DocumentUploadWorkspaceContent({
         </Card>
       )}
 
-      <TabsList className="flex h-auto w-full flex-col gap-1 p-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-row">
-        <TabsTrigger value="upload" className="w-full sm:w-auto">
-          Subir documentos
-        </TabsTrigger>
-        <TabsTrigger value="documents" className="w-full sm:w-auto">
-          Mis documentos
-        </TabsTrigger>
-      </TabsList>
+      {!pendingValidation ? (
+        <TabsList className="flex h-auto w-full flex-col gap-1 p-1 sm:inline-flex sm:h-10 sm:w-auto sm:flex-row">
+          <TabsTrigger value="upload" className="w-full sm:w-auto">
+            Subir documentos
+          </TabsTrigger>
+          <TabsTrigger value="documents" className="w-full sm:w-auto">
+            Mis documentos
+          </TabsTrigger>
+        </TabsList>
+      ) : null}
 
-      <TabsContent value="upload" className="space-y-6">
+      <TabsContent value="upload" className={pendingValidation ? "mt-0 space-y-2" : "space-y-6"}>
         {isProcessingOcr && (
           <Card className="border-emerald-200 bg-emerald-50">
             <CardContent className="flex items-center gap-3 py-6">
@@ -405,37 +421,6 @@ function DocumentUploadWorkspaceContent({
           </Card>
         )}
 
-        {(documentType === "factura-recibida" || documentType === "factura-emitida") &&
-          !pendingValidation && (
-          <Card className="border-gray-200">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Configuración OCR</CardTitle>
-              <CardDescription>
-                Evita contabilizar dos veces el mismo NIF y número de factura. F4 confirma y F12
-                salta o elimina la factura que estás viendo.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <label className="flex cursor-pointer items-start gap-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={ocrBlockDuplicates}
-                  disabled={savingOcrSetting}
-                  onChange={(event) => void handleOcrBlockDuplicatesChange(event.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-700"
-                />
-                <span>
-                  <span className="font-medium">Detectar facturas duplicadas</span>
-                  <span className="mt-0.5 block text-xs text-gray-500">
-                    Si ya existe un asiento con el mismo NIF y número, se avisa y no se confirma
-                    hasta que lo autorices.
-                  </span>
-                </span>
-              </label>
-            </CardContent>
-          </Card>
-        )}
-
         {pendingValidation && (
           <InvoiceValidationForm
             key={`${pendingValidation.fileName}-${pendingValidation.invoiceIndex}`}
@@ -446,7 +431,9 @@ function DocumentUploadWorkspaceContent({
             remainingCount={pendingValidation.remainingInvoices.length}
             invoiceIndex={pendingValidation.invoiceIndex}
             invoiceCount={pendingValidation.invoiceCount}
-            ocrBlockDuplicates={ocrBlockDuplicates}
+            ocrSettings={ocrSettings}
+            enableShortcuts={!ocrSettingsOpen}
+            onOpenSettings={() => setOcrSettingsOpen(true)}
             progressLabel={
               pendingValidation.invoiceCount > 1
                 ? `Factura ${pendingValidation.invoiceIndex} de ${pendingValidation.invoiceCount}`
@@ -470,19 +457,33 @@ function DocumentUploadWorkspaceContent({
         {!pendingValidation ? (
         <Card className="overflow-hidden border-emerald-200">
           <CardHeader className="px-4 sm:px-6">
-            <CardTitle className="text-lg leading-snug break-words text-balance sm:text-xl">
-              {title}
-            </CardTitle>
-            <CardDescription className="break-words text-pretty leading-relaxed">
-              {description}
-            </CardDescription>
-            {(documentType === "factura-recibida" || documentType === "factura-emitida") ? (
-              <p className="pt-2 text-xs text-gray-500">
-                Hasta que pulses Confirmar no se crea ninguna cuenta ni asiento. Puedes descartar el
-                lote entero y volver a subir el mismo PDF. F4 confirma y F12 salta o elimina esta
-                factura.
-              </p>
-            ) : null}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <CardTitle className="text-lg leading-snug break-words text-balance sm:text-xl">
+                  {title}
+                </CardTitle>
+                <CardDescription className="break-words text-pretty leading-relaxed">
+                  {description}
+                </CardDescription>
+                {(documentType === "factura-recibida" || documentType === "factura-emitida") ? (
+                  <p className="pt-2 text-xs text-gray-500">
+                    Hasta que pulses Confirmar no se crea ninguna cuenta ni asiento. Puedes descartar
+                    el lote entero y volver a subir el mismo PDF.
+                  </p>
+                ) : null}
+              </div>
+              {(documentType === "factura-recibida" || documentType === "factura-emitida") ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="shrink-0"
+                  onClick={() => setOcrSettingsOpen(true)}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Configurar OCR
+                </Button>
+              ) : null}
+            </div>
           </CardHeader>
           <CardContent className="overflow-x-hidden px-4 pb-4 sm:px-6 sm:pb-6">
             <FileUpload
@@ -576,6 +577,16 @@ function DocumentUploadWorkspaceContent({
         </Card>
       </TabsContent>
     </Tabs>
+    {(documentType === "factura-recibida" || documentType === "factura-emitida") ? (
+      <OcrSettingsDialog
+        open={ocrSettingsOpen}
+        saving={savingOcrSetting}
+        settings={ocrSettings}
+        onClose={() => setOcrSettingsOpen(false)}
+        onSave={handleSaveOcrSettings}
+      />
+    ) : null}
+    </>
   )
 }
 
