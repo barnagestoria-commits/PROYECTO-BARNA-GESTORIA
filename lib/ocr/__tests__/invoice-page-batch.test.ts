@@ -46,4 +46,15 @@ describe("invoice-page-batch", () => {
   it("uses CIF, number and date as identity", () => {
     expect(invoiceIdentity(invoice())).toBe("B08348666|FT 1|2026-08-15")
   })
+
+  it("orders the validation queue by its real PDF page", () => {
+    const merged = mergeExtractedInvoices([
+      [
+        invoice({ numeroFactura: "FT 13", pagina: 13, paginaFin: 13 }),
+        invoice({ numeroFactura: "FT 1", pagina: 1, paginaFin: 1 }),
+      ],
+    ])
+
+    expect(merged.map((item) => item.pagina)).toEqual([1, 13])
+  })
 })

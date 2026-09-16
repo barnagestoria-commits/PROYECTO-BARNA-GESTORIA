@@ -48,4 +48,11 @@ export function mergeExtractedInvoices(batches: InvoiceOcrResult[][]): InvoiceOc
   }
 
   return merged
+    .map((invoice, index) => ({ invoice, index }))
+    .sort((a, b) => {
+      const pageA = a.invoice.pagina ?? Number.MAX_SAFE_INTEGER
+      const pageB = b.invoice.pagina ?? Number.MAX_SAFE_INTEGER
+      return pageA - pageB || a.index - b.index
+    })
+    .map(({ invoice }) => invoice)
 }

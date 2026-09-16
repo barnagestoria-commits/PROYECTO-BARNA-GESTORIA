@@ -1,5 +1,9 @@
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
-import { extractTextFromPdf, hasUsableExtractedText } from "@/lib/ocr/extract-pdf-text"
+import {
+  extractPdfTextContent,
+  hasUsableExtractedText,
+  type PdfTextContent,
+} from "@/lib/ocr/extract-pdf-text"
 import { imageBufferToDataUrl, MAX_PDF_PAGES, renderPdfPageDataUrls } from "@/lib/ocr/extract-pdf-pages"
 import { extractInvoicesFromDocument } from "@/lib/ocr/extract-invoice-deepseek"
 import { OcrExtractionError } from "@/lib/ocr/errors"
@@ -33,12 +37,12 @@ function isPdf(mimeType: string, fileName: string): boolean {
   return mimeType === "application/pdf" || fileName.toLowerCase().endsWith(".pdf")
 }
 
-async function safePdfText(buffer: Buffer): Promise<string> {
+async function safePdfText(buffer: Buffer): Promise<PdfTextContent> {
   try {
-    return await extractTextFromPdf(buffer)
+    return await extractPdfTextContent(buffer)
   } catch (error) {
     console.error("[ocr] pdf-text", error)
-    return ""
+    return { text: "", pages: [] }
   }
 }
 
@@ -68,7 +72,7 @@ export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<In
       safePdfScreenshots(input.buffer),
     ])
 
-    const text = hasUsableExtractedText(pdfText) ? pdfText : pdfText.trim()
+    const text = hasUsableExtractedText(pdfText.text) ? pdfText.text : pdfText.text.trim()
     if (!text && pageRender.dataUrls.length === 0) {
       throw new OcrExtractionError(
         "No se pudo leer el PDF. Prueba con un archivo más nítido o sube fotos de cada ticket.",
@@ -77,6 +81,7 @@ export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<In
 
     const invoices = await extractInvoicesFromDocument({
       text,
+      pageTexts: pdfText.pages,
       imageDataUrls: pageRender.dataUrls,
       documentType: input.documentType,
     })

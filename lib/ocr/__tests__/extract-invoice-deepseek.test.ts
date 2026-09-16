@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 import {
+  alignInvoicePages,
   hasMeaningfulInvoice,
   parseInvoiceModelResponse,
 } from "@/lib/ocr/extract-invoice-deepseek"
@@ -113,5 +114,35 @@ describe("parseInvoiceModelResponse", () => {
         isSujetoPasivo: false,
       }),
     ).toBe(false)
+  })
+})
+
+describe("alignInvoicePages", () => {
+  const recognized = (page: number) =>
+    parseInvoiceModelResponse(
+      JSON.stringify({
+        proveedor: `Proveedor página ${page}`,
+        numeroFactura: `F-${page}`,
+        fechaFactura: "2026-08-15",
+        total: 8,
+        pagina: page,
+        paginaFin: page,
+      }),
+    )[0]
+
+  it("keeps one invoice paired with each image even if the model reports the last page", () => {
+    const aligned = alignInvoicePages(
+      [recognized(13), recognized(13), recognized(13)],
+      [1, 2, 3],
+    )
+
+    expect(aligned.map((invoice) => invoice.pagina)).toEqual([1, 2, 3])
+  })
+
+  it("converts local page numbers from a later chunk to absolute PDF pages", () => {
+    const aligned = alignInvoicePages([recognized(1)], [11, 12, 13])
+
+    expect(aligned[0].pagina).toBe(11)
+    expect(aligned[0].paginaFin).toBe(11)
   })
 })

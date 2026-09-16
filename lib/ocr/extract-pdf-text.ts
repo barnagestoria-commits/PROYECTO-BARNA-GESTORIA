@@ -3,15 +3,27 @@ import { PDFParse } from "pdf-parse"
 
 const MIN_USABLE_TEXT_LENGTH = 80
 
-export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+export interface PdfTextContent {
+  text: string
+  pages: string[]
+}
+
+export async function extractPdfTextContent(buffer: Buffer): Promise<PdfTextContent> {
   const parser = new PDFParse({ data: buffer, CanvasFactory })
 
   try {
     const result = await parser.getText()
-    return result.text?.trim() ?? ""
+    return {
+      text: result.text?.trim() ?? "",
+      pages: result.pages.map((page) => page.text?.trim() ?? ""),
+    }
   } finally {
     await parser.destroy()
   }
+}
+
+export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
+  return (await extractPdfTextContent(buffer)).text
 }
 
 export function hasUsableExtractedText(text: string): boolean {

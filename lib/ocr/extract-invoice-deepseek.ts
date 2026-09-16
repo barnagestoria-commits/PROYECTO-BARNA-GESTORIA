@@ -36,6 +36,7 @@ Reglas generales:
 - Si hay VARIAS facturas o tickets (gasolina, parking, taller, supermercado, etc.), devuelve una entrada por cada uno. No las fusiones.
 - Si un ticket no trae NIF, deja cif vacío pero rellena proveedor, fecha, importes y tipo de IVA si se ven.
 - pagina y paginaFin son páginas del PDF (empezando en 1) de ESA factura. Si ocupa una sola página, pagina = paginaFin.
+- Cada imagen va precedida por su número real «PÁGINA PDF N». Usa SIEMPRE ese número absoluto; no vuelvas a numerar las imágenes desde 1.
 
 DESGLOSE DE IVA (iva_desglose):
 - Devuelve un ARRAY con una línea por cada tipo de IVA distinto.
@@ -82,6 +83,7 @@ Reglas generales:
 - La fecha debe estar en formato YYYY-MM-DD.
 - Si hay VARIAS facturas, una entrada por cada una. No las fusiones.
 - pagina y paginaFin son páginas del PDF (empezando en 1) de ESA factura. Si ocupa una sola página, pagina = paginaFin.
+- Cada imagen va precedida por su número real «PÁGINA PDF N». Usa SIEMPRE ese número absoluto; no vuelvas a numerar las imágenes desde 1.
 
 DESGLOSE DE IVA, recargo, total e isIntracomunitaria / isSujetoPasivo: mismas reglas que en una factura española.
 
@@ -292,7 +294,11 @@ export function parseInvoiceModelResponse(content: string | null | undefined): I
   return invoices
 }
 
-function buildUserContent(documentText: string, imageDataUrls: string[]): string | ChatCompletionContentPart[] {
+function buildUserContent(
+  documentText: string,
+  imageDataUrls: string[],
+  pageNumbers: number[] = [],
+): string | ChatCompletionContentPart[] {
   const text =
     documentText.trim() ||
     "El PDF no tenía texto seleccionable. Extrae cada factura o ticket visible en las imágenes."
@@ -301,15 +307,66 @@ function buildUserContent(documentText: string, imageDataUrls: string[]): string
     return text
   }
 
-  return [
-    { type: "text", text },
-    ...imageDataUrls.map(
-      (url): ChatCompletionContentPart => ({
-        type: "image_url",
-        image_url: { url, detail: "high" },
-      }),
-    ),
-  ]
+  const content: ChatCompletionContentPart[] = [{ type: "text", text }]
+  imageDataUrls.forEach((url, index) => {
+    const pageNumber = pageNumbers[index] ?? index + 1
+    content.push({ type: "text", text: `PÁGINA PDF ${pageNumber}` })
+    content.push({
+      type: "image_url",
+      image_url: { url, detail: "high" },
+    })
+  })
+  return content
+}
+
+export function alignInvoicePages(
+  invoices: InvoiceOcrResult[],
+  pageNumbers: number[],
+): InvoiceOcrResult[] {
+  if (pageNumbers.length === 0) return invoices
+
+  const firstPage = pageNumbers[0]!
+  const lastPage = pageNumbers[pageNumbers.length - 1]!
+  const localPageCount = pageNumbers.length
+  const oneInvoicePerPage = invoices.length === pageNumbers.length
+
+  return invoices.map((invoice, index) => {
+    if (oneInvoicePerPage) {
+      const page = pageNumbers[index]!
+      return { ...invoice, pagina: page, paginaFin: page }
+    }
+
+    const reportedStart = invoice.pagina
+    const reportedEnd = invoice.paginaFin ?? reportedStart
+    let pageStart = reportedStart
+    let pageEnd = reportedEnd
+
+    if (
+      firstPage > 1 &&
+      reportedStart !== undefined &&
+      reportedStart >= 1 &&
+      reportedStart <= localPageCount
+    ) {
+      pageStart = firstPage + reportedStart - 1
+    }
+    if (
+      firstPage > 1 &&
+      reportedEnd !== undefined &&
+      reportedEnd >= 1 &&
+      reportedEnd <= localPageCount
+    ) {
+      pageEnd = firstPage + reportedEnd - 1
+    }
+
+    if (pageStart === undefined || pageStart < firstPage || pageStart > lastPage) {
+      pageStart = pageNumbers[Math.min(index, pageNumbers.length - 1)]!
+    }
+    if (pageEnd === undefined || pageEnd < pageStart || pageEnd > lastPage) {
+      pageEnd = pageStart
+    }
+
+    return { ...invoice, pagina: pageStart, paginaFin: pageEnd }
+  })
 }
 
 function isEmptyInvoiceRecognitionError(error: unknown): boolean {
@@ -322,7 +379,11 @@ function isEmptyInvoiceRecognitionError(error: unknown): boolean {
 async function requestStructuredExtraction(
   documentText: string,
   imageDataUrls: string[],
-  options?: { allowEmpty?: boolean; documentType?: "factura-recibida" | "factura-emitida" },
+  options?: {
+    allowEmpty?: boolean
+    documentType?: "factura-recibida" | "factura-emitida"
+    pageNumbers?: number[]
+  },
 ): Promise<InvoiceOcrResult[]> {
   const client = getDeepSeekClient()
   const model = imageDataUrls.length > 0 ? getVisionModel() : getTextModel()
@@ -335,14 +396,18 @@ async function requestStructuredExtraction(
       temperature: 0,
       messages: [
         { role: "system", content: prompt },
-        { role: "user", content: buildUserContent(documentText, imageDataUrls) },
+        {
+          role: "user",
+          content: buildUserContent(documentText, imageDataUrls, options?.pageNumbers),
+        },
       ],
       response_format: { type: "json_object" },
     })
 
     const invoices = parseInvoiceModelResponse(response.choices[0]?.message?.content)
     const sourceText = documentText.replace(/^Texto extraído del PDF:\n\n/i, "")
-    return invoices.map((invoice) => applyFiscalRules(invoice, sourceText))
+    const aligned = alignInvoicePages(invoices, options?.pageNumbers ?? [])
+    return aligned.map((invoice) => applyFiscalRules(invoice, sourceText))
   } catch (error) {
     if (options?.allowEmpty && isEmptyInvoiceRecognitionError(error)) {
       return []
@@ -363,6 +428,7 @@ function isLikelyVisionUnsupported(error: unknown): boolean {
 
 export async function extractInvoicesFromDocument(input: {
   text?: string
+  pageTexts?: string[]
   imageDataUrls?: string[]
   documentType?: "factura-recibida" | "factura-emitida"
 }): Promise<InvoiceOcrResult[]> {
@@ -376,24 +442,55 @@ export async function extractInvoicesFromDocument(input: {
   }
 
   const prefixedText = text ? `Texto extraído del PDF:\n\n${text}` : ""
-  const pageChunks = chunkPages(imageDataUrls)
+  const pageTexts = input.pageTexts ?? []
+  const imagePages = imageDataUrls.map((url, index) => ({
+    url,
+    pageNumber: index + 1,
+    text: pageTexts[index] ?? "",
+  }))
+  const pageChunks = chunkPages(imagePages)
   const documentType = input.documentType
 
   try {
     if (pageChunks.length <= 1) {
-      return await requestStructuredExtraction(prefixedText, imageDataUrls, { documentType })
+      const pages = pageChunks[0] ?? []
+      const chunkText =
+        pages.length > 0
+          ? pages
+              .map(
+                (page) =>
+                  `PÁGINA PDF ${page.pageNumber}\n${page.text || "(sin texto seleccionable)"}`,
+              )
+              .join("\n\n")
+          : prefixedText
+      return await requestStructuredExtraction(
+        chunkText,
+        pages.map((page) => page.url),
+        {
+          documentType,
+          pageNumbers: pages.map((page) => page.pageNumber),
+        },
+      )
     }
 
     const batches: InvoiceOcrResult[][] = []
-    for (const [index, chunk] of pageChunks.entries()) {
-      const chunkText =
-        index === 0
-          ? prefixedText
-          : "Continuación del mismo PDF. Extrae SOLO las facturas o tickets visibles en estas páginas. No repitas las de páginas anteriores."
-      const batch = await requestStructuredExtraction(chunkText, chunk, {
-        allowEmpty: true,
-        documentType,
-      })
+    for (const chunk of pageChunks) {
+      const chunkText = [
+        "Extrae SOLO las facturas o tickets de las páginas indicadas a continuación.",
+        ...chunk.map(
+          (page) =>
+            `PÁGINA PDF ${page.pageNumber}\n${page.text || "(sin texto seleccionable)"}`,
+        ),
+      ].join("\n\n")
+      const batch = await requestStructuredExtraction(
+        chunkText,
+        chunk.map((page) => page.url),
+        {
+          allowEmpty: true,
+          documentType,
+          pageNumbers: chunk.map((page) => page.pageNumber),
+        },
+      )
       batches.push(batch)
     }
 
@@ -410,7 +507,13 @@ export async function extractInvoicesFromDocument(input: {
       text.replace(/\s+/g, " ").trim().length >= 80 &&
       isLikelyVisionUnsupported(error)
     ) {
-      return requestStructuredExtraction(prefixedText, [], { documentType })
+      const pageLabeledText =
+        pageTexts.length > 0
+          ? pageTexts
+              .map((pageText, index) => `PÁGINA PDF ${index + 1}\n${pageText}`)
+              .join("\n\n")
+          : prefixedText
+      return requestStructuredExtraction(pageLabeledText, [], { documentType })
     }
     throw error
   }
