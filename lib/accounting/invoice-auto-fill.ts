@@ -12,7 +12,7 @@ import {
 import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
 import { findVatRateType } from "@/lib/accounting/vat-catalog"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import { recalculateVatQuota } from "@/lib/types/invoice-entry-details"
 
 function round2(value: number): number {
@@ -102,7 +102,7 @@ export function applyTreatmentToEntryLines(
   let next = [...lines]
 
   if (counterpart) {
-    const formattedCounterpart = formatAccountCodeDisplay(counterpart)
+    const formattedCounterpart = formatAccountCodeStored(counterpart)
     const baseIdx = next.findIndex((line) => isBaseAccount(line.cuenta))
     if (baseIdx >= 0) {
       next[baseIdx] = { ...next[baseIdx], cuenta: formattedCounterpart }
@@ -111,7 +111,7 @@ export function applyTreatmentToEntryLines(
 
   const vatIdx = next.findIndex((line) => isVatAccount(line.cuenta))
   if (vatIdx >= 0) {
-    next[vatIdx] = { ...next[vatIdx], cuenta: formatAccountCodeDisplay(vatAccount) }
+    next[vatIdx] = { ...next[vatIdx], cuenta: formatAccountCodeStored(vatAccount) }
   }
 
   const hasIrpf = Boolean(treatment.defaultIrpfPercent && treatment.defaultIrpfPercent > 0)
@@ -124,7 +124,7 @@ export function applyTreatmentToEntryLines(
   if (hasIrpf) {
     const irpfLine: AccountingEntryLine = {
       id: createLineId(),
-      cuenta: formatAccountCodeDisplay(irpfAccount),
+      cuenta: formatAccountCodeStored(irpfAccount),
       concepto: buildRetentionConcept(partyLabel),
       debe: 0,
       haber: 0,
@@ -240,7 +240,7 @@ export function syncInvoiceIrpfLine(
   })
   const nextLine: AccountingEntryLine = {
     id: irpfIdx >= 0 ? lines[irpfIdx].id : createLineId(),
-    cuenta: formatAccountCodeDisplay(account),
+    cuenta: formatAccountCodeStored(account),
     concepto: buildRetentionConcept(partyLabel),
     debe: options.invoiceMode === "emitida" ? options.irpfAmount : 0,
     haber: options.invoiceMode === "emitida" ? 0 : options.irpfAmount,

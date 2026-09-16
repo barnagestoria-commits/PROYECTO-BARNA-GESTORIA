@@ -320,7 +320,7 @@ export function searchChartAccounts(
   ]
 
   const pgcResults: ChartAccountOption[] = searchPgcAccounts(query, limit).map((account) => ({
-    code: account.code,
+    code: formatAccountCodeDisplay(account.code),
     name: account.name,
     accountCode: account.code,
     source: "pgc" as const,

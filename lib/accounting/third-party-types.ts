@@ -25,10 +25,27 @@ export function normalizeCif(value: string): string {
   return normalizeTaxId(value)
 }
 
+/** Persistible: 400 se guarda como 400, 4100001 como 410.0001. */
+export function formatAccountCodeStored(accountCode: string): string {
+  const rawDigits = accountCode.replace(/\D/g, "")
+  if (!rawDigits) return ""
+  const digits =
+    rawDigits.length === 7 && rawDigits.endsWith("0000")
+      ? rawDigits.slice(0, 3)
+      : rawDigits.length === 8 && rawDigits.endsWith("0000")
+        ? rawDigits.slice(0, 4)
+        : rawDigits
+  if (digits.length <= 4) return digits
+  return `${digits.slice(0, 3)}.${digits.slice(3)}`
+}
+
+/** Visual PGC: 400 → 400.0000, 4751 → 4751.0000, 4100001 → 410.0001. */
 export function formatAccountCodeDisplay(accountCode: string): string {
   const digits = accountCode.replace(/\D/g, "")
-  if (digits.length <= 3) return digits
-  return `${digits.slice(0, 3)}.${digits.slice(3)}`
+  if (!digits) return ""
+  if (digits.length <= 4) return `${digits}.0000`
+  const suffix = digits.slice(3).padEnd(4, "0")
+  return `${digits.slice(0, 3)}.${suffix}`
 }
 
 export function parseSubaccountSequence(accountCode: string, prefix: string): number | null {

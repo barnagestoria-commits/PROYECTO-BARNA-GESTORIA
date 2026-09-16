@@ -2,13 +2,14 @@ import {
   parseDottedAccountShortcut,
   preferredParentForShortcutGroup,
 } from "@/lib/accounting/account-shortcut"
-import { buildAccountCode, formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { buildAccountCode, formatAccountCodeDisplay, formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import { normalizeCuenta } from "@/lib/reports/format"
 
 export function accountCodeLookupVariants(code: string): string[] {
   const digits = normalizeCuenta(code)
-  const formatted = formatAccountCodeDisplay(digits)
-  return [...new Set([code.trim(), digits, formatted].filter(Boolean))]
+  const stored = formatAccountCodeStored(digits)
+  const display = formatAccountCodeDisplay(digits)
+  return [...new Set([code.trim(), digits, stored, display].filter(Boolean))]
 }
 
 function accountFamily(digits: string): "cliente" | "proveedor" | "otro" {

@@ -10,7 +10,32 @@ export const DEMO_CONTACT_NIFS = new Set([
   "52678901T",
   "B00000067",
   "B00000075",
+  "B00000083",
+  "A84919760",
 ])
+
+const DEMO_ACCOUNT_NAME_MARKERS = [
+  "DIGI SPAIN TELECOM",
+  "TECH SOLUTIONS SL",
+  "SUMINISTROS GARCIA SA",
+  "INNOVACION BC SL",
+  "LOGISTICA EXPRESS SL",
+  "DISTRIBUCIONES NORTE SL",
+  "CONSULTORIA MARTINEZ",
+  "STARTUP LABS SL",
+  "SERVICIOS CLOUD INC",
+  "GESTION INTEGRAL BARCELONA SL",
+]
+
+function normalizeDemoName(value: string): string {
+  return value
+    .trim()
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+}
 
 export const MOCK_CONTACTS: Contact[] = [
   {
@@ -136,8 +161,27 @@ export function isDemoNif(nif: string): boolean {
   return DEMO_CONTACT_NIFS.has(normalized)
 }
 
+export function isDemoAccountName(name: string): boolean {
+  const normalized = normalizeDemoName(name)
+  if (!normalized) return false
+  return DEMO_ACCOUNT_NAME_MARKERS.some(
+    (marker) => normalized === marker || normalized.startsWith(`${marker} `) || normalized.includes(marker),
+  )
+}
+
+export function isDemoThirdParty(party: { cif?: string | null; name?: string | null; accountCode?: string | null }): boolean {
+  if (party.cif && isDemoNif(party.cif)) return true
+  if (party.name && isDemoAccountName(party.name)) return true
+  if (party.accountCode && isDemoStyleAccountCode(party.accountCode)) return true
+  return false
+}
+
 export function isDemoContact(contact: Contact): boolean {
-  return contact.id.startsWith("demo-") || isDemoNif(contact.nif)
+  return contact.id.startsWith("demo-") || isDemoThirdParty({
+    cif: contact.nif,
+    name: contact.razonSocial,
+    accountCode: contact.cuentaCliente ?? contact.cuentaProveedor,
+  })
 }
 
 /** Formato antiguo de cuentas demo en pantalla (430000001). No usar en numeración real. */

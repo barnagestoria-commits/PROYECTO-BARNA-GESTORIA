@@ -7,7 +7,7 @@ import {
 } from "@/lib/accounting/invoice-entry-concepts"
 import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
 import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import {
   findThirdPartyByCif,
   resolveOrCreateThirdParty,
@@ -199,10 +199,10 @@ export async function createInvoiceAccountingEntry(params: {
 
     const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
     const defaultIncomeAccount = invoice.incomeAccount?.trim()
-      ? formatAccountCodeDisplay(invoice.incomeAccount)
+      ? formatAccountCodeStored(invoice.incomeAccount)
       : treatment?.defaultCounterpartAccount
-        ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
-        : formatAccountCodeDisplay("705")
+        ? formatAccountCodeStored(treatment.defaultCounterpartAccount)
+        : formatAccountCodeStored("705")
     const lines = buildIssuedInvoiceLines(invoice, thirdParty.accountCode, defaultIncomeAccount)
     return persistInvoiceEntry({ ...params, invoice }, thirdParty, "17", lines)
   }
@@ -245,10 +245,10 @@ export async function createInvoiceAccountingEntry(params: {
 
   const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
   const defaultExpenseAccount = params.invoice.expenseAccount?.trim()
-    ? formatAccountCodeDisplay(params.invoice.expenseAccount)
+    ? formatAccountCodeStored(params.invoice.expenseAccount)
     : treatment?.defaultCounterpartAccount
-      ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
-      : formatAccountCodeDisplay(invoice.expenseAccount || "629")
+      ? formatAccountCodeStored(treatment.defaultCounterpartAccount)
+      : formatAccountCodeStored(invoice.expenseAccount || "629")
   const lines = buildReceivedInvoiceLines(invoice, thirdParty.accountCode, defaultExpenseAccount)
   return persistInvoiceEntry({ ...params, invoice }, thirdParty, "34", lines)
 }

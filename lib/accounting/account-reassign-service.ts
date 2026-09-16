@@ -1,4 +1,4 @@
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import {
   accountCodeLookupVariants,
   resolveEditedAccountCode,
@@ -46,13 +46,13 @@ async function assertTargetAvailable(
   const occupant = thirdParty ?? ledger
   if (occupant && normalizeCuenta(occupant.accountCode) !== fromDigits) {
     throw new Error(
-      `La cuenta ${formatAccountCodeDisplay(toDigits)} ya está ocupada${occupant.name ? ` (${occupant.name})` : ""}.`,
+      `La cuenta ${formatAccountCodeStored(toDigits)} ya está ocupada${occupant.name ? ` (${occupant.name})` : ""}.`,
     )
   }
 
   if (targetLine && normalizeCuenta(targetLine.cuenta) === toDigits) {
     throw new Error(
-      `La cuenta ${formatAccountCodeDisplay(toDigits)} ya tiene movimientos.`,
+      `La cuenta ${formatAccountCodeStored(toDigits)} ya tiene movimientos.`,
     )
   }
 }
@@ -67,7 +67,7 @@ export async function reassignCompanyAccount(
   }
 
   const toDigits = resolveEditedAccountCode(input.toAccountCode, fromDigits)
-  const toFormatted = formatAccountCodeDisplay(toDigits)
+  const toFormatted = formatAccountCodeStored(toDigits)
   const trimmedName = input.name?.trim()
 
   await assertTargetAvailable(companyId, fromDigits, toDigits)

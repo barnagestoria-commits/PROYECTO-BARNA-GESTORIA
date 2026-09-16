@@ -1,4 +1,4 @@
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import { accountCodeLookupVariants } from "@/lib/accounting/account-code-edit"
 import { normalizeCuenta } from "@/lib/reports/format"
 import { prisma } from "@/lib/db"
@@ -38,7 +38,7 @@ export async function transferAccountMovements(
   }
 
   const fromVariants = accountCodeLookupVariants(fromDigits)
-  const toFormatted = formatAccountCodeDisplay(toDigits)
+  const toFormatted = formatAccountCodeStored(toDigits)
 
   const lines = await prisma.entryLine.findMany({
     where: {

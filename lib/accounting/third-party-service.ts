@@ -4,10 +4,12 @@ import {
   DEMO_CONTACT_NIFS,
   isDemoNif,
   isDemoStyleAccountCode,
+  isDemoThirdParty,
 } from "@/lib/contacts/demo-contacts"
 import {
   buildAccountCode,
   formatAccountCodeDisplay,
+  formatAccountCodeStored,
   normalizeCif,
   parseSubaccountSequence,
   THIRD_PARTY_PREFIX,
@@ -34,11 +36,39 @@ function shouldCountAccountForSequence(
 }
 
 export async function purgeDemoThirdParties(companyId: string): Promise<number> {
+  const parties = await prisma.thirdParty.findMany({
+    where: { companyId },
+    select: { id: true, cif: true, name: true, accountCode: true },
+  })
+  const demoParties = parties.filter((party) => isDemoThirdParty(party))
+  if (demoParties.length === 0) return 0
+
+  const demoCodes = demoParties.flatMap((party) => {
+    const digits = normalizeAccountDigits(party.accountCode)
+    const formatted = formatAccountCodeStored(party.accountCode)
+    return [...new Set([party.accountCode, digits, formatted].filter(Boolean))]
+  })
+
+  const usedLines =
+    demoCodes.length > 0
+      ? await prisma.entryLine.findMany({
+          where: {
+            entry: { companyId },
+            cuenta: { in: demoCodes },
+          },
+          select: { cuenta: true },
+        })
+      : []
+
+  const usedDigits = new Set(usedLines.map((line) => normalizeAccountDigits(line.cuenta)))
+  const deletableIds = demoParties
+    .filter((party) => !usedDigits.has(normalizeAccountDigits(party.accountCode)))
+    .map((party) => party.id)
+
+  if (deletableIds.length === 0) return 0
+
   const result = await prisma.thirdParty.deleteMany({
-    where: {
-      companyId,
-      cif: { in: [...DEMO_CONTACT_NIFS] },
-    },
+    where: { id: { in: deletableIds } },
   })
   return result.count
 }

@@ -3,12 +3,13 @@ import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
-import { isDemoNif } from "@/lib/contacts/demo-contacts"
+import { isDemoThirdParty } from "@/lib/contacts/demo-contacts"
 import {
   isThirdPartyNewAccountPrefix,
   resolveAccountParentCode,
 } from "@/lib/accounting/new-account-prefix"
 import {
+  purgeDemoThirdParties,
   resolveOrCreateThirdPartyWithPrefix,
 } from "@/lib/accounting/third-party-service"
 import { upsertAccountTreatment } from "@/lib/accounting/account-treatment-service"
@@ -37,13 +38,16 @@ export async function GET(request: Request) {
       prisma.accountingEntry.count({ where: { companyId } }),
     ])
 
-    const realThirdParties = thirdParties.filter((party) => !isDemoNif(party.cif))
-    const hasRealData = realThirdParties.length > 0 || accountingEntryCount > 0
+    const visibleThirdParties = thirdParties.filter((party) => !isDemoThirdParty(party))
+    const hasRealData = visibleThirdParties.length > 0 || accountingEntryCount > 0
+    if (hasRealData) {
+      await purgeDemoThirdParties(companyId)
+    }
 
     return NextResponse.json({
       success: true,
       hasRealData,
-      thirdParties: thirdParties.map((party) => ({
+      thirdParties: visibleThirdParties.map((party) => ({
         id: party.id,
         type: party.type,
         cif: party.cif,

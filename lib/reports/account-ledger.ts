@@ -18,6 +18,8 @@ import {
   type CompanyChartPlanInfo,
 } from "@/lib/reports/pgc-chart-plans"
 import { normalizeCuenta, round2 } from "@/lib/reports/format"
+import { isDemoThirdParty } from "@/lib/contacts/demo-contacts"
+import { purgeDemoThirdParties } from "@/lib/accounting/third-party-service"
 import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
 
 export interface LedgerQuery {
@@ -174,7 +176,7 @@ async function loadOpenedAccountNames(companyId: string) {
   const [thirdParties, subaccounts] = await Promise.all([
     prisma.thirdParty.findMany({
       where: { companyId },
-      select: { accountCode: true, name: true },
+      select: { accountCode: true, name: true, cif: true },
     }),
     prisma.ledgerSubaccount.findMany({
       where: { companyId },
@@ -182,12 +184,25 @@ async function loadOpenedAccountNames(companyId: string) {
     }),
   ])
 
-  return [...thirdParties, ...subaccounts]
-    .map((row) => ({
+  return [
+    ...thirdParties.map((row) => ({
       code: normalizeCuenta(row.accountCode),
       name: row.name.trim(),
-    }))
-    .filter((row) => row.code && row.name)
+      cif: row.cif,
+      accountCode: row.accountCode,
+    })),
+    ...subaccounts.map((row) => ({
+      code: normalizeCuenta(row.accountCode),
+      name: row.name.trim(),
+      cif: null as string | null,
+      accountCode: row.accountCode,
+    })),
+  ].filter(
+    (row) =>
+      row.code &&
+      row.name &&
+      !isDemoThirdParty({ cif: row.cif, name: row.name, accountCode: row.accountCode }),
+  )
 }
 
 export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountBalance[]> {
@@ -216,11 +231,16 @@ export async function fetchCompanyChartExtract(
   accountsWithMovement: number
   detailLevel: GestoriaAccountDetailLevel
 }> {
-  const [plan, movements, openedAccounts] = await Promise.all([
+  const [plan, movements, openedAccounts, entryCount] = await Promise.all([
     resolveCompanyChartPlan(query.companyId),
     loadMovementTotals(query),
     loadOpenedAccountNames(query.companyId),
+    prisma.accountingEntry.count({ where: { companyId: query.companyId } }),
   ])
+
+  if (entryCount > 0) {
+    await purgeDemoThirdParties(query.companyId)
+  }
 
   const rows = buildChartBalanceRows({
     planCodes: getPlanAccountCodes(plan.accountingPlanType),

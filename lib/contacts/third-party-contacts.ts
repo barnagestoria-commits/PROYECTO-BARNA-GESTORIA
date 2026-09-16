@@ -1,6 +1,6 @@
 import type { ThirdPartyType } from "@prisma/client"
 import type { Contact, ContactType } from "@/lib/contacts/types"
-import { isDemoNif } from "@/lib/contacts/demo-contacts"
+import { isDemoThirdParty } from "@/lib/contacts/demo-contacts"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 
 export interface ThirdPartyListItem {
@@ -20,7 +20,7 @@ export function mapThirdPartiesToContacts(parties: ThirdPartyListItem[]): Contac
   const byCif = new Map<string, Contact>()
 
   for (const party of parties) {
-    if (isDemoNif(party.cif)) continue
+    if (isDemoThirdParty(party)) continue
 
     const existing = byCif.get(party.cif)
     if (!existing) {

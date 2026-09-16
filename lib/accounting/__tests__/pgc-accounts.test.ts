@@ -30,6 +30,7 @@ describe("searchChartAccounts", () => {
     const codes = byCode.map((account) => account.accountCode.replace(/\D/g, ""))
 
     expect(codes).toContain("430")
+    expect(byCode.some((account) => account.source === "pgc" && account.code === "430.0000")).toBe(true)
     expect(codes).toContain("4300002")
     expect(codes).toContain("4300001")
   })
