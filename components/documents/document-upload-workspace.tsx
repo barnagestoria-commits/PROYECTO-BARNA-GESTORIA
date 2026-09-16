@@ -210,7 +210,7 @@ function DocumentUploadWorkspaceContent({
 
   const handleConfirmValidation = async (
     data: InvoiceOcrResult,
-    options?: { allowDuplicate?: boolean },
+    options?: { allowDuplicate?: boolean; rememberCounterpartAccount?: boolean },
   ) => {
     if (!pendingValidation) return
 
@@ -237,6 +237,7 @@ function DocumentUploadWorkspaceContent({
           documentType,
           invoice: data,
           allowDuplicate: Boolean(options?.allowDuplicate),
+          rememberCounterpartAccount: Boolean(options?.rememberCounterpartAccount),
         }),
       })
 

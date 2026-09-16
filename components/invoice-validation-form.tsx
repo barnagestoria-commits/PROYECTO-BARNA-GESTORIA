@@ -20,9 +20,13 @@ import {
   X,
 } from "lucide-react"
 import type { InvoiceOcrResult, IvaDesgloseLine, TipoIva } from "@/lib/types/invoice"
-import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
+import {
+  formatAccountCodeDisplay,
+  type ThirdPartyResolution,
+} from "@/lib/accounting/third-party-types"
 import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
+import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { apiFetch } from "@/lib/api-client"
 import { normalizeTaxId } from "@/lib/tax-id"
 import { TIPOS_IVA } from "@/lib/types/invoice"
@@ -71,7 +75,10 @@ interface InvoiceValidationFormProps {
   ocrSettings?: OcrWorkspaceSettings
   enableShortcuts?: boolean
   onOpenSettings?: () => void
-  onConfirm: (data: InvoiceOcrResult, options?: { allowDuplicate?: boolean }) => void
+  onConfirm: (
+    data: InvoiceOcrResult,
+    options?: { allowDuplicate?: boolean; rememberCounterpartAccount?: boolean },
+  ) => void
   onCancel: () => void
   onSkip?: () => void
   isSubmitting?: boolean
@@ -122,6 +129,11 @@ export function InvoiceValidationForm({
   isSubmitting = false,
 }: InvoiceValidationFormProps) {
   const formRef = useRef<HTMLFormElement>(null)
+  const ledgerAccountCheckRef = useRef<{
+    key: string
+    promise: Promise<string | null>
+  } | null>(null)
+  const ledgerAccountPromptKeyRef = useRef<string | null>(null)
   const [formData, setFormData] = useState<InvoiceOcrResult>(() => {
     const seeded = syncInvoiceTotals({
       ...initialData,
@@ -171,6 +183,7 @@ export function InvoiceValidationForm({
     useState<NewAccountPrefix | null>(null)
   const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
   const [ledgerAccountError, setLedgerAccountError] = useState<string | null>(null)
+  const [rememberLedgerAccount, setRememberLedgerAccount] = useState(false)
 
   const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
   const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
@@ -238,6 +251,29 @@ export function InvoiceValidationForm({
         if (!userEditedAccountCode) {
           setAccountCodeDraft(result.resolution.formattedAccountCode)
         }
+        if (!userOverrodeAccounts) {
+          try {
+            const treatmentResult = await apiFetch<{
+              success: true
+              treatment: AccountTreatmentConfigDto | null
+            }>(
+              `/api/accounting/account-treatment?accountCode=${encodeURIComponent(result.resolution.accountCode)}`,
+              { signal: controller.signal },
+            )
+            const counterpart = treatmentResult.treatment?.defaultCounterpartAccount?.trim()
+            if (counterpart && !controller.signal.aborted) {
+              const field: OcrLedgerAccountField =
+                documentType === "factura-emitida" ? "incomeAccount" : "expenseAccount"
+              setFormData((prev) => ({
+                ...prev,
+                [field]: formatAccountCodeDisplay(counterpart),
+                classificationReason: "Cuenta habitual guardada para este tercero.",
+              }))
+            }
+          } catch {
+            // La ficha del tercero sigue siendo válida aunque no haya parametrización guardada.
+          }
+        }
       } catch (error) {
         if (controller.signal.aborted) return
         setAccountPreview(null)
@@ -261,6 +297,7 @@ export function InvoiceValidationForm({
     thirdPartyType,
     selectedPrefix,
     documentType,
+    userOverrodeAccounts,
     userEditedAccountCode,
     accountCodeDraft,
   ])
@@ -495,11 +532,13 @@ export function InvoiceValidationForm({
 
   const handleExpenseChange = (expenseAccount: string) => {
     setUserOverrodeAccounts(true)
+    setRememberLedgerAccount(true)
     updateField("expenseAccount", expenseAccount)
   }
 
   const handleIncomeChange = (incomeAccount: string) => {
     setUserOverrodeAccounts(true)
+    setRememberLedgerAccount(true)
     updateField("incomeAccount", incomeAccount)
   }
 
@@ -508,46 +547,67 @@ export function InvoiceValidationForm({
     updateField(field, value)
   }
 
-  const checkLedgerAccount = async (
+  const checkLedgerAccount = (
     field: OcrLedgerAccountField,
     rawValue: string,
   ): Promise<string | null> => {
     const value = rawValue.trim()
-    if (!value) {
-      setLedgerAccountError(null)
-      return ""
+    const key = `${field}:${value}`
+    if (ledgerAccountPromptKeyRef.current === key) {
+      return Promise.resolve(null)
+    }
+    if (ledgerAccountCheckRef.current?.key === key) {
+      return ledgerAccountCheckRef.current.promise
     }
 
-    const createPrefix = parseNewAccountPrefix(value)
-    if (createPrefix) {
-      setPendingLedgerField(field)
-      setFixedAccountCode(null)
-      setNewSubaccountPrefix(createPrefix)
-      return null
-    }
+    const promise = (async (): Promise<string | null> => {
+      if (!value) {
+        setLedgerAccountError(null)
+        return ""
+      }
 
-    setLedgerAccountError(null)
-    try {
-      const year = Number.parseInt(formData.fechaFactura.slice(0, 4), 10) || new Date().getFullYear()
-      const result = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
-        `/api/accounting/accounts/exists?code=${encodeURIComponent(value)}&year=${year}`,
-      )
-
-      if (!result.exists) {
+      const createPrefix = parseNewAccountPrefix(value)
+      if (createPrefix) {
+        ledgerAccountPromptKeyRef.current = key
         setPendingLedgerField(field)
-        setMissingLedgerAccount(result)
+        setFixedAccountCode(null)
+        setNewSubaccountPrefix(createPrefix)
         return null
       }
 
-      const resolved = result.formattedAccountCode || value
-      if (resolved !== rawValue) setLedgerAccountValue(field, resolved)
-      return resolved
-    } catch (error) {
-      setLedgerAccountError(
-        error instanceof Error ? error.message : "No se pudo comprobar la cuenta contable.",
-      )
-      return null
-    }
+      setLedgerAccountError(null)
+      try {
+        const year =
+          Number.parseInt(formData.fechaFactura.slice(0, 4), 10) || new Date().getFullYear()
+        const result = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
+          `/api/accounting/accounts/exists?code=${encodeURIComponent(value)}&year=${year}`,
+        )
+
+        if (!result.exists) {
+          ledgerAccountPromptKeyRef.current = key
+          setPendingLedgerField(field)
+          setMissingLedgerAccount(result)
+          return null
+        }
+
+        const resolved = result.formattedAccountCode || value
+        if (resolved !== rawValue) setLedgerAccountValue(field, resolved)
+        return resolved
+      } catch (error) {
+        setLedgerAccountError(
+          error instanceof Error ? error.message : "No se pudo comprobar la cuenta contable.",
+        )
+        return null
+      }
+    })()
+
+    ledgerAccountCheckRef.current = { key, promise }
+    void promise.finally(() => {
+      if (ledgerAccountCheckRef.current?.promise === promise) {
+        ledgerAccountCheckRef.current = null
+      }
+    })
+    return promise
   }
 
   const handleMissingLedgerAccountConfirm = () => {
@@ -565,12 +625,15 @@ export function InvoiceValidationForm({
     setFixedAccountCode(null)
     setNewSubaccountPrefix(null)
     setLedgerAccountError(null)
+    setRememberLedgerAccount(true)
+    ledgerAccountPromptKeyRef.current = null
   }
 
   const closeNewSubaccount = () => {
     setNewSubaccountPrefix(null)
     setFixedAccountCode(null)
     setPendingLedgerField(null)
+    ledgerAccountPromptKeyRef.current = null
   }
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -591,7 +654,10 @@ export function InvoiceValidationForm({
         cif: normalizeTaxId(formData.cif),
         preferredAccountCode: accountCodeDraft.trim() || undefined,
       }),
-      { allowDuplicate: Boolean(duplicate) && allowDuplicate },
+      {
+        allowDuplicate: Boolean(duplicate) && allowDuplicate,
+        rememberCounterpartAccount: rememberLedgerAccount,
+      },
     )
   }
 
@@ -1193,6 +1259,7 @@ export function InvoiceValidationForm({
         onCancel={() => {
           setMissingLedgerAccount(null)
           setPendingLedgerField(null)
+          ledgerAccountPromptKeyRef.current = null
         }}
       />
       <NewSubaccountDialog
