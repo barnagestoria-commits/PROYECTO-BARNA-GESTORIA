@@ -1,9 +1,10 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2, Pencil, X } from "lucide-react"
+import { Loader2, Pencil, ArrowRightLeft, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
+import { TransferMovementsDialog } from "@/components/accounting/transfer-movements-dialog"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
 import type { AccountMovementsSummary } from "@/lib/accounting/account-movements-service"
@@ -18,6 +19,7 @@ interface AccountMovementsDialogProps {
   onOpenEntry?: (entryId: string) => void
   onEntryDeleted?: () => void
   onEditAccount?: (accountCode: string, accountName: string) => void
+  onChanged?: () => void
 }
 
 export function AccountMovementsDialog({
@@ -30,16 +32,20 @@ export function AccountMovementsDialog({
   onOpenEntry,
   onEntryDeleted,
   onEditAccount,
+  onChanged,
 }: AccountMovementsDialogProps) {
   const [summary, setSummary] = useState<AccountMovementsSummary | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [localRefresh, setLocalRefresh] = useState(0)
 
   useEffect(() => {
     if (!open || !cuenta) {
       setSummary(null)
       setError(null)
+      setTransferOpen(false)
       return
     }
 
@@ -66,7 +72,7 @@ export function AccountMovementsDialog({
     return () => {
       cancelled = true
     }
-  }, [cuenta, open, refreshKey, year])
+  }, [cuenta, open, refreshKey, year, localRefresh])
 
   const handleDeleteEntry = async (entryId: string) => {
     const confirmed = window.confirm(
@@ -80,6 +86,7 @@ export function AccountMovementsDialog({
     try {
       await apiFetch(`/api/accounting/entries/${entryId}`, { method: "DELETE" })
       onEntryDeleted?.()
+      onChanged?.()
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo eliminar el asiento.")
     } finally {
@@ -88,6 +95,7 @@ export function AccountMovementsDialog({
   }
 
   return (
+    <>
     <AccountingModal
       open={open}
       title="Extracto de cuenta"
@@ -113,17 +121,33 @@ export function AccountMovementsDialog({
               <div className="font-semibold">
                 {summary.formattedCuenta} · {summary.label}
               </div>
-              {onEditAccount && cuenta ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 border-emerald-300 bg-white text-emerald-900"
-                  onClick={() => onEditAccount(cuenta, summary.label)}
-                >
-                  <Pencil className="mr-1 h-3.5 w-3.5" />
-                  Editar cuenta
-                </Button>
+              {cuenta ? (
+                <div className="flex flex-col items-stretch gap-2 sm:items-end">
+                  {onEditAccount ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 border-emerald-300 bg-white text-emerald-900"
+                      onClick={() => onEditAccount(cuenta, summary.label)}
+                    >
+                      <Pencil className="mr-1 h-3.5 w-3.5" />
+                      Editar cuenta
+                    </Button>
+                  ) : null}
+                  {summary.movements.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 border-emerald-300 bg-white text-emerald-900"
+                      onClick={() => setTransferOpen(true)}
+                    >
+                      <ArrowRightLeft className="mr-1 h-3.5 w-3.5" />
+                      Editar movimientos
+                    </Button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
             <div className="mt-1 flex flex-wrap gap-4">
@@ -212,5 +236,20 @@ export function AccountMovementsDialog({
         </div>
       ) : null}
     </AccountingModal>
+    {summary && cuenta ? (
+      <TransferMovementsDialog
+        open={transferOpen}
+        fromAccountCode={cuenta}
+        fromAccountLabel={summary.label}
+        movements={summary.movements}
+        onClose={() => setTransferOpen(false)}
+        onTransferred={() => {
+          setLocalRefresh((value) => value + 1)
+          onChanged?.()
+          onEntryDeleted?.()
+        }}
+      />
+    ) : null}
+    </>
   )
 }

@@ -25,6 +25,7 @@ import {
 } from "@/lib/accounting/duplicate-invoice"
 import { reassignCompanyAccount } from "@/lib/accounting/account-reassign-service"
 import { calculateTotalFromBreakdown, sumDesglose } from "@/lib/invoice-totals"
+import { invoiceDetailsFromOcr } from "@/lib/accounting/invoice-details-normalize"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
 
@@ -288,7 +289,10 @@ async function persistInvoiceEntry(
       issueDate: parseInvoiceDate(params.invoice.fechaFactura),
       operationDate: parseInvoiceDate(params.invoice.fechaFactura),
       invoiceNumber: params.invoice.numeroFactura,
-      invoiceDataJson: JSON.stringify(params.invoice),
+      invoiceDataJson: JSON.stringify({
+        ...invoiceDetailsFromOcr(params.invoice),
+        cif: params.invoice.cif,
+      }),
       commandCode,
       createdById: params.createdById,
       lines: { create: lines },

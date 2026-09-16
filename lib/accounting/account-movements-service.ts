@@ -38,6 +38,24 @@ function matchesCuenta(stored: string, target: string): boolean {
   return accountMatchesQuery(stored, target)
 }
 
+export function formatContrapartida(
+  entryLines: Array<{ cuenta: string }>,
+  currentCuenta: string,
+): string | null {
+  const seen = new Set<string>()
+  const codes: string[] = []
+
+  for (const other of entryLines) {
+    if (matchesCuenta(other.cuenta, currentCuenta)) continue
+    const digits = normalizeCuenta(other.cuenta)
+    if (!digits || seen.has(digits)) continue
+    seen.add(digits)
+    codes.push(formatAccountCodeDisplay(other.cuenta))
+  }
+
+  return codes.length > 0 ? codes.join(" · ") : null
+}
+
 export async function fetchAccountMovements(
   companyId: string,
   cuenta: string,
@@ -115,8 +133,7 @@ export async function fetchAccountMovements(
     const haber = decimalToNumber(line.haber)
     running = round2(running + debe - haber)
 
-    const contrapartida =
-      line.entry.lines.find((other) => !matchesCuenta(other.cuenta, normalized))?.cuenta ?? null
+    const contrapartida = formatContrapartida(line.entry.lines, normalized)
 
     return {
       id: line.id,

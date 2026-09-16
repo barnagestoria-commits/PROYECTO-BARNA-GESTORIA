@@ -50,6 +50,8 @@ function matchesParty(params: {
 
   const stored = parseStoredInvoice(params.storedJson)
   if (stored?.cif && normalizeTaxId(stored.cif) === cif) return true
+  const storedNif = (stored as { nif?: string } | null)?.nif
+  if (storedNif && normalizeTaxId(storedNif) === cif) return true
   if (params.lineConcept?.toUpperCase().includes(cif)) return true
   return false
 }

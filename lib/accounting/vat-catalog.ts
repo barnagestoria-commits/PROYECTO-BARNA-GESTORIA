@@ -119,6 +119,10 @@ export function findVatRateType(code: string): VatRateType | undefined {
   return VAT_RATE_TYPES.find((item) => item.code === normalized)
 }
 
+export function findVatRateTypeByPercent(percent: number): VatRateType | undefined {
+  return VAT_RATE_TYPES.find((item) => item.vatPercent === percent)
+}
+
 export function findTaxForm(code: string): TaxFormType | undefined {
   return TAX_FORM_TYPES.find((item) => item.code === code.trim())
 }

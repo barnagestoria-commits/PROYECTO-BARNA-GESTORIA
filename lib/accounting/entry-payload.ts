@@ -11,6 +11,7 @@ import {
   validateAnalyticDistributions,
   type AnalyticDistributionInput,
 } from "@/lib/accounting/analytic-accounting-types"
+import { normalizeInvoiceDetails } from "@/lib/accounting/invoice-details-normalize"
 import {
   createDefaultInvoiceDetails,
   type InvoiceEntryDetails,
@@ -48,7 +49,7 @@ export function serializeInvoiceDetails(details: InvoiceEntryDetails | null | un
 export function parseInvoiceDetails(json: string | null | undefined): InvoiceEntryDetails | null {
   if (!json) return null
   try {
-    return JSON.parse(json) as InvoiceEntryDetails
+    return normalizeInvoiceDetails(JSON.parse(json))
   } catch {
     return null
   }

@@ -49,8 +49,9 @@ export function applyTreatmentToInvoiceDetails(
 ): InvoiceEntryDetails {
   const vatType = treatment.defaultVatType ?? "04"
   const rate = findVatRateType(vatType)
+  const existingLines = details.vatLines ?? []
   const vatLine = recalculateVatQuota({
-    ...(details.vatLines[0] ?? {
+    ...(existingLines[0] ?? {
       id: `vat-${Date.now()}`,
       operation: "1",
       base: 0,
@@ -67,7 +68,7 @@ export function applyTreatmentToInvoiceDetails(
 
   return {
     ...details,
-    vatLines: [vatLine, ...details.vatLines.slice(1)],
+    vatLines: [vatLine, ...existingLines.slice(1)],
     irpfPercent: treatment.defaultIrpfPercent ?? 0,
     irpfAccount: treatment.defaultIrpfAccount ?? "",
     applyIrpf: Boolean(treatment.defaultIrpfPercent && treatment.defaultIrpfPercent > 0),
@@ -173,7 +174,7 @@ export function calculateAmountsFromTotal(
     return { base: 0, quota: 0, irpf: 0, total: 0 }
   }
 
-  const vatPercent = details.vatLines[0]?.vatPercent ?? 21
+  const vatPercent = details.vatLines?.[0]?.vatPercent ?? 21
   const vatRate = vatPercent / 100
   const irpfRate =
     details.applyIrpf && details.irpfPercent > 0 ? details.irpfPercent / 100 : 0
@@ -191,7 +192,16 @@ export function syncInvoiceDetailsFromAmounts(
   details: InvoiceEntryDetails,
   amounts: InvoiceAmountsWithIrpf,
 ): InvoiceEntryDetails {
-  const vatLines = details.vatLines.map((line, index) =>
+  const currentLines = details.vatLines?.length ? details.vatLines : []
+  const vatLines = (currentLines.length > 0 ? currentLines : [{
+    id: `vat-${Date.now()}`,
+    operation: "1",
+    base: amounts.base,
+    vatType: "04",
+    vatPercent: 21,
+    quota: 0,
+    taxForm: "347",
+  }]).map((line, index) =>
     index === 0 ? recalculateVatQuota({ ...line, base: amounts.base }) : line,
   )
 

@@ -79,6 +79,7 @@ export function CompanyExtractPage() {
         onEditAccount={(accountCode, accountName) =>
           setEditAccount({ cuenta: accountCode, label: accountName })
         }
+        onChanged={() => setExtractRefresh((value) => value + 1)}
       />
 
       <EditAccountDialog

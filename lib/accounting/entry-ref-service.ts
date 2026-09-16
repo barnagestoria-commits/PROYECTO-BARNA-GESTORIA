@@ -21,6 +21,8 @@ export interface EntryRefSummary {
   concepto: string | null
 }
 
+export const LAST_ENTRIES_LIMIT = 8
+
 export async function searchEntriesByRef(params: {
   companyId: string
   fromRef?: number
@@ -31,21 +33,18 @@ export async function searchEntriesByRef(params: {
   const nextRefNumber = await getNextEntryRefNumber(params.companyId)
 
   if (params.last) {
-    const entry = await prisma.accountingEntry.findFirst({
+    const entries = await prisma.accountingEntry.findMany({
       where: { companyId: params.companyId },
       orderBy: { refNumber: "desc" },
+      take: params.limit ?? LAST_ENTRIES_LIMIT,
       include: {
-        lines: { orderBy: { sortOrder: "asc" }, take: 1 },
+        lines: { orderBy: { sortOrder: "asc" } },
       },
     })
 
-    if (!entry) {
-      return { entries: [], nextRefNumber: 1 }
-    }
-
     return {
-      entries: [mapEntryRefSummary(entry)],
-      nextRefNumber,
+      entries: entries.map(mapEntryRefSummary),
+      nextRefNumber: entries.length === 0 ? 1 : nextRefNumber,
     }
   }
 

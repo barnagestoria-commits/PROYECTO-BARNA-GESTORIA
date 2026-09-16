@@ -16,6 +16,9 @@ interface PgcChartDialogProps {
   onSelect: (accountCode: string, accountName: string) => void
   ledgerSubaccounts?: LedgerSubaccountOption[]
   thirdParties?: ThirdPartyAccountOption[]
+  title?: string
+  subtitle?: string
+  layer?: "base" | "nested" | "top"
 }
 
 export function PgcChartDialog({
@@ -24,6 +27,9 @@ export function PgcChartDialog({
   onSelect,
   ledgerSubaccounts = [],
   thirdParties = [],
+  title = "Plan General Contable",
+  subtitle = "F4 · Selecciona una cuenta para la línea activa",
+  layer = "base",
 }: PgcChartDialogProps) {
   const [query, setQuery] = useState("")
   const [catalog, setCatalog] = useState<{
@@ -85,9 +91,10 @@ export function PgcChartDialog({
   return (
     <AccountingModal
       open={open}
-      title="Plan General Contable"
-      subtitle="F4 · Selecciona una cuenta para la línea activa"
+      title={title}
+      subtitle={subtitle}
       onClose={onClose}
+      layer={layer}
       footer={
         <p className="text-xs text-graphite-500">
           Busca por código (430.2) o por nombre (Tipay, clientes, IVA…). Pulsa Enter o haz clic para

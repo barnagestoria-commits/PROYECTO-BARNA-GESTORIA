@@ -61,7 +61,8 @@ export function InvoiceEntryPanel({
   onOpenNifLookup,
   deriveFromTotal = false,
 }: InvoiceEntryPanelProps) {
-  const totals = sumInvoiceTotals(details.vatLines)
+  const vatLines = details.vatLines?.length ? details.vatLines : [createEmptyVatLine()]
+  const totals = sumInvoiceTotals(vatLines)
   const irpfQuota =
     details.applyIrpf && details.irpfPercent > 0
       ? Math.round(totals.base * (details.irpfPercent / 100) * 100) / 100
@@ -77,7 +78,7 @@ export function InvoiceEntryPanel({
     lineId: string,
     patch: Partial<(typeof details.vatLines)[number]>,
   ) => {
-    const vatLines = details.vatLines.map((line) => {
+    const vatLines = (details.vatLines ?? []).map((line) => {
       if (line.id !== lineId) return line
       return recalculateVatQuota({ ...line, ...patch })
     })
@@ -87,7 +88,7 @@ export function InvoiceEntryPanel({
   const addVatLine = () => {
     onChange({
       ...details,
-      vatLines: [...details.vatLines, createEmptyVatLine()],
+      vatLines: [...(details.vatLines ?? []), createEmptyVatLine()],
     })
   }
 
@@ -286,7 +287,7 @@ export function InvoiceEntryPanel({
               </tr>
             </thead>
             <tbody>
-              {details.vatLines.map((line) => {
+              {vatLines.map((line) => {
                 const operation = findVatOperation(line.operation)
                 const vatType = findVatRateType(line.vatType)
                 const taxForm = findTaxForm(line.taxForm)

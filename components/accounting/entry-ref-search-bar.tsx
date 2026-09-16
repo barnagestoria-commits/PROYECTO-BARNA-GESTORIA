@@ -23,6 +23,7 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
   const [error, setError] = useState<string | null>(null)
   const [resultsOpen, setResultsOpen] = useState(false)
   const [results, setResults] = useState<EntryRefSummary[]>([])
+  const [resultsTitle, setResultsTitle] = useState("Resultados de búsqueda")
 
   useEffect(() => {
     let cancelled = false
@@ -75,12 +76,13 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
         return
       }
 
-      if (data.entries.length === 1) {
+      if (!options.last && data.entries.length === 1) {
         onOpenEntry(data.entries[0].id)
         return
       }
 
       setResults(data.entries)
+      setResultsTitle(options.last ? "Últimos asientos" : "Resultados de búsqueda")
       setResultsOpen(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo buscar el asiento.")
@@ -111,7 +113,7 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
             {isSearching ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
-              "Último asiento"
+              "Últimos asientos"
             )}
           </Button>
         </div>
@@ -168,7 +170,7 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
 
       <AccountingModal
         open={resultsOpen}
-        title="Resultados de búsqueda"
+        title={resultsTitle}
         subtitle="Selecciona un asiento para abrirlo"
         onClose={() => setResultsOpen(false)}
         className="max-w-3xl"

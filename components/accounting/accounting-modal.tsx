@@ -14,7 +14,7 @@ interface AccountingModalProps {
   children: ReactNode
   footer?: ReactNode
   className?: string
-  layer?: "base" | "nested"
+  layer?: "base" | "nested" | "top"
 }
 
 export function AccountingModal({
@@ -55,7 +55,7 @@ export function AccountingModal({
     <div
       className={cn(
         "fixed inset-0 flex items-end justify-center p-4 sm:items-center",
-        layer === "nested" ? "z-[140]" : "z-[120]",
+        layer === "top" ? "z-[160]" : layer === "nested" ? "z-[140]" : "z-[120]",
       )}
     >
       <button

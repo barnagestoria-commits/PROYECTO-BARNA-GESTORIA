@@ -15,6 +15,7 @@ import {
   saveAccountAnalyticTemplate,
 } from "@/lib/accounting/analytic-accounting-service"
 import { isAnalyticAccount } from "@/lib/accounting/analytic-accounting-types"
+import { ensureInvoiceVatLines } from "@/lib/accounting/invoice-details-normalize"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
@@ -544,12 +545,12 @@ export function hasInvoiceData(entry: AccountingEntryDetail): boolean {
 
 export function getEditableInvoiceDetails(entry: AccountingEntryDetail) {
   if (entry.invoiceDetails) {
-    return {
+    return ensureInvoiceVatLines({
       ...entry.invoiceDetails,
       issueDate: entry.issueDate ?? entry.invoiceDetails.issueDate,
       operationDate: entry.operationDate ?? entry.invoiceDetails.operationDate,
       invoiceNumber: entry.invoiceNumber ?? entry.invoiceDetails.invoiceNumber,
-    }
+    })
   }
 
   if (hasInvoiceData(entry)) {
