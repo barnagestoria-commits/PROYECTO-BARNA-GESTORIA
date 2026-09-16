@@ -3,6 +3,7 @@ import type { DocumentStatus, DocumentType } from "@prisma/client"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { createInvoiceAccountingEntry } from "@/lib/accounting/invoice-entry-service"
 import { DuplicateInvoiceError } from "@/lib/accounting/duplicate-invoice"
+import { checkAccountExists } from "@/lib/accounting/account-exists-service"
 import { getCompanyAccountingSettings } from "@/lib/accounting/analytic-accounting-service"
 import { prisma } from "@/lib/db"
 import { calculateTotalFromBreakdown } from "@/lib/invoice-totals"
@@ -63,6 +64,28 @@ export async function POST(request: Request) {
           },
           { status: 400 },
         )
+      }
+    }
+
+    const ledgerField =
+      body.documentType === "factura-emitida" ? "incomeAccount" : "expenseAccount"
+    const ledgerAccount = body.invoice[ledgerField]?.trim()
+    if (ledgerAccount) {
+      const account = await checkAccountExists(companyId, ledgerAccount)
+      if (!account.exists) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: `La cuenta ${account.formattedAccountCode} no está dada de alta. Créala antes de confirmar la factura.`,
+            code: "ACCOUNT_NOT_REGISTERED",
+            account,
+          },
+          { status: 409 },
+        )
+      }
+      body.invoice = {
+        ...body.invoice,
+        [ledgerField]: account.formattedAccountCode || ledgerAccount,
       }
     }
 

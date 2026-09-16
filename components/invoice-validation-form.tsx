@@ -22,10 +22,20 @@ import {
 import type { InvoiceOcrResult, IvaDesgloseLine, TipoIva } from "@/lib/types/invoice"
 import type { ThirdPartyResolution } from "@/lib/accounting/third-party-types"
 import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
+import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
 import { apiFetch } from "@/lib/api-client"
 import { normalizeTaxId } from "@/lib/tax-id"
 import { TIPOS_IVA } from "@/lib/types/invoice"
 import { InvoiceDocumentPreview } from "@/components/invoice-document-preview"
+import { MissingAccountDialog } from "@/components/accounting/missing-account-dialog"
+import {
+  NewSubaccountDialog,
+  type AccountCreationResult,
+} from "@/components/accounting/new-subaccount-dialog"
+import {
+  parseNewAccountPrefix,
+  type NewAccountPrefix,
+} from "@/lib/accounting/new-account-prefix"
 import {
   classifyIssuedInvoiceIncome,
   classifyReceivedInvoicePurchase,
@@ -66,6 +76,8 @@ interface InvoiceValidationFormProps {
   onSkip?: () => void
   isSubmitting?: boolean
 }
+
+type OcrLedgerAccountField = "expenseAccount" | "incomeAccount"
 
 function formatEuro(value: number): string {
   return new Intl.NumberFormat("es-ES", {
@@ -151,6 +163,14 @@ export function InvoiceValidationForm({
   const [duplicate, setDuplicate] = useState<DuplicateInvoiceMatch | null>(null)
   const [allowDuplicate, setAllowDuplicate] = useState(false)
   const [mobilePane, setMobilePane] = useState<"document" | "data">("data")
+  const [missingLedgerAccount, setMissingLedgerAccount] =
+    useState<AccountExistenceResult | null>(null)
+  const [pendingLedgerField, setPendingLedgerField] =
+    useState<OcrLedgerAccountField | null>(null)
+  const [newSubaccountPrefix, setNewSubaccountPrefix] =
+    useState<NewAccountPrefix | null>(null)
+  const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
+  const [ledgerAccountError, setLedgerAccountError] = useState<string | null>(null)
 
   const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
   const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
@@ -483,12 +503,91 @@ export function InvoiceValidationForm({
     updateField("incomeAccount", incomeAccount)
   }
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const setLedgerAccountValue = (field: OcrLedgerAccountField, value: string) => {
+    setUserOverrodeAccounts(true)
+    updateField(field, value)
+  }
+
+  const checkLedgerAccount = async (
+    field: OcrLedgerAccountField,
+    rawValue: string,
+  ): Promise<string | null> => {
+    const value = rawValue.trim()
+    if (!value) {
+      setLedgerAccountError(null)
+      return ""
+    }
+
+    const createPrefix = parseNewAccountPrefix(value)
+    if (createPrefix) {
+      setPendingLedgerField(field)
+      setFixedAccountCode(null)
+      setNewSubaccountPrefix(createPrefix)
+      return null
+    }
+
+    setLedgerAccountError(null)
+    try {
+      const year = Number.parseInt(formData.fechaFactura.slice(0, 4), 10) || new Date().getFullYear()
+      const result = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
+        `/api/accounting/accounts/exists?code=${encodeURIComponent(value)}&year=${year}`,
+      )
+
+      if (!result.exists) {
+        setPendingLedgerField(field)
+        setMissingLedgerAccount(result)
+        return null
+      }
+
+      const resolved = result.formattedAccountCode || value
+      if (resolved !== rawValue) setLedgerAccountValue(field, resolved)
+      return resolved
+    } catch (error) {
+      setLedgerAccountError(
+        error instanceof Error ? error.message : "No se pudo comprobar la cuenta contable.",
+      )
+      return null
+    }
+  }
+
+  const handleMissingLedgerAccountConfirm = () => {
+    if (!missingLedgerAccount?.parentCode) return
+    setFixedAccountCode(missingLedgerAccount.accountCode)
+    setNewSubaccountPrefix(missingLedgerAccount.parentCode)
+    setMissingLedgerAccount(null)
+  }
+
+  const handleSubaccountCreated = (result: AccountCreationResult) => {
+    if (pendingLedgerField) {
+      setLedgerAccountValue(pendingLedgerField, result.resolution.formattedAccountCode)
+    }
+    setPendingLedgerField(null)
+    setFixedAccountCode(null)
+    setNewSubaccountPrefix(null)
+    setLedgerAccountError(null)
+  }
+
+  const closeNewSubaccount = () => {
+    setNewSubaccountPrefix(null)
+    setFixedAccountCode(null)
+    setPendingLedgerField(null)
+  }
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     if (confirmBlocked) return
+
+    const ledgerField: OcrLedgerAccountField =
+      documentType === "factura-emitida" ? "incomeAccount" : "expenseAccount"
+    const ledgerValue =
+      ledgerField === "incomeAccount" ? formData.incomeAccount ?? "" : formData.expenseAccount ?? ""
+    const resolvedLedgerAccount = await checkLedgerAccount(ledgerField, ledgerValue)
+    if (resolvedLedgerAccount === null) return
+
     onConfirm(
       syncInvoiceTotals({
         ...formData,
+        [ledgerField]: resolvedLedgerAccount || undefined,
         cif: normalizeTaxId(formData.cif),
         preferredAccountCode: accountCodeDraft.trim() || undefined,
       }),
@@ -773,8 +872,9 @@ export function InvoiceValidationForm({
                         list="ocr-expense-accounts"
                         value={formData.expenseAccount ?? ""}
                         onChange={(e) => handleExpenseChange(e.target.value)}
+                        onBlur={(e) => void checkLedgerAccount("expenseAccount", e.target.value)}
                         className="h-8 font-mono text-xs"
-                        placeholder="628 · 622.0001"
+                        placeholder="628 · 628.1 · 628+"
                       />
                       <datalist id="ocr-expense-accounts">
                         {PURCHASE_EXPENSE_OPTIONS.map((option) => (
@@ -834,8 +934,9 @@ export function InvoiceValidationForm({
                         list="ocr-income-accounts"
                         value={formData.incomeAccount ?? ""}
                         onChange={(e) => handleIncomeChange(e.target.value)}
+                        onBlur={(e) => void checkLedgerAccount("incomeAccount", e.target.value)}
                         className="h-8 font-mono text-xs"
-                        placeholder="705 · 700"
+                        placeholder="705 · 705.1 · 705+"
                       />
                       <datalist id="ocr-income-accounts">
                         {SALES_INCOME_OPTIONS.map((option) => (
@@ -878,6 +979,9 @@ export function InvoiceValidationForm({
                 ) : (
                   <p className="mt-1.5 text-xs text-gray-500">Introduce el NIF/CIF para asignar la subcuenta.</p>
                 )}
+                {ledgerAccountError ? (
+                  <p className="mt-1.5 text-xs text-red-700">{ledgerAccountError}</p>
+                ) : null}
               </div>
 
               <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
@@ -1080,6 +1184,24 @@ export function InvoiceValidationForm({
           />
         </div>
       </div>
+
+      <MissingAccountDialog
+        open={missingLedgerAccount !== null}
+        year={Number.parseInt(formData.fechaFactura.slice(0, 4), 10) || new Date().getFullYear()}
+        account={missingLedgerAccount}
+        onConfirm={handleMissingLedgerAccountConfirm}
+        onCancel={() => {
+          setMissingLedgerAccount(null)
+          setPendingLedgerField(null)
+        }}
+      />
+      <NewSubaccountDialog
+        open={newSubaccountPrefix !== null}
+        prefix={newSubaccountPrefix}
+        fixedAccountCode={fixedAccountCode}
+        onClose={closeNewSubaccount}
+        onCreated={handleSubaccountCreated}
+      />
     </div>
   )
 }
