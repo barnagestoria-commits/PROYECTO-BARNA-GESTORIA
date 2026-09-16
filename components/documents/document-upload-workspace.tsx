@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Loader2, ScanLine, Settings2, Trash2 } from "lucide-react"
+import { Calendar, CheckCircle2, Loader2, ScanLine, Settings2, Trash2 } from "lucide-react"
 import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
 import { OcrSettingsDialog } from "@/components/documents/ocr-settings-dialog"
+import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { useRequireAuth } from "@/components/auth-provider"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
@@ -37,6 +38,15 @@ interface PendingValidation {
   remainingInvoices: InvoiceOcrResult[]
   invoiceIndex: number
   invoiceCount: number
+}
+
+interface CounterpartPreferencePrompt {
+  thirdPartyAccountCode: string
+  thirdPartyName: string
+  counterpartAccount: string
+  kind: "purchase" | "sale"
+  confirmed: boolean
+  error: string | null
 }
 
 interface DocumentUploadWorkspaceProps {
@@ -75,6 +85,9 @@ function DocumentUploadWorkspaceContent({
   const [ocrSettings, setOcrSettings] = useState<OcrWorkspaceSettings>(DEFAULT_OCR_SETTINGS)
   const [ocrSettingsOpen, setOcrSettingsOpen] = useState(false)
   const [savingOcrSetting, setSavingOcrSetting] = useState(false)
+  const [counterpartPrompt, setCounterpartPrompt] =
+    useState<CounterpartPreferencePrompt | null>(null)
+  const [savingCounterpart, setSavingCounterpart] = useState(false)
 
   const defaultTab = searchParams.get("tab") === "documentos" ? "documents" : "upload"
 
@@ -208,9 +221,29 @@ function DocumentUploadWorkspaceContent({
     }
   }
 
+  const advanceAfterConfirmedInvoice = async () => {
+    if (!pendingValidation) return
+
+    if (pendingValidation.remainingInvoices.length > 0) {
+      const [nextInvoice, ...rest] = pendingValidation.remainingInvoices
+      setPendingValidation({
+        ...pendingValidation,
+        ocrData: nextInvoice,
+        remainingInvoices: rest,
+        invoiceIndex: pendingValidation.invoiceIndex + 1,
+      })
+      return
+    }
+
+    setPendingValidation(null)
+    if (validationQueue.length > 0) {
+      await processNextInQueue(validationQueue)
+    }
+  }
+
   const handleConfirmValidation = async (
     data: InvoiceOcrResult,
-    options?: { allowDuplicate?: boolean; rememberCounterpartAccount?: boolean },
+    options?: { allowDuplicate?: boolean; offerRememberCounterpartAccount?: boolean },
   ) => {
     if (!pendingValidation) return
 
@@ -225,7 +258,9 @@ function DocumentUploadWorkspaceContent({
           entryId: string
           commandCode: string
           thirdParty: {
+            accountCode: string
             formattedAccountCode: string
+            name: string
             isNew: boolean
           }
         }
@@ -237,7 +272,6 @@ function DocumentUploadWorkspaceContent({
           documentType,
           invoice: data,
           allowDuplicate: Boolean(options?.allowDuplicate),
-          rememberCounterpartAccount: Boolean(options?.rememberCounterpartAccount),
         }),
       })
 
@@ -248,24 +282,61 @@ function DocumentUploadWorkspaceContent({
       )
       await loadDocuments()
 
-      if (pendingValidation.remainingInvoices.length > 0) {
-        const [nextInvoice, ...rest] = pendingValidation.remainingInvoices
-        setPendingValidation({
-          ...pendingValidation,
-          ocrData: nextInvoice,
-          remainingInvoices: rest,
-          invoiceIndex: pendingValidation.invoiceIndex + 1,
+      const counterpartAccount =
+        documentType === "factura-emitida" ? data.incomeAccount?.trim() : data.expenseAccount?.trim()
+      if (options?.offerRememberCounterpartAccount && counterpartAccount) {
+        setCounterpartPrompt({
+          thirdPartyAccountCode: result.accounting.thirdParty.accountCode,
+          thirdPartyName: result.accounting.thirdParty.name || data.proveedor,
+          counterpartAccount,
+          kind: documentType === "factura-emitida" ? "sale" : "purchase",
+          confirmed: false,
+          error: null,
         })
-      } else {
-        setPendingValidation(null)
-        if (validationQueue.length > 0) {
-          await processNextInQueue(validationQueue)
-        }
+        return
       }
+
+      await advanceAfterConfirmedInvoice()
     } catch (error) {
       setOcrError(error instanceof Error ? error.message : "Error al confirmar la factura.")
     } finally {
       setIsConfirming(false)
+    }
+  }
+
+  const continueAfterCounterpartPrompt = async () => {
+    setCounterpartPrompt(null)
+    await advanceAfterConfirmedInvoice()
+  }
+
+  const handleSaveCounterpartPreference = async () => {
+    if (!counterpartPrompt) return
+
+    setSavingCounterpart(true)
+    setCounterpartPrompt((current) => (current ? { ...current, error: null } : current))
+    try {
+      await apiFetch("/api/accounting/account-treatment", {
+        method: "PATCH",
+        body: JSON.stringify({
+          accountCode: counterpartPrompt.thirdPartyAccountCode,
+          defaultCounterpartAccount: counterpartPrompt.counterpartAccount,
+        }),
+      })
+      setCounterpartPrompt((current) => (current ? { ...current, confirmed: true } : current))
+    } catch (error) {
+      setCounterpartPrompt((current) =>
+        current
+          ? {
+              ...current,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "No se pudo guardar la cuenta predefinida.",
+            }
+          : current,
+      )
+    } finally {
+      setSavingCounterpart(false)
     }
   }
 
@@ -433,7 +504,7 @@ function DocumentUploadWorkspaceContent({
             invoiceIndex={pendingValidation.invoiceIndex}
             invoiceCount={pendingValidation.invoiceCount}
             ocrSettings={ocrSettings}
-            enableShortcuts={!ocrSettingsOpen}
+            enableShortcuts={!ocrSettingsOpen && !counterpartPrompt}
             onOpenSettings={() => setOcrSettingsOpen(true)}
             progressLabel={
               pendingValidation.invoiceCount > 1
@@ -443,7 +514,7 @@ function DocumentUploadWorkspaceContent({
             onConfirm={handleConfirmValidation}
             onCancel={() => void handleDiscardBatch()}
             onSkip={handleSkipInvoice}
-            isSubmitting={isConfirming}
+            isSubmitting={isConfirming || Boolean(counterpartPrompt)}
           />
         )}
 
@@ -587,6 +658,71 @@ function DocumentUploadWorkspaceContent({
         onSave={handleSaveOcrSettings}
       />
     ) : null}
+    <AccountingModal
+      open={counterpartPrompt !== null}
+      title={counterpartPrompt?.confirmed ? "Cuenta predefinida guardada" : "Guardar cuenta habitual"}
+      subtitle={counterpartPrompt?.thirdPartyName}
+      onClose={() => {
+        if (!savingCounterpart) void continueAfterCounterpartPrompt()
+      }}
+      className="max-w-lg"
+      footer={
+        counterpartPrompt?.confirmed ? (
+          <div className="flex justify-end">
+            <Button type="button" onClick={() => void continueAfterCounterpartPrompt()}>
+              Continuar
+            </Button>
+          </div>
+        ) : (
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={savingCounterpart}
+              onClick={() => void continueAfterCounterpartPrompt()}
+            >
+              No, solo esta factura
+            </Button>
+            <Button
+              type="button"
+              disabled={savingCounterpart}
+              onClick={() => void handleSaveCounterpartPreference()}
+            >
+              {savingCounterpart ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sí, predefinir"}
+            </Button>
+          </div>
+        )
+      }
+    >
+      {counterpartPrompt?.confirmed ? (
+        <div className="flex gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+          <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0" />
+          <p className="text-sm leading-relaxed">
+            Confirmado. A partir de ahora, las facturas de este{" "}
+            {counterpartPrompt.kind === "purchase" ? "proveedor" : "cliente"} irán siempre a la cuenta
+            de {counterpartPrompt.kind === "purchase" ? "gasto" : "ventas"}{" "}
+            <strong className="font-mono">{counterpartPrompt.counterpartAccount}</strong>.
+          </p>
+        </div>
+      ) : counterpartPrompt ? (
+        <div className="space-y-3">
+          <p className="text-sm leading-relaxed text-graphite-700">
+            ¿Quieres dejar la partida de {counterpartPrompt.kind === "purchase" ? "gasto" : "ventas"}{" "}
+            <strong className="font-mono">{counterpartPrompt.counterpartAccount}</strong> predefinida
+            para este {counterpartPrompt.kind === "purchase" ? "proveedor" : "cliente"}?
+          </p>
+          <p className="text-xs text-graphite-500">
+            Se aplicará automáticamente a sus próximas facturas y podrás cambiarla manualmente cuando
+            sea necesario.
+          </p>
+          {counterpartPrompt.error ? (
+            <p className="text-sm text-red-700" role="alert">
+              {counterpartPrompt.error}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </AccountingModal>
     </>
   )
 }

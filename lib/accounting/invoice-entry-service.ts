@@ -6,10 +6,7 @@ import {
   buildInvoiceLineConcept,
 } from "@/lib/accounting/invoice-entry-concepts"
 import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
-import {
-  getAccountTreatment,
-  upsertAccountTreatment,
-} from "@/lib/accounting/account-treatment-service"
+import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import {
   findThirdPartyByCif,
@@ -156,7 +153,6 @@ export async function createInvoiceAccountingEntry(params: {
   documentType: "factura-recibida" | "factura-emitida"
   invoice: InvoiceOcrResult
   allowDuplicate?: boolean
-  rememberCounterpartAccount?: boolean
 }): Promise<InvoiceAccountingResult> {
   if (!params.allowDuplicate) {
     const duplicate = await findDuplicateInvoiceEntry({
@@ -206,12 +202,6 @@ export async function createInvoiceAccountingEntry(params: {
       : treatment?.defaultCounterpartAccount
         ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
         : formatAccountCodeDisplay("705")
-    if (params.rememberCounterpartAccount) {
-      await upsertAccountTreatment(params.companyId, thirdParty.accountCode, {
-        ...(treatment ?? {}),
-        defaultCounterpartAccount: defaultIncomeAccount,
-      })
-    }
     const lines = buildIssuedInvoiceLines(invoice, thirdParty.accountCode, defaultIncomeAccount)
     return persistInvoiceEntry({ ...params, invoice }, thirdParty, "17", lines)
   }
@@ -258,13 +248,6 @@ export async function createInvoiceAccountingEntry(params: {
     : treatment?.defaultCounterpartAccount
       ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
       : formatAccountCodeDisplay(invoice.expenseAccount || "629")
-  if (params.rememberCounterpartAccount) {
-    await upsertAccountTreatment(params.companyId, thirdParty.accountCode, {
-      ...(treatment ?? {}),
-      defaultCounterpartAccount: defaultExpenseAccount,
-    })
-  }
-
   const lines = buildReceivedInvoiceLines(invoice, thirdParty.accountCode, defaultExpenseAccount)
   return persistInvoiceEntry({ ...params, invoice }, thirdParty, "34", lines)
 }

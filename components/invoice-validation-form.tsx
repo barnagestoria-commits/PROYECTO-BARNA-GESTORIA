@@ -77,7 +77,7 @@ interface InvoiceValidationFormProps {
   onOpenSettings?: () => void
   onConfirm: (
     data: InvoiceOcrResult,
-    options?: { allowDuplicate?: boolean; rememberCounterpartAccount?: boolean },
+    options?: { allowDuplicate?: boolean; offerRememberCounterpartAccount?: boolean },
   ) => void
   onCancel: () => void
   onSkip?: () => void
@@ -183,7 +183,7 @@ export function InvoiceValidationForm({
     useState<NewAccountPrefix | null>(null)
   const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
   const [ledgerAccountError, setLedgerAccountError] = useState<string | null>(null)
-  const [rememberLedgerAccount, setRememberLedgerAccount] = useState(false)
+  const [newLedgerAccountCreated, setNewLedgerAccountCreated] = useState(false)
 
   const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
   const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
@@ -532,13 +532,11 @@ export function InvoiceValidationForm({
 
   const handleExpenseChange = (expenseAccount: string) => {
     setUserOverrodeAccounts(true)
-    setRememberLedgerAccount(true)
     updateField("expenseAccount", expenseAccount)
   }
 
   const handleIncomeChange = (incomeAccount: string) => {
     setUserOverrodeAccounts(true)
-    setRememberLedgerAccount(true)
     updateField("incomeAccount", incomeAccount)
   }
 
@@ -625,7 +623,7 @@ export function InvoiceValidationForm({
     setFixedAccountCode(null)
     setNewSubaccountPrefix(null)
     setLedgerAccountError(null)
-    setRememberLedgerAccount(true)
+    setNewLedgerAccountCreated(true)
     ledgerAccountPromptKeyRef.current = null
   }
 
@@ -656,7 +654,7 @@ export function InvoiceValidationForm({
       }),
       {
         allowDuplicate: Boolean(duplicate) && allowDuplicate,
-        rememberCounterpartAccount: rememberLedgerAccount,
+        offerRememberCounterpartAccount: newLedgerAccountCreated,
       },
     )
   }

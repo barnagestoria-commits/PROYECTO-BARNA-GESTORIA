@@ -27,7 +27,6 @@ interface ConfirmInvoiceRequest {
   documentType: "factura-recibida" | "factura-emitida"
   invoice: InvoiceOcrResult
   allowDuplicate?: boolean
-  rememberCounterpartAccount?: boolean
 }
 
 export async function POST(request: Request) {
@@ -98,7 +97,6 @@ export async function POST(request: Request) {
       documentType: body.documentType,
       invoice: body.invoice,
       allowDuplicate,
-      rememberCounterpartAccount: Boolean(body.rememberCounterpartAccount),
     })
 
     const document = await prisma.fiscalDocument.create({
