@@ -1,4 +1,5 @@
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
+import { formatAccountNameDisplay } from "@/lib/reports/format"
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 
@@ -275,7 +276,7 @@ function thirdPartyToSearchableAccount(party: ChartAccountSearchParty): {
 function toLedgerOption(account: LedgerSubaccountOption): ChartAccountOption {
   return {
     code: account.formattedAccountCode,
-    name: account.name,
+    name: formatAccountNameDisplay(account.name),
     accountCode: account.accountCode,
     source: "ledger",
   }
@@ -284,7 +285,7 @@ function toLedgerOption(account: LedgerSubaccountOption): ChartAccountOption {
 function toThirdPartyOption(party: ChartAccountSearchParty): ChartAccountOption {
   return {
     code: party.formattedAccountCode || formatAccountCodeDisplay(party.accountCode),
-    name: party.name,
+    name: formatAccountNameDisplay(party.name),
     accountCode: party.accountCode,
     source: "tercero",
   }

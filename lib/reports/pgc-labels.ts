@@ -1,3 +1,4 @@
+import { formatAccountNameDisplay } from "@/lib/reports/format"
 import { PGC_CHART_NAMES } from "@/lib/reports/pgc-chart-plans"
 
 const GROUP_LABELS: Record<string, string> = {
@@ -117,12 +118,12 @@ export function getAccountLabel(cuenta: string): string {
   const prefix3 = digits.slice(0, 3)
   const prefix2 = digits.slice(0, 2)
 
-  return (
+  return formatAccountNameDisplay(
     PGC_CHART_NAMES[digits] ??
-    PGC_CHART_NAMES[prefix3] ??
-    ACCOUNT_LABELS[prefix3] ??
-    GROUP_LABELS[prefix3] ??
-    GROUP_LABELS[prefix2] ??
-    `Cuenta ${digits}`
+      PGC_CHART_NAMES[prefix3] ??
+      ACCOUNT_LABELS[prefix3] ??
+      GROUP_LABELS[prefix3] ??
+      GROUP_LABELS[prefix2] ??
+      `Cuenta ${digits}`,
   )
 }

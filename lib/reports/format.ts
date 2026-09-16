@@ -20,6 +20,11 @@ export function normalizeCuenta(cuenta: string): string {
   return cuenta.replace(/\D/g, "").trim()
 }
 
+/** Descripción de cuenta en mayúsculas, el formato habitual del PGC y de los balances. */
+export function formatAccountNameDisplay(name: string): string {
+  return name.trim().toLocaleUpperCase("es-ES")
+}
+
 /** Una cuenta de grupo (410) incluye sus subcuentas (410.00001). */
 export function accountMatchesQuery(storedCuenta: string, queryCuenta: string): boolean {
   const stored = normalizeCuenta(storedCuenta)

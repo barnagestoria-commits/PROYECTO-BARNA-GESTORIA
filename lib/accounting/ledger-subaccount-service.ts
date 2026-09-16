@@ -1,5 +1,8 @@
 import { prisma } from "@/lib/db"
-import { inferParentCodeFromAccount } from "@/lib/accounting/account-exists-service"
+import {
+  expandCanonicalSubaccountCode,
+  inferParentCodeFromAccount,
+} from "@/lib/accounting/account-exists-service"
 import { resolveAccountParentCode } from "@/lib/accounting/new-account-prefix"
 import {
   buildAccountCode,
@@ -42,7 +45,7 @@ export async function createLedgerSubaccountWithFixedCode(
     email?: string
   },
 ): Promise<LedgerSubaccountResolution> {
-  const digits = accountCode.replace(/\D/g, "")
+  const digits = expandCanonicalSubaccountCode(accountCode)
   const parentCode = inferParentCodeFromAccount(digits)
   if (!parentCode) {
     throw new Error("No se puede determinar la cuenta padre del código indicado.")
@@ -110,7 +113,7 @@ export async function bulkCreateLedgerSubaccountsWithFixedCodes(
   const candidates = new Map<string, { accountCode: string; parentCode: string; name: string }>()
 
   for (const subaccount of subaccounts) {
-    const digits = subaccount.accountCode.replace(/\D/g, "")
+    const digits = expandCanonicalSubaccountCode(subaccount.accountCode)
     const name = subaccount.name.trim()
     if (!digits || !name || candidates.has(digits)) continue
 

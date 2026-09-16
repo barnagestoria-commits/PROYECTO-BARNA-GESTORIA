@@ -7,6 +7,7 @@ import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type {
   BalanceReportData,
   PygReportData,
+  PygSection,
   ReportMeta,
   ReportType,
   SumasSaldosReportData,
@@ -20,6 +21,8 @@ const MUTED = "#6B7280"
 const BORDER = "#E5E7EB"
 const ZEBRA = "#F9FAFB"
 
+type PdfDensity = "normal" | "compact"
+
 const tableLayout = {
   hLineWidth: () => 0.5,
   vLineWidth: () => 0,
@@ -30,52 +33,73 @@ const tableLayout = {
   paddingBottom: () => 4,
 }
 
-function labelCell(label: string, level: number): TableCell {
-  return { text: `${"  ".repeat(level)}${label}`, fontSize: 8 }
+const compactTableLayout = {
+  hLineWidth: () => 0.4,
+  vLineWidth: () => 0,
+  hLineColor: () => BORDER,
+  paddingLeft: () => 3,
+  paddingRight: () => 3,
+  paddingTop: () => 1.5,
+  paddingBottom: () => 1.5,
 }
 
-function cuentaCell(cuenta: string): TableCell {
-  return { text: formatAccountCodeDisplay(cuenta), fontSize: 8 }
+function rowFontSize(density: PdfDensity): number {
+  return density === "compact" ? 6.5 : 8
 }
 
-function amountCell(value: number): TableCell {
-  return { text: formatAmount(value), alignment: "right", fontSize: 8, noWrap: true }
+function labelCell(label: string, level: number, density: PdfDensity = "normal"): TableCell {
+  return { text: `${"  ".repeat(level)}${label}`, fontSize: rowFontSize(density) }
 }
 
-function headerBlock(meta: ReportMeta): Content[] {
+function cuentaCell(cuenta: string, density: PdfDensity = "normal"): TableCell {
+  return { text: formatAccountCodeDisplay(cuenta), fontSize: rowFontSize(density) }
+}
+
+function amountCell(value: number, density: PdfDensity = "normal"): TableCell {
+  return {
+    text: formatAmount(value),
+    alignment: "right",
+    fontSize: rowFontSize(density),
+    noWrap: true,
+  }
+}
+
+function headerBlock(meta: ReportMeta, density: PdfDensity = "normal"): Content[] {
+  const compact = density === "compact"
   return [
     {
       columns: [
         {
           width: "*",
           stack: [
-            { text: "BARNA GESTORÍA", style: "brand", margin: [0, 0, 0, 2] },
-            { text: meta.reportTitle, style: "title" },
+            { text: "BARNA GESTORÍA", style: "brand", margin: [0, 0, 0, compact ? 1 : 2] },
+            { text: meta.reportTitle, style: compact ? "titleCompact" : "title" },
           ],
         },
         {
           width: "auto",
           alignment: "right",
           stack: [
-            { text: meta.companyName, style: "companyName" },
+            { text: meta.companyName, style: compact ? "companyNameCompact" : "companyName" },
             { text: meta.companyCif ? `NIF: ${meta.companyCif}` : "NIF: —", style: "meta" },
             { text: `Ejercicio ${meta.year}`, style: "meta" },
             { text: meta.periodLabel, style: "meta" },
           ],
         },
       ],
-      margin: [0, 0, 0, 8],
+      margin: [0, 0, 0, compact ? 4 : 8],
     },
     {
-      canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 2, color: EMERALD }],
-      margin: [0, 0, 0, 16],
+      canvas: [{ type: "rect", x: 0, y: 0, w: compact ? 539 : 515, h: compact ? 1.5 : 2, color: EMERALD }],
+      margin: [0, 0, 0, compact ? 8 : 16],
     },
   ]
 }
 
-function footer(meta: ReportMeta): TDocumentDefinitions["footer"] {
+function footer(meta: ReportMeta, density: PdfDensity = "normal"): TDocumentDefinitions["footer"] {
+  const side = density === "compact" ? 28 : 40
   return (currentPage, pageCount) => ({
-    margin: [40, 0, 40, 20],
+    margin: [side, 0, side, 16],
     columns: [
       {
         text: `Generado el ${formatDateTimeEs(meta.generatedAt)}`,
@@ -96,12 +120,18 @@ function baseStyles(): TDocumentDefinitions["styles"] {
   return {
     brand: { fontSize: 8, bold: true, color: EMERALD, characterSpacing: 1.2 },
     title: { fontSize: 16, bold: true, color: EMERALD_DARK },
+    titleCompact: { fontSize: 12, bold: true, color: EMERALD_DARK },
     companyName: { fontSize: 10, bold: true, color: GRAPHITE },
+    companyNameCompact: { fontSize: 8, bold: true, color: GRAPHITE },
     meta: { fontSize: 8, color: MUTED, margin: [0, 1, 0, 0] },
     sectionTitle: { fontSize: 10, bold: true, color: EMERALD_DARK, margin: [0, 10, 0, 6] },
+    sectionTitleCompact: { fontSize: 8, bold: true, color: EMERALD_DARK, margin: [0, 0, 0, 3] },
     tableHeader: { bold: true, color: "#FFFFFF", fontSize: 8 },
+    tableHeaderCompact: { bold: true, color: "#FFFFFF", fontSize: 6.5 },
     totalRow: { bold: true, color: EMERALD_DARK, fontSize: 9 },
+    totalRowCompact: { bold: true, color: EMERALD_DARK, fontSize: 7 },
     empty: { fontSize: 9, color: MUTED, italics: true, margin: [0, 20, 0, 0] },
+    emptyCompact: { fontSize: 7, color: MUTED, italics: true, margin: [0, 6, 0, 0] },
   }
 }
 
@@ -173,7 +203,7 @@ function sectionTable(
   const content: Content[] = []
 
   for (const section of sections) {
-    content.push({ text: section.title, style: "sectionTitle" })
+    content.push({ text: section.title, style: "sectionTitle", margin: [0, 6, 0, 3] })
 
     const body: TableCell[][] = [
       [
@@ -205,7 +235,7 @@ function sectionTable(
         ...tableLayout,
         fillColor: (rowIndex: number) => tableFillColor(rowIndex, body.length),
       },
-      margin: [0, 0, 0, 4],
+      margin: [0, 0, 0, 2],
     })
   }
 
@@ -214,7 +244,7 @@ function sectionTable(
 
 function buildBalancePdf(report: BalanceReportData): Content[] {
   return [
-    { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 4] },
+    { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.activo.length > 0
       ? sectionTable(report.activo)
       : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
@@ -223,9 +253,9 @@ function buildBalancePdf(report: BalanceReportData): Content[] {
         { text: "TOTAL ACTIVO", style: "totalRow" },
         { text: formatEuro(report.totalActivo), style: "totalRow", alignment: "right" },
       ],
-      margin: [0, 8, 0, 16],
+      margin: [0, 6, 0, 12],
     },
-    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 4] },
+    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.pasivo.length > 0
       ? sectionTable(report.pasivo)
       : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
@@ -234,51 +264,87 @@ function buildBalancePdf(report: BalanceReportData): Content[] {
         { text: "TOTAL PATRIMONIO NETO Y PASIVO", style: "totalRow" },
         { text: formatEuro(report.totalPasivo), style: "totalRow", alignment: "right" },
       ],
-      margin: [0, 8, 0, 0],
+      margin: [0, 6, 0, 0],
     },
   ]
 }
 
+function pygColumn(
+  title: string,
+  sections: PygSection[],
+  totalLabel: string,
+  total: number,
+): Content {
+  const rows = sections.flatMap((section) => section.rows)
+  const body: TableCell[][] = [
+    [
+      { text: "Cta.", style: "tableHeaderCompact" },
+      { text: "Descripción", style: "tableHeaderCompact" },
+      { text: "Importe", style: "tableHeaderCompact", alignment: "right" },
+    ],
+    ...rows.map(
+      (row): TableCell[] => [
+        cuentaCell(row.cuenta, "compact"),
+        labelCell(row.label, 0, "compact"),
+        amountCell(row.amount, "compact"),
+      ],
+    ),
+    [
+      { text: totalLabel, style: "totalRowCompact", colSpan: 2 },
+      { text: "" },
+      {
+        text: formatAmount(total),
+        style: "totalRowCompact",
+        alignment: "right",
+      },
+    ],
+  ]
+
+  return {
+    stack: [
+      { text: title, style: "sectionTitleCompact" },
+      rows.length === 0
+        ? { text: "Sin movimientos en el periodo.", style: "emptyCompact" }
+        : {
+            table: {
+              headerRows: 1,
+              widths: [34, "*", 48],
+              body,
+            },
+            layout: {
+              ...compactTableLayout,
+              fillColor: (rowIndex: number) => tableFillColor(rowIndex, body.length),
+            },
+          },
+    ],
+  }
+}
+
 function buildPygPdf(report: PygReportData): Content[] {
   return [
-    { text: "INGRESOS", style: "sectionTitle", margin: [0, 0, 0, 4] },
-    ...(report.ingresos.length > 0
-      ? sectionTable(report.ingresos)
-      : [{ text: "Sin ingresos registrados en el periodo.", style: "empty" }]),
     {
       columns: [
-        { text: "TOTAL INGRESOS", style: "totalRow" },
-        { text: formatEuro(report.totalIngresos), style: "totalRow", alignment: "right" },
+        pygColumn("GASTOS", report.gastos, "TOTAL GASTOS", report.totalGastos),
+        { width: 10, text: "" },
+        pygColumn("INGRESOS", report.ingresos, "TOTAL INGRESOS", report.totalIngresos),
       ],
-      margin: [0, 4, 0, 12],
-    },
-    { text: "GASTOS", style: "sectionTitle", margin: [0, 0, 0, 4] },
-    ...(report.gastos.length > 0
-      ? sectionTable(report.gastos)
-      : [{ text: "Sin gastos registrados en el periodo.", style: "empty" }]),
-    {
-      columns: [
-        { text: "TOTAL GASTOS", style: "totalRow" },
-        { text: formatEuro(report.totalGastos), style: "totalRow", alignment: "right" },
-      ],
-      margin: [0, 4, 0, 12],
+      columnGap: 0,
     },
     {
-      canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 1, color: BORDER }],
-      margin: [0, 4, 0, 8],
+      canvas: [{ type: "rect", x: 0, y: 0, w: 539, h: 1, color: BORDER }],
+      margin: [0, 8, 0, 6],
     },
     {
       columns: [
-        { text: "RESULTADO DEL EJERCICIO", fontSize: 11, bold: true, color: EMERALD_DARK },
+        { text: "RESULTADO DEL EJERCICIO", fontSize: 9, bold: true, color: EMERALD_DARK },
         {
           text: formatEuro(report.resultado),
-          fontSize: 11,
+          fontSize: 9,
           bold: true,
           alignment: "right",
           color: report.resultado >= 0 ? EMERALD : "#B91C1C",
         },
       ],
-      margin: [0, 0, 0, 0],
     },
   ]
 }
@@ -288,6 +354,7 @@ export async function generateReportPdf(type: ReportType, query: LedgerQuery): P
 
   let content: Content[]
   let meta: ReportMeta
+  let density: PdfDensity = "normal"
 
   switch (report.type) {
     case "sumas-saldos":
@@ -301,16 +368,18 @@ export async function generateReportPdf(type: ReportType, query: LedgerQuery): P
     case "pyg":
       meta = report.data.meta
       content = buildPygPdf(report.data)
+      density = "compact"
       break
   }
 
+  const compact = density === "compact"
   const doc: TDocumentDefinitions = {
     pageSize: "A4",
-    pageMargins: [40, 40, 40, 50],
-    defaultStyle: { font: "Roboto", fontSize: 9, color: GRAPHITE },
+    pageMargins: compact ? [28, 24, 28, 36] : [40, 36, 40, 48],
+    defaultStyle: { font: "Roboto", fontSize: compact ? 7 : 9, color: GRAPHITE },
     styles: baseStyles(),
-    footer: footer(meta),
-    content: [...headerBlock(meta), ...content],
+    footer: footer(meta, density),
+    content: [...headerBlock(meta, density), ...content],
   }
 
   return createPdfBuffer(doc)

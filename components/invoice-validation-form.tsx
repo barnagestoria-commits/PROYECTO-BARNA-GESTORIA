@@ -102,11 +102,11 @@ function looksLikeCompleteAccountCode(value: string): boolean {
 function FieldHelp({ text }: { text: string }) {
   return (
     <span
-      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-gray-400 hover:text-emerald-700"
+      className="inline-flex size-3.5 shrink-0 cursor-help items-center justify-center text-gray-400 hover:text-emerald-700"
       title={text}
       aria-label={text}
     >
-      <CircleHelp className="h-3.5 w-3.5" />
+      <CircleHelp className="size-3.5" />
     </span>
   )
 }
@@ -585,6 +585,9 @@ export function InvoiceValidationForm({
           ledgerAccountPromptKeyRef.current = key
           setPendingLedgerField(field)
           setMissingLedgerAccount(result)
+          if (result.formattedAccountCode) {
+            setLedgerAccountValue(field, result.formattedAccountCode)
+          }
           return null
         }
 
@@ -900,7 +903,7 @@ export function InvoiceValidationForm({
                 {documentType !== "factura-emitida" ? (
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <Label htmlFor="fechaFactura" className="text-xs text-emerald-800">
+                      <Label htmlFor="fechaFactura" className="flex h-4 items-center text-xs leading-none text-emerald-800">
                         Fecha
                       </Label>
                       <Input
@@ -913,7 +916,7 @@ export function InvoiceValidationForm({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="accountPrefix" className="text-xs text-emerald-800">
+                      <Label htmlFor="accountPrefix" className="flex h-4 items-center text-xs leading-none text-emerald-800">
                         Tipo de ficha
                       </Label>
                       <select
@@ -927,9 +930,9 @@ export function InvoiceValidationForm({
                       </select>
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="expenseAccount" className="flex items-center gap-1 text-xs text-emerald-800">
+                      <Label htmlFor="expenseAccount" className="flex h-4 items-center gap-1 text-xs leading-none text-emerald-800">
                         Cuenta de gasto
-                        <FieldHelp text="Puedes usar una cuenta general (628) o una subcuenta propia (628.0001)." />
+                        <FieldHelp text="Puedes usar una cuenta general (628) o una subcuenta propia (628.0001). 628.1 se guarda como 628.0001." />
                       </Label>
                       <Input
                         id="expenseAccount"
@@ -938,7 +941,7 @@ export function InvoiceValidationForm({
                         onChange={(e) => handleExpenseChange(e.target.value)}
                         onBlur={(e) => void checkLedgerAccount("expenseAccount", e.target.value)}
                         className="h-8 font-mono text-xs"
-                        placeholder="628 · 628.1 · 628+"
+                        placeholder="628 · 628.1 · 628.0001"
                       />
                       <datalist id="ocr-expense-accounts">
                         {PURCHASE_EXPENSE_OPTIONS.map((option) => (
@@ -949,7 +952,7 @@ export function InvoiceValidationForm({
                       </datalist>
                     </div>
                     <div className="space-y-1 sm:col-span-3">
-                      <Label htmlFor="preferredAccountCode" className="flex items-center gap-1 text-xs text-emerald-800">
+                      <Label htmlFor="preferredAccountCode" className="flex h-4 items-center gap-1 text-xs leading-none text-emerald-800">
                         Subcuenta del tercero
                         <FieldHelp text="Se reutiliza la ficha del mismo NIF; puedes corregir aquí el código propuesto." />
                       </Label>
@@ -965,7 +968,7 @@ export function InvoiceValidationForm({
                 ) : (
                   <div className="grid gap-2 sm:grid-cols-3">
                     <div className="space-y-1">
-                      <Label htmlFor="fechaFactura" className="text-xs text-emerald-800">
+                      <Label htmlFor="fechaFactura" className="flex h-4 items-center text-xs leading-none text-emerald-800">
                         Fecha
                       </Label>
                       <Input
@@ -978,7 +981,7 @@ export function InvoiceValidationForm({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="preferredAccountCode" className="text-xs text-emerald-800">
+                      <Label htmlFor="preferredAccountCode" className="flex h-4 items-center text-xs leading-none text-emerald-800">
                         Subcuenta del cliente
                       </Label>
                       <Input
@@ -990,8 +993,9 @@ export function InvoiceValidationForm({
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="incomeAccount" className="text-xs text-emerald-800">
+                      <Label htmlFor="incomeAccount" className="flex h-4 items-center gap-1 text-xs leading-none text-emerald-800">
                         Cuenta de ingreso
+                        <FieldHelp text="Puedes usar una cuenta general (705) o una subcuenta propia (705.0001). 705.1 se guarda como 705.0001." />
                       </Label>
                       <Input
                         id="incomeAccount"
@@ -1000,7 +1004,7 @@ export function InvoiceValidationForm({
                         onChange={(e) => handleIncomeChange(e.target.value)}
                         onBlur={(e) => void checkLedgerAccount("incomeAccount", e.target.value)}
                         className="h-8 font-mono text-xs"
-                        placeholder="705 · 705.1 · 705+"
+                        placeholder="705 · 705.1 · 705.0001"
                       />
                       <datalist id="ocr-income-accounts">
                         {SALES_INCOME_OPTIONS.map((option) => (

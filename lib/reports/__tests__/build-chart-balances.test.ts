@@ -27,8 +27,8 @@ describe("build-chart-balances", () => {
 
     expect(rows.length).toBeGreaterThan(100)
     expect(rows.find((row) => row.cuenta === "100")?.totalDebe).toBe(0)
-    expect(rows.find((row) => row.cuenta === "41000001")?.label).toBe("Catcher Marketplace SL")
-    expect(rows.find((row) => row.cuenta === "629")?.label).toBe("Otros servicios")
+    expect(rows.find((row) => row.cuenta === "41000001")?.label).toBe("CATCHER MARKETPLACE SL")
+    expect(rows.find((row) => row.cuenta === "629")?.label).toBe("OTROS SERVICIOS")
     expect(countAccountsWithMovement(rows)).toBe(3)
   })
 

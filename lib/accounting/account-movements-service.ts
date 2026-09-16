@@ -2,7 +2,12 @@ import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
-import { accountMatchesQuery, normalizeCuenta, round2 } from "@/lib/reports/format"
+import {
+  accountMatchesQuery,
+  formatAccountNameDisplay,
+  normalizeCuenta,
+  round2,
+} from "@/lib/reports/format"
 
 export interface AccountMovementRow {
   id: string
@@ -133,7 +138,7 @@ export async function fetchAccountMovements(
   return {
     cuenta: normalized,
     formattedCuenta: formatAccountCodeDisplay(normalized),
-    label: nameRecord ?? getAccountLabel(normalized),
+    label: formatAccountNameDisplay(nameRecord ?? getAccountLabel(normalized)),
     year,
     openingBalance,
     totalDebe,

@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/db"
 import { PGC_ACCOUNTS } from "@/lib/accounting/pgc-accounts"
 import {
-  isThirdPartyDottedShortcut,
   parseDottedAccountShortcut,
   resolveAccountShortcut,
   toShortcutCandidates,
@@ -11,6 +10,7 @@ import {
   isThirdPartyAccountPrefix,
   resolveAccountParentCode,
 } from "@/lib/accounting/new-account-prefix"
+import { buildAccountCode, formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { normalizeCuenta } from "@/lib/reports/format"
 
 export interface AccountExistenceResult {
@@ -23,10 +23,23 @@ export interface AccountExistenceResult {
   label: string | null
 }
 
-function formatDisplay(code: string): string {
-  const digits = code.replace(/\D/g, "")
-  if (digits.length <= 3) return digits
-  return `${digits.slice(0, 3)}.${digits.slice(3)}`
+/** Convierte 628.1 / 6281 en la subcuenta canónica 6280001 (628.0001). */
+export function expandCanonicalSubaccountCode(raw: string): string {
+  const dotted = parseDottedAccountShortcut(raw)
+  if (dotted) return unresolvedDottedShortcut(dotted).fallbackAccountCode
+
+  const digits = normalizeCuenta(raw)
+  if (!digits || isExactPgcAccount(digits)) return digits
+
+  const parent = inferParentCodeFromAccount(digits)
+  if (!parent) return digits
+
+  const suffix = digits.slice(parent.length)
+  if (!suffix || suffix.length >= 4) return digits
+
+  const sequence = Number.parseInt(suffix, 10)
+  if (!Number.isFinite(sequence) || sequence < 1) return digits
+  return buildAccountCode(parent, sequence)
 }
 
 export function inferParentCodeFromAccount(digits: string): string | null {
@@ -127,22 +140,10 @@ export async function checkAccountExists(
   const shortcut = await resolveShortcutFromCompany(companyId, rawCode)
   if (shortcut) return shortcut
 
-  const dotted = parseDottedAccountShortcut(rawCode)
-  if (dotted && isThirdPartyDottedShortcut(rawCode)) {
-    const fallback = unresolvedDottedShortcut(dotted)
-    return {
-      exists: false,
-      accountCode: fallback.fallbackAccountCode,
-      formattedAccountCode: fallback.formattedAccountCode,
-      parentCode: fallback.parentCode,
-      isThirdParty: isThirdPartyAccountPrefix(fallback.parentCode),
-      canQuickCreate: true,
-      label: null,
-    }
-  }
-
-  const digits = normalizeCuenta(rawCode)
-  const formattedAccountCode = formatDisplay(digits)
+  const rawDigits = normalizeCuenta(rawCode)
+  const digits = expandCanonicalSubaccountCode(rawCode) || rawDigits
+  const lookupCodes = [...new Set([digits, rawDigits].filter(Boolean))]
+  const formattedAccountCode = formatAccountCodeDisplay(digits)
 
   if (!digits || digits.length < 2) {
     return {
@@ -156,23 +157,26 @@ export async function checkAccountExists(
     }
   }
 
-  const [thirdParty, ledger] = await Promise.all([
-    prisma.thirdParty.findFirst({
-      where: { companyId, accountCode: digits },
+  const [thirdParties, ledgers] = await Promise.all([
+    prisma.thirdParty.findMany({
+      where: { companyId, accountCode: { in: lookupCodes } },
       select: { name: true, accountCode: true },
     }),
-    prisma.ledgerSubaccount.findFirst({
-      where: { companyId, accountCode: digits },
+    prisma.ledgerSubaccount.findMany({
+      where: { companyId, accountCode: { in: lookupCodes } },
       select: { name: true, accountCode: true, parentCode: true },
     }),
   ])
+  const thirdParty =
+    thirdParties.find((row) => row.accountCode === digits) ?? thirdParties[0] ?? null
+  const ledger = ledgers.find((row) => row.accountCode === digits) ?? ledgers[0] ?? null
 
   if (thirdParty) {
     return {
       exists: true,
-      accountCode: digits,
-      formattedAccountCode,
-      parentCode: inferParentCodeFromAccount(digits),
+      accountCode: thirdParty.accountCode,
+      formattedAccountCode: formatAccountCodeDisplay(thirdParty.accountCode),
+      parentCode: inferParentCodeFromAccount(thirdParty.accountCode),
       isThirdParty: true,
       canQuickCreate: false,
       label: thirdParty.name,
@@ -182,8 +186,8 @@ export async function checkAccountExists(
   if (ledger) {
     return {
       exists: true,
-      accountCode: digits,
-      formattedAccountCode,
+      accountCode: ledger.accountCode,
+      formattedAccountCode: formatAccountCodeDisplay(ledger.accountCode),
       parentCode: ledger.parentCode,
       isThirdParty: false,
       canQuickCreate: false,

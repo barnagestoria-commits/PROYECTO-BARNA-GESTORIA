@@ -37,7 +37,7 @@ describe("searchChartAccounts", () => {
   it("finds a subaccount by its name", () => {
     const results = searchChartAccounts("Tipay", { thirdParties, ledgerSubaccounts })
 
-    expect(results.some((account) => account.name === "Tipay Solutions SL")).toBe(true)
+    expect(results.some((account) => account.name === "TIPAY SOLUTIONS SL")).toBe(true)
   })
 
   it("includes ledger subaccounts by parent code", () => {

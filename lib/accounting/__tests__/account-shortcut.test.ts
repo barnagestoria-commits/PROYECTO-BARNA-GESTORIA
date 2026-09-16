@@ -80,3 +80,4 @@ describe("account-shortcut", () => {
     expect(fallback.parentCode).toBe("410")
   })
 })
+

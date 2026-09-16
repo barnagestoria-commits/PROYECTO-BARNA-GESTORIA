@@ -6,6 +6,7 @@ import {
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import {
   cuentaSortKey,
+  formatAccountNameDisplay,
   getAccountLevel,
   normalizeCuenta,
   round2,
@@ -60,7 +61,7 @@ export function buildMovementBalanceRows(
   return Array.from(aggregated.entries())
     .map(([cuenta, totals]) => ({
       cuenta,
-      label: names.get(cuenta) ?? getAccountLabel(cuenta),
+      label: formatAccountNameDisplay(names.get(cuenta) ?? getAccountLabel(cuenta)),
       totalDebe: round2(totals.totalDebe),
       totalHaber: round2(totals.totalHaber),
       saldo: round2(totals.totalDebe - totals.totalHaber),
@@ -85,9 +86,12 @@ export function buildChartBalanceRows(input: {
     const totals = aggregated.get(code) ?? { totalDebe: 0, totalHaber: 0 }
     const existing = rows.get(code)
     if (existing && !preferLabel) return
+    const resolvedLabel = formatAccountNameDisplay(
+      preferLabel && label.trim() ? label : existing?.label ?? label,
+    )
     rows.set(code, {
       cuenta: code,
-      label: preferLabel && label.trim() ? label.trim() : existing?.label ?? label,
+      label: resolvedLabel,
       totalDebe: round2(totals.totalDebe),
       totalHaber: round2(totals.totalHaber),
       saldo: round2(totals.totalDebe - totals.totalHaber),

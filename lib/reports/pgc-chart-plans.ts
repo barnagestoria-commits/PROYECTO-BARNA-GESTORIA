@@ -1,4 +1,5 @@
 import type { AccountingPlanType } from "@prisma/client"
+import { formatAccountNameDisplay } from "@/lib/reports/format"
 import {
   ACCOUNT_DETAIL_LEVEL_OPTIONS,
   BALANCE_FORMAT_OPTIONS,
@@ -361,7 +362,7 @@ export interface CompanyChartPlanInfo {
 }
 
 export function getChartAccountName(code: string): string {
-  return PGC_CHART_NAMES[code] ?? `Cuenta ${code}`
+  return formatAccountNameDisplay(PGC_CHART_NAMES[code] ?? `Cuenta ${code}`)
 }
 
 export function getPlanAccountCodes(planType: AccountingPlanType): string[] {
