@@ -1,4 +1,3 @@
-import type { ThirdPartyType } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { getNextEntryRefNumber } from "@/lib/accounting/entry-ref-service"
 import { calculateTotals } from "@/lib/accounting/command-templates"
@@ -8,10 +7,7 @@ import {
 } from "@/lib/accounting/invoice-entry-concepts"
 import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
 import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
-import {
-  formatAccountCodeDisplay,
-  thirdPartyTypeFromDocumentType,
-} from "@/lib/accounting/third-party-types"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import {
   findThirdPartyByCif,
   resolveOrCreateThirdParty,
@@ -20,8 +16,13 @@ import {
 import { loadCompanyPurchaseContext } from "@/lib/accounting/company-purchase-context"
 import {
   receivedPrefixFromAccountCode,
+  withIssuedClassification,
   withPurchaseClassification,
 } from "@/lib/accounting/invoice-supplier-classification"
+import {
+  DuplicateInvoiceError,
+  findDuplicateInvoiceEntry,
+} from "@/lib/accounting/duplicate-invoice"
 import { reassignCompanyAccount } from "@/lib/accounting/account-reassign-service"
 import { calculateTotalFromBreakdown, sumDesglose } from "@/lib/invoice-totals"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
@@ -151,21 +152,58 @@ export async function createInvoiceAccountingEntry(params: {
   createdById: string
   documentType: "factura-recibida" | "factura-emitida"
   invoice: InvoiceOcrResult
+  allowDuplicate?: boolean
 }): Promise<InvoiceAccountingResult> {
+  if (!params.allowDuplicate) {
+    const duplicate = await findDuplicateInvoiceEntry({
+      companyId: params.companyId,
+      documentType: params.documentType,
+      invoice: params.invoice,
+    })
+    if (duplicate) {
+      throw new DuplicateInvoiceError(duplicate)
+    }
+  }
+
   if (params.documentType === "factura-emitida") {
-    const type: ThirdPartyType = thirdPartyTypeFromDocumentType(params.documentType)
-    const thirdParty = await resolveOrCreateThirdParty(
-      params.companyId,
-      type,
-      params.invoice.cif,
-      params.invoice.proveedor,
-    )
+    const salesContext = await loadCompanyPurchaseContext(params.companyId)
+    const invoice = withIssuedClassification(params.invoice, {
+      activities: salesContext.activities,
+      entityType: salesContext.entityType,
+    })
+    const preferred = invoice.preferredAccountCode?.trim() || undefined
+    const existingClient = await findThirdPartyByCif(params.companyId, "CLIENTE", invoice.cif)
+    let thirdParty = existingClient
+      ? await resolveOrCreateThirdParty(params.companyId, "CLIENTE", invoice.cif, invoice.proveedor)
+      : await resolveOrCreateThirdPartyWithPrefix(
+          params.companyId,
+          "430",
+          invoice.cif,
+          invoice.proveedor,
+          preferred,
+        )
+
+    if (existingClient && preferred) {
+      const reassigned = await reassignCompanyAccount(params.companyId, {
+        fromAccountCode: thirdParty.accountCode,
+        toAccountCode: preferred,
+        name: invoice.proveedor,
+      })
+      thirdParty = {
+        ...thirdParty,
+        accountCode: reassigned.accountCode,
+        formattedAccountCode: reassigned.formattedAccountCode,
+      }
+    }
+
     const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
-    const defaultIncomeAccount = treatment?.defaultCounterpartAccount
-      ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
-      : "700"
-    const lines = buildIssuedInvoiceLines(params.invoice, thirdParty.accountCode, defaultIncomeAccount)
-    return persistInvoiceEntry(params, thirdParty, "17", lines)
+    const defaultIncomeAccount = invoice.incomeAccount?.trim()
+      ? formatAccountCodeDisplay(invoice.incomeAccount)
+      : treatment?.defaultCounterpartAccount
+        ? formatAccountCodeDisplay(treatment.defaultCounterpartAccount)
+        : formatAccountCodeDisplay("705")
+    const lines = buildIssuedInvoiceLines(invoice, thirdParty.accountCode, defaultIncomeAccount)
+    return persistInvoiceEntry({ ...params, invoice }, thirdParty, "17", lines)
   }
 
   const purchaseContext = await loadCompanyPurchaseContext(params.companyId)
@@ -212,7 +250,7 @@ export async function createInvoiceAccountingEntry(params: {
       : formatAccountCodeDisplay(invoice.expenseAccount || "629")
 
   const lines = buildReceivedInvoiceLines(invoice, thirdParty.accountCode, defaultExpenseAccount)
-  return persistInvoiceEntry(params, thirdParty, "34", lines)
+  return persistInvoiceEntry({ ...params, invoice }, thirdParty, "34", lines)
 }
 
 async function persistInvoiceEntry(
@@ -251,6 +289,7 @@ async function persistInvoiceEntry(
       issueDate: parseInvoiceDate(params.invoice.fechaFactura),
       operationDate: parseInvoiceDate(params.invoice.fechaFactura),
       invoiceNumber: params.invoice.numeroFactura,
+      invoiceDataJson: JSON.stringify(params.invoice),
       commandCode,
       createdById: params.createdById,
       lines: { create: lines },

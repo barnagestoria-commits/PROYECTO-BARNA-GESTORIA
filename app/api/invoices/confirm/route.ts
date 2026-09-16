@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import type { DocumentStatus, DocumentType } from "@prisma/client"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { createInvoiceAccountingEntry } from "@/lib/accounting/invoice-entry-service"
+import { DuplicateInvoiceError } from "@/lib/accounting/duplicate-invoice"
+import { getCompanyAccountingSettings } from "@/lib/accounting/analytic-accounting-service"
 import { prisma } from "@/lib/db"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
 
@@ -21,6 +23,7 @@ interface ConfirmInvoiceRequest {
   sizeBytes: number
   documentType: "factura-recibida" | "factura-emitida"
   invoice: InvoiceOcrResult
+  allowDuplicate?: boolean
 }
 
 export async function POST(request: Request) {
@@ -32,11 +35,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, error: "Datos de factura incompletos." }, { status: 400 })
     }
 
+    const settings = await getCompanyAccountingSettings(companyId)
+    const allowDuplicate = settings.ocrBlockDuplicates ? Boolean(body.allowDuplicate) : true
+
     const accounting = await createInvoiceAccountingEntry({
       companyId,
       createdById: session.user.id,
       documentType: body.documentType,
       invoice: body.invoice,
+      allowDuplicate,
     })
 
     const document = await prisma.fiscalDocument.create({
@@ -67,6 +74,17 @@ export async function POST(request: Request) {
       },
     })
   } catch (error) {
+    if (error instanceof DuplicateInvoiceError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          code: error.code,
+          duplicate: error.duplicate,
+        },
+        { status: 409 },
+      )
+    }
     return authErrorResponse(error)
   }
 }

@@ -18,9 +18,17 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const { companyId } = await requireActiveCompany(request)
-    const body = (await request.json()) as { analyticAccountingEnabled?: boolean }
+    const body = (await request.json()) as {
+      analyticAccountingEnabled?: boolean
+      ocrBlockDuplicates?: boolean
+    }
     const settings = await upsertCompanyAccountingSettings(companyId, {
-      analyticAccountingEnabled: Boolean(body.analyticAccountingEnabled),
+      ...(body.analyticAccountingEnabled !== undefined
+        ? { analyticAccountingEnabled: Boolean(body.analyticAccountingEnabled) }
+        : {}),
+      ...(body.ocrBlockDuplicates !== undefined
+        ? { ocrBlockDuplicates: Boolean(body.ocrBlockDuplicates) }
+        : {}),
     })
     return NextResponse.json({ success: true, settings })
   } catch (error) {

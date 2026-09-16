@@ -490,6 +490,7 @@ model CompanyAccountingSettings {
   companyId                 String   @unique
   company                   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   analyticAccountingEnabled Boolean  @default(false)
+  ocrBlockDuplicates        Boolean  @default(true)
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 }

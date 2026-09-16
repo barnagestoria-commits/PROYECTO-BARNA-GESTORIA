@@ -27,6 +27,13 @@ export interface PurchaseClassification {
   reason: string
 }
 
+export type SalesIncomeAccount = "700" | "705"
+
+export interface SalesClassification {
+  incomeAccount: SalesIncomeAccount
+  reason: string
+}
+
 export const PURCHASE_EXPENSE_OPTIONS: Array<{
   code: PurchaseExpenseAccount
   label: string
@@ -39,6 +46,14 @@ export const PURCHASE_EXPENSE_OPTIONS: Array<{
   { code: "625", label: "625 · Primas de seguros" },
   { code: "628", label: "628 · Suministros" },
   { code: "629", label: "629 · Otros servicios" },
+]
+
+export const SALES_INCOME_OPTIONS: Array<{
+  code: SalesIncomeAccount
+  label: string
+}> = [
+  { code: "700", label: "700 · Ventas de mercaderías" },
+  { code: "705", label: "705 · Prestaciones de servicios" },
 ]
 
 const SERVICE_ACTIVITY_PATTERN =
@@ -225,6 +240,45 @@ export function classifyReceivedInvoicePurchase(input: ClassifyPurchaseInput): P
     accountPrefix: "410",
     expenseAccount: "629",
     reason: "Sin indicios de mercaderías: se crea como acreedor (410) y gasto en 629. Puedes cambiarlo antes de confirmar.",
+  }
+}
+
+export function classifyIssuedInvoiceIncome(input: ClassifyPurchaseInput): SalesClassification {
+  const { isServiceCompany, isTradeCompany } = companyDefaults(input)
+
+  if (isTradeCompany) {
+    return {
+      incomeAccount: "700",
+      reason: "La actividad del cliente es comercial: venta de mercaderías (700) y cliente (430).",
+    }
+  }
+
+  return {
+    incomeAccount: "705",
+    reason: isServiceCompany
+      ? "La actividad del cliente (IAE / censo) es de servicios: prestación (705) y cliente (430)."
+      : "Sin indicios de comercio de mercaderías: prestación de servicios (705) y cliente (430).",
+  }
+}
+
+export function withIssuedClassification(
+  invoice: InvoiceOcrResult,
+  context: ClassifyPurchaseInput = {},
+): InvoiceOcrResult {
+  const classified = classifyIssuedInvoiceIncome({
+    proveedor: invoice.proveedor,
+    numeroFactura: invoice.numeroFactura,
+    fileName: context.fileName,
+    activities: context.activities,
+    entityType: context.entityType,
+  })
+  const incomeAccount = invoice.incomeAccount?.trim() || classified.incomeAccount
+
+  return {
+    ...invoice,
+    accountPrefix: "430",
+    incomeAccount,
+    classificationReason: invoice.classificationReason ?? classified.reason,
   }
 }
 

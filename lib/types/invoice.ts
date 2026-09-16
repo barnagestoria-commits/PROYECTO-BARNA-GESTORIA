@@ -28,8 +28,13 @@ export interface InvoiceOcrResult {
   naturalezaCompra?: InvoicePurchaseNature
   accountPrefix?: "400" | "410" | "430"
   expenseAccount?: string
+  incomeAccount?: string
   classificationReason?: string
   preferredAccountCode?: string
+  /** Página inicial del PDF (1-indexada) de esta factura, no del lote. */
+  pagina?: number
+  /** Última página inclusive de esta factura. */
+  paginaFin?: number
 }
 
 export interface InvoiceOcrResponse {

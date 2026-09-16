@@ -44,6 +44,22 @@ describe("parseInvoiceModelResponse", () => {
     expect(invoice.naturalezaCompra).toBe("suministros")
   })
 
+  it("reads page range for a ticket inside a PDF bundle", () => {
+    const [invoice] = parseInvoiceModelResponse(
+      JSON.stringify({
+        proveedor: "Repsol",
+        total: 8,
+        baseImponible: 6.61,
+        iva: 1.39,
+        pagina: 3,
+        paginaFin: 3,
+      }),
+    )
+
+    expect(invoice.pagina).toBe(3)
+    expect(invoice.paginaFin).toBe(3)
+  })
+
   it("unwraps an invoices array from a ticket bundle", () => {
     const invoices = parseInvoiceModelResponse(
       JSON.stringify({

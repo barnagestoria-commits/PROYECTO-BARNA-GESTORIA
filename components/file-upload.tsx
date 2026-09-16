@@ -67,7 +67,7 @@ const DOCUMENT_TYPES: DocumentTypeConfig[] = [
     id: "factura-emitida",
     label: "Facturas Emitidas",
     shortLabel: "Emitidas",
-    description: "Ventas y facturas que emite tu empresa hacia clientes.",
+    description: "Ventas y facturas que emite tu empresa hacia clientes, con OCR de cliente e importes.",
     icon: FileText,
     accent: "text-blue-700",
     selectedRing: "ring-blue-500 border-blue-300 bg-blue-50/80",
@@ -254,7 +254,9 @@ export function FileUpload({
               </span>
               <span className="block text-xs font-normal text-gray-500 break-words text-pretty leading-relaxed">
                 {activeConfig.mediaHint}
-                {selectedType === "factura-recibida" ? " · OCR automático" : ""}
+                {selectedType === "factura-recibida" || selectedType === "factura-emitida"
+                  ? " · OCR automático"
+                  : ""}
               </span>
             </span>
           </Button>

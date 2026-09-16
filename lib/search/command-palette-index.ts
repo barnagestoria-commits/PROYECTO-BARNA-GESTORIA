@@ -112,8 +112,8 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
     "action-subir-emitida",
     "Subir factura emitida",
     "/dashboard/ventas/facturas-emitidas",
-    "Ventas y facturas de tu empresa",
-    ["factura", "emitida", "venta", "cliente"],
+    "OCR de cliente e ingreso (430, 700 o 705)",
+    ["factura", "emitida", "venta", "cliente", "ocr"],
   ),
   actionItem(
     "action-subir-extracto",

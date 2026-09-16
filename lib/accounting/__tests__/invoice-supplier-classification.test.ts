@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest"
 import {
+  classifyIssuedInvoiceIncome,
   classifyReceivedInvoicePurchase,
   parsePurchaseNature,
+  withIssuedClassification,
   withPurchaseClassification,
 } from "@/lib/accounting/invoice-supplier-classification"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
@@ -95,6 +97,41 @@ describe("invoice-supplier-classification", () => {
 
     expect(classified.accountPrefix).toBe("400")
     expect(classified.expenseAccount).toBe("600")
+    expect(classified.classificationReason).toBe("Corregido a mano")
+  })
+
+  it("un autónomo de servicios usa 705 y cliente 430", () => {
+    const result = classifyIssuedInvoiceIncome({
+      proveedor: "Cliente SL",
+      activities: [{ epigraph: "722", description: "Repartidor de paquetes" }],
+      entityType: "PERSONA_FISICA",
+    })
+
+    expect(result.incomeAccount).toBe("705")
+  })
+
+  it("una actividad comercial usa 700 en ventas", () => {
+    const result = classifyIssuedInvoiceIncome({
+      proveedor: "Cliente Comercio SL",
+      activities: [{ epigraph: "647", description: "Comercio al por menor" }],
+      entityType: "PERSONA_JURIDICA",
+    })
+
+    expect(result.incomeAccount).toBe("700")
+  })
+
+  it("withIssuedClassification fija 430 y respeta el ingreso ya indicado", () => {
+    const classified = withIssuedClassification(
+      invoice({
+        accountPrefix: "430",
+        incomeAccount: "700",
+        classificationReason: "Corregido a mano",
+      }),
+      { activities: [{ description: "reparto" }] },
+    )
+
+    expect(classified.accountPrefix).toBe("430")
+    expect(classified.incomeAccount).toBe("700")
     expect(classified.classificationReason).toBe("Corregido a mano")
   })
 

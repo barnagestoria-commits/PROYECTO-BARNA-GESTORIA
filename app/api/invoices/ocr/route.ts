@@ -4,7 +4,10 @@ import { OcrConfigError, OcrExtractionError } from "@/lib/ocr/errors"
 import type { InvoiceOcrErrorResponse, InvoiceOcrResponse } from "@/lib/types/invoice"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { loadCompanyPurchaseContext } from "@/lib/accounting/company-purchase-context"
-import { withPurchaseClassification } from "@/lib/accounting/invoice-supplier-classification"
+import {
+  withIssuedClassification,
+  withPurchaseClassification,
+} from "@/lib/accounting/invoice-supplier-classification"
 
 export const runtime = "nodejs"
 export const maxDuration = 180
@@ -52,19 +55,30 @@ export async function POST(request: Request) {
       )
     }
 
+    const documentTypeRaw = String(formData.get("documentType") ?? "factura-recibida")
+    const documentType =
+      documentTypeRaw === "factura-emitida" ? "factura-emitida" : "factura-recibida"
+
     const buffer = Buffer.from(await file.arrayBuffer())
     const invoices = await extractInvoiceData({
       buffer,
       mimeType: file.type,
       fileName: file.name,
+      documentType,
     })
     const purchaseContext = await loadCompanyPurchaseContext(companyId)
     const classifiedInvoices = invoices.map((invoice) =>
-      withPurchaseClassification(invoice, {
-        fileName: file.name,
-        activities: purchaseContext.activities,
-        entityType: purchaseContext.entityType,
-      }),
+      documentType === "factura-emitida"
+        ? withIssuedClassification(invoice, {
+            fileName: file.name,
+            activities: purchaseContext.activities,
+            entityType: purchaseContext.entityType,
+          })
+        : withPurchaseClassification(invoice, {
+            fileName: file.name,
+            activities: purchaseContext.activities,
+            entityType: purchaseContext.entityType,
+          }),
     )
 
     return NextResponse.json<InvoiceOcrResponse>({

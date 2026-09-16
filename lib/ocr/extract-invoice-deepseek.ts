@@ -16,7 +16,17 @@ import { normalizeTaxId } from "@/lib/tax-id"
 
 const DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 
-const EXTRACTION_PROMPT = `Eres un asistente experto en contabilidad y normativa fiscal española (IVA, LIVA, recargo de equivalencia). Analiza el documento (texto y/o fotos de tickets y facturas) y extrae los datos de CADA factura o ticket recibido. El proveedor/emisor es quien emite el documento, no el cliente/receptor.
+const SHARED_JSON_FIELDS = `"iva_desglose": [{ "base_imponible": 0, "tipo_iva": 21, "cuota_iva": 0 }],
+      "recargo_equivalencia": null,
+      "baseImponible": 0,
+      "iva": 0,
+      "total": 0,
+      "isIntracomunitaria": false,
+      "isSujetoPasivo": false,
+      "pagina": 1,
+      "paginaFin": 1`
+
+const PURCHASE_EXTRACTION_PROMPT = `Eres un asistente experto en contabilidad y normativa fiscal española (IVA, LIVA, recargo de equivalencia). Analiza el documento (texto y/o fotos de tickets y facturas) y extrae los datos de CADA factura o ticket recibido. El proveedor/emisor es quien emite el documento, no el cliente/receptor.
 
 Reglas generales:
 - Devuelve importes numéricos en euros (sin símbolo €).
@@ -25,6 +35,7 @@ Reglas generales:
 - Prioriza datos del emisor/proveedor, no del destinatario.
 - Si hay VARIAS facturas o tickets (gasolina, parking, taller, supermercado, etc.), devuelve una entrada por cada uno. No las fusiones.
 - Si un ticket no trae NIF, deja cif vacío pero rellena proveedor, fecha, importes y tipo de IVA si se ven.
+- pagina y paginaFin son páginas del PDF (empezando en 1) de ESA factura. Si ocupa una sola página, pagina = paginaFin.
 
 DESGLOSE DE IVA (iva_desglose):
 - Devuelve un ARRAY con una línea por cada tipo de IVA distinto.
@@ -56,14 +67,33 @@ Responde ÚNICAMENTE con un objeto JSON válido (sin markdown):
       "cif": "",
       "numeroFactura": "",
       "fechaFactura": "YYYY-MM-DD",
-      "iva_desglose": [{ "base_imponible": 0, "tipo_iva": 21, "cuota_iva": 0 }],
-      "recargo_equivalencia": null,
-      "baseImponible": 0,
-      "iva": 0,
-      "total": 0,
-      "isIntracomunitaria": false,
-      "isSujetoPasivo": false,
+      ${SHARED_JSON_FIELDS},
       "naturalezaCompra": "servicios"
+    }
+  ]
+}`
+
+const SALES_EXTRACTION_PROMPT = `Eres un asistente experto en contabilidad y normativa fiscal española. Analiza facturas EMITIDAS (ventas). El tercero es el CLIENTE / destinatario, NO el emisor. No uses el nombre ni el NIF de quien emite el documento.
+
+Reglas generales:
+- Devuelve importes numéricos en euros (sin símbolo €).
+- En "proveedor" pon la razón social del cliente/receptor. En "cif" el NIF/CIF/VAT del cliente.
+- Normaliza el CIF/NIF/VAT en mayúsculas, sin espacios ni guiones.
+- La fecha debe estar en formato YYYY-MM-DD.
+- Si hay VARIAS facturas, una entrada por cada una. No las fusiones.
+- pagina y paginaFin son páginas del PDF (empezando en 1) de ESA factura. Si ocupa una sola página, pagina = paginaFin.
+
+DESGLOSE DE IVA, recargo, total e isIntracomunitaria / isSujetoPasivo: mismas reglas que en una factura española.
+
+Responde ÚNICAMENTE con un objeto JSON válido (sin markdown):
+{
+  "invoices": [
+    {
+      "proveedor": "",
+      "cif": "",
+      "numeroFactura": "",
+      "fechaFactura": "YYYY-MM-DD",
+      ${SHARED_JSON_FIELDS}
     }
   ]
 }`
@@ -148,6 +178,17 @@ function normalizeDate(value: unknown): string {
   return trimmed
 }
 
+function parsePageNumber(value: unknown): number | undefined {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim()
+        ? Number.parseFloat(value.trim())
+        : Number.NaN
+  if (!Number.isFinite(parsed) || parsed < 1) return undefined
+  return Math.trunc(parsed)
+}
+
 function parseIvaDesglose(raw: unknown, baseImponible: number, iva: number): InvoiceOcrResult["iva_desglose"] {
   if (Array.isArray(raw) && raw.length > 0) {
     const lines = raw.map(parseDesgloseLine).filter((line): line is NonNullable<typeof line> => line !== null)
@@ -193,6 +234,11 @@ function normalizeInvoiceResult(raw: Record<string, unknown>): InvoiceOcrResult 
     isSujetoPasivo: parseBooleanField(raw.isSujetoPasivo ?? raw.sujetoPasivo),
     naturalezaCompra: parsePurchaseNature(raw.naturalezaCompra ?? raw.naturaleza_compra ?? raw.naturaleza),
   }
+
+  const pagina = parsePageNumber(raw.pagina ?? raw.pageStart ?? raw.page ?? raw.paginaInicio)
+  const paginaFin = parsePageNumber(raw.paginaFin ?? raw.pageEnd ?? raw.pagina_fin ?? raw.paginaFinal)
+  if (pagina) result.pagina = pagina
+  if (paginaFin || pagina) result.paginaFin = paginaFin && pagina ? Math.max(pagina, paginaFin) : paginaFin ?? pagina
 
   return syncInvoiceTotals(result)
 }
@@ -276,17 +322,19 @@ function isEmptyInvoiceRecognitionError(error: unknown): boolean {
 async function requestStructuredExtraction(
   documentText: string,
   imageDataUrls: string[],
-  options?: { allowEmpty?: boolean },
+  options?: { allowEmpty?: boolean; documentType?: "factura-recibida" | "factura-emitida" },
 ): Promise<InvoiceOcrResult[]> {
   const client = getDeepSeekClient()
   const model = imageDataUrls.length > 0 ? getVisionModel() : getTextModel()
+  const prompt =
+    options?.documentType === "factura-emitida" ? SALES_EXTRACTION_PROMPT : PURCHASE_EXTRACTION_PROMPT
 
   try {
     const response = await client.chat.completions.create({
       model,
       temperature: 0,
       messages: [
-        { role: "system", content: EXTRACTION_PROMPT },
+        { role: "system", content: prompt },
         { role: "user", content: buildUserContent(documentText, imageDataUrls) },
       ],
       response_format: { type: "json_object" },
@@ -316,6 +364,7 @@ function isLikelyVisionUnsupported(error: unknown): boolean {
 export async function extractInvoicesFromDocument(input: {
   text?: string
   imageDataUrls?: string[]
+  documentType?: "factura-recibida" | "factura-emitida"
 }): Promise<InvoiceOcrResult[]> {
   const text = input.text?.trim() ?? ""
   const imageDataUrls = input.imageDataUrls?.filter(Boolean) ?? []
@@ -328,10 +377,11 @@ export async function extractInvoicesFromDocument(input: {
 
   const prefixedText = text ? `Texto extraído del PDF:\n\n${text}` : ""
   const pageChunks = chunkPages(imageDataUrls)
+  const documentType = input.documentType
 
   try {
     if (pageChunks.length <= 1) {
-      return await requestStructuredExtraction(prefixedText, imageDataUrls)
+      return await requestStructuredExtraction(prefixedText, imageDataUrls, { documentType })
     }
 
     const batches: InvoiceOcrResult[][] = []
@@ -342,6 +392,7 @@ export async function extractInvoicesFromDocument(input: {
           : "Continuación del mismo PDF. Extrae SOLO las facturas o tickets visibles en estas páginas. No repitas las de páginas anteriores."
       const batch = await requestStructuredExtraction(chunkText, chunk, {
         allowEmpty: true,
+        documentType,
       })
       batches.push(batch)
     }
@@ -359,7 +410,7 @@ export async function extractInvoicesFromDocument(input: {
       text.replace(/\s+/g, " ").trim().length >= 80 &&
       isLikelyVisionUnsupported(error)
     ) {
-      return requestStructuredExtraction(prefixedText, [])
+      return requestStructuredExtraction(prefixedText, [], { documentType })
     }
     throw error
   }

@@ -66,6 +66,9 @@ function DocumentUploadWorkspaceContent({
   const [sessionDocumentIds, setSessionDocumentIds] = useState<string[]>([])
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null)
 
+  const [ocrBlockDuplicates, setOcrBlockDuplicates] = useState(true)
+  const [savingOcrSetting, setSavingOcrSetting] = useState(false)
+
   const defaultTab = searchParams.get("tab") === "documentos" ? "documents" : "upload"
 
   const loadDocuments = useCallback(async () => {
@@ -85,6 +88,11 @@ function DocumentUploadWorkspaceContent({
   useEffect(() => {
     if (session?.activeCompanyId) {
       loadDocuments()
+      void apiFetch<{ success: true; settings: { ocrBlockDuplicates?: boolean } }>(
+        "/api/accounting/analytic-settings",
+      )
+        .then((data) => setOcrBlockDuplicates(data.settings.ocrBlockDuplicates ?? true))
+        .catch(() => setOcrBlockDuplicates(true))
     }
   }, [session?.activeCompanyId, loadDocuments])
 
@@ -114,6 +122,7 @@ function DocumentUploadWorkspaceContent({
     const formData = new FormData()
     formData.append("file", file)
     formData.append("companyId", session.activeCompanyId)
+    formData.append("documentType", documentType)
 
     const result = await apiFormFetch<{
       success: true
@@ -159,7 +168,7 @@ function DocumentUploadWorkspaceContent({
       return
     }
 
-    if (type === "factura-recibida") {
+    if (type === "factura-recibida" || type === "factura-emitida") {
       setSessionDocumentIds([])
       await processNextInQueue(files)
       return
@@ -170,7 +179,26 @@ function DocumentUploadWorkspaceContent({
     }
   }
 
-  const handleConfirmValidation = async (data: InvoiceOcrResult) => {
+  const handleOcrBlockDuplicatesChange = async (enabled: boolean) => {
+    setOcrBlockDuplicates(enabled)
+    setSavingOcrSetting(true)
+    try {
+      await apiFetch("/api/accounting/analytic-settings", {
+        method: "PUT",
+        body: JSON.stringify({ ocrBlockDuplicates: enabled }),
+      })
+    } catch (error) {
+      setOcrBlockDuplicates(!enabled)
+      setOcrError(error instanceof Error ? error.message : "No se pudo guardar la configuración OCR.")
+    } finally {
+      setSavingOcrSetting(false)
+    }
+  }
+
+  const handleConfirmValidation = async (
+    data: InvoiceOcrResult,
+    options?: { allowDuplicate?: boolean },
+  ) => {
     if (!pendingValidation) return
 
     setIsConfirming(true)
@@ -193,8 +221,9 @@ function DocumentUploadWorkspaceContent({
         body: JSON.stringify({
           fileName: pendingValidation.fileName,
           sizeBytes: pendingValidation.file.size,
-          documentType: "factura-recibida",
+          documentType,
           invoice: data,
+          allowDuplicate: Boolean(options?.allowDuplicate),
         }),
       })
 
@@ -376,14 +405,48 @@ function DocumentUploadWorkspaceContent({
           </Card>
         )}
 
+        {(documentType === "factura-recibida" || documentType === "factura-emitida") &&
+          !pendingValidation && (
+          <Card className="border-gray-200">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Configuración OCR</CardTitle>
+              <CardDescription>
+                Evita contabilizar dos veces el mismo NIF y número de factura. F4 confirma y F12
+                salta o elimina la factura que estás viendo.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <label className="flex cursor-pointer items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={ocrBlockDuplicates}
+                  disabled={savingOcrSetting}
+                  onChange={(event) => void handleOcrBlockDuplicatesChange(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-emerald-700"
+                />
+                <span>
+                  <span className="font-medium">Detectar facturas duplicadas</span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    Si ya existe un asiento con el mismo NIF y número, se avisa y no se confirma
+                    hasta que lo autorices.
+                  </span>
+                </span>
+              </label>
+            </CardContent>
+          </Card>
+        )}
+
         {pendingValidation && (
           <InvoiceValidationForm
             key={`${pendingValidation.fileName}-${pendingValidation.invoiceIndex}`}
             fileName={pendingValidation.fileName}
             file={pendingValidation.file}
             initialData={pendingValidation.ocrData}
-            documentType="factura-recibida"
+            documentType={documentType === "factura-emitida" ? "factura-emitida" : "factura-recibida"}
             remainingCount={pendingValidation.remainingInvoices.length}
+            invoiceIndex={pendingValidation.invoiceIndex}
+            invoiceCount={pendingValidation.invoiceCount}
+            ocrBlockDuplicates={ocrBlockDuplicates}
             progressLabel={
               pendingValidation.invoiceCount > 1
                 ? `Factura ${pendingValidation.invoiceIndex} de ${pendingValidation.invoiceCount}`
@@ -404,6 +467,7 @@ function DocumentUploadWorkspaceContent({
           </Card>
         )}
 
+        {!pendingValidation ? (
         <Card className="overflow-hidden border-emerald-200">
           <CardHeader className="px-4 sm:px-6">
             <CardTitle className="text-lg leading-snug break-words text-balance sm:text-xl">
@@ -412,10 +476,11 @@ function DocumentUploadWorkspaceContent({
             <CardDescription className="break-words text-pretty leading-relaxed">
               {description}
             </CardDescription>
-            {documentType === "factura-recibida" ? (
+            {(documentType === "factura-recibida" || documentType === "factura-emitida") ? (
               <p className="pt-2 text-xs text-gray-500">
                 Hasta que pulses Confirmar no se crea ninguna cuenta ni asiento. Puedes descartar el
-                lote entero y volver a subir el mismo PDF.
+                lote entero y volver a subir el mismo PDF. F4 confirma y F12 salta o elimina esta
+                factura.
               </p>
             ) : null}
           </CardHeader>
@@ -438,6 +503,7 @@ function DocumentUploadWorkspaceContent({
             />
           </CardContent>
         </Card>
+        ) : null}
       </TabsContent>
 
       <TabsContent value="documents">

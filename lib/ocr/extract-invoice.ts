@@ -8,6 +8,7 @@ interface ExtractInvoiceInput {
   buffer: Buffer
   mimeType: string
   fileName: string
+  documentType?: "factura-recibida" | "factura-emitida"
 }
 
 function resolveMimeType(mimeType: string, fileName: string): string {
@@ -77,6 +78,7 @@ export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<In
     const invoices = await extractInvoicesFromDocument({
       text,
       imageDataUrls: pageRender.dataUrls,
+      documentType: input.documentType,
     })
 
     if (pageRender.truncated) {
@@ -91,6 +93,7 @@ export async function extractInvoiceData(input: ExtractInvoiceInput): Promise<In
   if (mimeType.startsWith("image/")) {
     return extractInvoicesFromDocument({
       imageDataUrls: [imageBufferToDataUrl(input.buffer, mimeType)],
+      documentType: input.documentType,
     })
   }
 
