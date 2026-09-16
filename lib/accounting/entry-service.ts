@@ -16,6 +16,8 @@ import {
 } from "@/lib/accounting/analytic-accounting-service"
 import { isAnalyticAccount } from "@/lib/accounting/analytic-accounting-types"
 import { ensureInvoiceVatLines } from "@/lib/accounting/invoice-details-normalize"
+import { repairCanonicalAccountCodes } from "@/lib/accounting/canonical-account-repair"
+import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
@@ -35,7 +37,7 @@ function mapEntryLines(
     .map((line) => ({
       id: line.id,
       sortOrder: line.sortOrder,
-      cuenta: line.cuenta,
+      cuenta: formatAccountCodeForUi(line.cuenta),
       concepto: line.concepto,
       debe: decimalToNumber(line.debe),
       haber: decimalToNumber(line.haber),
@@ -98,6 +100,7 @@ export async function getAccountingEntryById(
   companyId: string,
   entryId: string,
 ): Promise<AccountingEntryDetail | null> {
+  await repairCanonicalAccountCodes(companyId)
   const entry = await prisma.accountingEntry.findFirst({
     where: { id: entryId, companyId },
     include: { lines: true },

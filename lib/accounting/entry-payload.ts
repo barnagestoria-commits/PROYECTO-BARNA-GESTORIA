@@ -12,6 +12,7 @@ import {
   type AnalyticDistributionInput,
 } from "@/lib/accounting/analytic-accounting-types"
 import { normalizeInvoiceDetails } from "@/lib/accounting/invoice-details-normalize"
+import { canonicalizeStoredAccountCode } from "@/lib/accounting/canonical-account-code"
 import {
   createDefaultInvoiceDetails,
   type InvoiceEntryDetails,
@@ -64,7 +65,7 @@ export function normalizeEntryLines(
 
   const lines = rawLines
     .map((line) => ({
-      cuenta: String(line.cuenta ?? "").trim(),
+      cuenta: canonicalizeStoredAccountCode(String(line.cuenta ?? "")) || String(line.cuenta ?? "").trim(),
       concepto: String(line.concepto ?? "").trim(),
       debe: Math.round((Number(line.debe) || 0) * 100) / 100,
       haber: Math.round((Number(line.haber) || 0) * 100) / 100,

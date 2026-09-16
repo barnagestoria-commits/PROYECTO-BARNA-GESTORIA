@@ -7,7 +7,7 @@ import {
 } from "@/lib/accounting/invoice-entry-concepts"
 import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
 import { getAccountTreatment } from "@/lib/accounting/account-treatment-service"
-import { formatAccountCodeStored } from "@/lib/accounting/third-party-types"
+import { canonicalizeStoredAccountCode } from "@/lib/accounting/canonical-account-code"
 import {
   findThirdPartyByCif,
   resolveOrCreateThirdParty,
@@ -99,7 +99,7 @@ function buildReceivedInvoiceLines(
 
   lines.push({
     sortOrder: lines.length,
-    cuenta: expenseAccount.replace(/\./g, ""),
+      cuenta: canonicalizeStoredAccountCode(expenseAccount),
     concepto: concept,
     debe: baseImponible,
     haber: 0,
@@ -139,7 +139,7 @@ function buildIssuedInvoiceLines(
 
   lines.push({
     sortOrder: lines.length,
-    cuenta: incomeAccount.replace(/\./g, ""),
+      cuenta: canonicalizeStoredAccountCode(incomeAccount),
     concepto: concept,
     debe: 0,
     haber: baseImponible,
@@ -199,10 +199,10 @@ export async function createInvoiceAccountingEntry(params: {
 
     const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
     const defaultIncomeAccount = invoice.incomeAccount?.trim()
-      ? formatAccountCodeStored(invoice.incomeAccount)
+      ? canonicalizeStoredAccountCode(invoice.incomeAccount)
       : treatment?.defaultCounterpartAccount
-        ? formatAccountCodeStored(treatment.defaultCounterpartAccount)
-        : formatAccountCodeStored("705")
+        ? canonicalizeStoredAccountCode(treatment.defaultCounterpartAccount)
+        : canonicalizeStoredAccountCode("705")
     const lines = buildIssuedInvoiceLines(invoice, thirdParty.accountCode, defaultIncomeAccount)
     return persistInvoiceEntry({ ...params, invoice }, thirdParty, "17", lines)
   }
@@ -245,10 +245,10 @@ export async function createInvoiceAccountingEntry(params: {
 
   const treatment = await getAccountTreatment(params.companyId, thirdParty.accountCode)
   const defaultExpenseAccount = params.invoice.expenseAccount?.trim()
-    ? formatAccountCodeStored(params.invoice.expenseAccount)
+    ? canonicalizeStoredAccountCode(params.invoice.expenseAccount)
     : treatment?.defaultCounterpartAccount
-      ? formatAccountCodeStored(treatment.defaultCounterpartAccount)
-      : formatAccountCodeStored(invoice.expenseAccount || "629")
+      ? canonicalizeStoredAccountCode(treatment.defaultCounterpartAccount)
+      : canonicalizeStoredAccountCode(invoice.expenseAccount || "629")
   const lines = buildReceivedInvoiceLines(invoice, thirdParty.accountCode, defaultExpenseAccount)
   return persistInvoiceEntry({ ...params, invoice }, thirdParty, "34", lines)
 }

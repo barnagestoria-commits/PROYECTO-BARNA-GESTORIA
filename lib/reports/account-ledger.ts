@@ -20,6 +20,7 @@ import {
 import { normalizeCuenta, round2 } from "@/lib/reports/format"
 import { isDemoThirdParty } from "@/lib/contacts/demo-contacts"
 import { purgeDemoThirdParties } from "@/lib/accounting/third-party-service"
+import { repairCanonicalAccountCodes } from "@/lib/accounting/canonical-account-repair"
 import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
 
 export interface LedgerQuery {
@@ -231,16 +232,17 @@ export async function fetchCompanyChartExtract(
   accountsWithMovement: number
   detailLevel: GestoriaAccountDetailLevel
 }> {
-  const [plan, movements, openedAccounts, entryCount] = await Promise.all([
+  const entryCount = await prisma.accountingEntry.count({ where: { companyId: query.companyId } })
+  if (entryCount > 0) {
+    await purgeDemoThirdParties(query.companyId)
+    await repairCanonicalAccountCodes(query.companyId)
+  }
+
+  const [plan, movements, openedAccounts] = await Promise.all([
     resolveCompanyChartPlan(query.companyId),
     loadMovementTotals(query),
     loadOpenedAccountNames(query.companyId),
-    prisma.accountingEntry.count({ where: { companyId: query.companyId } }),
   ])
-
-  if (entryCount > 0) {
-    await purgeDemoThirdParties(query.companyId)
-  }
 
   const rows = buildChartBalanceRows({
     planCodes: getPlanAccountCodes(plan.accountingPlanType),

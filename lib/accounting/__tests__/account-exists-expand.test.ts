@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest"
 import { expandCanonicalSubaccountCode } from "@/lib/accounting/account-exists-service"
+import {
+  canonicalizeStoredAccountCode,
+  formatAccountCodeForUi,
+  needsCanonicalAccountRepair,
+} from "@/lib/accounting/canonical-account-code"
+import { normalizeEntryLines } from "@/lib/accounting/entry-payload"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 
 describe("expandCanonicalSubaccountCode", () => {
@@ -23,5 +29,34 @@ describe("expandCanonicalSubaccountCode", () => {
 
   it("pads income accounts the same way", () => {
     expect(formatAccountCodeDisplay(expandCanonicalSubaccountCode("705.1"))).toBe("705.0001")
+  })
+})
+
+describe("canonical account display and storage", () => {
+  it("shows 6281 as 628.0001 and 472 as 472.0000", () => {
+    expect(formatAccountCodeForUi("6281")).toBe("628.0001")
+    expect(formatAccountCodeForUi("628.1")).toBe("628.0001")
+    expect(formatAccountCodeForUi("472")).toBe("472.0000")
+    expect(formatAccountCodeForUi("410.0002")).toBe("410.0002")
+  })
+
+  it("stores 628.1 / 6281 as 628.0001 without persisting 6281", () => {
+    expect(canonicalizeStoredAccountCode("6281")).toBe("628.0001")
+    expect(canonicalizeStoredAccountCode("628.1")).toBe("628.0001")
+    expect(canonicalizeStoredAccountCode("472")).toBe("472")
+    expect(canonicalizeStoredAccountCode("472.0000")).toBe("472")
+    expect(needsCanonicalAccountRepair("6281")).toBe(true)
+    expect(needsCanonicalAccountRepair("628.0001")).toBe(false)
+    expect(needsCanonicalAccountRepair("472")).toBe(false)
+  })
+
+  it("canonicalizes asiento lines so OCR 628.1 is not saved as 6281", () => {
+    const result = normalizeEntryLines([
+      { cuenta: "410.0002", concepto: "Proveedor", debe: 0, haber: 15.04 },
+      { cuenta: "472", concepto: "IVA", debe: 2.61, haber: 0 },
+      { cuenta: "628.1", concepto: "Gasto", debe: 12.43, haber: 0 },
+    ])
+    if ("error" in result) throw new Error(result.error)
+    expect(result.lines.map((line) => line.cuenta)).toEqual(["410.0002", "472", "628.0001"])
   })
 })

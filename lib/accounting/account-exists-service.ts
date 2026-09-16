@@ -4,14 +4,23 @@ import {
   parseDottedAccountShortcut,
   resolveAccountShortcut,
   toShortcutCandidates,
-  unresolvedDottedShortcut,
 } from "@/lib/accounting/account-shortcut"
 import {
   isThirdPartyAccountPrefix,
   resolveAccountParentCode,
 } from "@/lib/accounting/new-account-prefix"
-import { buildAccountCode, formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { normalizeCuenta } from "@/lib/reports/format"
+import {
+  expandCanonicalSubaccountCode,
+  inferParentCodeFromAccount,
+  isExactPgcAccount,
+} from "@/lib/accounting/canonical-account-code"
+
+export {
+  expandCanonicalSubaccountCode,
+  inferParentCodeFromAccount,
+} from "@/lib/accounting/canonical-account-code"
 
 export interface AccountExistenceResult {
   exists: boolean
@@ -21,39 +30,6 @@ export interface AccountExistenceResult {
   isThirdParty: boolean
   canQuickCreate: boolean
   label: string | null
-}
-
-/** Convierte 628.1 / 6281 en la subcuenta canónica 6280001 (628.0001). */
-export function expandCanonicalSubaccountCode(raw: string): string {
-  const dotted = parseDottedAccountShortcut(raw)
-  if (dotted) return unresolvedDottedShortcut(dotted).fallbackAccountCode
-
-  const digits = normalizeCuenta(raw)
-  if (!digits || isExactPgcAccount(digits)) return digits
-
-  const parent = inferParentCodeFromAccount(digits)
-  if (!parent) return digits
-
-  const suffix = digits.slice(parent.length)
-  if (!suffix || suffix.length >= 4) return digits
-
-  const sequence = Number.parseInt(suffix, 10)
-  if (!Number.isFinite(sequence) || sequence < 1) return digits
-  return buildAccountCode(parent, sequence)
-}
-
-export function inferParentCodeFromAccount(digits: string): string | null {
-  const sorted = [...PGC_ACCOUNTS].sort((a, b) => b.code.length - a.code.length)
-  for (const account of sorted) {
-    if (digits.startsWith(account.code) && digits.length > account.code.length) {
-      return account.code
-    }
-  }
-  return null
-}
-
-function isExactPgcAccount(digits: string): boolean {
-  return PGC_ACCOUNTS.some((account) => account.code === digits)
 }
 
 function requiresSubaccountRegistration(digits: string): boolean {
