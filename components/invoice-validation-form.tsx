@@ -32,6 +32,11 @@ import { normalizeTaxId } from "@/lib/tax-id"
 import { TIPOS_IVA } from "@/lib/types/invoice"
 import { InvoiceDocumentPreview } from "@/components/invoice-document-preview"
 import { MissingAccountDialog } from "@/components/accounting/missing-account-dialog"
+import { DuplicateInvoiceDialog } from "@/components/accounting/duplicate-invoice-dialog"
+import {
+  describeDuplicateInvoice,
+  duplicateInvoiceKey,
+} from "@/lib/accounting/duplicate-invoice-message"
 import {
   NewSubaccountDialog,
   type AccountCreationResult,
@@ -134,6 +139,7 @@ export function InvoiceValidationForm({
     promise: Promise<string | null>
   } | null>(null)
   const ledgerAccountPromptKeyRef = useRef<string | null>(null)
+  const shownDuplicateKeyRef = useRef<string | null>(null)
   const [formData, setFormData] = useState<InvoiceOcrResult>(() => {
     const seeded = syncInvoiceTotals({
       ...initialData,
@@ -174,6 +180,7 @@ export function InvoiceValidationForm({
   const [userEditedAccountCode, setUserEditedAccountCode] = useState(Boolean(initialData.preferredAccountCode))
   const [duplicate, setDuplicate] = useState<DuplicateInvoiceMatch | null>(null)
   const [allowDuplicate, setAllowDuplicate] = useState(false)
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [mobilePane, setMobilePane] = useState<"document" | "data">("data")
   const [missingLedgerAccount, setMissingLedgerAccount] =
     useState<AccountExistenceResult | null>(null)
@@ -307,6 +314,8 @@ export function InvoiceValidationForm({
     if (!numeroFactura) {
       setDuplicate(null)
       setAllowDuplicate(false)
+      setDuplicateDialogOpen(false)
+      shownDuplicateKeyRef.current = null
       return
     }
 
@@ -325,7 +334,19 @@ export function InvoiceValidationForm({
           { signal: controller.signal },
         )
         setDuplicate(result.duplicate)
-        if (!result.duplicate) setAllowDuplicate(false)
+        if (!result.duplicate) {
+          setAllowDuplicate(false)
+          setDuplicateDialogOpen(false)
+          shownDuplicateKeyRef.current = null
+          return
+        }
+
+        const key = duplicateInvoiceKey(result.duplicate)
+        if (shownDuplicateKeyRef.current !== key) {
+          shownDuplicateKeyRef.current = key
+          setAllowDuplicate(false)
+          setDuplicateDialogOpen(true)
+        }
       } catch {
         if (controller.signal.aborted) return
         setDuplicate(null)
@@ -832,25 +853,22 @@ export function InvoiceValidationForm({
             </div>
 
             {duplicate ? (
-              <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-950">
-                <p className="font-medium">Posible factura duplicada</p>
-                <p className="mt-0.5">
-                  Ya existe el asiento {duplicate.refNumber} con el nº {duplicate.invoiceNumber} (
-                  {new Date(`${duplicate.fecha}T00:00:00`).toLocaleDateString("es-ES")}).
-                </p>
-                <label className="mt-1.5 flex cursor-pointer items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={allowDuplicate}
-                    onChange={(event) => setAllowDuplicate(event.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-amber-400 text-emerald-700"
-                  />
-                  <span>
-                    {ocrSettings.blockDuplicates
-                      ? "Registrar de todos modos. La detección de duplicadas está activa."
-                      : "Confirmar aunque coincida con un asiento anterior."}
-                  </span>
-                </label>
+              <div className="rounded-md border border-red-300 bg-red-50 p-2.5 text-sm text-red-900">
+                <p className="font-semibold text-red-800">Factura duplicada</p>
+                <p className="mt-0.5 font-medium">{describeDuplicateInvoice(duplicate)}</p>
+                {allowDuplicate ? (
+                  <p className="mt-1.5 text-xs font-medium text-red-700">
+                    Has elegido registrar de todos modos.
+                  </p>
+                ) : (
+                  <button
+                    type="button"
+                    className="mt-1.5 text-xs font-semibold text-red-800 underline underline-offset-2"
+                    onClick={() => setDuplicateDialogOpen(true)}
+                  >
+                    Abrir aviso
+                  </button>
+                )}
               </div>
             ) : null}
 
@@ -1262,6 +1280,16 @@ export function InvoiceValidationForm({
           setMissingLedgerAccount(null)
           setPendingLedgerField(null)
           ledgerAccountPromptKeyRef.current = null
+        }}
+      />
+      <DuplicateInvoiceDialog
+        open={duplicateDialogOpen && duplicate !== null}
+        duplicate={duplicate}
+        blockDuplicates={ocrSettings.blockDuplicates}
+        onDismiss={() => setDuplicateDialogOpen(false)}
+        onAllow={() => {
+          setAllowDuplicate(true)
+          setDuplicateDialogOpen(false)
         }}
       />
       <NewSubaccountDialog
