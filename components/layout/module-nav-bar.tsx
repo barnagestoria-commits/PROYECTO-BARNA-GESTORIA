@@ -7,6 +7,11 @@ import { ChevronDown } from "lucide-react"
 import { SidebarFlyoutPanel } from "@/components/layout/sidebar-flyout-panel"
 import { cn } from "@/lib/utils"
 import {
+  HOVER_MENU_PANEL_CLASS,
+  MORE_MENU_ID,
+  useHoverMenu,
+} from "@/lib/navigation/hover-menu"
+import {
   isNavLinkActive,
   isSidebarModuleActive,
   type SidebarNavModule,
@@ -23,19 +28,14 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
+  const { openId, scheduleOpen, scheduleClose, toggle, close } = useHoverMenu()
 
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const moreMeasureRef = useRef<HTMLButtonElement>(null)
 
   const [visibleCount, setVisibleCount] = useState(modules.length)
-  const [openModuleId, setOpenModuleId] = useState<string | null>(null)
-  const [moreOpen, setMoreOpen] = useState(false)
-
-  const closeMenus = useCallback(() => {
-    setOpenModuleId(null)
-    setMoreOpen(false)
-  }, [])
+  const moreOpen = openId === MORE_MENU_ID
 
   const recalculateVisibleCount = useCallback(() => {
     const container = containerRef.current
@@ -91,18 +91,18 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
   }, [recalculateVisibleCount])
 
   useEffect(() => {
-    closeMenus()
-  }, [pathname, searchString, closeMenus])
+    close()
+  }, [pathname, searchString, close])
 
   useEffect(() => {
     function handlePointerDown(event: MouseEvent) {
       if (!containerRef.current?.contains(event.target as Node)) {
-        closeMenus()
+        close()
       }
     }
 
     function handleEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") closeMenus()
+      if (event.key === "Escape") close()
     }
 
     document.addEventListener("mousedown", handlePointerDown)
@@ -111,7 +111,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
       document.removeEventListener("mousedown", handlePointerDown)
       document.removeEventListener("keydown", handleEscape)
     }
-  }, [closeMenus])
+  }, [close])
 
   const visibleModules = modules.slice(0, visibleCount)
   const overflowModules = modules.slice(visibleCount)
@@ -157,24 +157,24 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
               module={module}
               pathname={pathname}
               searchString={searchString}
-              isOpen={openModuleId === module.id}
-              onOpen={() => {
-                setMoreOpen(false)
-                setOpenModuleId((current) => (current === module.id ? null : module.id))
-              }}
-              onClose={closeMenus}
+              isOpen={openId === module.id}
+              onHoverEnter={() => scheduleOpen(module.id)}
+              onHoverLeave={scheduleClose}
+              onToggle={() => toggle(module.id)}
+              onNavigate={close}
             />
           ))}
 
           {overflowModules.length > 0 && (
-            <li className="relative shrink-0">
+            <li
+              className="relative shrink-0"
+              onPointerEnter={() => scheduleOpen(MORE_MENU_ID)}
+              onPointerLeave={scheduleClose}
+            >
               <button
                 type="button"
                 className={modulePillClassName(overflowHasActive, moreOpen, false)}
-                onClick={() => {
-                  setOpenModuleId(null)
-                  setMoreOpen((current) => !current)
-                }}
+                onClick={() => toggle(MORE_MENU_ID)}
                 aria-expanded={moreOpen}
                 aria-haspopup="menu"
               >
@@ -185,39 +185,41 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
               </button>
 
               {moreOpen && (
-                <div className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-xl border border-sand-200 bg-white py-1 shadow-xl">
-                  {overflowModules.map((module) => {
-                    const isActive = isSidebarModuleActive(module, pathname, searchString)
-                    const hasSections = Boolean(module.sections?.length)
+                <div className={cn(HOVER_MENU_PANEL_CLASS, "min-w-[220px]")}>
+                  <div className="rounded-xl border border-sand-200 bg-white py-1 shadow-xl">
+                    {overflowModules.map((module) => {
+                      const isActive = isSidebarModuleActive(module, pathname, searchString)
+                      const hasSections = Boolean(module.sections?.length)
 
-                    if (module.href && !hasSections) {
+                      if (module.href && !hasSections) {
+                        return (
+                          <Link
+                            key={module.id}
+                            href={module.href}
+                            onClick={close}
+                            className={cn(
+                              "block px-3 py-2 text-sm font-medium transition-colors",
+                              isActive
+                                ? "bg-emerald-50 text-emerald-900"
+                                : "text-graphite-800 hover:bg-sand-50",
+                            )}
+                          >
+                            {module.label}
+                          </Link>
+                        )
+                      }
+
                       return (
-                        <Link
+                        <OverflowModuleSection
                           key={module.id}
-                          href={module.href}
-                          onClick={closeMenus}
-                          className={cn(
-                            "block px-3 py-2 text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-emerald-50 text-emerald-900"
-                              : "text-graphite-800 hover:bg-sand-50",
-                          )}
-                        >
-                          {module.label}
-                        </Link>
+                          module={module}
+                          pathname={pathname}
+                          searchString={searchString}
+                          onNavigate={close}
+                        />
                       )
-                    }
-
-                    return (
-                      <OverflowModuleSection
-                        key={module.id}
-                        module={module}
-                        pathname={pathname}
-                        searchString={searchString}
-                        onNavigate={closeMenus}
-                      />
-                    )
-                  })}
+                    })}
+                  </div>
                 </div>
               )}
             </li>
@@ -254,41 +256,22 @@ function ModuleNavItem({
   pathname,
   searchString,
   isOpen,
-  onOpen,
-  onClose,
+  onHoverEnter,
+  onHoverLeave,
+  onToggle,
+  onNavigate,
 }: {
   module: SidebarNavModule
   pathname: string
   searchString: string
   isOpen: boolean
-  onOpen: () => void
-  onClose: () => void
+  onHoverEnter: () => void
+  onHoverLeave: () => void
+  onToggle: () => void
+  onNavigate: () => void
 }) {
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isActive = isSidebarModuleActive(module, pathname, searchString)
   const hasSections = Boolean(module.sections?.length)
-
-  const clearHoverTimer = () => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current)
-      hoverTimerRef.current = null
-    }
-  }
-
-  const openOnHover = () => {
-    if (!hasSections) return
-    clearHoverTimer()
-    hoverTimerRef.current = setTimeout(onOpen, 120)
-  }
-
-  const closeOnLeave = () => {
-    clearHoverTimer()
-    hoverTimerRef.current = setTimeout(onClose, 180)
-  }
-
-  const cancelClose = () => {
-    clearHoverTimer()
-  }
 
   if (module.href && !hasSections) {
     return (
@@ -306,8 +289,8 @@ function ModuleNavItem({
   return (
     <li
       className="relative shrink-0"
-      onMouseEnter={openOnHover}
-      onMouseLeave={closeOnLeave}
+      onPointerEnter={hasSections ? onHoverEnter : undefined}
+      onPointerLeave={hasSections ? onHoverLeave : undefined}
     >
       <div className="flex items-stretch">
         {module.href ? (
@@ -317,7 +300,7 @@ function ModuleNavItem({
               modulePillClassName(isActive, isOpen, hasSections),
               "rounded-r-none pr-2",
             )}
-            onClick={onClose}
+            onClick={onNavigate}
           >
             {module.label}
           </Link>
@@ -325,7 +308,7 @@ function ModuleNavItem({
           <button
             type="button"
             className={modulePillClassName(isActive, isOpen, hasSections)}
-            onClick={onOpen}
+            onClick={onToggle}
             aria-expanded={isOpen}
             aria-haspopup="true"
           >
@@ -338,10 +321,10 @@ function ModuleNavItem({
             type="button"
             className={cn(
               modulePillClassName(isActive, isOpen, true),
-              "rounded-l-none border-l border-white/20 px-2",
+              "rounded-l-none border-l border-white/20 px-2.5",
               !isActive && !isOpen && "border-graphite-200",
             )}
-            onClick={onOpen}
+            onClick={onToggle}
             aria-expanded={isOpen}
             aria-haspopup="true"
             aria-label={`Abrir menú de ${module.label}`}
@@ -354,12 +337,8 @@ function ModuleNavItem({
       </div>
 
       {isOpen && hasSections && (
-        <div
-          className="absolute left-0 top-full z-50 mt-1"
-          onMouseEnter={cancelClose}
-          onMouseLeave={closeOnLeave}
-        >
-          <SidebarFlyoutPanel module={module} onNavigate={onClose} variant="dropdown" />
+        <div className={HOVER_MENU_PANEL_CLASS}>
+          <SidebarFlyoutPanel module={module} onNavigate={onNavigate} variant="dropdown" />
         </div>
       )}
     </li>
