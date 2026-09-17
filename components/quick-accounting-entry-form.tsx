@@ -26,6 +26,7 @@ import {
   getNextNavigableField,
   isAmountFieldDisabled,
   buildBalancingCounterpartLine,
+  createContinuedEntryLine,
   type EntryNavigationContext,
 } from "@/lib/accounting/entry-line-navigation"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
@@ -114,6 +115,13 @@ function isValidAccountValue(value: string): boolean {
 
 function isInvoiceCommand(code: AccountingCommandCode | null): code is "17" | "34" {
   return code === "17" || code === "34"
+}
+
+function continuedLineDocument(
+  previous: AccountingEntryLine | undefined,
+  invoiceNumber?: string,
+): string {
+  return previous?.documento?.trim() || invoiceNumber?.trim() || ""
 }
 
 interface CommittedEntryLine {
@@ -436,10 +444,15 @@ export function QuickAccountingEntryForm() {
       }
 
       const source = navigationContext.lines[row]
+      const documento = continuedLineDocument(
+        source,
+        isInvoiceConceptCommand(activeCommand) ? invoiceDetails.invoiceNumber : undefined,
+      )
       const counterpartAccount = field === "contrapartida" ? source?.contrapartida : undefined
       const draft = buildBalancingCounterpartLine(navigationContext.lines, {
         counterpartAccount,
         concepto: source?.concepto,
+        documento,
       })
 
       if (draft) {
@@ -453,10 +466,10 @@ export function QuickAccountingEntryForm() {
         return
       }
 
-      setLines((prev) => [...prev, createEmptyLine()])
+      setLines((prev) => [...prev, createContinuedEntryLine(source, {}, documento)])
       requestAnimationFrame(() => focusCell(row + 1, "concepto"))
     },
-    [focusCell, navigationContext, prefillLineAmount],
+    [activeCommand, focusCell, invoiceDetails.invoiceNumber, navigationContext, prefillLineAmount],
   )
 
   const applyAccountTreatment = useCallback(
@@ -1117,9 +1130,14 @@ export function QuickAccountingEntryForm() {
 
   const addLine = () => {
     const source = lines[lines.length - 1]
+    const documento = continuedLineDocument(
+      source,
+      isInvoiceConceptCommand(activeCommand) ? invoiceDetails.invoiceNumber : undefined,
+    )
     const draft = buildBalancingCounterpartLine(lines, {
       counterpartAccount: source?.contrapartida,
       concepto: source?.concepto,
+      documento,
     })
     if (draft) {
       setLines((prev) => {
@@ -1133,7 +1151,7 @@ export function QuickAccountingEntryForm() {
       requestAnimationFrame(() => focusCell(lines.length, draft.focusField))
       return
     }
-    setLines((prev) => [...prev, createEmptyLine()])
+    setLines((prev) => [...prev, createContinuedEntryLine(source, {}, documento)])
     requestAnimationFrame(() => focusCell(lines.length, "concepto"))
   }
 

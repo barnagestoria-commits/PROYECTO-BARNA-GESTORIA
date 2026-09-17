@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import { createEmptyLine } from "@/lib/accounting/command-templates"
 import {
   buildBalancingCounterpartLine,
+  createContinuedEntryLine,
   getNextNavigableField,
   shouldCreateBalancingLineBelow,
   type EntryNavigationContext,
@@ -54,6 +55,36 @@ describe("buildBalancingCounterpartLine", () => {
       { ...createEmptyLine(), cuenta: "430.0001", debe: 0, haber: 79.7 },
     ]
     expect(buildBalancingCounterpartLine(lines)).toBeNull()
+  })
+
+  it("copies the previous document number onto the new line", () => {
+    const lines = [
+      { ...createEmptyLine(), cuenta: "642.0001", documento: "01", concepto: "Cuota TGSS", debe: 79.7, haber: 0 },
+    ]
+    const draft = buildBalancingCounterpartLine(lines)
+
+    expect(draft?.line.documento).toBe("01")
+    expect(draft?.line.concepto).toBe("")
+    expect(draft?.line.id).not.toBe(lines[0].id)
+  })
+
+  it("uses the fallback document when the previous line has none stored", () => {
+    const lines = [{ ...createEmptyLine(), cuenta: "410.0001", debe: 0, haber: 121 }]
+    const draft = buildBalancingCounterpartLine(lines, { documento: "FV-12" })
+
+    expect(draft?.line.documento).toBe("FV-12")
+  })
+})
+
+describe("createContinuedEntryLine", () => {
+  it("keeps the previous document on an empty continuation line", () => {
+    const previous = { ...createEmptyLine(), documento: "01", concepto: "Cuota TGSS", cuenta: "642.0001" }
+    const next = createContinuedEntryLine(previous)
+
+    expect(next.documento).toBe("01")
+    expect(next.concepto).toBe("")
+    expect(next.cuenta).toBe("")
+    expect(next.id).not.toBe(previous.id)
   })
 })
 

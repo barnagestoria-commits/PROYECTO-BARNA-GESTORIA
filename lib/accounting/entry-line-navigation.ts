@@ -222,22 +222,44 @@ function roundMoney(value: number): number {
   return Math.round(value * 100) / 100
 }
 
+function inheritedDocument(previous?: AccountingEntryLine, fallback?: string): string {
+  return previous?.documento?.trim() || fallback?.trim() || ""
+}
+
+/** Nueva línea que hereda el número de documento de la anterior. */
+export function createContinuedEntryLine(
+  previous?: AccountingEntryLine,
+  extras?: Partial<AccountingEntryLine>,
+  fallbackDocument?: string,
+): AccountingEntryLine {
+  const { documento: extraDocumento, ...rest } = extras ?? {}
+  return {
+    ...createEmptyLine(),
+    ...rest,
+    documento: extraDocumento?.trim() || inheritedDocument(previous, fallbackDocument),
+  }
+}
+
 /** Línea nueva con el saldo que falta, para cuadrar debajo en lugar de en la casilla de la derecha. */
 export function buildBalancingCounterpartLine(
   lines: AccountingEntryLine[],
-  options?: { counterpartAccount?: string; concepto?: string },
+  options?: { counterpartAccount?: string; concepto?: string; documento?: string },
 ): BalancingCounterpartLine | null {
   const { difference } = calculateTotals(lines)
   if (Math.abs(difference) < 0.01) return null
 
+  const previous = lines[lines.length - 1]
   const account = options?.counterpartAccount?.trim() ?? ""
-  const line: AccountingEntryLine = {
-    ...createEmptyLine(),
-    cuenta: account,
-    concepto: options?.concepto?.trim() ?? "",
-    debe: difference < 0 ? roundMoney(Math.abs(difference)) : 0,
-    haber: difference > 0 ? roundMoney(difference) : 0,
-  }
+  const line = createContinuedEntryLine(
+    previous,
+    {
+      cuenta: account,
+      concepto: options?.concepto?.trim() ?? "",
+      debe: difference < 0 ? roundMoney(Math.abs(difference)) : 0,
+      haber: difference > 0 ? roundMoney(difference) : 0,
+    },
+    options?.documento,
+  )
 
   return { line, focusField: account ? (difference > 0 ? "haber" : "debe") : "cuenta" }
 }

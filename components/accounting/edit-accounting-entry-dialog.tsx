@@ -19,6 +19,7 @@ import {
   formatEuro,
   validateEntryLines,
 } from "@/lib/accounting/command-templates"
+import { createContinuedEntryLine } from "@/lib/accounting/entry-line-navigation"
 import type { AccountingEntryDetail } from "@/lib/accounting/entry-payload"
 import { getEditableInvoiceDetails, hasInvoiceData } from "@/lib/accounting/entry-service"
 import type { AccountingEntryLine } from "@/lib/types/accounting-entry"
@@ -486,7 +487,7 @@ export function EditAccountingEntryDialog({
   }
 
   const addLine = () => {
-    setLines((prev) => [...prev, createEmptyLine()])
+    setLines((prev) => [...prev, createContinuedEntryLine(prev[prev.length - 1])])
   }
 
   const removeLine = (lineId: string) => {
