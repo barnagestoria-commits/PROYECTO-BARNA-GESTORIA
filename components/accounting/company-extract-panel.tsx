@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Loader2, Pencil, Search } from "lucide-react"
+import { Loader2, Pencil, Search, Trash2 } from "lucide-react"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
 import { extractAccountMatchesSearch } from "@/lib/accounting/extract-account-search"
@@ -28,6 +28,7 @@ interface CompanyExtractPanelProps {
   onSelectAccount?: (accountCode: string) => void
   onDoubleSelectAccount?: (accountCode: string) => void
   onEditAccount?: (accountCode: string, accountName: string) => void
+  onReleaseAccount?: (accountCode: string, accountName: string) => void
   autoFocusSearch?: boolean
   refreshKey?: number
 }
@@ -37,6 +38,7 @@ export function CompanyExtractPanel({
   onSelectAccount,
   onDoubleSelectAccount,
   onEditAccount,
+  onReleaseAccount,
   autoFocusSearch = false,
   refreshKey = 0,
 }: CompanyExtractPanelProps) {
@@ -154,13 +156,13 @@ export function CompanyExtractPanel({
                   <th className="px-3 py-2 text-right">Debe</th>
                   <th className="px-3 py-2 text-right">Haber</th>
                   <th className="px-3 py-2 text-right">Saldo</th>
-                  {onEditAccount ? <th className="w-10 px-1 py-2" /> : null}
+                  {onEditAccount || onReleaseAccount ? <th className="w-16 px-1 py-2" /> : null}
                 </tr>
               </thead>
               <tbody>
                 {visibleRows.length === 0 ? (
                   <tr>
-                    <td colSpan={onEditAccount ? 6 : 5} className="px-3 py-10 text-center text-sm text-graphite-500">
+                    <td colSpan={onEditAccount || onReleaseAccount ? 6 : 5} className="px-3 py-10 text-center text-sm text-graphite-500">
                       Ninguna cuenta coincide con «{search.trim()}».
                     </td>
                   </tr>
@@ -194,22 +196,41 @@ export function CompanyExtractPanel({
                         <td className="px-3 py-2 text-right font-mono tabular-nums">
                           {formatEuro(row.saldo)}
                         </td>
-                        {onEditAccount ? (
+                        {onEditAccount || onReleaseAccount ? (
                           <td className="px-1 py-1">
                             {isSubaccount ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 text-emerald-800 hover:bg-emerald-50"
-                                title="Editar cuenta"
-                                onClick={(event) => {
-                                  event.stopPropagation()
-                                  onEditAccount(row.cuenta, row.label)
-                                }}
-                              >
-                                <Pencil className="h-4 w-4" />
-                              </Button>
+                              <div className="flex justify-end">
+                                {onEditAccount ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-emerald-800 hover:bg-emerald-50"
+                                    title="Editar cuenta"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      onEditAccount(row.cuenta, row.label)
+                                    }}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                ) : null}
+                                {onReleaseAccount ? (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-600 hover:bg-red-50 hover:text-red-700"
+                                    title="Eliminar cuenta"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      onReleaseAccount(row.cuenta, row.label)
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                ) : null}
+                              </div>
                             ) : null}
                           </td>
                         ) : null}

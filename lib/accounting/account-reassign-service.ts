@@ -4,6 +4,7 @@ import {
   resolveEditedAccountCode,
   type ReassignedAccount,
 } from "@/lib/accounting/account-code-edit"
+import { assertTargetFichaAvailable } from "@/lib/accounting/account-occupancy"
 import { normalizeCuenta } from "@/lib/reports/format"
 import { prisma } from "@/lib/db"
 
@@ -25,7 +26,7 @@ async function assertTargetAvailable(
 
   const toVariants = accountCodeLookupVariants(toDigits)
 
-  const [thirdParty, ledger, targetLine] = await Promise.all([
+  const [thirdParty, ledger] = await Promise.all([
     prisma.thirdParty.findFirst({
       where: { companyId, accountCode: { in: toVariants } },
       select: { id: true, name: true, accountCode: true },
@@ -34,27 +35,9 @@ async function assertTargetAvailable(
       where: { companyId, accountCode: { in: toVariants } },
       select: { id: true, name: true, accountCode: true },
     }),
-    prisma.entryLine.findFirst({
-      where: {
-        entry: { companyId },
-        OR: toVariants.map((cuenta) => ({ cuenta })),
-      },
-      select: { cuenta: true },
-    }),
   ])
 
-  const occupant = thirdParty ?? ledger
-  if (occupant && normalizeCuenta(occupant.accountCode) !== fromDigits) {
-    throw new Error(
-      `La cuenta ${formatAccountCodeStored(toDigits)} ya está ocupada${occupant.name ? ` (${occupant.name})` : ""}.`,
-    )
-  }
-
-  if (targetLine && normalizeCuenta(targetLine.cuenta) === toDigits) {
-    throw new Error(
-      `La cuenta ${formatAccountCodeStored(toDigits)} ya tiene movimientos.`,
-    )
-  }
+  assertTargetFichaAvailable(thirdParty ?? ledger, toDigits, fromDigits)
 }
 
 export async function reassignCompanyAccount(
@@ -106,21 +89,23 @@ export async function reassignCompanyAccount(
       where: { companyId, accountCode: { in: fromVariants } },
     })
     if (treatment && fromDigits !== toDigits) {
-      const occupied = await tx.accountTreatmentConfig.findFirst({
-        where: { companyId, accountCode: toDigits },
-        select: { id: true },
+      await tx.accountTreatmentConfig.deleteMany({
+        where: {
+          companyId,
+          accountCode: { in: accountCodeLookupVariants(toDigits) },
+          id: { not: treatment.id },
+        },
       })
-      if (occupied) {
-        await tx.accountTreatmentConfig.delete({ where: { id: treatment.id } })
-      } else {
-        await tx.accountTreatmentConfig.update({
-          where: { id: treatment.id },
-          data: { accountCode: toDigits },
-        })
-      }
+      await tx.accountTreatmentConfig.update({
+        where: { id: treatment.id },
+        data: { accountCode: toDigits },
+      })
     }
 
     if (fromDigits !== toDigits) {
+      await tx.accountAnalyticTemplate.deleteMany({
+        where: { companyId, accountCode: { in: accountCodeLookupVariants(toDigits) } },
+      })
       await tx.accountAnalyticTemplate.updateMany({
         where: { companyId, accountCode: { in: fromVariants } },
         data: { accountCode: toDigits },

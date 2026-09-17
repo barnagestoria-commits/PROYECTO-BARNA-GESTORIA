@@ -1,7 +1,11 @@
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import { formatAccountNameDisplay } from "@/lib/reports/format"
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import {
+  parseDottedAccountShortcut,
+  unresolvedDottedShortcut,
+} from "@/lib/accounting/account-shortcut"
+import { parseSubaccountSequence, formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 
 export interface PgcAccount {
   code: string
@@ -301,6 +305,35 @@ function dedupeChartAccounts(accounts: ChartAccountOption[]): ChartAccountOption
   })
 }
 
+function typedAvailableChartAccount(query: string): ChartAccountOption | null {
+  const dotted = parseDottedAccountShortcut(query)
+  if (dotted) {
+    const unresolved = unresolvedDottedShortcut(dotted)
+    return {
+      code: unresolved.formattedAccountCode,
+      name: "Cuenta disponible",
+      accountCode: unresolved.fallbackAccountCode,
+      source: "pgc",
+    }
+  }
+
+  const digits = query.replace(/\D/g, "")
+  if (digits.length < 5) return null
+  if (PGC_ACCOUNTS.some((account) => account.code === digits)) return null
+  const parent = [...PGC_ACCOUNTS]
+    .filter((account) => digits.startsWith(account.code) && digits.length > account.code.length)
+    .sort((left, right) => right.code.length - left.code.length)[0]
+  if (!parent) return null
+  const sequence = parseSubaccountSequence(digits, parent.code)
+  if (sequence === null || sequence < 1) return null
+  return {
+    code: formatAccountCodeDisplay(digits),
+    name: "Cuenta disponible",
+    accountCode: digits,
+    source: "pgc",
+  }
+}
+
 export function searchChartAccounts(
   query: string,
   options?: {
@@ -353,7 +386,7 @@ export function searchChartAccounts(
     ),
   }))
 
-  return dedupeChartAccounts(
+  const results = dedupeChartAccounts(
     [...scoredOpened, ...scoredPgc]
       .filter((item) => item.score >= 0)
       .sort(
@@ -362,5 +395,15 @@ export function searchChartAccounts(
           a.option.accountCode.localeCompare(b.option.accountCode, undefined, { numeric: true }),
       )
       .map((item) => item.option),
-  ).slice(0, limit)
+  )
+
+  const typed = typedAvailableChartAccount(query)
+  if (typed) {
+    const typedDigits = typed.accountCode.replace(/\D/g, "")
+    if (!results.some((account) => account.accountCode.replace(/\D/g, "") === typedDigits)) {
+      results.unshift(typed)
+    }
+  }
+
+  return results.slice(0, limit)
 }

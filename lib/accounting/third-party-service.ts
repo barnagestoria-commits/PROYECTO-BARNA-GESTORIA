@@ -19,6 +19,7 @@ import {
   accountCodeLookupVariants,
   resolvePreferredAccountCode,
 } from "@/lib/accounting/account-code-edit"
+import { assertTargetFichaAvailable } from "@/lib/accounting/account-occupancy"
 
 function normalizeAccountDigits(accountCode: string): string {
   return accountCode.replace(/\D/g, "")
@@ -373,12 +374,7 @@ async function assertAccountCodeAvailable(companyId: string, accountCode: string
     }),
   ])
 
-  const occupant = thirdParty ?? ledger
-  if (!occupant) return
-
-  throw new Error(
-    `La cuenta ${formatAccountCodeDisplay(accountCode)} ya está ocupada${occupant.name ? ` (${occupant.name})` : ""}.`,
-  )
+  assertTargetFichaAvailable(thirdParty ?? ledger, accountCode)
 }
 
 export async function previewThirdPartyWithPrefix(

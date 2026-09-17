@@ -46,4 +46,32 @@ describe("searchChartAccounts", () => {
 
     expect(results.some((account) => account.accountCode === "6010001")).toBe(true)
   })
+
+  it("offers a typed freed subaccount like 410.0003 as a transfer destination", () => {
+    const results = searchChartAccounts("410.0003", { thirdParties, ledgerSubaccounts })
+    const available = results.find((account) => account.accountCode.replace(/\D/g, "") === "4100003")
+
+    expect(available).toMatchObject({
+      code: "410.0003",
+      name: "Cuenta disponible",
+      source: "pgc",
+    })
+  })
+
+  it("keeps a live ficha instead of the generic available row", () => {
+    const results = searchChartAccounts("410.0003", {
+      thirdParties: [
+        {
+          accountCode: "4100003",
+          formattedAccountCode: "410.0003",
+          name: "ESTACION SERVICIO MATARO S.L.",
+        },
+      ],
+      ledgerSubaccounts,
+    })
+    const match = results.find((account) => account.accountCode.replace(/\D/g, "") === "4100003")
+
+    expect(match?.source).toBe("tercero")
+    expect(match?.name).toBe("ESTACION SERVICIO MATARO S.L.")
+  })
 })

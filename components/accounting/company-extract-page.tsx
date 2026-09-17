@@ -8,6 +8,8 @@ import { AccountMovementsDialog } from "@/components/accounting/account-movement
 import { EditAccountDialog } from "@/components/accounting/edit-account-dialog"
 import { InformeDownloadCard } from "@/components/informe-download-card"
 import { Label } from "@/components/ui/label"
+import { apiFetch } from "@/lib/api-client"
+import { confirmReleaseAccount } from "@/lib/accounting/release-account-client"
 
 export function CompanyExtractPage() {
   const { activeCompany } = useAuth()
@@ -20,6 +22,19 @@ export function CompanyExtractPage() {
   const [movementsAccount, setMovementsAccount] = useState<string | null>(null)
   const [editAccount, setEditAccount] = useState<{ cuenta: string; label: string } | null>(null)
   const [extractRefresh, setExtractRefresh] = useState(0)
+
+  const handleReleaseAccount = async (accountCode: string, accountName: string) => {
+    if (!confirmReleaseAccount(accountCode, accountName)) return
+    try {
+      await apiFetch("/api/accounting/accounts/release", {
+        method: "POST",
+        body: JSON.stringify({ accountCode }),
+      })
+      setExtractRefresh((value) => value + 1)
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "No se pudo eliminar la cuenta.")
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -59,6 +74,9 @@ export function CompanyExtractPage() {
           onEditAccount={(accountCode, accountName) =>
             setEditAccount({ cuenta: accountCode, label: accountName })
           }
+          onReleaseAccount={(accountCode, accountName) => {
+            void handleReleaseAccount(accountCode, accountName)
+          }}
         />
       )}
 
@@ -79,6 +97,9 @@ export function CompanyExtractPage() {
         onEditAccount={(accountCode, accountName) =>
           setEditAccount({ cuenta: accountCode, label: accountName })
         }
+        onReleaseAccount={(accountCode, accountName) => {
+          void handleReleaseAccount(accountCode, accountName)
+        }}
         onChanged={() => setExtractRefresh((value) => value + 1)}
       />
 

@@ -279,9 +279,30 @@ export function ContactsPage() {
     setEditingContact(null)
   }
 
-  const handleDelete = (contact: Contact) => {
-    if (!window.confirm(`¿Eliminar a ${contact.razonSocial}?`)) return
-    setContacts((prev) => prev.filter((contactItem) => contactItem.id !== contact.id))
+  const handleDelete = async (contact: Contact) => {
+    const accountLabel = formatContactAccounts(contact)
+    const confirmed = window.confirm(
+      `¿Eliminar a ${contact.razonSocial}${accountLabel !== "—" ? ` (${accountLabel})` : ""}?\n\nLa cuenta quedará libre para otro contacto o para un traspaso. Los asientos no se borran.`,
+    )
+    if (!confirmed) return
+
+    if (isDemoMode) {
+      setContacts((prev) => prev.filter((contactItem) => contactItem.id !== contact.id))
+      return
+    }
+
+    setIsSaving(true)
+    setErrorMessage(null)
+    try {
+      await apiFetch(`/api/accounting/third-parties/${contact.id}`, { method: "DELETE" })
+      await loadContacts()
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : "No se pudo eliminar el contacto.",
+      )
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const invoiceHref = (contact: Contact) =>

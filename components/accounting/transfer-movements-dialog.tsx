@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from "react"
 import { ArrowRightLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 import { apiFetch } from "@/lib/api-client"
 import { formatEuro } from "@/lib/accounting/command-templates"
+import { expandCanonicalSubaccountCode } from "@/lib/accounting/canonical-account-code"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type { AccountMovementRow } from "@/lib/accounting/account-movements-service"
 import type { TransferredAccountMovements } from "@/lib/accounting/account-transfer-service"
@@ -30,6 +32,7 @@ export function TransferMovementsDialog({
 }: TransferMovementsDialogProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [destination, setDestination] = useState<{ code: string; name: string } | null>(null)
+  const [destinationInput, setDestinationInput] = useState("")
   const [pgcOpen, setPgcOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -38,6 +41,7 @@ export function TransferMovementsDialog({
     if (!open) return
     setSelectedIds(new Set())
     setDestination(null)
+    setDestinationInput("")
     setPgcOpen(false)
     setError(null)
   }, [open, fromAccountCode])
@@ -68,9 +72,32 @@ export function TransferMovementsDialog({
     })
   }
 
+  const applyDestination = (code: string, name?: string) => {
+    const digits = expandCanonicalSubaccountCode(code)
+    if (!digits) {
+      setError("Indica la cuenta destino, por ejemplo 410.0003.")
+      return false
+    }
+    setDestination({
+      code: digits,
+      name: name?.trim() || formatAccountCodeDisplay(digits),
+    })
+    setDestinationInput(formatAccountCodeDisplay(digits))
+    setError(null)
+    return true
+  }
+
   const handleTransfer = async () => {
-    if (!destination) {
-      setError("Selecciona la cuenta destino en el plan contable.")
+    const resolved =
+      destination ??
+      (destinationInput.trim()
+        ? {
+            code: expandCanonicalSubaccountCode(destinationInput),
+            name: formatAccountCodeDisplay(expandCanonicalSubaccountCode(destinationInput)),
+          }
+        : null)
+    if (!resolved?.code) {
+      setError("Indica la cuenta destino o selecciónala en el plan contable.")
       return
     }
     if (selectedIds.size === 0) {
@@ -87,7 +114,7 @@ export function TransferMovementsDialog({
           method: "POST",
           body: JSON.stringify({
             fromAccountCode,
-            toAccountCode: destination.code,
+            toAccountCode: resolved.code,
             lineIds: [...selectedIds],
           }),
         },
@@ -123,7 +150,7 @@ export function TransferMovementsDialog({
               <Button
                 type="button"
                 className="bg-emerald-800 hover:bg-pine-900"
-                disabled={isSaving || selectedCount === 0 || !destination}
+                disabled={isSaving || selectedCount === 0 || (!destination && !destinationInput.trim())}
                 onClick={() => void handleTransfer()}
               >
                 {isSaving ? (
@@ -145,19 +172,33 @@ export function TransferMovementsDialog({
               Cuenta destino
             </p>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <p className="min-w-0 flex-1 text-sm font-semibold text-emerald-950">
-                {selectedLabel ?? "Selecciona una cuenta del plan contable"}
-              </p>
+              <Input
+                value={destinationInput}
+                onChange={(event) => {
+                  setDestinationInput(event.target.value)
+                  setDestination(null)
+                  setError(null)
+                }}
+                onBlur={() => {
+                  if (destinationInput.trim()) applyDestination(destinationInput)
+                }}
+                placeholder="410.0003"
+                className="h-9 min-w-[140px] flex-1 font-mono"
+                aria-label="Cuenta destino del traspaso"
+              />
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-8 border-emerald-300 bg-white text-emerald-900"
+                className="h-9 border-emerald-300 bg-white text-emerald-900"
                 onClick={() => setPgcOpen(true)}
               >
                 Plan contable
               </Button>
             </div>
+            {selectedLabel ? (
+              <p className="mt-2 text-sm font-semibold text-emerald-950">{selectedLabel}</p>
+            ) : null}
           </div>
 
           <div className="max-h-[360px] overflow-auto rounded-lg border border-sand-200">
@@ -225,8 +266,8 @@ export function TransferMovementsDialog({
             </p>
           ) : (
             <p className="text-xs text-graphite-500">
-              Elige los asientos y la cuenta destino. Solo se traspasan las líneas seleccionadas;
-              el resto de la ficha se mantiene.
+              Elige los asientos y escribe la cuenta destino (aunque esté libre) o selecciónala en el
+              plan contable. Solo se traspasan las líneas seleccionadas.
             </p>
           )}
         </div>
@@ -239,8 +280,7 @@ export function TransferMovementsDialog({
         subtitle="Selecciona la cuenta destino del traspaso"
         layer="top"
         onSelect={(accountCode, accountName) => {
-          setDestination({ code: accountCode, name: accountName })
-          setError(null)
+          applyDestination(accountCode, accountName)
         }}
       />
     </>

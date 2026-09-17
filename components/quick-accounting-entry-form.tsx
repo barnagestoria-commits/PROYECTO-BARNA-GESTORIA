@@ -80,6 +80,7 @@ import {
 } from "@/lib/accounting/invoice-auto-fill"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { apiFetch } from "@/lib/api-client"
+import { confirmReleaseAccount } from "@/lib/accounting/release-account-client"
 import { useAuth } from "@/components/auth-provider"
 import { AccountCellInput } from "@/components/accounting/account-cell-input"
 import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
@@ -255,6 +256,21 @@ export function QuickAccountingEntryForm() {
       setLedgerSubaccounts([])
     }
   }, [activeCompany?.id])
+
+  const handleReleaseAccount = async (accountCode: string, accountName: string) => {
+    if (!confirmReleaseAccount(accountCode, accountName)) return
+    try {
+      await apiFetch("/api/accounting/accounts/release", {
+        method: "POST",
+        body: JSON.stringify({ accountCode }),
+      })
+      setMovementsRefreshKey((value) => value + 1)
+      void loadThirdParties()
+      void loadLedgerSubaccounts()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "No se pudo eliminar la cuenta.")
+    }
+  }
 
   const registerRef = useCallback((row: number, field: EntryCellField, el: HTMLInputElement | null) => {
     const key = cellKey(row, field)
@@ -1909,6 +1925,10 @@ export function QuickAccountingEntryForm() {
         onEditAccount={(accountCode, accountName) =>
           setEditAccount({ cuenta: accountCode, label: accountName })
         }
+        onReleaseAccount={(accountCode, accountName) => {
+          void handleReleaseAccount(accountCode, accountName)
+        }}
+        onChanged={() => setMovementsRefreshKey((value) => value + 1)}
       />
 
       <CompanyExtractDialog
@@ -1920,6 +1940,9 @@ export function QuickAccountingEntryForm() {
         onEditAccount={(accountCode, accountName) =>
           setEditAccount({ cuenta: accountCode, label: accountName })
         }
+        onReleaseAccount={(accountCode, accountName) => {
+          void handleReleaseAccount(accountCode, accountName)
+        }}
       />
 
       <EditAccountDialog

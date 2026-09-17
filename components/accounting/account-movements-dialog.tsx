@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Loader2, Pencil, ArrowRightLeft, X } from "lucide-react"
+import { Loader2, Pencil, ArrowRightLeft, X, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { TransferMovementsDialog } from "@/components/accounting/transfer-movements-dialog"
@@ -19,6 +19,7 @@ interface AccountMovementsDialogProps {
   onOpenEntry?: (entryId: string) => void
   onEntryDeleted?: () => void
   onEditAccount?: (accountCode: string, accountName: string) => void
+  onReleaseAccount?: (accountCode: string, accountName: string) => void
   onChanged?: () => void
 }
 
@@ -32,6 +33,7 @@ export function AccountMovementsDialog({
   onOpenEntry,
   onEntryDeleted,
   onEditAccount,
+  onReleaseAccount,
   onChanged,
 }: AccountMovementsDialogProps) {
   const [summary, setSummary] = useState<AccountMovementsSummary | null>(null)
@@ -133,6 +135,18 @@ export function AccountMovementsDialog({
                     >
                       <Pencil className="mr-1 h-3.5 w-3.5" />
                       Editar cuenta
+                    </Button>
+                  ) : null}
+                  {onReleaseAccount ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 border-red-200 bg-white text-red-700 hover:bg-red-50"
+                      onClick={() => onReleaseAccount(cuenta, summary.label)}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      Eliminar cuenta
                     </Button>
                   ) : null}
                   {summary.movements.length > 0 ? (
