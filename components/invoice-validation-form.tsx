@@ -53,6 +53,10 @@ import {
   type ReceivedAccountPrefix,
 } from "@/lib/accounting/invoice-supplier-classification"
 import {
+  accountsShareCode,
+  resolveInvoiceLedgerAccountName,
+} from "@/lib/accounting/invoice-account-label"
+import {
   DEFAULT_OCR_SETTINGS,
   firstShortcutForAction,
   matchOcrShortcut,
@@ -113,6 +117,46 @@ function FieldHelp({ text }: { text: string }) {
     >
       <CircleHelp className="size-3.5" />
     </span>
+  )
+}
+
+function NamedAccountField({
+  id,
+  value,
+  accountName,
+  onChange,
+  onBlur,
+  placeholder,
+  list,
+}: {
+  id: string
+  value: string
+  accountName?: string | null
+  onChange: (value: string) => void
+  onBlur?: (value: string) => void
+  placeholder?: string
+  list?: string
+}) {
+  return (
+    <div className="flex h-8 min-w-0 items-stretch overflow-hidden rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
+      <input
+        id={id}
+        list={list}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={(event) => onBlur?.(event.target.value)}
+        placeholder={placeholder}
+        className="h-8 min-w-[5.5rem] flex-1 border-0 bg-transparent px-2 font-mono text-xs outline-none ring-0 placeholder:text-muted-foreground"
+      />
+      {accountName ? (
+        <span
+          className="flex min-w-0 max-w-[58%] items-center truncate border-l border-input px-2 text-[11px] leading-tight text-graphite-600"
+          title={accountName}
+        >
+          {accountName}
+        </span>
+      ) : null}
+    </div>
   )
 }
 
@@ -191,6 +235,9 @@ export function InvoiceValidationForm({
   const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
   const [ledgerAccountError, setLedgerAccountError] = useState<string | null>(null)
   const [newLedgerAccountCreated, setNewLedgerAccountCreated] = useState(false)
+  const [ledgerAccountMeta, setLedgerAccountMeta] = useState<{ code: string; name: string } | null>(
+    null,
+  )
 
   const thirdPartyType = documentType === "factura-emitida" ? "CLIENTE" : "PROVEEDOR"
   const thirdPartyLabel = documentType === "factura-emitida" ? "Cliente" : "Proveedor"
@@ -201,6 +248,18 @@ export function InvoiceValidationForm({
         ? formData.accountPrefix
         : "410"
   const accountGroupLabel = selectedPrefix
+  const ledgerKind: "expense" | "income" =
+    documentType === "factura-emitida" ? "income" : "expense"
+  const ledgerAccountCode =
+    ledgerKind === "income" ? formData.incomeAccount ?? "" : formData.expenseAccount ?? ""
+  const ledgerAccountName = resolveInvoiceLedgerAccountName(
+    ledgerAccountCode,
+    ledgerKind,
+    ledgerAccountMeta && accountsShareCode(ledgerAccountMeta.code, ledgerAccountCode)
+      ? ledgerAccountMeta.name
+      : null,
+  )
+  const thirdPartyAccountName = accountPreview?.name?.trim() || formData.proveedor.trim() || null
   const pageStart = formData.pagina ?? (invoiceCount > 1 ? invoiceIndex : undefined)
   const pageEnd = formData.paginaFin ?? formData.pagina ?? pageStart
   const isolatePages =
@@ -431,6 +490,38 @@ export function InvoiceValidationForm({
   ])
 
   useEffect(() => {
+    const value = ledgerAccountCode.trim()
+    if (!value) {
+      setLedgerAccountMeta(null)
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      try {
+        const year =
+          Number.parseInt(formData.fechaFactura.slice(0, 4), 10) || new Date().getFullYear()
+        const result = await apiFetch<{ success: true } & AccountExistenceResult>(
+          `/api/accounting/accounts/exists?code=${encodeURIComponent(value)}&year=${year}`,
+          { signal: controller.signal },
+        )
+        if (!result.label?.trim()) return
+        setLedgerAccountMeta({
+          code: result.formattedAccountCode || value,
+          name: result.label.trim(),
+        })
+      } catch {
+        if (controller.signal.aborted) return
+      }
+    }, 250)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [formData.fechaFactura, ledgerAccountCode])
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!enableShortcuts) return
       const action = matchOcrShortcut(ocrSettings.shortcuts, event)
@@ -606,6 +697,12 @@ export function InvoiceValidationForm({
           ledgerAccountPromptKeyRef.current = key
           setPendingLedgerField(field)
           setMissingLedgerAccount(result)
+          if (result.label?.trim()) {
+            setLedgerAccountMeta({
+              code: result.formattedAccountCode || value,
+              name: result.label.trim(),
+            })
+          }
           if (result.formattedAccountCode) {
             setLedgerAccountValue(field, result.formattedAccountCode)
           }
@@ -613,6 +710,9 @@ export function InvoiceValidationForm({
         }
 
         const resolved = result.formattedAccountCode || value
+        if (result.label?.trim()) {
+          setLedgerAccountMeta({ code: resolved, name: result.label.trim() })
+        }
         if (resolved !== rawValue) setLedgerAccountValue(field, resolved)
         return resolved
       } catch (error) {
@@ -643,6 +743,10 @@ export function InvoiceValidationForm({
     if (pendingLedgerField) {
       setLedgerAccountValue(pendingLedgerField, result.resolution.formattedAccountCode)
     }
+    setLedgerAccountMeta({
+      code: result.resolution.formattedAccountCode,
+      name: result.resolution.name,
+    })
     setPendingLedgerField(null)
     setFixedAccountCode(null)
     setNewSubaccountPrefix(null)
@@ -952,13 +1056,13 @@ export function InvoiceValidationForm({
                         Cuenta de gasto
                         <FieldHelp text="Puedes usar una cuenta general (628) o una subcuenta propia (628.0001). 628.1 se guarda como 628.0001." />
                       </Label>
-                      <Input
+                      <NamedAccountField
                         id="expenseAccount"
                         list="ocr-expense-accounts"
                         value={formData.expenseAccount ?? ""}
-                        onChange={(e) => handleExpenseChange(e.target.value)}
-                        onBlur={(e) => void checkLedgerAccount("expenseAccount", e.target.value)}
-                        className="h-8 font-mono text-xs"
+                        accountName={ledgerAccountName}
+                        onChange={handleExpenseChange}
+                        onBlur={(value) => void checkLedgerAccount("expenseAccount", value)}
                         placeholder="628 · 628.1 · 628.0001"
                       />
                       <datalist id="ocr-expense-accounts">
@@ -974,11 +1078,11 @@ export function InvoiceValidationForm({
                         Subcuenta del tercero
                         <FieldHelp text="Se reutiliza la ficha del mismo NIF; puedes corregir aquí el código propuesto." />
                       </Label>
-                      <Input
+                      <NamedAccountField
                         id="preferredAccountCode"
                         value={accountCodeDraft}
-                        onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
-                        className="h-8 font-mono text-xs sm:max-w-xs"
+                        accountName={thirdPartyAccountName}
+                        onChange={handleAccountCodeDraftChange}
                         placeholder="410.2 · 410.0002"
                       />
                     </div>
@@ -1002,11 +1106,11 @@ export function InvoiceValidationForm({
                       <Label htmlFor="preferredAccountCode" className="flex h-4 items-center text-xs leading-none text-emerald-800">
                         Subcuenta del cliente
                       </Label>
-                      <Input
+                      <NamedAccountField
                         id="preferredAccountCode"
                         value={accountCodeDraft}
-                        onChange={(e) => handleAccountCodeDraftChange(e.target.value)}
-                        className="h-8 font-mono text-xs"
+                        accountName={thirdPartyAccountName}
+                        onChange={handleAccountCodeDraftChange}
                         placeholder="430.2 · 430.0002"
                       />
                     </div>
@@ -1015,13 +1119,13 @@ export function InvoiceValidationForm({
                         Cuenta de ingreso
                         <FieldHelp text="Puedes usar una cuenta general (705) o una subcuenta propia (705.0001). 705.1 se guarda como 705.0001." />
                       </Label>
-                      <Input
+                      <NamedAccountField
                         id="incomeAccount"
                         list="ocr-income-accounts"
                         value={formData.incomeAccount ?? ""}
-                        onChange={(e) => handleIncomeChange(e.target.value)}
-                        onBlur={(e) => void checkLedgerAccount("incomeAccount", e.target.value)}
-                        className="h-8 font-mono text-xs"
+                        accountName={ledgerAccountName}
+                        onChange={handleIncomeChange}
+                        onBlur={(value) => void checkLedgerAccount("incomeAccount", value)}
                         placeholder="705 · 705.1 · 705.0001"
                       />
                       <datalist id="ocr-income-accounts">
