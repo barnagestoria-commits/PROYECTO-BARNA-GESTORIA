@@ -5,6 +5,7 @@ import {
   resolveAccountShortcut,
   toShortcutCandidates,
 } from "@/lib/accounting/account-shortcut"
+import { accountCodeLookupVariants } from "@/lib/accounting/account-code-edit"
 import {
   isThirdPartyAccountPrefix,
   resolveAccountParentCode,
@@ -12,12 +13,13 @@ import {
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { normalizeCuenta } from "@/lib/reports/format"
 import {
-  expandCanonicalSubaccountCode,
+  canonicalAccountDigits,
   inferParentCodeFromAccount,
   isExactPgcAccount,
 } from "@/lib/accounting/canonical-account-code"
 
 export {
+  canonicalAccountDigits,
   expandCanonicalSubaccountCode,
   inferParentCodeFromAccount,
 } from "@/lib/accounting/canonical-account-code"
@@ -39,34 +41,43 @@ function requiresSubaccountRegistration(digits: string): boolean {
   return digits.length > parent.length
 }
 
+/** La cuenta genérica del PGC (572, 572.0000) ya existe; solo piden alta las subcuentas nuevas. */
+export function accountNeedsRegistration(rawCode: string): boolean {
+  const digits = canonicalAccountDigits(rawCode)
+  if (!digits || digits.length < 2) return false
+  return requiresSubaccountRegistration(digits)
+}
+
 export async function countMissingImportSubaccounts(
   companyId: string,
   rawCodes: string[],
 ): Promise<number> {
-  const codes = [...new Set(rawCodes.map((code) => normalizeCuenta(code)).filter((code) => code.length >= 2))]
+  const codes = [
+    ...new Set(rawCodes.map((code) => canonicalAccountDigits(code)).filter((code) => code.length >= 2)),
+  ]
   if (codes.length === 0) return 0
+
+  const lookupCodes = [...new Set(codes.flatMap((code) => accountCodeLookupVariants(code)))]
 
   const [ledgerRows, thirdPartyRows] = await Promise.all([
     prisma.ledgerSubaccount.findMany({
-      where: { companyId, accountCode: { in: codes } },
+      where: { companyId, accountCode: { in: lookupCodes } },
       select: { accountCode: true },
     }),
     prisma.thirdParty.findMany({
-      where: { companyId, accountCode: { in: codes } },
+      where: { companyId, accountCode: { in: lookupCodes } },
       select: { accountCode: true },
     }),
   ])
 
-  const existing = new Set([
-    ...ledgerRows.map((row) => row.accountCode),
-    ...thirdPartyRows.map((row) => row.accountCode),
-  ])
+  const existing = new Set(
+    [...ledgerRows, ...thirdPartyRows].flatMap((row) => accountCodeLookupVariants(row.accountCode)),
+  )
 
   let missing = 0
   for (const digits of codes) {
     if (existing.has(digits)) continue
-    if (isExactPgcAccount(digits)) continue
-    if (!requiresSubaccountRegistration(digits)) continue
+    if (!accountNeedsRegistration(digits)) continue
     const parentCode = inferParentCodeFromAccount(digits)
     const parentMeta = parentCode ? resolveAccountParentCode(parentCode) : null
     if (parentMeta) missing += 1
@@ -117,8 +128,8 @@ export async function checkAccountExists(
   if (shortcut) return shortcut
 
   const rawDigits = normalizeCuenta(rawCode)
-  const digits = expandCanonicalSubaccountCode(rawCode) || rawDigits
-  const lookupCodes = [...new Set([digits, rawDigits].filter(Boolean))]
+  const digits = canonicalAccountDigits(rawCode) || rawDigits
+  const lookupCodes = accountCodeLookupVariants(rawCode)
   const formattedAccountCode = formatAccountCodeDisplay(digits)
 
   if (!digits || digits.length < 2) {

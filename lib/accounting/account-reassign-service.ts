@@ -4,8 +4,9 @@ import {
   resolveEditedAccountCode,
   type ReassignedAccount,
 } from "@/lib/accounting/account-code-edit"
+import { canonicalAccountDigits, isExactPgcAccount } from "@/lib/accounting/canonical-account-code"
+import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { assertTargetFichaAvailable } from "@/lib/accounting/account-occupancy"
-import { normalizeCuenta } from "@/lib/reports/format"
 import { prisma } from "@/lib/db"
 
 export interface ReassignAccountInput {
@@ -44,7 +45,7 @@ export async function reassignCompanyAccount(
   companyId: string,
   input: ReassignAccountInput,
 ): Promise<ReassignedAccount> {
-  const fromDigits = normalizeCuenta(input.fromAccountCode)
+  const fromDigits = canonicalAccountDigits(input.fromAccountCode)
   if (!fromDigits) {
     throw new Error("Indica la cuenta que quieres modificar.")
   }
@@ -83,6 +84,21 @@ export async function reassignCompanyAccount(
           ...(trimmedName ? { name: trimmedName } : {}),
         },
       })
+    } else if (
+      trimmedName &&
+      isExactPgcAccount(toDigits) &&
+      !isThirdPartyAccountPrefix(toDigits)
+    ) {
+      await tx.ledgerSubaccount.upsert({
+        where: { companyId_accountCode: { companyId, accountCode: toDigits } },
+        create: {
+          companyId,
+          parentCode: toDigits,
+          accountCode: toDigits,
+          name: trimmedName,
+        },
+        update: { name: trimmedName },
+      })
     }
 
     const treatment = await tx.accountTreatmentConfig.findFirst({
@@ -120,7 +136,7 @@ export async function reassignCompanyAccount(
       select: { id: true, cuenta: true },
     })
     const lineIds = candidateLines
-      .filter((line) => normalizeCuenta(line.cuenta) === fromDigits)
+      .filter((line) => canonicalAccountDigits(line.cuenta) === fromDigits)
       .map((line) => line.id)
 
     if (lineIds.length > 0) {
@@ -129,6 +145,13 @@ export async function reassignCompanyAccount(
         data: { cuenta: toFormatted },
       })
     }
+
+    const namedGenericLedger =
+      !thirdParty &&
+      !ledger &&
+      Boolean(trimmedName) &&
+      isExactPgcAccount(toDigits) &&
+      !isThirdPartyAccountPrefix(toDigits)
 
     const name =
       trimmedName ||
@@ -141,7 +164,7 @@ export async function reassignCompanyAccount(
       accountCode: toDigits,
       formattedAccountCode: toFormatted,
       name,
-      kind: thirdParty ? "tercero" : ledger ? "ledger" : "movements",
+      kind: thirdParty ? "tercero" : ledger || namedGenericLedger ? "ledger" : "movements",
       linesUpdated: lineIds.length,
     }
   })

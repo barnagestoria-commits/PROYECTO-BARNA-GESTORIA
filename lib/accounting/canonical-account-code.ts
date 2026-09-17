@@ -43,6 +43,12 @@ export function expandCanonicalSubaccountCode(raw: string): string {
   return buildAccountCode(parent, sequence)
 }
 
+/** 572.0000 / 5720000 → 572; 572.0001 sigue siendo subcuenta. */
+export function canonicalAccountDigits(raw: string): string {
+  const expanded = expandCanonicalSubaccountCode(raw) || normalizeCuenta(raw)
+  return normalizeCuenta(formatAccountCodeStored(expanded)) || expanded
+}
+
 export function canonicalizeStoredAccountCode(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) return ""

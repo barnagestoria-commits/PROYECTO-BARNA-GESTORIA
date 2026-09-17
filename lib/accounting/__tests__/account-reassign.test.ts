@@ -28,4 +28,16 @@ describe("resolveEditedAccountCode", () => {
     expect(resolvePreferredAccountCode("430.2", "430")).toBe("4300002")
     expect(resolvePreferredAccountCode("430.0002", "430")).toBe("4300002")
   })
+
+  it("keeps a generic PGC account such as 572 without forcing a new subaccount", () => {
+    expect(resolveEditedAccountCode("572", "572")).toBe("572")
+    expect(resolveEditedAccountCode("572.0000", "572")).toBe("572")
+    expect(resolveEditedAccountCode("5720000", "572")).toBe("572")
+    expect(resolveEditedAccountCode("572.0000", "572.0000")).toBe("572")
+  })
+
+  it("can still open a numbered subaccount from the generic 572", () => {
+    expect(resolveEditedAccountCode("572.0001", "572")).toBe("5720001")
+    expect(resolveEditedAccountCode("572.1", "572")).toBe("5720001")
+  })
 })

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
-import { expandCanonicalSubaccountCode } from "@/lib/accounting/account-exists-service"
 import {
+  accountNeedsRegistration,
+  expandCanonicalSubaccountCode,
+} from "@/lib/accounting/account-exists-service"
+import {
+  canonicalAccountDigits,
   canonicalizeStoredAccountCode,
   formatAccountCodeForUi,
   needsCanonicalAccountRepair,
@@ -58,5 +62,32 @@ describe("canonical account display and storage", () => {
     ])
     if ("error" in result) throw new Error(result.error)
     expect(result.lines.map((line) => line.cuenta)).toEqual(["410.0002", "472", "628.0001"])
+  })
+})
+
+describe("generic PGC accounts like 572", () => {
+  it("collapses visual .0000 padding back to the generic PGC code", () => {
+    expect(canonicalAccountDigits("572")).toBe("572")
+    expect(canonicalAccountDigits("572.0000")).toBe("572")
+    expect(canonicalAccountDigits("5720000")).toBe("572")
+    expect(canonicalAccountDigits("472.0000")).toBe("472")
+    expect(canonicalAccountDigits("4751.0000")).toBe("4751")
+  })
+
+  it("keeps a real subaccount like 572.0001", () => {
+    expect(canonicalAccountDigits("572.0001")).toBe("5720001")
+    expect(canonicalAccountDigits("572.1")).toBe("5720001")
+  })
+
+  it("does not ask to register a generic PGC account already in the chart", () => {
+    expect(accountNeedsRegistration("572")).toBe(false)
+    expect(accountNeedsRegistration("572.0000")).toBe(false)
+    expect(accountNeedsRegistration("5720000")).toBe(false)
+    expect(accountNeedsRegistration("472.0000")).toBe(false)
+  })
+
+  it("still asks to register a new bank subaccount", () => {
+    expect(accountNeedsRegistration("572.0001")).toBe(true)
+    expect(accountNeedsRegistration("572.1")).toBe(true)
   })
 })

@@ -2,14 +2,16 @@ import {
   parseDottedAccountShortcut,
   preferredParentForShortcutGroup,
 } from "@/lib/accounting/account-shortcut"
+import { canonicalAccountDigits, isExactPgcAccount } from "@/lib/accounting/canonical-account-code"
 import { buildAccountCode, formatAccountCodeDisplay, formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import { normalizeCuenta } from "@/lib/reports/format"
 
 export function accountCodeLookupVariants(code: string): string[] {
   const digits = normalizeCuenta(code)
-  const stored = formatAccountCodeStored(digits)
-  const display = formatAccountCodeDisplay(digits)
-  return [...new Set([code.trim(), digits, stored, display].filter(Boolean))]
+  const canonical = canonicalAccountDigits(code)
+  const stored = formatAccountCodeStored(canonical || digits)
+  const display = formatAccountCodeDisplay(canonical || digits)
+  return [...new Set([code.trim(), digits, canonical, stored, display].filter(Boolean))]
 }
 
 function accountFamily(digits: string): "cliente" | "proveedor" | "otro" {
@@ -43,12 +45,21 @@ export function resolvePreferredAccountCode(raw: string, groupPrefix: string): s
 }
 
 export function resolveEditedAccountCode(raw: string, currentAccountCode: string): string {
-  const current = normalizeCuenta(currentAccountCode)
+  const current = canonicalAccountDigits(currentAccountCode) || normalizeCuenta(currentAccountCode)
   if (!current) {
     throw new Error("No hay cuenta actual para modificar.")
   }
 
   const currentGroup = current.slice(0, Math.min(3, current.length))
+  const requested = canonicalAccountDigits(raw)
+
+  if (isExactPgcAccount(requested) && isExactPgcAccount(current)) {
+    if (requested !== current && !canRetargetAccount(current, requested)) {
+      throw new Error(`La cuenta debe seguir en el grupo ${currentGroup}.`)
+    }
+    return requested
+  }
+
   const dotted = parseDottedAccountShortcut(raw)
 
   if (dotted) {
@@ -61,9 +72,12 @@ export function resolveEditedAccountCode(raw: string, currentAccountCode: string
     return buildAccountCode(prefix, dotted.sequence)
   }
 
-  const digits = normalizeCuenta(raw)
+  const digits = requested || normalizeCuenta(raw)
   if (!digits) {
     throw new Error("Indica el código de cuenta, por ejemplo 430.2 o 430.0002.")
+  }
+  if (isExactPgcAccount(digits) && (current === digits || current.startsWith(digits))) {
+    return digits
   }
   if (digits.length <= 3) {
     throw new Error("Indica la subcuenta completa, por ejemplo 430.2 o 430.0002.")
