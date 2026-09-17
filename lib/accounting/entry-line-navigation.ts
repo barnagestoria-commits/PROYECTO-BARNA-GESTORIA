@@ -5,6 +5,7 @@ import {
   type InvoiceAmountsWithIrpf,
 } from "@/lib/accounting/invoice-auto-fill"
 import type { InvoiceEntryDetails } from "@/lib/types/invoice-entry-details"
+import { calculateTotals, createEmptyLine } from "@/lib/accounting/command-templates"
 
 export type LineAmountSide = "debe" | "haber"
 
@@ -210,6 +211,46 @@ export function getNextNavigableField(
   }
 
   return null
+}
+
+export interface BalancingCounterpartLine {
+  line: AccountingEntryLine
+  focusField: EntryCellField
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+/** Línea nueva con el saldo que falta, para cuadrar debajo en lugar de en la casilla de la derecha. */
+export function buildBalancingCounterpartLine(
+  lines: AccountingEntryLine[],
+  options?: { counterpartAccount?: string; concepto?: string },
+): BalancingCounterpartLine | null {
+  const { difference } = calculateTotals(lines)
+  if (Math.abs(difference) < 0.01) return null
+
+  const account = options?.counterpartAccount?.trim() ?? ""
+  const line: AccountingEntryLine = {
+    ...createEmptyLine(),
+    cuenta: account,
+    concepto: options?.concepto?.trim() ?? "",
+    debe: difference < 0 ? roundMoney(Math.abs(difference)) : 0,
+    haber: difference > 0 ? roundMoney(difference) : 0,
+  }
+
+  return { line, focusField: account ? (difference > 0 ? "haber" : "debe") : "cuenta" }
+}
+
+/** Si no hay más líneas y el asiento está descuadrado, Enter en contrapartida abre una línea debajo. */
+export function shouldCreateBalancingLineBelow(
+  rowIndex: number,
+  field: EntryCellField,
+  context: EntryNavigationContext,
+): boolean {
+  if (field !== "contrapartida") return false
+  if (getNextNavigableField(rowIndex, field, context)) return false
+  return Math.abs(calculateTotals(context.lines).difference) >= 0.01
 }
 
 /** Tras el importe, salta a la siguiente línea de IVA/base del asiento de factura. */

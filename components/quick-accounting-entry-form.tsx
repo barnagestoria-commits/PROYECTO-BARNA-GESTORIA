@@ -25,6 +25,7 @@ import {
   getNavigableFieldsForRow,
   getNextNavigableField,
   isAmountFieldDisabled,
+  buildBalancingCounterpartLine,
   type EntryNavigationContext,
 } from "@/lib/accounting/entry-line-navigation"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
@@ -431,6 +432,24 @@ export function QuickAccountingEntryForm() {
           prefillLineAmount(next.row)
         }
         focusCell(next.row, next.field)
+        return
+      }
+
+      const source = navigationContext.lines[row]
+      const counterpartAccount = field === "contrapartida" ? source?.contrapartida : undefined
+      const draft = buildBalancingCounterpartLine(navigationContext.lines, {
+        counterpartAccount,
+        concepto: source?.concepto,
+      })
+
+      if (draft) {
+        setLines((prev) => {
+          const nextLines = prev.map((line, index) =>
+            index === row && counterpartAccount?.trim() ? { ...line, contrapartida: "" } : line,
+          )
+          return [...nextLines, draft.line]
+        })
+        requestAnimationFrame(() => focusCell(row + 1, draft.focusField))
         return
       }
 
@@ -1097,6 +1116,23 @@ export function QuickAccountingEntryForm() {
   }
 
   const addLine = () => {
+    const source = lines[lines.length - 1]
+    const draft = buildBalancingCounterpartLine(lines, {
+      counterpartAccount: source?.contrapartida,
+      concepto: source?.concepto,
+    })
+    if (draft) {
+      setLines((prev) => {
+        const nextLines = prev.map((line, index) =>
+          index === prev.length - 1 && source?.contrapartida?.trim()
+            ? { ...line, contrapartida: "" }
+            : line,
+        )
+        return [...nextLines, draft.line]
+      })
+      requestAnimationFrame(() => focusCell(lines.length, draft.focusField))
+      return
+    }
     setLines((prev) => [...prev, createEmptyLine()])
     requestAnimationFrame(() => focusCell(lines.length, "concepto"))
   }
@@ -1147,10 +1183,13 @@ export function QuickAccountingEntryForm() {
     if (activeCell.field === "cuenta") {
       return "F4 · Plan contable · F6 · Buscar NIF · EX · extracto de cuentas (balance)"
     }
+    if (activeCell.field === "contrapartida") {
+      return "Contrapartida en esta línea, o Enter para crearla debajo y cuadrar el asiento"
+    }
     if (activeCommand) {
       return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
     }
-    return "Apunte manual — Tab para avanzar entre campos"
+    return "Apunte manual — Enter en el importe va a la contrapartida · Enter otra vez abre la línea de abajo"
   }, [activeCell.field, activeCommand, committedEntries.length, selectedCommittedEntry])
 
   const handleSubmit = async () => {
@@ -1695,7 +1734,7 @@ export function QuickAccountingEntryForm() {
                           onFocus={() => setActiveCell({ row: rowIndex, field: "contrapartida" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "contrapartida")}
                           className="h-9 px-2 font-mono text-xs"
-                          placeholder="430…"
+                          placeholder="Enter ↓ o 430"
                           aria-label={`Contrapartida línea ${rowIndex + 1}`}
                         />
                       </td>
