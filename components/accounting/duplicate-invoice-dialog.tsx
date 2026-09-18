@@ -27,7 +27,7 @@ export function DuplicateInvoiceDialog({
     <AccountingModal
       open={open}
       title="Factura duplicada"
-      subtitle="El OCR ha encontrado un asiento igual"
+        subtitle="Ya hay un asiento con los mismos datos"
       tone="danger"
       onClose={onDismiss}
       layer="nested"

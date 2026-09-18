@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
+import { DuplicateInvoiceError } from "@/lib/accounting/duplicate-invoice"
 import { createAccountingEntry } from "@/lib/accounting/entry-service"
 import type { SaveAccountingEntryInput } from "@/lib/accounting/entry-payload"
 
@@ -11,6 +12,17 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ success: true, entry })
   } catch (error) {
+    if (error instanceof DuplicateInvoiceError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message,
+          code: error.code,
+          duplicate: error.duplicate,
+        },
+        { status: 409 },
+      )
+    }
     if (error instanceof Error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 400 })
     }

@@ -18,6 +18,7 @@ export async function GET(request: Request) {
         numeroFactura: searchParams.get("numeroFactura") ?? "",
         fechaFactura: searchParams.get("fechaFactura") ?? "",
         total: Number(searchParams.get("total") ?? 0),
+        accountCode: searchParams.get("accountCode") ?? undefined,
       },
     })
 

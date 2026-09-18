@@ -1,12 +1,15 @@
 import type { AuthSession } from "@/lib/types/auth"
+import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
 
 export class ApiRequestError extends Error {
   readonly code?: string
+  readonly duplicate?: DuplicateInvoiceMatch
 
-  constructor(message: string, code?: string) {
+  constructor(message: string, code?: string, duplicate?: DuplicateInvoiceMatch) {
     super(message)
     this.name = "ApiRequestError"
     this.code = code
+    this.duplicate = duplicate
   }
 }
 
@@ -59,10 +62,12 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     },
   })
 
-  const data = await parseApiResponse<{ error?: string; success?: boolean; code?: string } & T>(response)
+  const data = await parseApiResponse<
+    { error?: string; success?: boolean; code?: string; duplicate?: DuplicateInvoiceMatch } & T
+  >(response)
 
   if (!response.ok) {
-    throw new ApiRequestError(data.error ?? "Error en la solicitud.", data.code)
+    throw new ApiRequestError(data.error ?? "Error en la solicitud.", data.code, data.duplicate)
   }
 
   return data as T

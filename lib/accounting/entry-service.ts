@@ -18,6 +18,12 @@ import { isAnalyticAccount } from "@/lib/accounting/analytic-accounting-types"
 import { ensureInvoiceVatLines } from "@/lib/accounting/invoice-details-normalize"
 import { repairCanonicalAccountCodes } from "@/lib/accounting/canonical-account-repair"
 import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
+import {
+  DuplicateInvoiceError,
+  findDuplicateInvoiceEntry,
+  shouldProbeDuplicateInvoice,
+} from "@/lib/accounting/duplicate-invoice"
+import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
@@ -134,6 +140,29 @@ export async function createAccountingEntry(
   }
 
   const invoiceFields = resolveInvoiceFields(input, fecha)
+
+  const thirdPartyLine = normalized.lines.find((line) => isThirdPartyAccountPrefix(line.cuenta))
+  const invoiceTotal = thirdPartyLine ? Math.max(thirdPartyLine.debe, thirdPartyLine.haber) : 0
+  const duplicateProbe = {
+    cif: input.invoiceDetails?.nif ?? "",
+    numeroFactura: invoiceFields.invoiceNumber?.trim() || "",
+    fechaFactura: input.fecha,
+    total: invoiceTotal,
+    accountCode: thirdPartyLine?.cuenta,
+  }
+  if (!input.allowDuplicate && shouldProbeDuplicateInvoice(commandCode, duplicateProbe)) {
+    const thirdDigits = thirdPartyLine?.cuenta.replace(/\D/g, "") ?? ""
+    const documentType =
+      commandCode === "17" || thirdDigits.startsWith("430")
+        ? "factura-emitida"
+        : "factura-recibida"
+    const duplicate = await findDuplicateInvoiceEntry({
+      companyId,
+      documentType,
+      invoice: duplicateProbe,
+    })
+    if (duplicate) throw new DuplicateInvoiceError(duplicate)
+  }
 
   const entry = await prisma.$transaction(async (tx) => {
     const refNumber = await getNextEntryRefNumber(companyId, tx)

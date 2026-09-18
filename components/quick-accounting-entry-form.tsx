@@ -78,10 +78,15 @@ import {
   buildFullInvoiceEntry,
   calculateInvoiceAmountsWithIrpf,
   ensureMinimumInvoiceLines,
+  getInvoiceThirdPartyTotal,
   isInvoiceThirdPartyTotalAmount,
 } from "@/lib/accounting/invoice-auto-fill"
+import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
+import { shouldProbeDuplicateInvoice } from "@/lib/accounting/duplicate-invoice"
+import { DuplicateInvoiceDialog } from "@/components/accounting/duplicate-invoice-dialog"
+import { duplicateInvoiceKey } from "@/lib/accounting/duplicate-invoice-message"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
-import { apiFetch } from "@/lib/api-client"
+import { ApiRequestError, apiFetch } from "@/lib/api-client"
 import { confirmReleaseAccount } from "@/lib/accounting/release-account-client"
 import { useAuth } from "@/components/auth-provider"
 import { AccountCellInput } from "@/components/accounting/account-cell-input"
@@ -185,11 +190,15 @@ export function QuickAccountingEntryForm() {
   } | null>(null)
   const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
   const [analyticDialog, setAnalyticDialog] = useState<{ lineId: string; row: number } | null>(null)
+  const [duplicate, setDuplicate] = useState<DuplicateInvoiceMatch | null>(null)
+  const [allowDuplicate, setAllowDuplicate] = useState(false)
+  const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
   const committedEntryRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
   const committedListRef = useRef<HTMLDivElement>(null)
+  const shownDuplicateKeyRef = useRef<string | null>(null)
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -233,6 +242,72 @@ export function QuickAccountingEntryForm() {
     }),
     [focusedThirdParty, invoiceDetails.invoiceNumber, invoiceDetails.nif, invoiceDetails.thirdPartyName, invoiceMode],
   )
+
+  const duplicateProbe = useMemo(() => {
+    const third = lines.find((line) => isThirdPartyAccountPrefix(line.cuenta))
+    const numero =
+      invoiceDetails.invoiceNumber.trim() ||
+      lines.find((line) => line.documento?.trim())?.documento?.trim() ||
+      ""
+    const total =
+      getInvoiceThirdPartyTotal(lines, invoiceMode) ||
+      (third ? Math.max(third.debe, third.haber) : 0)
+    return {
+      cif: invoiceDetails.nif,
+      numeroFactura: numero,
+      fechaFactura: fecha,
+      total,
+      accountCode: third?.cuenta,
+    }
+  }, [fecha, invoiceDetails.invoiceNumber, invoiceDetails.nif, invoiceMode, lines])
+
+  useEffect(() => {
+    if (!shouldProbeDuplicateInvoice(activeCommand, duplicateProbe)) {
+      setDuplicate(null)
+      setDuplicateDialogOpen(false)
+      shownDuplicateKeyRef.current = null
+      return
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          documentType: invoiceMode === "emitida" ? "factura-emitida" : "factura-recibida",
+          cif: duplicateProbe.cif,
+          numeroFactura: duplicateProbe.numeroFactura,
+          fechaFactura: duplicateProbe.fechaFactura,
+          total: String(duplicateProbe.total),
+        })
+        if (duplicateProbe.accountCode) params.set("accountCode", duplicateProbe.accountCode)
+        const result = await apiFetch<{ success: true; duplicate: DuplicateInvoiceMatch | null }>(
+          `/api/invoices/duplicates?${params.toString()}`,
+          { signal: controller.signal },
+        )
+        setDuplicate(result.duplicate)
+        if (!result.duplicate) {
+          setAllowDuplicate(false)
+          setDuplicateDialogOpen(false)
+          shownDuplicateKeyRef.current = null
+          return
+        }
+        const key = duplicateInvoiceKey(result.duplicate)
+        if (shownDuplicateKeyRef.current !== key) {
+          shownDuplicateKeyRef.current = key
+          setAllowDuplicate(false)
+          setDuplicateDialogOpen(true)
+        }
+      } catch {
+        if (controller.signal.aborted) return
+        setDuplicate(null)
+      }
+    }, 400)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [activeCommand, duplicateProbe, invoiceMode])
 
   const loadThirdParties = useCallback(async () => {
     if (!activeCompany?.id) {
@@ -1165,6 +1240,10 @@ export function QuickAccountingEntryForm() {
     setSubmitError(null)
     setFocusedThirdParty(null)
     setAnalyticByLineId(new Map())
+    setDuplicate(null)
+    setAllowDuplicate(false)
+    setDuplicateDialogOpen(false)
+    shownDuplicateKeyRef.current = null
   }, [])
 
   const getDocumentoValue = useCallback(
@@ -1222,6 +1301,14 @@ export function QuickAccountingEntryForm() {
     setSubmitSuccess(null)
 
     try {
+      if (
+        duplicate &&
+        !allowDuplicate &&
+        shouldProbeDuplicateInvoice(activeCommand, duplicateProbe)
+      ) {
+        setDuplicateDialogOpen(true)
+        return
+      }
       const candidates = toShortcutCandidates(thirdParties, ledgerSubaccounts)
       const resolvedLines = lines.map((line) => {
         const shortcut = resolveAccountShortcut(line.cuenta, candidates)
@@ -1243,16 +1330,18 @@ export function QuickAccountingEntryForm() {
       const linesToSave =
         expandedShortcut && party?.name && isInvoiceConceptCommand(activeCommand)
           ? applyInvoiceConceptsToLines(resolvedLines, activeCommand, {
-              invoiceNumber: invoiceDetails.invoiceNumber,
+              invoiceNumber: invoiceDetails.invoiceNumber.trim() || duplicateProbe.numeroFactura,
               thirdPartyLabel: party.name,
               invoiceMode,
               nif: party.cif || invoiceDetails.nif,
             })
           : resolvedLines
-      const detailsToSave =
-        expandedShortcut && party?.name
+      const detailsToSave = {
+        ...(expandedShortcut && party?.name
           ? { ...invoiceDetails, nif: party.cif || invoiceDetails.nif, thirdPartyName: party.name }
-          : invoiceDetails
+          : invoiceDetails),
+        invoiceNumber: invoiceDetails.invoiceNumber.trim() || duplicateProbe.numeroFactura,
+      }
 
       const data = await apiFetch<{
         success: true
@@ -1264,8 +1353,9 @@ export function QuickAccountingEntryForm() {
           commandCode: activeCommand,
           issueDate: showInvoicePanel ? detailsToSave.issueDate : null,
           operationDate: showInvoicePanel ? detailsToSave.operationDate : null,
-          invoiceNumber: showInvoicePanel ? detailsToSave.invoiceNumber : null,
+          invoiceNumber: detailsToSave.invoiceNumber || null,
           invoiceDetails: showInvoicePanel ? detailsToSave : null,
+          allowDuplicate,
           lines: linesToSave.map(({ id, cuenta, concepto, debe, haber }) => ({
             cuenta,
             concepto,
@@ -1298,6 +1388,11 @@ export function QuickAccountingEntryForm() {
       resetForm()
       requestAnimationFrame(() => focusCell(0, "fecha"))
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === "DUPLICATE_INVOICE") {
+        if (error.duplicate) setDuplicate(error.duplicate)
+        setDuplicateDialogOpen(true)
+        return
+      }
       setSubmitError(error instanceof Error ? error.message : "No se pudo guardar el asiento.")
     } finally {
       setIsSubmitting(false)
@@ -1930,6 +2025,16 @@ export function QuickAccountingEntryForm() {
         account={missingAccountState?.account ?? null}
         onConfirm={handleMissingAccountConfirm}
         onCancel={handleMissingAccountCancel}
+      />
+      <DuplicateInvoiceDialog
+        open={duplicateDialogOpen && duplicate !== null}
+        duplicate={duplicate}
+        blockDuplicates
+        onDismiss={() => setDuplicateDialogOpen(false)}
+        onAllow={() => {
+          setAllowDuplicate(true)
+          setDuplicateDialogOpen(false)
+        }}
       />
 
       {analyticDialog && (() => {

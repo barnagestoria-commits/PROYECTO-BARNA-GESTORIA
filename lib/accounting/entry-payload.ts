@@ -33,6 +33,7 @@ export interface SaveAccountingEntryInput {
   invoiceDetails?: InvoiceEntryDetails | null
   commandCode?: AccountingCommandCode | null
   lines: CreateAccountingEntryLineInput[]
+  allowDuplicate?: boolean
 }
 
 export function parseEntryDate(value: string | null | undefined): Date | null {
