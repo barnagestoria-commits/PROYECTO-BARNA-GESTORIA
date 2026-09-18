@@ -1,0 +1,6 @@
+export { shouldOfferLibrosRegistro, mapEntriesToLibrosRegistro, librosRegistroThroughQuarter } from "@/lib/fiscal/aeat/libros-registro/map-libros"
+export { generateLibrosRegistroXlsx } from "@/lib/fiscal/aeat/libros-registro/generate-lsi-xlsx"
+export { parseLibrosRegistroXlsx } from "@/lib/fiscal/aeat/libros-registro/parse-lsi-xlsx"
+export { buildLibrosRegistroFilename } from "@/lib/fiscal/aeat/libros-registro/filename"
+export { buildLibrosRegistroExport } from "@/lib/fiscal/aeat/libros-registro/service"
+export { resolveActivityCodes, incomeConceptFromAccount, expenseConceptFromAccount } from "@/lib/fiscal/aeat/libros-registro/codes"

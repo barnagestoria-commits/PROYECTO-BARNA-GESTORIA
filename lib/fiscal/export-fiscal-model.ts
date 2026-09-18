@@ -43,6 +43,9 @@ export function buildFiscalExportFilename(
   if (extension === "txt") {
     return buildAeatTxtFilename(detail, companyCif)
   }
+  if (extension === "lsi") {
+    return buildAeatTxtFilename(detail, companyCif).replace(/\.txt$/i, "-libros.xlsx")
+  }
 
   const quarterSuffix =
     detail.quarter === "annual" ? "anual" : `${detail.quarter}T`
@@ -259,6 +262,7 @@ export async function generateFiscalZip(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif?: string | null,
+  extras: Array<{ fileName: string; buffer: Buffer }> = [],
 ): Promise<Buffer> {
   const [pdfBuffer, xlsxBuffer] = await Promise.all([
     generateFiscalPdf(detail, companyName),
@@ -276,6 +280,10 @@ export async function generateFiscalZip(
       buildFiscalExportFilename(detail, companyName, "txt", companyCif),
       generateAeatTxt(detail, companyName, companyCif),
     )
+  }
+
+  for (const extra of extras) {
+    zip.file(extra.fileName, extra.buffer)
   }
 
   return zip.generateAsync({ type: "nodebuffer" })

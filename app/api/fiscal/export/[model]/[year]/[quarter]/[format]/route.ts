@@ -2,6 +2,10 @@ import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { buildOfficialAeatDraftBundle } from "@/lib/fiscal/aeat/build-official-submission"
 import {
+  buildLibrosRegistroExport,
+  shouldOfferLibrosRegistro,
+} from "@/lib/fiscal/aeat/libros-registro"
+import {
   buildFiscalExportFilename,
   generateFiscalCsv,
   generateFiscalPdf,
@@ -21,7 +25,8 @@ interface RouteContext {
   params: Promise<{ model: string; year: string; quarter: string; format: string }>
 }
 
-const VALID_FORMATS = new Set<FiscalExportFormat>(["pdf", "xlsx", "csv", "txt", "zip"])
+const VALID_FORMATS = new Set<FiscalExportFormat>(["pdf", "xlsx", "csv", "txt", "lsi", "zip"])
+const XLSX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 export async function GET(request: Request, { params }: RouteContext) {
   try {
@@ -35,7 +40,7 @@ export async function GET(request: Request, { params }: RouteContext) {
     const format = formatParam as FiscalExportFormat
     if (!VALID_FORMATS.has(format)) {
       return NextResponse.json(
-        { success: false, error: "Formato no válido. Use pdf, xlsx, csv, txt o zip." },
+        { success: false, error: "Formato no válido. Use pdf, xlsx, csv, txt, lsi o zip." },
         { status: 400 },
       )
     }
@@ -67,7 +72,18 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json(
         {
           success: false,
-          error: "El archivo .txt de Hacienda solo está disponible para modelos trimestrales (111, 115, 303) o el 180 anual.",
+          error:
+            "El archivo .txt de Hacienda solo está disponible para modelos trimestrales (111, 115, 130, 303) o el 180 anual.",
+        },
+        { status: 400 },
+      )
+    }
+
+    if (format === "lsi" && !shouldOfferLibrosRegistro(detail.modelCode, detail.quarter)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El Excel de libros registro de Hacienda está disponible para los modelos 130 y 303.",
         },
         { status: 400 },
       )
@@ -75,6 +91,7 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     let buffer: Buffer | undefined
     let contentType = "application/octet-stream"
+    let filename = buildFiscalExportFilename(detail, company.name, format, company.cif)
     let aeatValidation: Awaited<ReturnType<typeof buildOfficialAeatDraftBundle>>["validation"] | undefined
     let taxReturnId: string | undefined
 
@@ -85,12 +102,25 @@ export async function GET(request: Request, { params }: RouteContext) {
         break
       case "xlsx":
         buffer = await generateFiscalXlsx(detail, company.name)
-        contentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        contentType = XLSX_CONTENT_TYPE
         break
       case "csv":
         buffer = generateFiscalCsv(detail, company.name)
         contentType = "text/csv; charset=utf-8"
         break
+      case "lsi": {
+        const libros = await buildLibrosRegistroExport({
+          companyId,
+          year,
+          quarter,
+          companyName: company.name,
+          companyCif: company.cif,
+        })
+        buffer = libros.buffer
+        filename = libros.fileName
+        contentType = XLSX_CONTENT_TYPE
+        break
+      }
       case "txt": {
         const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif)
         if (detail.modelCode === "303" && !bundle.validation.valid) {
@@ -119,17 +149,28 @@ export async function GET(request: Request, { params }: RouteContext) {
         }
         break
       }
-      case "zip":
-        buffer = await generateFiscalZip(detail, company.name, company.cif)
+      case "zip": {
+        const extras: Array<{ fileName: string; buffer: Buffer }> = []
+        if (shouldOfferLibrosRegistro(detail.modelCode, detail.quarter)) {
+          const libros = await buildLibrosRegistroExport({
+            companyId,
+            year,
+            quarter,
+            companyName: company.name,
+            companyCif: company.cif,
+          })
+          extras.push({ fileName: libros.fileName, buffer: libros.buffer })
+        }
+        buffer = await generateFiscalZip(detail, company.name, company.cif, extras)
         contentType = "application/zip"
         break
+      }
     }
 
     if (!buffer) {
       return NextResponse.json({ success: false, error: "No se pudo generar la exportación." }, { status: 500 })
     }
 
-    const filename = buildFiscalExportFilename(detail, company.name, format, company.cif)
     const encodedFilename = encodeURIComponent(filename)
 
     return new NextResponse(new Uint8Array(buffer), {

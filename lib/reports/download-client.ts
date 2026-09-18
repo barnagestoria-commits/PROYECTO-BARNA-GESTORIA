@@ -165,12 +165,13 @@ export async function downloadFiscalExport(
     xlsx: "Excel",
     csv: "CSV",
     txt: "TXT Hacienda",
+    lsi: "Excel Hacienda",
     zip: "ZIP",
   }
 
   await downloadReportBlob(
     getFiscalExportUrl(model, year, quarter, format),
-    `modelo-${model}.${format === "xlsx" ? "xlsx" : format}`,
+    `modelo-${model}.${format === "xlsx" || format === "lsi" ? "xlsx" : format}`,
     `No se pudo generar el ${labels[format]} del modelo ${model}.`,
   )
 }

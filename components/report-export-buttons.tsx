@@ -28,6 +28,7 @@ const FORMAT_ICONS = {
   xlsx: FileSpreadsheet,
   csv: FileText,
   txt: FileText,
+  lsi: FileSpreadsheet,
   zip: Archive,
 } as const
 
@@ -103,13 +104,16 @@ export function FiscalExportButtons({
 
   const formats = useMemo(() => {
     const isAnnual = quarter === "annual" || quarter === "anual"
+    let next = FISCAL_EXPORT_FORMATS.filter((format) => {
+      if (format === "lsi") return model === "130" || model === "303"
+      return true
+    })
     if (model === "180" || model === "190" || model === "347" || model === "390") {
-      return FISCAL_EXPORT_FORMATS.filter((format) => format !== "txt" || model === "180")
+      next = next.filter((format) => format !== "txt" || model === "180")
+    } else if (isAnnual) {
+      next = next.filter((format) => format !== "txt")
     }
-    if (isAnnual) {
-      return FISCAL_EXPORT_FORMATS.filter((format) => format !== "txt")
-    }
-    return FISCAL_EXPORT_FORMATS
+    return next
   }, [model, quarter])
   const labels = useMemo(
     () => ({
@@ -149,7 +153,9 @@ export function FiscalExportButtons({
     variant: compact ? "toolbar-desktop" : "default",
     className,
     menuPlacement,
-    highlightTxt: compact,
+    highlightFormats: compact
+      ? formats.filter((format) => format === "txt" || format === "lsi")
+      : [],
     onDownload: handleDownload,
   })
 }
@@ -287,7 +293,7 @@ function renderFormatButtons<T extends string>({
   variant,
   className,
   menuPlacement = "bottom",
-  highlightTxt = false,
+  highlightFormats = [],
   onDownload,
 }: {
   formats: readonly T[]
@@ -298,33 +304,34 @@ function renderFormatButtons<T extends string>({
   variant: "default" | "toolbar-mobile" | "toolbar-desktop"
   className?: string
   menuPlacement?: "top" | "bottom"
-  highlightTxt?: boolean
+  highlightFormats?: T[]
   onDownload: (format: T) => void
 }) {
   if (variant === "toolbar-mobile" || variant === "toolbar-desktop") {
-    const txtFormat = highlightTxt ? formats.find((format) => format === "txt") : undefined
-    const menuFormats = txtFormat ? formats.filter((format) => format !== "txt") : formats
+    const highlighted = highlightFormats.filter((format) => formats.includes(format))
+    const menuFormats = highlighted.length > 0 ? formats.filter((format) => !highlighted.includes(format)) : formats
 
     return (
       <div className={cn("flex shrink-0 flex-wrap items-center gap-1", className)}>
-        {txtFormat ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={disabled || downloading !== null}
-            title={descriptions[txtFormat]}
-            className="shrink-0 gap-2 border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50"
-            onClick={() => onDownload(txtFormat)}
-          >
-            {downloading === txtFormat ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <FileText className="h-4 w-4" />
-            )}
-            TXT Hacienda
-          </Button>
-        ) : null}
+        {highlighted.map((format) => {
+          const Icon = FORMAT_ICONS[format as keyof typeof FORMAT_ICONS] ?? FileText
+          const loading = downloading === format
+          return (
+            <Button
+              key={format}
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={disabled || downloading !== null}
+              title={descriptions[format]}
+              className="shrink-0 gap-2 border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50"
+              onClick={() => onDownload(format)}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
+              {labels[format]}
+            </Button>
+          )
+        })}
         {menuFormats.length > 0 ? (
           <ExportFormatDropdown
             formats={menuFormats}
