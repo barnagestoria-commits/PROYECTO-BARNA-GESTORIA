@@ -7,6 +7,7 @@ import type {
 } from "@/lib/types/fiscal-panorama"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import {
+  buildRentalRetentionContext,
   collectEntryLines,
   extractGenericModelLiquidationDetail,
   extractModel111LiquidationDetail,
@@ -447,6 +448,7 @@ export function calculateModelAmount(
 ): ModelAmountResult {
   const periodLines = filterLinesForPeriod(lines, year, quarter)
   const linesByEntry = groupLinesByEntry(lines)
+  const rentalContext = buildRentalRetentionContext(lines)
   const entryIds = new Set<string>()
 
   if (modelCode === "111") {
@@ -473,7 +475,7 @@ export function calculateModelAmount(
     }
 
     const matched = periodLines.filter((line) =>
-      isModel111RetentionLine(line, linesByEntry.get(line.entry.id)),
+      isModel111RetentionLine(line, linesByEntry.get(line.entry.id), rentalContext),
     )
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
@@ -547,7 +549,7 @@ export function calculateModelAmount(
     }
 
     const matched = periodLines.filter((line) =>
-      isModel115RentalRetentionLine(line, linesByEntry.get(line.entry.id)),
+      isModel115RentalRetentionLine(line, linesByEntry.get(line.entry.id), rentalContext),
     )
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
@@ -613,8 +615,8 @@ export function calculateModelAmount(
 
     const matched = periodLines.filter(
       (line) =>
-        isModel111RetentionLine(line, linesByEntry.get(line.entry.id)) ||
-        isModel115RentalRetentionLine(line, linesByEntry.get(line.entry.id)) ||
+        isModel111RetentionLine(line, linesByEntry.get(line.entry.id), rentalContext) ||
+        isModel115RentalRetentionLine(line, linesByEntry.get(line.entry.id), rentalContext) ||
         isModel123DividendRetentionLine(line),
     )
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)

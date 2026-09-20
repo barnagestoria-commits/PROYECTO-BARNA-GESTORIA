@@ -1,4 +1,5 @@
 import { extractPrimaryEuVatId } from "@/lib/fiscal/eu-vat-id"
+import { extractPartyDisplayName } from "@/lib/fiscal/party-identification"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import type { RawEntryLine } from "@/lib/fiscal/panorama"
 
@@ -40,6 +41,14 @@ const RENTAL_EXPENSE_PREFIXES = ["621"]
 const PROFESSIONAL_EXPENSE_PREFIXES = ["623", "640", "641", "642", "649"]
 const RENTAL_CONCEPT_PATTERN = /ALQUILER|ARREND|RENTA\s+LOCAL|INMUEBLE|URBAN|LOCAL\s+COMERCIAL/i
 const RETENTION_CONCEPT_PATTERN = /Reten[\.\/]|Retenc|RETENCI/i
+const GENERIC_PARTY_KEY_PATTERN = /^(ALQUILER|ARRENDAMIENTOS?|FACTURA|SUFRA|NUESTRAFRA|IVA[SR]?|RETEN|HONORARIOS|LOCAL)/i
+const MIN_PARTY_KEY_LENGTH = 8
+const MIN_DOCUMENT_KEY_LENGTH = 6
+
+export interface RentalRetentionContext {
+  partyKeys: Set<string>
+  documentKeys: Set<string>
+}
 
 export function groupLinesByEntry(lines: RawEntryLine[]): Map<string, RawEntryLine[]> {
   const grouped = new Map<string, RawEntryLine[]>()
@@ -92,6 +101,78 @@ function isRetentionConceptLine(line: RawEntryLine, entryLines?: RawEntryLine[])
   return RETENTION_CONCEPT_PATTERN.test(line.concepto)
 }
 
+function normalizePartyKey(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
+    .toUpperCase()
+}
+
+function stripTrailingDocumentToken(name: string): string {
+  return name.replace(/\s+\d[\d./]*[A-Za-z]?\s*$/g, "").trim()
+}
+
+function partyKeyFromConcept(concepto: string): string | null {
+  const name = stripTrailingDocumentToken(extractPartyDisplayName(concepto))
+  const key = normalizePartyKey(name)
+  if (key.length < MIN_PARTY_KEY_LENGTH) return null
+  if (GENERIC_PARTY_KEY_PATTERN.test(key)) return null
+  return key
+}
+
+function documentKeysFromText(text: string): string[] {
+  const keys: string[] = []
+  for (const match of text.matchAll(new RegExp(`\\d{${MIN_DOCUMENT_KEY_LENGTH},}`, "g"))) {
+    keys.push(match[0])
+  }
+  return keys
+}
+
+function isRentalExpenseLine(line: RawEntryLine): boolean {
+  const digits = normalizeCuenta(line.cuenta)
+  if (digits.startsWith("621")) return true
+  const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+  return digits.startsWith("6") && RENTAL_CONCEPT_PATTERN.test(text)
+}
+
+export function buildRentalRetentionContext(lines: RawEntryLine[]): RentalRetentionContext {
+  const partyKeys = new Set<string>()
+  const documentKeys = new Set<string>()
+  const grouped = groupLinesByEntry(lines)
+
+  for (const entryLines of grouped.values()) {
+    if (!entryLines.some(isRentalExpenseLine)) continue
+    for (const line of entryLines) {
+      const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+      const party = partyKeyFromConcept(line.concepto) ?? partyKeyFromConcept(text)
+      if (party) partyKeys.add(party)
+      for (const document of documentKeysFromText(text)) documentKeys.add(document)
+    }
+  }
+
+  return { partyKeys, documentKeys }
+}
+
+function partyKeysOverlap(left: string, right: string): boolean {
+  if (left.length < MIN_PARTY_KEY_LENGTH || right.length < MIN_PARTY_KEY_LENGTH) return false
+  return left === right || left.includes(right) || right.includes(left)
+}
+
+function matchesRentalContext(line: RawEntryLine, rental?: RentalRetentionContext): boolean {
+  if (!rental) return false
+  const text = `${line.concepto} ${line.entry.concepto ?? ""}`
+  for (const document of documentKeysFromText(text)) {
+    if (rental.documentKeys.has(document)) return true
+  }
+  const party = partyKeyFromConcept(line.concepto)
+  if (!party) return false
+  for (const rentalParty of rental.partyKeys) {
+    if (partyKeysOverlap(party, rentalParty)) return true
+  }
+  return false
+}
+
 export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
@@ -105,6 +186,7 @@ export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
 export function isModel115RentalRetentionLine(
   line: RawEntryLine,
   entryLines?: RawEntryLine[],
+  rentalContext?: RentalRetentionContext,
 ): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
@@ -120,17 +202,19 @@ export function isModel115RentalRetentionLine(
 
   const ownConcept = `${line.concepto} ${line.entry.concepto ?? ""}`
   if (!RETENTION_CONCEPT_PATTERN.test(ownConcept)) return false
-  return RENTAL_CONCEPT_PATTERN.test(entryText(line, entryLines))
+  if (RENTAL_CONCEPT_PATTERN.test(entryText(line, entryLines))) return true
+  return matchesRentalContext(line, rentalContext)
 }
 
 export function isModel111RetentionLine(
   line: RawEntryLine,
   entryLines?: RawEntryLine[],
+  rentalContext?: RentalRetentionContext,
 ): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
   if (isModel123DividendRetentionLine(line)) return false
-  if (isModel115RentalRetentionLine(line, entryLines)) return false
+  if (isModel115RentalRetentionLine(line, entryLines, rentalContext)) return false
 
   const fromAccount = retentionModelFromAccount(line.cuenta)
   if (fromAccount === "111") return true

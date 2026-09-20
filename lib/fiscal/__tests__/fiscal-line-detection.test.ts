@@ -338,6 +338,150 @@ describe("fiscal line detection", () => {
     expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
   })
 
+  it("does not treat a rental withholding as modelo 111 when the 621 is in another asiento", () => {
+    const retentionEntry = {
+      id: "e-ret",
+      fecha: new Date("2026-01-02T12:00:00.000Z"),
+      concepto: "3026000001n",
+    }
+    const invoiceEntry = {
+      id: "e-alquiler",
+      fecha: new Date("2026-01-02T12:00:00.000Z"),
+      concepto: "1/44",
+    }
+    const lines: RawEntryLine[] = [
+      line({
+        id: "ret",
+        entryId: "e-ret",
+        concepto: "Reten./VILLARONGA SANCHEZ MAR 3026000001n",
+        cuenta: "475100000000",
+        debe: 0,
+        haber: 415.66,
+        entry: retentionEntry,
+      }),
+      line({
+        id: "gasto",
+        entryId: "e-alquiler",
+        concepto: "Alquiler local",
+        cuenta: "621000000000",
+        debe: 2187.68,
+        haber: 0,
+        entry: invoiceEntry,
+      }),
+      line({
+        id: "proveedor",
+        entryId: "e-alquiler",
+        concepto: "VILLARONGA SANCHEZ MAR",
+        cuenta: "400000000007",
+        debe: 0,
+        haber: 1772.02,
+        entry: invoiceEntry,
+      }),
+    ]
+
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(415.66)
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
+  })
+
+  it("matches a split rental withholding by A3 document number when the 400 line has no landlord name", () => {
+    const retentionEntry = {
+      id: "e-ret-doc",
+      fecha: new Date("2026-01-02T12:00:00.000Z"),
+      concepto: "3026000001n",
+    }
+    const invoiceEntry = {
+      id: "e-alquiler-doc",
+      fecha: new Date("2026-01-02T12:00:00.000Z"),
+      concepto: "3026000001n",
+    }
+    const lines: RawEntryLine[] = [
+      line({
+        id: "ret",
+        entryId: "e-ret-doc",
+        concepto: "Reten./VILLARONGA SANCHEZ MAR 3026000001n",
+        cuenta: "475100000000",
+        debe: 0,
+        haber: 415.66,
+        entry: retentionEntry,
+      }),
+      line({
+        id: "gasto",
+        entryId: "e-alquiler-doc",
+        concepto: "Alquiler local",
+        cuenta: "621000000000",
+        debe: 2187.68,
+        haber: 0,
+        entry: invoiceEntry,
+      }),
+      line({
+        id: "proveedor",
+        entryId: "e-alquiler-doc",
+        concepto: "Su Fra. N.1/44",
+        cuenta: "400000000007",
+        debe: 0,
+        haber: 1772.02,
+        entry: invoiceEntry,
+      }),
+    ]
+
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(415.66)
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
+  })
+
+  it("keeps professional withholdings in 111 even when the period also has a 621 rental", () => {
+    const rentalEntry = {
+      id: "e-alquiler-mix",
+      fecha: new Date("2026-01-02T12:00:00.000Z"),
+      concepto: "3026000001n",
+    }
+    const professionalEntry = {
+      id: "e-prof-mix",
+      fecha: new Date("2026-01-15T12:00:00.000Z"),
+      concepto: "Honorarios",
+    }
+    const lines: RawEntryLine[] = [
+      line({
+        id: "ret-115",
+        entryId: "e-alquiler-mix",
+        concepto: "Reten./VILLARONGA SANCHEZ MAR 3026000001n",
+        cuenta: "475100000000",
+        debe: 0,
+        haber: 415.66,
+        entry: rentalEntry,
+      }),
+      line({
+        id: "gasto-115",
+        entryId: "e-alquiler-mix",
+        concepto: "Alquiler local",
+        cuenta: "621000000000",
+        debe: 2187.68,
+        haber: 0,
+        entry: rentalEntry,
+      }),
+      line({
+        id: "ret-111",
+        entryId: "e-prof-mix",
+        concepto: "Reten./BARBA YESTE, NICOLÁS 103",
+        cuenta: "475100000000",
+        debe: 0,
+        haber: 178.5,
+        entry: professionalEntry,
+      }),
+      line({
+        id: "gasto-111",
+        entryId: "e-prof-mix",
+        concepto: "Honorarios",
+        cuenta: "623000000000",
+        debe: 1000,
+        haber: 0,
+        entry: professionalEntry,
+      }),
+    ]
+
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(415.66)
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(178.5)
+  })
+
   it("keeps professional withholdings on generic 4751 in modelo 111", () => {
     const entry = { id: "e-prof", fecha: new Date("2026-01-15T12:00:00.000Z"), concepto: "Honorarios" }
     const lines: RawEntryLine[] = [
