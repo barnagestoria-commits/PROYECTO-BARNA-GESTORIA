@@ -2,10 +2,13 @@ export type AccountType = "GESTORIA" | "CLIENTE_FINAL" | "EMPRESA"
 
 export type UserRole = "ADMIN_GESTOR" | "GESTOR" | "CLIENTE"
 
+export type CompanyKind = "STANDARD" | "GESTORIA_PROPIA" | "CLIENTE_CARTERA"
+
 export interface CompanySummary {
   id: string
   name: string
   cif: string | null
+  kind: CompanyKind
 }
 
 export interface AuthUser {

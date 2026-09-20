@@ -18,7 +18,7 @@ import {
   profileDtoToRecordData,
   profileRecordToDto,
 } from "@/lib/contabilidad/gestoria-client-profile-serializers"
-import type { CompanySummary } from "@/lib/types/auth"
+import type { CompanySummary, UserRole } from "@/lib/types/auth"
 
 export type GestoriaClientEntityType = "juridica" | "fisica"
 
@@ -75,6 +75,10 @@ async function assertGestoriaCompanyAccess(
 
   if (!company) {
     throw new Error("Empresa no encontrada o sin permisos de gestoría.")
+  }
+
+  if (company.kind === "GESTORIA_PROPIA") {
+    throw new Error("La empresa propia de la gestoría no forma parte de la cartera de clientes.")
   }
 
   const restrictedAccessCount = await prisma.userCompanyAccess.count({
@@ -142,14 +146,22 @@ export async function createGestoriaClientCompany(
         name,
         cif,
         accountId,
+        kind: "CLIENTE_CARTERA",
       },
     })
 
-    await tx.userCompanyAccess.create({
-      data: {
-        userId,
+    const admins = await tx.user.findMany({
+      where: { accountId, role: "ADMIN_GESTOR" },
+      select: { id: true },
+    })
+    const accessUserIds = [...new Set([userId, ...admins.map((admin) => admin.id)])]
+
+    await tx.userCompanyAccess.createMany({
+      data: accessUserIds.map((accessUserId) => ({
+        userId: accessUserId,
         companyId: created.id,
-      },
+      })),
+      skipDuplicates: true,
     })
 
     await tx.companyFiscalSettings.create({
@@ -173,6 +185,7 @@ export async function createGestoriaClientCompany(
     id: company.id,
     name: company.name,
     cif: company.cif,
+    kind: "CLIENTE_CARTERA",
   }
 }
 
@@ -274,14 +287,19 @@ export async function deleteGestoriaClientCompany(
 export async function listGestoriaClientProfiles(
   accountId: string,
   userId: string,
+  role?: UserRole,
 ): Promise<Map<string, GestoriaClientProfileDto>> {
-  const restrictedAccessCount = await prisma.userCompanyAccess.count({
-    where: { userId },
-  })
+  const restrictedAccessCount =
+    role === "ADMIN_GESTOR"
+      ? 0
+      : await prisma.userCompanyAccess.count({
+          where: { userId },
+        })
 
   const companies = await prisma.company.findMany({
     where: {
       accountId,
+      kind: { not: "GESTORIA_PROPIA" },
       ...(restrictedAccessCount > 0
         ? { userAccess: { some: { userId } } }
         : {}),

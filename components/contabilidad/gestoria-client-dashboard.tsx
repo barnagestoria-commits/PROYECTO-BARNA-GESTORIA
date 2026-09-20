@@ -15,7 +15,7 @@ import {
   Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { CompanyCertificatePanel } from "@/components/settings/company-certificate-panel"
+import { GestoriaHonorariosPanel } from "@/components/contabilidad/gestoria-honorarios-panel"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
 import {
   FiscalPanoramaSectionHeader,
@@ -279,6 +279,7 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
         </div>
 
         <div className="space-y-4 px-4 py-4 sm:px-6">
+          <GestoriaHonorariosPanel companyId={companyId} />
           {(activeTab === "resumen-trimestral" || activeTab === "resumen-anual") && (
             <>
               <div className="flex flex-wrap items-center gap-3">

@@ -29,7 +29,8 @@ export function resolveActiveCompanyId(
   if (preferredId && companies.some((company) => company.id === preferredId)) {
     return preferredId
   }
-  return companies[0].id
+  const cartera = companies.find((company) => company.kind !== "GESTORIA_PROPIA")
+  return cartera?.id ?? companies[0].id
 }
 
 export function getPanelTitle(session: AuthSession): string {
@@ -47,7 +48,7 @@ export function getRoleLabel(role: UserRole): string {
     case "ADMIN_GESTOR":
       return "Administrador gestoría"
     case "GESTOR":
-      return "Gestor"
+      return "Técnico de gestoría"
     case "CLIENTE":
       return "Cliente"
   }

@@ -106,6 +106,14 @@ export async function requireGestoriaSession(request: Request): Promise<AuthSess
   return session
 }
 
+export async function requireGestoriaAdmin(request: Request): Promise<AuthSession> {
+  const session = await requireGestoriaSession(request)
+  if (session.user.role !== "ADMIN_GESTOR") {
+    throw new AuthApiError("Solo el administrador de la gestoría puede realizar esta operación.", 403)
+  }
+  return session
+}
+
 export class AuthApiError extends Error {
   constructor(
     message: string,

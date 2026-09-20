@@ -52,6 +52,13 @@ function DashboardPageContent() {
             uploadHref="/dashboard/compras/facturas-recibidas"
           />
 
+          {activeCompany?.kind === "GESTORIA_PROPIA" && session.user.role === "ADMIN_GESTOR" ? (
+            <p className="mt-4 text-sm text-graphite-500">
+              Estás en la contabilidad propia de la gestoría. Los técnicos no tienen acceso a estos
+              libros.
+            </p>
+          ) : null}
+
           <div className="my-8 border-t border-sand-200" />
 
           <TaxSummaryPanel companyId={session.activeCompanyId} />

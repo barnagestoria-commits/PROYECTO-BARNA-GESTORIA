@@ -136,6 +136,59 @@ export async function findNextAccountSequence(companyId: string, type: ThirdPart
   return findNextAccountSequenceForPrefix(companyId, prefix)
 }
 
+export interface ThirdPartyContactDetails {
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  postalCode?: string | null
+  city?: string | null
+}
+
+function normalizeContactField(value?: string | null): string | null | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+export function sanitizeThirdPartyContactDetails(
+  details?: ThirdPartyContactDetails,
+): ThirdPartyContactDetails | undefined {
+  if (!details) return undefined
+  const next: ThirdPartyContactDetails = {
+    email: normalizeContactField(details.email),
+    phone: normalizeContactField(details.phone),
+    address: normalizeContactField(details.address),
+    postalCode: normalizeContactField(details.postalCode),
+    city: normalizeContactField(details.city),
+  }
+  if (
+    next.email === undefined &&
+    next.phone === undefined &&
+    next.address === undefined &&
+    next.postalCode === undefined &&
+    next.city === undefined
+  ) {
+    return undefined
+  }
+  return next
+}
+
+export async function updateThirdPartyContactDetails(
+  companyId: string,
+  cif: string,
+  details: ThirdPartyContactDetails,
+): Promise<void> {
+  const sanitized = sanitizeThirdPartyContactDetails(details)
+  if (!sanitized) return
+  const normalizedCif = normalizeCif(cif)
+  if (!normalizedCif) return
+
+  await prisma.thirdParty.updateMany({
+    where: { companyId, cif: normalizedCif },
+    data: sanitized,
+  })
+}
+
 export async function findThirdPartyByCif(
   companyId: string,
   type: ThirdPartyType,
@@ -198,6 +251,7 @@ export async function resolveOrCreateThirdParty(
   type: ThirdPartyType,
   cif: string,
   name: string,
+  details?: ThirdPartyContactDetails,
 ): Promise<ThirdPartyResolution> {
   const normalizedCif = normalizeCif(cif)
   if (!normalizedCif) {
@@ -211,8 +265,10 @@ export async function resolveOrCreateThirdParty(
     if (existing.name !== trimmedName) {
       await prisma.thirdParty.update({
         where: { id: existing.id },
-        data: { name: trimmedName },
+        data: { name: trimmedName, ...sanitizeThirdPartyContactDetails(details) },
       })
+    } else if (details) {
+      await updateThirdPartyContactDetails(companyId, normalizedCif, details)
     }
 
     return {
@@ -240,6 +296,7 @@ export async function resolveOrCreateThirdParty(
       cif: normalizedCif,
       name: trimmedName,
       accountCode,
+      ...sanitizeThirdPartyContactDetails(details),
     },
   })
 
@@ -442,7 +499,7 @@ export async function resolveOrCreateThirdPartyWithPrefix(
   cif: string,
   name: string,
   preferredAccountCode?: string,
-  options?: { reuseExisting?: boolean },
+  options?: { reuseExisting?: boolean; details?: ThirdPartyContactDetails },
 ): Promise<ThirdPartyResolution> {
   const preview = await previewThirdPartyWithPrefix(
     companyId,
@@ -454,14 +511,19 @@ export async function resolveOrCreateThirdPartyWithPrefix(
   )
 
   if (!preview.isNew && preview.thirdPartyId) {
-    if (preview.name !== name.trim() && name.trim()) {
+    const nextName = name.trim() || preview.name
+    const details = sanitizeThirdPartyContactDetails(options?.details)
+    const nameChanged = nextName !== preview.name
+    if (nameChanged || details) {
       await prisma.thirdParty.update({
         where: { id: preview.thirdPartyId },
-        data: { name: name.trim() },
+        data: {
+          ...(nameChanged ? { name: nextName } : {}),
+          ...details,
+        },
       })
-      return { ...preview, name: name.trim() }
     }
-    return preview
+    return { ...preview, name: nextName }
   }
 
   const created = await prisma.thirdParty.create({
@@ -471,6 +533,7 @@ export async function resolveOrCreateThirdPartyWithPrefix(
       cif: preview.cif,
       name: preview.name,
       accountCode: preview.accountCode,
+      ...sanitizeThirdPartyContactDetails(options?.details),
     },
   })
 

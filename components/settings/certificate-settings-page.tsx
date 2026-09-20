@@ -4,8 +4,14 @@ import Link from "next/link"
 import { ArrowLeft, KeyRound } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { CompanyCertificatePanel } from "@/components/settings/company-certificate-panel"
+import { useRequireAuth } from "@/components/auth-provider"
 
 export function CertificateSettingsPage() {
+  const { session } = useRequireAuth()
+  const isGestoriaAdmin =
+    session?.user.accountType === "GESTORIA" && session.user.role === "ADMIN_GESTOR"
+  const isGestoriaTech = session?.user.accountType === "GESTORIA" && session.user.role === "GESTOR"
+
   return (
     <div className="mx-auto max-w-3xl space-y-6" data-tour="onboarding-certificate">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -18,7 +24,11 @@ export function CertificateSettingsPage() {
             Certificado Digital
           </h1>
           <p className="mt-1 text-sm text-graphite-500">
-            Gestiona la firma electrónica para el envío de facturas verificables y presentaciones fiscales.
+            {isGestoriaAdmin
+              ? "El certificado de representación pertenece a la gestoría. Los técnicos lo usan para presentar impuestos de su cartera, sin ver los libros de la casa."
+              : isGestoriaTech
+                ? "El certificado de representación lo gestiona el administrador. Aquí solo ves el certificado del cliente activo, si lo tiene."
+                : "Gestiona la firma electrónica para el envío de facturas verificables y presentaciones fiscales."}
           </p>
         </div>
         <Button variant="outline" asChild>
@@ -29,7 +39,15 @@ export function CertificateSettingsPage() {
         </Button>
       </div>
 
-      <CompanyCertificatePanel />
+      {isGestoriaAdmin ? (
+        <CompanyCertificatePanel
+          apiPath="/api/certificate/representation"
+          title="Certificado de representación de la gestoría"
+          description="Se usa para presentar impuestos de los clientes de la cartera. No sustituye el certificado propio de cada cliente, si lo tiene."
+        />
+      ) : (
+        <CompanyCertificatePanel />
+      )}
     </div>
   )
 }

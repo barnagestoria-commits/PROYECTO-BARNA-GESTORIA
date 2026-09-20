@@ -145,9 +145,9 @@ export const GESTORIA_SUBSCRIPTION_TIERS: GestoriaSubscriptionTier[] = Array.fro
 
 export const GESTORIA_PLAN_FEATURES = [
   "Cartera multi-cliente según tramo contratado",
-  "Selector de empresa en la sidebar",
-  "Informes, certificados y fiscal avanzado",
-  "Roles de equipo (administrador y gestores)",
+  "Hasta 8 puestos nominativos (administrador y técnicos)",
+  "Los técnicos solo ven los clientes asignados, no los libros de la gestoría",
+  "Certificado de representación para presentar impuestos de la cartera",
 ]
 
 export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {

@@ -3,6 +3,7 @@ import { cookies } from "next/headers"
 import type {
   AccountType,
   AuthSession,
+  CompanyKind,
   CompanySummary,
   RegisterRequest,
   UpdateUserProfileRequest,
@@ -14,6 +15,7 @@ import {
   canSwitchCompanies,
   resolveActiveCompanyId,
 } from "@/lib/auth/permissions"
+import { selectCompaniesVisibleToUser } from "@/lib/auth/gestoria-access"
 
 import {
   getSessionCookieOptions,
@@ -27,61 +29,44 @@ function createSessionToken(): string {
 
 export { SESSION_COOKIE }
 
+function toCompanySummary(company: {
+  id: string
+  name: string
+  cif: string | null
+  kind?: CompanyKind | null
+}): CompanySummary {
+  return {
+    id: company.id,
+    name: company.name,
+    cif: company.cif,
+    kind: company.kind ?? "STANDARD",
+  }
+}
+
 async function getCompaniesForUser(
   userId: string,
   accountType: AccountType,
   accountId: string,
+  role: UserRole,
 ): Promise<CompanySummary[]> {
-  if (accountType === "CLIENTE_FINAL" || accountType === "EMPRESA") {
-    const access = await prisma.userCompanyAccess.findMany({
-      where: { userId },
-      include: { company: true },
-    })
-
-    if (access.length > 0) {
-      return access.map(({ company }) => ({
-        id: company.id,
-        name: company.name,
-        cif: company.cif,
-      }))
-    }
-
-    const owned = await prisma.company.findMany({
+  const [owned, access] = await Promise.all([
+    prisma.company.findMany({
       where: { accountId },
       orderBy: { name: "asc" },
-    })
+      select: { id: true, name: true, cif: true, kind: true },
+    }),
+    prisma.userCompanyAccess.findMany({
+      where: { userId },
+      select: { companyId: true },
+    }),
+  ])
 
-    return owned.map((company) => ({
-      id: company.id,
-      name: company.name,
-      cif: company.cif,
-    }))
-  }
-
-  const access = await prisma.userCompanyAccess.findMany({
-    where: { userId },
-    include: { company: true },
-    orderBy: { company: { name: "asc" } },
+  return selectCompaniesVisibleToUser({
+    accountType,
+    role,
+    companies: owned.map(toCompanySummary),
+    assignedCompanyIds: access.length > 0 ? access.map((row) => row.companyId) : null,
   })
-
-  if (access.length > 0) {
-    return access.map(({ company }) => ({
-      id: company.id,
-      name: company.name,
-      cif: company.cif,
-    }))
-  }
-
-  const managed = await prisma.company.findMany({
-    where: { accountId },
-    orderBy: { name: "asc" },
-  })
-
-  return managed.map((company) => ({
-    id: company.id,
-    name: company.name,
-    cif: company.cif,
-  }))
 }
 
 async function buildAuthSession(
@@ -96,7 +81,12 @@ async function buildAuthSession(
   },
   activeCompanyId?: string | null,
 ): Promise<AuthSession> {
-  const companies = await getCompaniesForUser(user.id, user.account.accountType, user.accountId)
+  const companies = await getCompaniesForUser(
+    user.id,
+    user.account.accountType,
+    user.accountId,
+    user.role,
+  )
   const canSwitch = canSwitchCompanies(user.account.accountType, user.role)
 
   return {
@@ -142,6 +132,7 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
         create: {
           name: input.companyName,
           cif: input.accountType !== "GESTORIA" ? input.cif : undefined,
+          kind: input.accountType === "GESTORIA" ? "GESTORIA_PROPIA" : "STANDARD",
         },
       },
     },
@@ -175,7 +166,12 @@ export async function establishUserSession(
     include: { account: true },
   })
 
-  const companies = await getCompaniesForUser(user.id, user.account.accountType, user.accountId)
+  const companies = await getCompaniesForUser(
+    user.id,
+    user.account.accountType,
+    user.accountId,
+    user.role,
+  )
   const token = createSessionToken()
   const activeCompanyId = resolveActiveCompanyId(companies, preferredCompanyId)
 
@@ -203,7 +199,12 @@ export async function loginAccount(email: string, password: string): Promise<Aut
     throw new Error("Email o contraseña incorrectos.")
   }
 
-  const companies = await getCompaniesForUser(user.id, user.account.accountType, user.accountId)
+  const companies = await getCompaniesForUser(
+    user.id,
+    user.account.accountType,
+    user.accountId,
+    user.role,
+  )
   return establishUserSession(user.id, resolveActiveCompanyId(companies))
 }
 
@@ -312,6 +313,13 @@ export async function upgradeAccountPlan(
       where: { id: session.user.id },
       data: { role: "ADMIN_GESTOR" },
     })
+
+    if (session.activeCompanyId) {
+      await prisma.company.update({
+        where: { id: session.activeCompanyId },
+        data: { kind: "GESTORIA_PROPIA" },
+      })
+    }
   }
 
   const user = await prisma.user.findUnique({

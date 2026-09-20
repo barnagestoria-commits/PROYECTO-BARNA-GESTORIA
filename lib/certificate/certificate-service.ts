@@ -98,3 +98,36 @@ export async function saveCompanyDigitalCertificate(
 export async function deleteCompanyDigitalCertificate(companyId: string): Promise<void> {
   await prisma.companyDigitalCertificate.deleteMany({ where: { companyId } })
 }
+
+export async function getGestoriaInternalCompanyId(accountId: string): Promise<string | null> {
+  const company = await prisma.company.findFirst({
+    where: { accountId, kind: "GESTORIA_PROPIA" },
+    select: { id: true },
+  })
+  return company?.id ?? null
+}
+
+export async function getGestoriaRepresentationCertificate(
+  accountId: string,
+): Promise<StoredDigitalCertificate | null> {
+  const companyId = await getGestoriaInternalCompanyId(accountId)
+  if (!companyId) return null
+  return getCompanyDigitalCertificate(companyId)
+}
+
+export async function saveGestoriaRepresentationCertificate(
+  accountId: string,
+  input: SaveDigitalCertificateInput,
+): Promise<StoredDigitalCertificate> {
+  const companyId = await getGestoriaInternalCompanyId(accountId)
+  if (!companyId) {
+    throw new Error("Esta gestoría no tiene una empresa propia para el certificado de representación.")
+  }
+  return saveCompanyDigitalCertificate(companyId, input)
+}
+
+export async function deleteGestoriaRepresentationCertificate(accountId: string): Promise<void> {
+  const companyId = await getGestoriaInternalCompanyId(accountId)
+  if (!companyId) return
+  await deleteCompanyDigitalCertificate(companyId)
+}

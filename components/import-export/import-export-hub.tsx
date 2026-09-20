@@ -24,6 +24,7 @@ import { useRequireAuth } from "@/components/auth-provider"
 import { A3CompanyImportPanel } from "@/components/import-export/a3-company-import-panel"
 import { PortfolioImportPanel } from "@/components/import-export/portfolio-import-panel"
 import { apiFetch } from "@/lib/api-client"
+import { isCarteraCompany } from "@/lib/auth/gestoria-access"
 import {
   ACCOUNTING_FORMAT_PROFILES,
   type AccountingSourceFormat,
@@ -93,7 +94,6 @@ export function ImportExportHub() {
   const { session } = useRequireAuth()
   const initialTab = resolveInitialTab(searchParams.get("tab"))
   const [activeTab, setActiveTab] = useState<HubTab>(initialTab)
-
   const [selectedClientId, setSelectedClientId] = useState<string>("")
   const [selectedFormat, setSelectedFormat] = useState<AccountingSourceFormat>("wk-asesor")
   const [history, setHistory] = useState<ImportHistoryItem[]>([])
@@ -104,18 +104,29 @@ export function ImportExportHub() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportMessage, setExportMessage] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (session?.user.role !== "GESTOR") return
+    if (activeTab === "cartera" || activeTab === "contabilidad-interna") {
+      setActiveTab("empresa-cliente")
+    }
+  }, [activeTab, session?.user.role])
+
   const clientCompanies = useMemo(() => {
     if (!session) return []
-    return session.companies
+    return session.companies.filter(isCarteraCompany)
   }, [session])
 
   const gestoriaOwnCompany = useMemo(() => {
-    if (!session || clientCompanies.length === 0) return null
-    const byAccountName = clientCompanies.find(
-      (company) => company.name.trim().toLowerCase() === session.user.accountName.trim().toLowerCase(),
+    if (!session) return null
+    return (
+      session.companies.find((company) => company.kind === "GESTORIA_PROPIA") ??
+      session.companies.find(
+        (company) =>
+          company.name.trim().toLowerCase() === session.user.accountName.trim().toLowerCase(),
+      ) ??
+      null
     )
-    return byAccountName ?? clientCompanies[0]
-  }, [clientCompanies, session])
+  }, [session])
 
   const selectedClient = useMemo(
     () => clientCompanies.find((company) => company.id === selectedClientId) ?? null,
@@ -207,6 +218,12 @@ export function ImportExportHub() {
   if (!session) return null
 
   const isGestoria = session.user.accountType === "GESTORIA"
+  const canSeeInternalBooks = isGestoria && session.user.role === "ADMIN_GESTOR"
+  const visiblePrimaryTabs = !isGestoria
+    ? PRIMARY_TABS
+    : session.user.role === "ADMIN_GESTOR"
+      ? PRIMARY_TABS
+      : PRIMARY_TABS.filter((tab) => tab.id === "empresa-cliente")
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -227,7 +244,7 @@ export function ImportExportHub() {
 
       {isGestoria ? (
         <div className="grid gap-3 sm:grid-cols-3">
-          {PRIMARY_TABS.map((tab) => {
+          {visiblePrimaryTabs.map((tab) => {
             const Icon = tab.icon
             return (
               <button
@@ -352,7 +369,7 @@ export function ImportExportHub() {
         </Card>
       )}
 
-      {activeTab === "contabilidad-interna" && (
+      {activeTab === "contabilidad-interna" && canSeeInternalBooks && (
         <Card className="border-sand-200 shadow-sm">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg text-pine-900">

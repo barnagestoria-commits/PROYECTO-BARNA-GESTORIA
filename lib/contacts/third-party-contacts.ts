@@ -10,6 +10,11 @@ export interface ThirdPartyListItem {
   name: string
   accountCode: string
   formattedAccountCode: string
+  email?: string | null
+  phone?: string | null
+  address?: string | null
+  postalCode?: string | null
+  city?: string | null
 }
 
 function contactTypeFromThirdParty(type: ThirdPartyType): ContactType {
@@ -31,11 +36,11 @@ export function mapThirdPartiesToContacts(parties: ThirdPartyListItem[]): Contac
         tipo: contactTypeFromThirdParty(party.type),
         cuentaCliente: party.type === "CLIENTE" ? party.accountCode : undefined,
         cuentaProveedor: party.type === "PROVEEDOR" ? party.accountCode : undefined,
-        email: "",
-        telefono: "",
-        direccionFiscal: "",
-        codigoPostal: "",
-        ciudad: "",
+        email: party.email ?? "",
+        telefono: party.phone ?? "",
+        direccionFiscal: party.address ?? "",
+        codigoPostal: party.postalCode ?? "",
+        ciudad: party.city ?? "",
         formaPago: "transferencia",
         saldoPendiente: 0,
       })
@@ -49,6 +54,11 @@ export function mapThirdPartiesToContacts(parties: ThirdPartyListItem[]): Contac
       existing.tipo = existing.tipo === "cliente" ? "ambos" : "proveedor"
       existing.cuentaProveedor = party.accountCode
     }
+    existing.email = existing.email || party.email || ""
+    existing.telefono = existing.telefono || party.phone || ""
+    existing.direccionFiscal = existing.direccionFiscal || party.address || ""
+    existing.codigoPostal = existing.codigoPostal || party.postalCode || ""
+    existing.ciudad = existing.ciudad || party.city || ""
   }
 
   return [...byCif.values()].sort((a, b) => a.razonSocial.localeCompare(b.razonSocial, "es"))

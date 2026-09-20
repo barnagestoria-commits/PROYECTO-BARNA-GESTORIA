@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server"
-import { authErrorResponse, requireGestoriaSession } from "@/lib/auth/api-auth"
+import { authErrorResponse, requireGestoriaAdmin } from "@/lib/auth/api-auth"
 import { confirmPortfolioImport } from "@/lib/imports/portfolio/portfolio-import-service"
 
 export const runtime = "nodejs"
 
 export async function POST(request: Request) {
   try {
-    const session = await requireGestoriaSession(request)
+    const session = await requireGestoriaAdmin(request)
     const formData = await request.formData()
     const file = formData.get("file")
 

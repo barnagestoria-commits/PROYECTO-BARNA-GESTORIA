@@ -25,6 +25,13 @@ export async function POST(request: Request) {
       )
     }
 
+    if (session.user.role !== "ADMIN_GESTOR") {
+      return NextResponse.json(
+        { success: false, error: "Solo el administrador puede dar de alta clientes en la cartera." },
+        { status: 403 },
+      )
+    }
+
     const body = (await request.json()) as {
       name?: string
       cif?: string

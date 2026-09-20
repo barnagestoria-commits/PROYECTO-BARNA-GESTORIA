@@ -54,6 +54,11 @@ export async function GET(request: Request) {
         name: party.name,
         accountCode: party.accountCode,
         formattedAccountCode: formatAccountCodeDisplay(party.accountCode),
+        email: party.email,
+        phone: party.phone,
+        address: party.address,
+        postalCode: party.postalCode,
+        city: party.city,
       })),
     })
   } catch (error) {
@@ -69,6 +74,11 @@ export async function POST(request: Request) {
       cif?: string
       name?: string
       accountCode?: string
+      email?: string
+      phone?: string
+      address?: string
+      postalCode?: string
+      city?: string
       treatment?: AccountTreatmentConfigInput
     }
 
@@ -97,6 +107,15 @@ export async function POST(request: Request) {
       body.cif,
       body.name,
       body.accountCode,
+      {
+        details: {
+          email: body.email,
+          phone: body.phone,
+          address: body.address,
+          postalCode: body.postalCode,
+          city: body.city,
+        },
+      },
     )
 
     if (body.treatment) {

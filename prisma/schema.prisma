@@ -98,11 +98,19 @@ enum GestoriaEntityType {
   PERSONA_FISICA
 }
 
+/// Distingue los libros propios de una gestoría de los expedientes de su cartera.
+enum CompanyKind {
+  STANDARD
+  GESTORIA_PROPIA
+  CLIENTE_CARTERA
+}
+
 /// Cuenta raíz: despacho de gestoría o cliente final (autónomo/empresa)
 model Account {
   id          String      @id @default(cuid())
   name        String
   accountType AccountType
+  maxSeats    Int         @default(8)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   users       User[]
@@ -131,6 +139,7 @@ model Company {
   name       String
   cif        String?
   accountId  String
+  kind       CompanyKind         @default(STANDARD)
   account    Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
@@ -155,6 +164,8 @@ model Company {
   digitalCertificate   CompanyDigitalCertificate?
   taxReturns           TaxReturn[]
   taxFacts             TaxFact[]
+
+  @@index([accountId, kind])
 }
 
 /// Metadatos del certificado digital FNMT/AEAT vinculado a la empresa (sin almacenar el .p12).
@@ -434,6 +445,11 @@ model ThirdParty {
   cif         String
   name        String
   accountCode String
+  email       String?
+  phone       String?
+  address     String?
+  postalCode  String?
+  city        String?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 

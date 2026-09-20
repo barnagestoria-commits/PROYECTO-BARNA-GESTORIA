@@ -1,5 +1,6 @@
 import type { CompanySummary } from "@/lib/types/auth"
 import type { GestoriaClientProfileDto } from "@/lib/contabilidad/gestoria-client-profile-types"
+import { isCarteraCompany } from "@/lib/auth/gestoria-access"
 
 export interface GestoriaCompanyRow {
   id: string
@@ -106,6 +107,7 @@ export function mapCompaniesToGestoriaRows(
   profiles?: Map<string, GestoriaClientProfileDto>,
 ): GestoriaCompanyRow[] {
   return [...companies]
+    .filter(isCarteraCompany)
     .sort((a, b) => a.name.localeCompare(b.name, "es"))
     .map((company, index) =>
       mapCompanyToGestoriaRow(

@@ -12,18 +12,21 @@ import type {
 
 interface CompanyCertificatePanelProps {
   companyId?: string
+  apiPath?: string
   title?: string
   description?: string
   onCertificateChange?: (certificate: StoredDigitalCertificate | null) => void
 }
 
-function buildCertificateUrl(companyId?: string): string {
+function buildCertificateUrl(companyId?: string, apiPath?: string): string {
+  if (apiPath) return apiPath
   if (!companyId) return "/api/certificate"
   return `/api/certificate?companyId=${encodeURIComponent(companyId)}`
 }
 
 export function CompanyCertificatePanel({
   companyId,
+  apiPath,
   title = "Certificado digital del declarante",
   description = "Necesario para vincular la presentación de impuestos y modelos con AEAT y otros organismos. El NIF del certificado se usará en los borradores fiscales si la empresa no tiene CIF registrado.",
   onCertificateChange,
@@ -51,7 +54,7 @@ export function CompanyCertificatePanel({
     setIsLoading(true)
     try {
       const response = await apiFetch<{ success: true; certificate: StoredDigitalCertificate | null }>(
-        buildCertificateUrl(companyId),
+        buildCertificateUrl(companyId, apiPath),
       )
       setCertificate(response.certificate)
       notifyCertificateChange("fetch", response.certificate)
@@ -61,7 +64,7 @@ export function CompanyCertificatePanel({
     } finally {
       setIsLoading(false)
     }
-  }, [companyId])
+  }, [apiPath, companyId])
 
   useEffect(() => {
     void loadCertificate()
@@ -75,11 +78,11 @@ export function CompanyCertificatePanel({
         success: true
         certificate: StoredDigitalCertificate
         message: string
-      }>("/api/certificate", {
+      }>(apiPath ?? "/api/certificate", {
         method: "POST",
         body: JSON.stringify({
           ...payload,
-          ...(companyId ? { companyId } : {}),
+          ...(companyId && !apiPath ? { companyId } : {}),
         }),
       })
 
@@ -140,7 +143,7 @@ export function CompanyCertificatePanel({
     setIsDeleting(true)
     setFeedback(null)
     try {
-      await apiFetch<{ success: true; message: string }>(buildCertificateUrl(companyId), {
+      await apiFetch<{ success: true; message: string }>(buildCertificateUrl(companyId, apiPath), {
         method: "DELETE",
       })
       setCertificate(null)

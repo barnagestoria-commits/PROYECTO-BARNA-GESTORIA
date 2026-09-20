@@ -3,6 +3,7 @@
 import { Building2, ChevronDown } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
+import { gestoriaCompanyOptionLabel } from "@/lib/auth/gestoria-access"
 
 interface SidebarCompanySelectorProps {
   className?: string
@@ -34,7 +35,7 @@ export function SidebarCompanySelector({ className, userName }: SidebarCompanySe
         >
           {session.companies.map((company) => (
             <option key={company.id} value={company.id} className="bg-pine-900 text-white">
-              {company.name}
+              {gestoriaCompanyOptionLabel(company)}
             </option>
           ))}
         </select>

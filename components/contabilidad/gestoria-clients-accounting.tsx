@@ -66,6 +66,7 @@ export function GestoriaClientsAccountingPage() {
   const [editClientInitialTab, setEditClientInitialTab] = useState("general")
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const [profiles, setProfiles] = useState<Map<string, GestoriaClientProfileDto>>(new Map())
+  const isAdmin = session?.user.role === "ADMIN_GESTOR"
 
   const rows = useMemo(
     () => mapCompaniesToGestoriaRows(session?.companies ?? [], "cloud", profiles),
@@ -261,12 +262,14 @@ export function GestoriaClientsAccountingPage() {
             onClick={handleList}
           />
           <ToolbarIconButton label="Tarifas" icon={CircleDollarSign} disabled badge="Próx." />
+          {isAdmin ? (
           <ToolbarTextButton
             label="Agregar Persona Jurídica/Física"
             icon={UserPlus}
             onClick={() => setAddClientOpen(true)}
             dataTour="onboarding-new-account"
           />
+          ) : null}
           <ToolbarIconButton
             label="Ayuda"
             icon={HelpCircle}
@@ -350,6 +353,7 @@ export function GestoriaClientsAccountingPage() {
                     onAccept={() => openCompanyWorkspace(row.id, "/dashboard/contabilidad")}
                     onEdit={() => handleEditClient(row.id)}
                     onDelete={() => void handleDeleteClient(row)}
+                    canDelete={isAdmin}
                   />
                 ))
               )}
@@ -529,6 +533,7 @@ function CompanyGridRow({
   onAccept,
   onEdit,
   onDelete,
+  canDelete = true,
 }: {
   row: GestoriaCompanyRow
   selected: boolean
@@ -540,6 +545,7 @@ function CompanyGridRow({
   onAccept: () => void
   onEdit: () => void
   onDelete: () => void
+  canDelete?: boolean
 }) {
   const menuButtonRef = useRef<HTMLButtonElement>(null)
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
@@ -620,6 +626,7 @@ function CompanyGridRow({
                 >
                   <Pencil className="h-4 w-4" /> Editar
                 </button>
+                {canDelete ? (
                 <button
                   type="button"
                   className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
@@ -630,6 +637,7 @@ function CompanyGridRow({
                 >
                   <Trash2 className="h-4 w-4" /> Eliminar
                 </button>
+                ) : null}
               </div>
             </>,
             document.body,

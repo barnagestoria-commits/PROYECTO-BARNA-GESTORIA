@@ -65,6 +65,13 @@ export async function DELETE(request: Request, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Acceso denegado." }, { status: 403 })
     }
 
+    if (session.user.role !== "ADMIN_GESTOR") {
+      return NextResponse.json(
+        { success: false, error: "Solo el administrador puede eliminar clientes de la cartera." },
+        { status: 403 },
+      )
+    }
+
     await deleteGestoriaClientCompany(id, session.user.accountId, session.user.id)
     return NextResponse.json({ success: true })
   } catch (error) {

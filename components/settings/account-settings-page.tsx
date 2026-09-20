@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRequireAuth } from "@/components/auth-provider"
 import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel"
+import { GestoriaTeamPanel } from "@/components/settings/gestoria-team-panel"
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 
 const SETTINGS_LINKS = [
@@ -261,9 +262,15 @@ export function AccountSettingsPage() {
         </CardContent>
       </Card>
 
+      {session.user.accountType === "GESTORIA" && session.user.role === "ADMIN_GESTOR" ? (
+        <GestoriaTeamPanel />
+      ) : null}
+
+      {session.user.role === "GESTOR" ? null : (
       <div id="suscripcion">
         <SubscriptionPlansPanel />
       </div>
+      )}
 
       <Card className="border-sand-200 shadow-sm">
         <CardHeader>

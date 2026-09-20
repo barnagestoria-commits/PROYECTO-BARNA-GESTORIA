@@ -13,6 +13,7 @@ export async function GET(request: Request) {
     const profiles = await listGestoriaClientProfiles(
       session.user.accountId,
       session.user.id,
+      session.user.role,
     )
 
     return NextResponse.json({

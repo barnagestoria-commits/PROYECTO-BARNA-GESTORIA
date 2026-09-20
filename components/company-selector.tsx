@@ -3,6 +3,7 @@
 import { Building2, Lock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useAuth } from "@/components/auth-provider"
+import { gestoriaCompanyOptionLabel } from "@/lib/auth/gestoria-access"
 
 export function CompanySelector() {
   const { session, activeCompany, setActiveCompany } = useAuth()
@@ -22,7 +23,7 @@ export function CompanySelector() {
           >
             {session.companies.map((company) => (
               <option key={company.id} value={company.id}>
-                {company.name}
+                {gestoriaCompanyOptionLabel(company)}
               </option>
             ))}
           </select>

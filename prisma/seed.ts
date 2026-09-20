@@ -33,9 +33,10 @@ async function main() {
       },
       companies: {
         create: [
-          { name: "Empresa ABC SL", cif: "B12345678" },
-          { name: "Comercio XYZ", cif: "B87654321" },
-          { name: "Servicios 123 SL", cif: "B11223344" },
+          { name: "Barna Gestoría", kind: "GESTORIA_PROPIA" },
+          { name: "Empresa ABC SL", cif: "B12345678", kind: "CLIENTE_CARTERA" },
+          { name: "Comercio XYZ", cif: "B87654321", kind: "CLIENTE_CARTERA" },
+          { name: "Servicios 123 SL", cif: "B11223344", kind: "CLIENTE_CARTERA" },
         ],
       },
     },
@@ -51,7 +52,7 @@ async function main() {
     })
   }
 
-  for (const company of gestoriaAccount.companies.slice(0, 2)) {
+  for (const company of gestoriaAccount.companies.filter((item) => item.kind !== "GESTORIA_PROPIA").slice(0, 2)) {
     await prisma.userCompanyAccess.create({
       data: { userId: gestor.id, companyId: company.id },
     })
@@ -90,7 +91,7 @@ async function main() {
   await prisma.fiscalDocument.createMany({
     data: [
       {
-        companyId: gestoriaAccount.companies[0].id,
+        companyId: gestoriaAccount.companies.find((company) => company.kind === "CLIENTE_CARTERA")!.id,
         name: "Factura_Proveedor_001.pdf",
         type: "FACTURA_RECIBIDA",
         status: "PROCESADO",

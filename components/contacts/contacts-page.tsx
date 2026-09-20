@@ -137,6 +137,11 @@ export function ContactsPage() {
             cif: data.nif,
             name: data.razonSocial,
             accountCode: data.cuentaCliente || undefined,
+            email: data.email,
+            phone: data.telefono,
+            address: data.direccionFiscal,
+            postalCode: data.codigoPostal,
+            city: data.ciudad,
           }),
         }),
       )
@@ -152,6 +157,11 @@ export function ContactsPage() {
             cif: data.nif,
             name: data.razonSocial,
             accountCode: data.cuentaProveedor || undefined,
+            email: data.email,
+            phone: data.telefono,
+            address: data.direccionFiscal,
+            postalCode: data.codigoPostal,
+            city: data.ciudad,
           }),
         }),
       )
@@ -250,6 +260,7 @@ export function ContactsPage() {
             data.nif,
           )
         }
+        await persistThirdParty(data)
         await loadContacts()
         setModalOpen(false)
         setEditingContact(null)
@@ -328,6 +339,11 @@ export function ContactsPage() {
                 ? `${contacts.length} contactos de ejemplo · se ocultarán al registrar datos reales`
                 : `${contacts.length} contactos registrados`}
           </p>
+          {activeCompany?.kind === "GESTORIA_PROPIA" ? (
+            <p className="mt-2 text-sm text-amber-800">
+              Estos contactos son de la gestoría como negocio, no de la cartera de clientes.
+            </p>
+          ) : null}
         </div>
 
         <Button
