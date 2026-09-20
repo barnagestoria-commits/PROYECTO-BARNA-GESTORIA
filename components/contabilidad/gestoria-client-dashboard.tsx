@@ -213,8 +213,8 @@ export function GestoriaClientDashboard({ companyId }: GestoriaClientDashboardPr
             <CompanyCertificatePanel
               companyId={companyId}
               title={`Certificado digital · ${company.name}`}
-              onCertificateChange={async () => {
-                await refreshSession()
+              onCertificateChange={() => {
+                void refreshSession()
               }}
             />
           </div>

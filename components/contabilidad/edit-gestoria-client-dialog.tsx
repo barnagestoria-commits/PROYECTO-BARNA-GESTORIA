@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 import { Loader2, Plus, Trash2, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -118,16 +118,21 @@ export function EditGestoriaClientDialog({
     }
   }, [open])
 
-  if (!open || !companyId) return null
-
-  const reloadClientIdentity = () => {
+  const reloadClientIdentity = useCallback(() => {
+    if (!companyId) return
     void apiFetch<{ success: true; client: GestoriaClientDetailDto }>(`/api/companies/${companyId}`)
       .then((data) => {
         setName(data.client.name)
         setCif(data.client.cif ?? "")
       })
       .catch(() => undefined)
-  }
+  }, [companyId])
+
+  const handleCertificateChange = useCallback(() => {
+    reloadClientIdentity()
+  }, [reloadClientIdentity])
+
+  if (!open || !companyId) return null
 
   const updateProfile = (patch: Partial<GestoriaClientProfileDto>) => {
     setProfile((current) => ({ ...current, ...patch }))
@@ -454,10 +459,7 @@ export function EditGestoriaClientDialog({
                   companyId={companyId}
                   title="Certificado digital del cliente"
                   description="Sube el certificado FNMT/AEAT del cliente para vincular la presentación de impuestos (303, 111, 349…) con Hacienda. El NIF extraído se usará en los borradores fiscales."
-                  onCertificateChange={() => {
-                    reloadClientIdentity()
-                    onSaved()
-                  }}
+                  onCertificateChange={handleCertificateChange}
                 />
               </TabsContent>
 

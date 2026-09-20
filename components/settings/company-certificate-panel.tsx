@@ -1,9 +1,10 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { CertificateStatusCard } from "@/components/settings/certificate-status-card"
 import { CertificateUploadForm } from "@/components/settings/certificate-upload-form"
 import { apiFetch } from "@/lib/api-client"
+import { shouldBroadcastCertificateChange } from "@/lib/settings/certificate-notify"
 import type {
   CertificateUploadPayload,
   StoredDigitalCertificate,
@@ -35,6 +36,16 @@ export function CompanyCertificatePanel({
   const [isTesting, setIsTesting] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
+  const onCertificateChangeRef = useRef(onCertificateChange)
+  onCertificateChangeRef.current = onCertificateChange
+
+  const notifyCertificateChange = (
+    origin: "fetch" | "save" | "delete",
+    next: StoredDigitalCertificate | null,
+  ) => {
+    if (!shouldBroadcastCertificateChange(origin)) return
+    onCertificateChangeRef.current?.(next)
+  }
 
   const loadCertificate = useCallback(async () => {
     setIsLoading(true)
@@ -43,14 +54,14 @@ export function CompanyCertificatePanel({
         buildCertificateUrl(companyId),
       )
       setCertificate(response.certificate)
-      onCertificateChange?.(response.certificate)
+      notifyCertificateChange("fetch", response.certificate)
     } catch {
       setCertificate(null)
-      onCertificateChange?.(null)
+      notifyCertificateChange("fetch", null)
     } finally {
       setIsLoading(false)
     }
-  }, [companyId, onCertificateChange])
+  }, [companyId])
 
   useEffect(() => {
     void loadCertificate()
@@ -73,7 +84,7 @@ export function CompanyCertificatePanel({
       })
 
       setCertificate(response.certificate)
-      onCertificateChange?.(response.certificate)
+      notifyCertificateChange("save", response.certificate)
       setFeedback({ tone: "success", message: response.message })
     } catch (error) {
       setFeedback({
@@ -133,7 +144,7 @@ export function CompanyCertificatePanel({
         method: "DELETE",
       })
       setCertificate(null)
-      onCertificateChange?.(null)
+      notifyCertificateChange("delete", null)
       setFeedback({ tone: "success", message: "Certificado eliminado correctamente." })
     } catch (error) {
       setFeedback({
