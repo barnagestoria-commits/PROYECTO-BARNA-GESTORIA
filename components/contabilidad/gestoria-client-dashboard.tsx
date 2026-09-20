@@ -16,6 +16,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { GestoriaHonorariosPanel } from "@/components/contabilidad/gestoria-honorarios-panel"
+import { CompanyCertificatePanel } from "@/components/settings/company-certificate-panel"
 import { FiscalPanoramaMatrix } from "@/components/fiscal-panorama-matrix"
 import {
   FiscalPanoramaSectionHeader,
