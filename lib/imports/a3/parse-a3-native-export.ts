@@ -81,7 +81,9 @@ const GENERIC_FALLBACK = {
   ivaRepercutido: "477000000000",
   retencion: "473000000000",
   retencionPracticada: "475100000000",
+  retencionAlquiler: "475102000000",
   expense: "629000000000",
+  rentalExpense: "621200000000",
   payroll: "640000000000",
   bank: "572000000000",
   bridge: NATIVE_PENDING_ACCOUNT,
@@ -209,6 +211,10 @@ function isPayrollConcept(concept: string): boolean {
   )
 }
 
+function isRentalConcept(concept: string): boolean {
+  return /ALQUILER|ARREND/i.test(concept)
+}
+
 function resolveNativeLineAccount(
   seq: number,
   dh: "D" | "H",
@@ -221,8 +227,10 @@ function resolveNativeLineAccount(
   vendorDisplayNames: Map<string, string>,
   transactionType: string,
   entryPartyName?: string,
+  entryIsRental = false,
 ): string {
   const upper = concept.toUpperCase()
+  const rental = entryIsRental || isRentalConcept(concept)
   const vendor =
     transactionType === "EC"
       ? null
@@ -233,7 +241,7 @@ function resolveNativeLineAccount(
       : extractClientNameFromConcept(concept) ?? (transactionType === "EC" ? entryPartyName ?? null : null)
 
   const vendorAccount = vendor
-    ? ensureVendorAccount(vendorAccounts, vendor, "400", vendorDisplayNames)
+    ? ensureVendorAccount(vendorAccounts, vendor, rental ? "410" : "400", vendorDisplayNames)
     : null
   const clientAccount = client
     ? ensureVendorAccount(clientAccounts, client, "430", vendorDisplayNames)
@@ -280,8 +288,8 @@ function resolveNativeLineAccount(
   }
 
   if (seq === 2 && dh === "H") {
-    if (vendor) return ensureVendorAccount(vendorAccounts, vendor, "400", vendorDisplayNames)
-    return GENERIC_FALLBACK.provider
+    if (vendor) return ensureVendorAccount(vendorAccounts, vendor, rental ? "410" : "400", vendorDisplayNames)
+    return rental ? padAccountCode12("41000000") : GENERIC_FALLBACK.provider
   }
 
   if (seq === 2 && dh === "D") {
@@ -298,19 +306,26 @@ function resolveNativeLineAccount(
 
   if (seq === 5) {
     if (transactionType === "RC" && dh === "H") {
-      return GENERIC_FALLBACK.retencionPracticada
+      return rental
+        ? registry.defaultRentalRetentionAccount ?? GENERIC_FALLBACK.retencionAlquiler
+        : GENERIC_FALLBACK.retencionPracticada
     }
     if (transactionType === "EC" && dh === "D") {
       return registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
     }
     return dh === "H"
-      ? GENERIC_FALLBACK.retencionPracticada
+      ? rental
+        ? registry.defaultRentalRetentionAccount ?? GENERIC_FALLBACK.retencionAlquiler
+        : GENERIC_FALLBACK.retencionPracticada
       : registry.defaultRetencionAccount ?? GENERIC_FALLBACK.retencion
   }
 
   if (seq === 6 && dh === "D") {
     if (isPayrollConcept(concept)) {
       return GENERIC_FALLBACK.payroll
+    }
+    if (rental) {
+      return registry.defaultRentalExpenseAccount ?? GENERIC_FALLBACK.rentalExpense
     }
     return registry.defaultExpenseAccount ?? GENERIC_FALLBACK.expense
   }
@@ -485,14 +500,25 @@ function parseNativeJournalFile(
     const marker = extractNativePostAmountMarker(parsed.record)
     const concept = parsed.line.concepto
     const party =
-      marker === "RC" && (/^Gasto a /i.test(concept) || /^IVA S\.\//i.test(concept))
-        ? { name: extractVendorNameFromConcept(concept), priority: /^Gasto a /i.test(concept) ? 2 : 1 }
+      marker === "RC" &&
+      (/^Gasto a /i.test(concept) || /^Alquiler a /i.test(concept) || /^IVA S\.\//i.test(concept))
+        ? {
+            name: extractVendorNameFromConcept(concept),
+            priority: /^Gasto a |^Alquiler a /i.test(concept) ? 2 : 1,
+          }
         : marker === "EC" && (/^Ventas a /i.test(concept) || /^IVA R\.\//i.test(concept))
           ? { name: extractClientNameFromConcept(concept), priority: /^Ventas a /i.test(concept) ? 2 : 1 }
           : null
     const existing = entryParties.get(parsed.entryKey)
     if (party?.name && (!existing || party.priority > existing.priority)) {
       entryParties.set(parsed.entryKey, { name: party.name, priority: party.priority })
+    }
+  }
+
+  const rentalEntries = new Set<string>()
+  for (const parsed of parsedLines) {
+    if (isRentalConcept(parsed.line.concepto) || isRentalConcept(parsed.rawConcept)) {
+      rentalEntries.add(parsed.entryKey)
     }
   }
 
@@ -514,6 +540,7 @@ function parseNativeJournalFile(
         vendorDisplayNames,
         marker,
         entryParties.get(parsed.entryKey)?.name,
+        rentalEntries.has(parsed.entryKey),
       )
 
     const existing = grouped.get(parsed.entryKey) ?? []

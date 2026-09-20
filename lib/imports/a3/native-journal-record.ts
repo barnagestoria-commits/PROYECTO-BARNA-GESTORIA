@@ -43,24 +43,18 @@ function dateFromDayOfYear(year: number, dayOfYear: number): string | null {
 }
 
 export function nativeJournalLineRecordStart(buffer: ImportBytes): number {
-  if (decodeA3Text(buffer.slice(0, 2)) === "0~") {
-    return NATIVE_JOURNAL_HEADER
-  }
-
-  const searchStart = NATIVE_JOURNAL_HEADER
-  const head = buffer.subarray(searchStart)
-  const firstMatch = decodeA3Text(head).match(/[DH]\d{11,14}/)
+  const firstMatch = decodeA3Text(buffer).match(/[DH]\d{11,14}/)
   if (!firstMatch || firstMatch.index === undefined) {
-    return searchStart
+    return decodeA3Text(buffer.slice(0, 2)) === "0~" ? NATIVE_JOURNAL_HEADER : 0
   }
 
-  const absPos = searchStart + firstMatch.index
+  const absPos = firstMatch.index
   let bestOffset = 0
   let bestScore = -1
 
   for (let trial = 0; trial < NATIVE_JOURNAL_LINE; trial += 1) {
     const start = absPos - trial
-    if (start < NATIVE_JOURNAL_HEADER) continue
+    if (start < 0) continue
 
     let zeroHeader = 0
     let valid = 0

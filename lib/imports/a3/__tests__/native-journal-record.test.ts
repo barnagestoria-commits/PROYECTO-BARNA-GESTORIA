@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
@@ -16,9 +16,22 @@ import { buildNativePlanRegistry, parseCuDatBinarySubaccounts, parseTpPredefiDef
 const exportDir = "/Users/soniamac/Downloads/E0045826"
 
 describe("native journal record parsing", () => {
-  it("uses header offset 512 for A3 v9.50 exports", () => {
+  it("starts at the first journal line even when it overlaps the 0~ header", () => {
     const buffer = readFileSync(join(exportDir, "0045861A.DAT"))
-    expect(nativeJournalLineRecordStart(buffer)).toBe(512)
+    expect(nativeJournalLineRecordStart(buffer)).toBe(116)
+  })
+
+  it("does not drop Look Diagonal rental supplier lines under the 0~ header", () => {
+    const lookDiagonal = "/Users/soniamac/Downloads/E0162626/0162661A.DAT"
+    if (!existsSync(lookDiagonal)) return
+
+    const buffer = readFileSync(lookDiagonal)
+    expect(nativeJournalLineRecordStart(buffer)).toBe(116)
+
+    const rec = buffer.subarray(380, 512)
+    const text = decodeLatin1(rec)
+    expect(text).toContain("Su Fra Alquiler")
+    expect(text).toMatch(/H0+223142/)
   })
 
   it("extracts clean IMPUESTOS concept and accounts from January export", () => {

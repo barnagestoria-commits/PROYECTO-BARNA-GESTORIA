@@ -123,7 +123,7 @@ export function subaccountsFromVendorAccountMap(
 export function ensureVendorAccount(
   accountByVendorKey: Map<string, string>,
   vendorName: string,
-  prefix: typeof PROVIDER_PREFIX | typeof CLIENT_PREFIX = PROVIDER_PREFIX,
+  prefix: "400" | "410" | "430" = PROVIDER_PREFIX,
   displayNames?: Map<string, string>,
 ): string {
   const existing = lookupUniqueVendorAccount(accountByVendorKey, vendorName)

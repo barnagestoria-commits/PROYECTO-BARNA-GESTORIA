@@ -28,6 +28,8 @@ export function extractVendorNameFromConcept(concept: string): string | null {
 
   const patterns = [
     /Gasto a\s+(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
+    /Alquiler a\s+(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
+    /Arrendamiento a\s+(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
     /IVA S\.\/?(.+?)(?:\s+\d{4}[-/]\d+|\s+\d+\s|\s{2,}|$)/i,
     /Su Fra\.\s*N[ºo°.]?\s*(?:.+?\s+)?(.+?)(?:\s{2,}|$)/i,
     /Pago Fra\.\s*(?:\d+\s+)?(?:DE\s+)?(.+?)(?:\s{2,}|$)/i,

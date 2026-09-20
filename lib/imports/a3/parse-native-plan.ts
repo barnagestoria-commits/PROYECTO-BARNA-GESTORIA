@@ -35,6 +35,8 @@ export interface NativePlanRegistry {
   subaccounts: A3Subaccount[]
   accountByVendorKey: Map<string, string>
   defaultExpenseAccount: string | null
+  defaultRentalExpenseAccount: string | null
+  defaultRentalRetentionAccount: string | null
   defaultIvaAccount: string | null
   defaultIvaRepercutidoAccount: string | null
   defaultBankAccount: string | null
@@ -278,8 +280,15 @@ export function buildNativePlanRegistry(
       firstAccountPrefix(subaccounts, "629") ??
       firstAccountPrefix(subaccounts, "505") ??
       null,
+    defaultRentalExpenseAccount:
+      firstAccountPrefix(subaccounts, "6212") ?? firstAccountPrefix(subaccounts, "621") ?? null,
+    defaultRentalRetentionAccount:
+      firstAccountPrefix(subaccounts, "475102") ?? firstAccountPrefix(subaccounts, "4732") ?? null,
     defaultIvaAccount:
-      firstAccountPrefix(subaccounts, "472") ?? tpDefaults.defaultIvaAccount ?? null,
+      firstAccountPrefix(subaccounts, "47200000") ??
+      tpDefaults.defaultIvaAccount ??
+      firstAccountPrefix(subaccounts, "472") ??
+      null,
     defaultIvaRepercutidoAccount:
       firstAccountPrefix(subaccounts, "477") ?? tpDefaults.defaultIvaRepercutidoAccount ?? null,
     defaultBankAccount:

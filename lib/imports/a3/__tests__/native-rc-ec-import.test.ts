@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, readdirSync } from "node:fs"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import {
   parseNativeA3ExportFiles,
@@ -60,12 +62,96 @@ describe("A3 native RC/EC journal variant", () => {
     const issuedAccounts = result.entries[1]!.lines.map((line) => line.cuenta.slice(0, 3))
     expect(receivedAccounts).toEqual(["400", "472", "475", "629"])
     expect(issuedAccounts).toEqual(["430", "477", "473", "705"])
+    expect(result.entries[0]!.lines[2]!.cuenta.startsWith("4751")).toBe(true)
+    expect(result.entries[0]!.lines[2]!.cuenta.startsWith("475102")).toBe(false)
 
     for (const entry of result.entries) {
       const debe = entry.lines.reduce((sum, line) => sum + line.debe, 0)
       const haber = entry.lines.reduce((sum, line) => sum + line.haber, 0)
       expect(debe).toBeCloseTo(haber, 2)
     }
+  })
+
+  it("keeps A3 rental accounts 410/472/475102/6212 and the supplier line under the 0~ header", () => {
+    const header = Buffer.alloc(HEADER_SIZE)
+    header.write("0~")
+    const supplier = journalRecord({
+      group: 3,
+      sequence: 2,
+      dh: "H",
+      amount: 2231.42,
+      concept: "Su Fra Alquiler N.3026000001",
+      marker: "RC",
+    })
+    supplier.copy(header, 380)
+
+    const january = Buffer.concat([
+      header,
+      journalRecord({
+        group: 3,
+        sequence: 3,
+        dh: "D",
+        amount: 459.41,
+        concept: "IVA S./VILLARONGA SANCHEZ MAR",
+        marker: "RC",
+      }),
+      journalRecord({
+        group: 3,
+        sequence: 5,
+        dh: "H",
+        amount: 415.66,
+        concept: "Reten./VILLARONGA SANCHEZ MAR",
+        marker: "RC",
+      }),
+      journalRecord({
+        group: 3,
+        sequence: 6,
+        dh: "D",
+        amount: 2187.67,
+        concept: "Alquiler a VILLARONGA SANCHEZ",
+        marker: "RC",
+      }),
+    ])
+
+    const result = parseNativeA3ExportFiles(new Map([["0162661A.DAT", january]]), "E0162626")
+    const rental = result.entries.find((entry) =>
+      entry.lines.some((line) => /VILLARONGA/i.test(line.concepto)),
+    )
+
+    expect(rental).toBeDefined()
+    expect(rental!.lines).toHaveLength(4)
+    expect(rental!.lines.map((line) => line.cuenta.slice(0, 6))).toEqual([
+      "410000",
+      "472000",
+      "475102",
+      "621200",
+    ])
+    expect(rental!.lines.find((line) => line.haber === 2231.42)?.cuenta.startsWith("410")).toBe(true)
+  })
+
+  it("imports Look Diagonal Villaronga as 410/472/475102/6212 from the native ZIP", () => {
+    const folder = "/Users/soniamac/Downloads/E0162626"
+    if (!existsSync(folder)) return
+
+    const files = new Map(
+      readdirSync(folder)
+        .filter((name) => !name.startsWith("."))
+        .map((name) => [name, readFileSync(join(folder, name))] as const),
+    )
+    const result = parseNativeA3ExportFiles(files, "E0162626")
+    const near = (value: number, expected: number) => Math.abs(value - expected) < 0.005
+    const rental = result.entries.find(
+      (entry) =>
+        entry.lines.some((line) => /VILLARONGA/i.test(line.concepto)) &&
+        entry.lines.some((line) => near(line.haber, 415.66)),
+    )
+
+    expect(rental).toBeDefined()
+    expect(rental!.lines.some((line) => line.cuenta.startsWith("475102") && near(line.haber, 415.66))).toBe(true)
+    expect(rental!.lines.some((line) => line.cuenta.startsWith("6212") && near(line.debe, 2187.67))).toBe(true)
+    expect(rental!.lines.some((line) => line.cuenta.startsWith("410") && near(line.haber, 2231.42))).toBe(true)
+    expect(rental!.lines.some((line) => line.cuenta.startsWith("607"))).toBe(false)
+    expect(rental!.lines.some((line) => line.cuenta === "475100000000")).toBe(false)
   })
 
   it("reads quarterly 115, 130 and 303 results from the DA RES record", () => {
