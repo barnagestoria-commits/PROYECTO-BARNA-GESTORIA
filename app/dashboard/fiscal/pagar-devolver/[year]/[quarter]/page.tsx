@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiFetch } from "@/lib/api-client"
 import { formatFiscalAmount } from "@/lib/fiscal/panorama"
+import { FiscalPresentationChoicePanel } from "@/components/fiscal/fiscal-presentation-choice"
+import { isFiscalModelId, presentationQuarterForModel } from "@/lib/fiscal/presentation-choice"
 import { ArrowLeft, Loader2, Scale } from "lucide-react"
 
 interface ResumenData {
@@ -150,15 +152,28 @@ export default function PagarDevolverPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Desglose por modelo</CardTitle>
+              <CardTitle className="text-base">Presentar por modelo</CardTitle>
+              <CardDescription>
+                Elige Sede de Hacienda o ficheros oficiales para cada modelo. Tú decides.
+              </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-4">
               {data.models.map((model) => (
-                <div key={model.modelCode} className="flex items-center justify-between text-sm">
-                  <Link href={model.href} className="text-emerald-800 hover:underline">
-                    {model.modelLabel}
-                  </Link>
-                  <span className="font-mono tabular-nums">{formatFiscalAmount(model.amount)}</span>
+                <div key={model.modelCode} className="rounded-lg border border-emerald-100 bg-emerald-50/30 p-3">
+                  <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                    <Link href={model.href} className="font-medium text-emerald-800 hover:underline">
+                      {model.modelLabel}
+                    </Link>
+                    <span className="font-mono tabular-nums">{formatFiscalAmount(model.amount)}</span>
+                  </div>
+                  {isFiscalModelId(model.modelCode) ? (
+                    <FiscalPresentationChoicePanel
+                      model={model.modelCode}
+                      quarter={presentationQuarterForModel(model.modelCode, quarter)}
+                      year={year}
+                      variant="inline"
+                    />
+                  ) : null}
                 </div>
               ))}
             </CardContent>

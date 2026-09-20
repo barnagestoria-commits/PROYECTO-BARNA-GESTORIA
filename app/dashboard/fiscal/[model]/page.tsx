@@ -58,7 +58,7 @@ export default function FiscalModelHubPage() {
         <>
           <div>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-800">
-              Presentación trimestral (.txt Hacienda)
+              Presentación trimestral
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
               {([1, 2, 3, 4] as const).map((quarter) => (
@@ -70,7 +70,7 @@ export default function FiscalModelHubPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-semibold text-gray-900">{quarter}T {year}</p>
-                      <p className="text-sm text-gray-500">Borrador, exportación .txt y desglose</p>
+                      <p className="text-sm text-gray-500">Borrador, Sede AEAT o ficheros oficiales</p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-700" />
                   </div>
@@ -86,7 +86,7 @@ export default function FiscalModelHubPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-semibold text-emerald-900">Resumen anual acumulado {year}</p>
-                <p className="text-sm text-emerald-700/80">Totales del ejercicio (PDF, Excel, CSV, ZIP)</p>
+                <p className="text-sm text-emerald-700/80">Borrador, Sede AEAT o ficheros oficiales</p>
               </div>
               <ArrowRight className="h-4 w-4 text-emerald-600 transition-transform group-hover:translate-x-0.5" />
             </div>
@@ -100,7 +100,7 @@ export default function FiscalModelHubPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="font-semibold text-emerald-900">Resumen anual {year}</p>
-              <p className="text-sm text-emerald-700/80">Modelo 180 — certificados y exportación .txt anual</p>
+              <p className="text-sm text-emerald-700/80">Borrador, Sede AEAT o ficheros oficiales</p>
             </div>
             <ArrowRight className="h-4 w-4 text-emerald-600 transition-transform group-hover:translate-x-0.5" />
           </div>

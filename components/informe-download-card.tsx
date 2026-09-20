@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/components/auth-provider"
 import { ReportPreviewModal } from "@/components/report-preview-modal"
-import { FiscalExportButtons, ReportExportButtons } from "@/components/report-export-buttons"
+import { ReportExportButtons } from "@/components/report-export-buttons"
+import { FiscalPresentationChoicePanel } from "@/components/fiscal/fiscal-presentation-choice"
 import type { SerializedPreview } from "@/components/report-preview-content"
 import {
   CERTIFICADO_FISCAL_MODELS,
@@ -181,11 +182,12 @@ export function InformeDownloadCard({
                   return (
                     <div key={modelId} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
                       <p className="mb-2 text-sm font-medium text-emerald-900">{model.label} · anual</p>
-                      <FiscalExportButtons
+                      <FiscalPresentationChoicePanel
                         model={modelId}
                         quarter="anual"
                         year={currentYear}
                         disabled={!canExport}
+                        variant="inline"
                       />
                     </div>
                   )
@@ -217,16 +219,17 @@ export function InformeDownloadCard({
                     ) : (
                       <FileText className="h-4 w-4" />
                     )}
-                    ZIP trimestral (.txt Hacienda)
+                    ZIP trimestral (ficheros oficiales)
                   </Button>
                 </div>
               </div>
             ) : fiscalExport ? (
-              <FiscalExportButtons
+              <FiscalPresentationChoicePanel
                 model={fiscalExport.model}
                 quarter={fiscalExport.quarter}
                 year={currentYear}
                 disabled={!canExport}
+                variant="inline"
               />
             ) : (
               <p className="text-sm text-gray-500">Exportación no disponible para este informe.</p>
@@ -265,7 +268,7 @@ export function InformeDownloadCard({
 
           <p className="flex items-start gap-2 text-xs text-gray-500">
             <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            PDF · Excel · CSV · TXT Hacienda (.txt) · ZIP con todos los formatos.
+            Elige Sede de Hacienda o ficheros oficiales. El ZIP guarda todo por si hay que presentar a mano.
           </p>
         </CardContent>
       </Card>

@@ -14,6 +14,12 @@ import {
   FISCAL_EXPORT_LABELS,
 } from "@/lib/fiscal/export-formats"
 import {
+  officialBooksLabel,
+  officialFormatsForModel,
+  officialModelFileLabel,
+  officialPackLabel,
+} from "@/lib/fiscal/presentation-choice"
+import {
   REPORT_EXPORT_DESCRIPTIONS,
   REPORT_EXPORT_FORMATS,
   REPORT_EXPORT_LABELS,
@@ -86,6 +92,8 @@ interface FiscalExportButtonsProps {
   disabled?: boolean
   className?: string
   compact?: boolean
+  /** Solo ficheros que sirven para presentar en Hacienda (.303/.130, libros y ZIP). */
+  officialOnly?: boolean
   /** En barras inferiores, el menú debe abrirse hacia arriba para no recortarse. */
   menuPlacement?: "top" | "bottom"
 }
@@ -97,28 +105,29 @@ export function FiscalExportButtons({
   disabled = false,
   className,
   compact = false,
+  officialOnly = false,
   menuPlacement = "bottom",
 }: FiscalExportButtonsProps) {
   const [downloading, setDownloading] = useState<FiscalExportFormat | null>(null)
   const currentYear = year ?? new Date().getFullYear()
 
   const formats = useMemo(() => {
-    const isAnnual = quarter === "annual" || quarter === "anual"
+    const official = new Set(officialFormatsForModel({ modelCode: model, quarter }))
     let next = FISCAL_EXPORT_FORMATS.filter((format) => {
-      if (format === "lsi") return model === "130" || model === "303"
+      if (format === "txt" || format === "lsi") return official.has(format)
       return true
     })
-    if (model === "180" || model === "190" || model === "347" || model === "390") {
-      next = next.filter((format) => format !== "txt" || model === "180")
-    } else if (isAnnual) {
-      next = next.filter((format) => format !== "txt")
+    if (officialOnly) {
+      next = next.filter((format) => official.has(format))
     }
     return next
-  }, [model, quarter])
+  }, [model, quarter, officialOnly])
   const labels = useMemo(
     () => ({
       ...FISCAL_EXPORT_LABELS,
-      txt: model === "303" ? "Fichero AEAT .303" : FISCAL_EXPORT_LABELS.txt,
+      txt: officialModelFileLabel(model),
+      lsi: officialBooksLabel(),
+      zip: officialPackLabel(),
     }),
     [model],
   )
@@ -127,8 +136,8 @@ export function FiscalExportButtons({
       ...FISCAL_EXPORT_DESCRIPTIONS,
       txt:
         model === "303"
-          ? "Fichero DR303 validado para importar en la Sede Electrónica de la AEAT"
-          : FISCAL_EXPORT_DESCRIPTIONS.txt,
+          ? "Fichero DR303 para importar y presentar la autoliquidación en la Sede Electrónica"
+          : `Fichero .${model} para importar y presentar el modelo en la Sede Electrónica`,
     }),
     [model],
   )
@@ -154,7 +163,7 @@ export function FiscalExportButtons({
     className,
     menuPlacement,
     highlightFormats: compact
-      ? formats.filter((format) => format === "txt" || format === "lsi")
+      ? formats.filter((format) => format === "txt" || format === "lsi" || (officialOnly && format === "zip"))
       : [],
     onDownload: handleDownload,
   })

@@ -2,6 +2,11 @@ import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-pre
 import type { ReportType } from "@/lib/reports/types"
 import type { ReportExportFormat } from "@/lib/reports/export-formats"
 import type { SerializedPreview } from "@/components/report-preview-content"
+import {
+  officialBooksLabel,
+  officialModelFileLabel,
+  officialPackLabel,
+} from "@/lib/fiscal/presentation-choice"
 
 export interface ReportDownloadParams {
   year?: number
@@ -162,11 +167,11 @@ export async function downloadFiscalExport(
 ): Promise<void> {
   const labels: Record<FiscalExportFormat, string> = {
     pdf: "PDF",
-    xlsx: "Excel",
+    xlsx: "Excel interno",
     csv: "CSV",
-    txt: "TXT Hacienda",
-    lsi: "Excel Hacienda",
-    zip: "ZIP",
+    txt: officialModelFileLabel(model),
+    lsi: officialBooksLabel(),
+    zip: officialPackLabel(),
   }
 
   await downloadReportBlob(

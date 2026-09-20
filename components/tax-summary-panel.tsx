@@ -5,11 +5,10 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { FiscalExportButtons } from "@/components/report-export-buttons"
+import { FiscalPresentationChoicePanel } from "@/components/fiscal/fiscal-presentation-choice"
 import { apiFetch } from "@/lib/api-client"
 import { formatFiscalAmount } from "@/lib/fiscal/panorama"
 import {
-  ANNUAL_SUMMARY_MODELS,
   CLIENT_PROFILE_OPTIONS,
   FISCAL_MODEL_OPTIONS,
   settingsKeyForModel,
@@ -189,6 +188,63 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
           </div>
         )}
 
+        {settings && enabledModels.length > 0 ? (
+          <div className="space-y-3 rounded-xl border border-emerald-200 bg-white/80 p-4">
+            <p className="text-sm font-semibold text-emerald-900">Presentar tus modelos</p>
+            <p className="text-xs text-graphite-500">
+              Todos los modelos habilitados de esta empresa. Elige Sede de Hacienda o ficheros oficiales.
+              Tú decides. Los archivos valen aunque falle la conexión.
+            </p>
+            {enabledModels.map((model) => {
+              const quarter =
+                model.periodicity === "anual" ? "anual" : currentQuarter
+              return (
+                <div key={model.id} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+                  <p className="mb-2 text-sm font-medium text-emerald-900">
+                    {model.label} · {model.periodicity === "anual" ? "anual" : `${currentQuarter}T`}
+                  </p>
+                  <FiscalPresentationChoicePanel
+                    model={model.id}
+                    quarter={quarter}
+                    year={currentYear}
+                    variant="inline"
+                  />
+                </div>
+              )
+            })}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!bundleLoading}
+                className="gap-2 border-emerald-300"
+                onClick={() => handleBundle("trimestral")}
+              >
+                {bundleLoading === "trimestral" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Guardar trimestre (ZIP)
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!!bundleLoading}
+                className="gap-2 border-emerald-300"
+                onClick={() => handleBundle("annual")}
+              >
+                {bundleLoading === "annual" ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4" />
+                )}
+                Guardar año (ZIP)
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
         {showConfig && settings && (
           <div className="space-y-4 rounded-xl border border-emerald-200 bg-white/80 p-4">
             <div>
@@ -249,81 +305,6 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <p className="text-sm font-semibold text-emerald-900">
-                Exportación {currentQuarter}T {currentYear}
-              </p>
-              {enabledModels
-                .filter((model) => model.periodicity === "trimestral")
-                .map((model) => (
-                  <div key={model.id} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
-                    <p className="mb-2 text-sm font-medium text-emerald-900">
-                      {model.label} · {currentQuarter}T
-                    </p>
-                    <FiscalExportButtons
-                      model={model.id}
-                      quarter={currentQuarter}
-                      year={currentYear}
-                      compact
-                    />
-                  </div>
-                ))}
-
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
-                <p className="mb-2 text-sm font-medium text-emerald-900">Resúmenes anuales habilitados</p>
-                <div className="space-y-3">
-                  {ANNUAL_SUMMARY_MODELS.filter((modelId) => settings[settingsKeyForModel(modelId)]).map(
-                    (modelId) => {
-                      const model = FISCAL_MODEL_OPTIONS.find((item) => item.id === modelId)!
-                      return (
-                        <div key={modelId}>
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">
-                            {model.label}
-                          </p>
-                          <FiscalExportButtons
-                            model={modelId}
-                            quarter="anual"
-                            year={currentYear}
-                            compact
-                          />
-                        </div>
-                      )
-                    },
-                  )}
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!!bundleLoading}
-                  className="gap-2 border-emerald-300"
-                  onClick={() => handleBundle("trimestral")}
-                >
-                  {bundleLoading === "trimestral" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  ZIP trimestral (.txt incluido)
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!!bundleLoading}
-                  className="gap-2 border-emerald-300"
-                  onClick={() => handleBundle("annual")}
-                >
-                  {bundleLoading === "annual" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                  ZIP anual completo
-                </Button>
-              </div>
-            </div>
           </div>
         )}
 

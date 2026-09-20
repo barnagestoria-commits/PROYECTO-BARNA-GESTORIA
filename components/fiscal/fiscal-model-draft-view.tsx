@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { FiscalExportButtons } from "@/components/report-export-buttons"
 import { FiscalCalculationDetailDialog } from "@/components/fiscal/fiscal-calculation-detail-dialog"
+import { FiscalPresentationChoicePanel } from "@/components/fiscal/fiscal-presentation-choice"
 import {
   AeatOfficialFormHeader,
   AeatOfficialIvaSection,
@@ -152,8 +152,8 @@ export function FiscalModelDraftView({
         />
 
         <p className="border-x border-b border-black bg-white px-3 py-2 text-xs text-neutral-600">
-          Borrador de trabajo con las casillas e importes que se exportan al TXT de Hacienda.
-          La plantilla PDF oficial no se muestra aquí para evitar solapes; puedes descargarla aparte si la necesitas.
+          Borrador de trabajo con las casillas e importes del modelo. Abajo eliges si presentas en la Sede
+          de Hacienda o con los ficheros oficiales. Tú decides.
         </p>
 
         {(successMessage || errorMessage) && (
@@ -169,6 +169,13 @@ export function FiscalModelDraftView({
           </div>
         )}
         </div>
+
+        <FiscalPresentationChoicePanel
+          model={modelParam}
+          quarter={quarterParam}
+          year={year}
+          menuPlacement="top"
+        />
 
         <div className="sticky bottom-0 z-30 overflow-visible border border-black bg-[#f0f0f0] px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)]">
           <div className="flex flex-wrap items-center gap-2">
@@ -208,15 +215,19 @@ export function FiscalModelDraftView({
               {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
               Actualizar borrador
             </Button>
-            <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
-              <FiscalExportButtons
-                model={modelParam}
-                quarter={quarterParam}
-                year={year}
-                compact
-                menuPlacement="top"
-              />
-            </div>
+            <Button
+              type="button"
+              size="sm"
+              className="gap-2 bg-[#1a4480] hover:bg-[#153a6b] sm:ml-auto"
+              onClick={() =>
+                document.getElementById("presentacion-modelo")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                })
+              }
+            >
+              Presentar impuesto
+            </Button>
           </div>
         </div>
       </div>

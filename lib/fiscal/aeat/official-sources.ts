@@ -4,6 +4,8 @@ import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 export const AEAT_OFFICIAL_PORTALS = {
   /** Portal de desarrolladores y sandbox (servicios web, simulación). */
   developerSandbox: "https://www.agenciatributaria.es/AEAT.desarrolladores/",
+  /** Inicio de la Sede Electrónica. */
+  sedeHome: "https://sede.agenciatributaria.gob.es/Sede/inicio.html",
   /** Índice de diseños de registro BOE (500 posiciones por modelo). */
   recordDesignsIndex:
     "https://sede.agenciatributaria.gob.es/Sede/ayuda/disenos-registro.html",
@@ -11,6 +13,11 @@ export const AEAT_OFFICIAL_PORTALS = {
     "https://sede.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/Ayudas/Disenyos_registro_Manual_uso.pdf",
   /** Pre303 — importación y validación de autoliquidaciones IVA en la sede. */
   pre303Service: "https://sede.agenciatributaria.gob.es/Sede/iva/pre-303.html",
+  /** Pre130 — presentación y ayuda del pago fraccionado IRPF. */
+  pre130Service: "https://sede.agenciatributaria.gob.es/Sede/procedimientoini/G601.shtml",
+  /** Catálogo de presentación por modelo en la Sede. */
+  declarationsByModel:
+    "https://sede.agenciatributaria.gob.es/Sede/presentar-consultar-declaraciones-modelo.html",
 } as const
 
 export interface AeatModelOfficialSource {
@@ -45,6 +52,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".111",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "115": {
     modelCode: "115",
@@ -52,6 +60,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".115",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "123": {
     modelCode: "123",
@@ -59,6 +68,15 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".123",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
+  },
+  "130": {
+    modelCode: "130",
+    label: "IRPF — Pago fraccionado estimación directa",
+    submissionFormat: "boe-500",
+    boeFileExtension: ".130",
+    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.pre130Service,
   },
   "180": {
     modelCode: "180",
@@ -66,6 +84,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".180",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "190": {
     modelCode: "190",
@@ -73,6 +92,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".190",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "303": MODEL_303,
   "347": {
@@ -81,6 +101,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".347",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "349": {
     modelCode: "349",
@@ -88,6 +109,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".349",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "390": {
     modelCode: "390",
@@ -95,6 +117,7 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     submissionFormat: "boe-500",
     boeFileExtension: ".390",
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
 }
 

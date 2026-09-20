@@ -5,13 +5,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   ExternalLink,
-  FileDown,
   Loader2,
   ShieldCheck,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { apiFetch } from "@/lib/api-client"
-import { downloadFiscalExport } from "@/lib/reports/download-client"
 import { cn } from "@/lib/utils"
 
 interface EngineIssue {
@@ -57,7 +54,6 @@ export function Model303EngineStatus({
   const [payload, setPayload] = useState<Model303EnginePayload | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-  const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -87,17 +83,6 @@ export function Model303EngineStatus({
   const engine = payload?.engine
   const sourceCount = engine?.casillas.reduce((sum, casilla) => sum + casilla.sourceCount, 0) ?? 0
 
-  const handleDownload = async () => {
-    setDownloading(true)
-    try {
-      await downloadFiscalExport(modelParam, year, quarterParam, "txt")
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "No se pudo descargar el fichero .303.")
-    } finally {
-      setDownloading(false)
-    }
-  }
-
   return (
     <section className="border border-[#1a4480] bg-white" aria-label="Estado del motor AEAT 303">
       <div className="flex flex-wrap items-center justify-between gap-3 bg-[#dce6ef] px-4 py-3">
@@ -105,7 +90,9 @@ export function Model303EngineStatus({
           <ShieldCheck className="h-5 w-5 text-[#1a4480]" />
           <div>
             <p className="text-sm font-bold text-[#1a4480]">Motor AEAT DR303</p>
-            <p className="text-xs text-slate-600">Renderizado y fichero telemático desde el mismo cálculo</p>
+            <p className="text-xs text-slate-600">
+              Validación del fichero oficial. Abajo eliges si presentas en la Sede o con ficheros.
+            </p>
           </div>
         </div>
 
@@ -163,16 +150,11 @@ export function Model303EngineStatus({
         </div>
 
         <div className="flex items-center">
-          <Button
-            type="button"
-            size="sm"
-            disabled={!engine?.valid || downloading}
-            onClick={() => void handleDownload()}
-            className="gap-2 bg-[#1a4480] hover:bg-[#153a6b]"
-          >
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
-            Descargar fichero AEAT .303
-          </Button>
+          {engine?.valid ? (
+            <p className="max-w-[16rem] text-xs text-slate-600">
+              El .303 y los libros Excel están listos abajo. Tú eliges cómo presentar.
+            </p>
+          ) : null}
         </div>
       </div>
     </section>
