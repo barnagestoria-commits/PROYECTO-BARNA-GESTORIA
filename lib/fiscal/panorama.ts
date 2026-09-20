@@ -11,6 +11,7 @@ import {
   extractGenericModelLiquidationDetail,
   extractModel111LiquidationDetail,
   extractModel303LiquidationDetail,
+  groupLinesByEntry,
   isIntracomunitariaLine,
   isModel111RetentionLine,
   isModel115RentalRetentionLine,
@@ -445,6 +446,7 @@ export function calculateModelAmount(
   quarter: 1 | 2 | 3 | 4 | "annual",
 ): ModelAmountResult {
   const periodLines = filterLinesForPeriod(lines, year, quarter)
+  const linesByEntry = groupLinesByEntry(lines)
   const entryIds = new Set<string>()
 
   if (modelCode === "111") {
@@ -470,7 +472,9 @@ export function calculateModelAmount(
 
     }
 
-    const matched = periodLines.filter(isModel111RetentionLine)
+    const matched = periodLines.filter((line) =>
+      isModel111RetentionLine(line, linesByEntry.get(line.entry.id)),
+    )
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
     const total = round2(
@@ -542,7 +546,9 @@ export function calculateModelAmount(
       }
     }
 
-    const matched = periodLines.filter(isModel115RentalRetentionLine)
+    const matched = periodLines.filter((line) =>
+      isModel115RentalRetentionLine(line, linesByEntry.get(line.entry.id)),
+    )
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)
     for (const line of matched) entryIds.add(line.entry.id)
     const total = round2(
@@ -607,8 +613,8 @@ export function calculateModelAmount(
 
     const matched = periodLines.filter(
       (line) =>
-        isModel111RetentionLine(line) ||
-        isModel115RentalRetentionLine(line) ||
+        isModel111RetentionLine(line, linesByEntry.get(line.entry.id)) ||
+        isModel115RentalRetentionLine(line, linesByEntry.get(line.entry.id)) ||
         isModel123DividendRetentionLine(line),
     )
     const breakdownLines = expandMatchedLinesToEntries(lines, matched, signedRetentionAmount)

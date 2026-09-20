@@ -36,6 +36,62 @@ function isModel111NrcConcept(text: string): boolean {
   return /NRC\.?\s*111/i.test(text) || /NRC\.?\s*11\b/i.test(text)
 }
 
+const RENTAL_EXPENSE_PREFIXES = ["621"]
+const PROFESSIONAL_EXPENSE_PREFIXES = ["623", "640", "641", "642", "649"]
+const RENTAL_CONCEPT_PATTERN = /ALQUILER|ARREND|RENTA\s+LOCAL|INMUEBLE|URBAN|LOCAL\s+COMERCIAL/i
+const RETENTION_CONCEPT_PATTERN = /Reten[\.\/]|Retenc|RETENCI/i
+
+export function groupLinesByEntry(lines: RawEntryLine[]): Map<string, RawEntryLine[]> {
+  const grouped = new Map<string, RawEntryLine[]>()
+  for (const line of lines) {
+    const bucket = grouped.get(line.entry.id)
+    if (bucket) {
+      bucket.push(line)
+    } else {
+      grouped.set(line.entry.id, [line])
+    }
+  }
+  return grouped
+}
+
+/** A3/PGC: 475101 y 4731 = 111; 475102 y 4732 = 115; 475100000000 genérica = sin clave. */
+export function retentionModelFromAccount(cuenta: string): "111" | "115" | "123" | null {
+  const padded = normalizeCuenta(cuenta).padEnd(12, "0")
+  if (padded.startsWith("475102") || padded.startsWith("4732")) return "115"
+  if (padded.startsWith("475103") || padded.startsWith("4733")) return "123"
+  if (padded.startsWith("475101") || padded.startsWith("4731")) return "111"
+  return null
+}
+
+function entryHasAccountPrefix(entryLines: RawEntryLine[] | undefined, prefixes: string[]): boolean {
+  if (!entryLines || entryLines.length === 0) return false
+  return entryLines.some((line) => {
+    const digits = normalizeCuenta(line.cuenta)
+    return prefixes.some((prefix) => digits.startsWith(prefix))
+  })
+}
+
+function entryText(line: RawEntryLine, entryLines?: RawEntryLine[]): string {
+  const parts = [line.concepto, line.entry.concepto ?? ""]
+  if (entryLines) {
+    for (const sibling of entryLines) {
+      parts.push(sibling.concepto)
+    }
+  }
+  return parts.join(" ")
+}
+
+function isRetentionConceptLine(line: RawEntryLine, entryLines?: RawEntryLine[]): boolean {
+  const cuenta = normalizeCuenta(line.cuenta)
+  if (cuenta.startsWith("4751") || cuenta.startsWith("473")) {
+    return (
+      RETENTION_CONCEPT_PATTERN.test(entryText(line, entryLines)) ||
+      Boolean(retentionModelFromAccount(line.cuenta))
+    )
+  }
+  return RETENTION_CONCEPT_PATTERN.test(line.concepto)
+}
+
 export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
@@ -46,24 +102,43 @@ export function isModel123DividendRetentionLine(line: RawEntryLine): boolean {
   return false
 }
 
-export function isModel115RentalRetentionLine(line: RawEntryLine): boolean {
+export function isModel115RentalRetentionLine(
+  line: RawEntryLine,
+  entryLines?: RawEntryLine[],
+): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
   if (isModel123DividendRetentionLine(line)) return false
 
-  const cuenta = normalizeCuenta(line.cuenta)
-  if (cuenta.startsWith("4732")) return true
+  const fromAccount = retentionModelFromAccount(line.cuenta)
+  if (fromAccount === "115") return true
+  if (fromAccount === "111" || fromAccount === "123") return false
 
-  const concept = `${line.concepto} ${line.entry.concepto ?? ""}`
-  if (!/Reten[\.\/]|Retenc|RETENCI/i.test(concept)) return false
-  return /ALQUILER|ARREND|RENTA\s+LOCAL|INMUEBLE|URBAN/i.test(concept)
+  if (entryHasAccountPrefix(entryLines, RENTAL_EXPENSE_PREFIXES) && isRetentionConceptLine(line, entryLines)) {
+    return true
+  }
+
+  const ownConcept = `${line.concepto} ${line.entry.concepto ?? ""}`
+  if (!RETENTION_CONCEPT_PATTERN.test(ownConcept)) return false
+  return RENTAL_CONCEPT_PATTERN.test(entryText(line, entryLines))
 }
 
-export function isModel111RetentionLine(line: RawEntryLine): boolean {
+export function isModel111RetentionLine(
+  line: RawEntryLine,
+  entryLines?: RawEntryLine[],
+): boolean {
   const haber = decimalToNumber(line.haber)
   if (haber <= 0) return false
   if (isModel123DividendRetentionLine(line)) return false
-  if (isModel115RentalRetentionLine(line)) return false
+  if (isModel115RentalRetentionLine(line, entryLines)) return false
+
+  const fromAccount = retentionModelFromAccount(line.cuenta)
+  if (fromAccount === "111") return true
+  if (fromAccount === "115" || fromAccount === "123") return false
+  if (entryHasAccountPrefix(entryLines, RENTAL_EXPENSE_PREFIXES)) return false
+  if (entryHasAccountPrefix(entryLines, PROFESSIONAL_EXPENSE_PREFIXES)) {
+    return isRetentionConceptLine(line, entryLines)
+  }
   return /Reten[\.\/]/i.test(line.concepto) || /Retenc/i.test(line.concepto)
 }
 

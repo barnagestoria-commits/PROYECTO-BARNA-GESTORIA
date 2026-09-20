@@ -305,6 +305,64 @@ describe("fiscal line detection", () => {
     expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
   })
 
+  it("does not treat a rental withholding on 4751 as modelo 111 just because the concept is Reten./", () => {
+    const entry = { id: "e-alquiler", fecha: new Date("2026-01-02T12:00:00.000Z"), concepto: "Su Fra. alquiler" }
+    const lines: RawEntryLine[] = [
+      line({
+        id: "ret",
+        concepto: "Reten./VILLARONGA SANCHEZ MAR 3026000001n",
+        cuenta: "475100000000",
+        debe: 0,
+        haber: 415.66,
+        entry,
+      }),
+      line({
+        id: "gasto",
+        concepto: "Alquiler local",
+        cuenta: "621000000000",
+        debe: 2187.68,
+        haber: 0,
+        entry,
+      }),
+      line({
+        id: "proveedor",
+        concepto: "Su Fra. N.1/44",
+        cuenta: "400000000007",
+        debe: 0,
+        haber: 1772.02,
+        entry,
+      }),
+    ]
+
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(415.66)
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(0)
+  })
+
+  it("keeps professional withholdings on generic 4751 in modelo 111", () => {
+    const entry = { id: "e-prof", fecha: new Date("2026-01-15T12:00:00.000Z"), concepto: "Honorarios" }
+    const lines: RawEntryLine[] = [
+      line({
+        id: "ret",
+        concepto: "Reten./BARBA YESTE, NICOLÁS 103",
+        cuenta: "475100000000",
+        debe: 0,
+        haber: 178.5,
+        entry,
+      }),
+      line({
+        id: "gasto",
+        concepto: "Honorarios",
+        cuenta: "623000000000",
+        debe: 1000,
+        haber: 0,
+        entry,
+      }),
+    ]
+
+    expect(calculateModelAmount("111", lines, 2026, 1).amount).toBe(178.5)
+    expect(calculateModelAmount("115", lines, 2026, 1).amount).toBe(0)
+  })
+
   it("prefers modelo 115 liquidation entries over accumulated retention lines", () => {
     const lines: RawEntryLine[] = [
       line({
