@@ -185,25 +185,30 @@ async function loadOpenedAccountNames(companyId: string) {
     }),
   ])
 
-  return [
-    ...thirdParties.map((row) => ({
-      code: normalizeCuenta(row.accountCode),
-      name: row.name.trim(),
-      cif: row.cif,
-      accountCode: row.accountCode,
-    })),
-    ...subaccounts.map((row) => ({
-      code: normalizeCuenta(row.accountCode),
-      name: row.name.trim(),
-      cif: null as string | null,
-      accountCode: row.accountCode,
-    })),
-  ].filter(
-    (row) =>
-      row.code &&
-      row.name &&
-      !isDemoThirdParty({ cif: row.cif, name: row.name, accountCode: row.accountCode }),
-  )
+  const byCode = new Map<
+    string,
+    { code: string; name: string; cif: string | null; accountCode: string }
+  >()
+
+  const upsert = (row: { accountCode: string; name: string; cif?: string | null }) => {
+    const code = normalizeCuenta(row.accountCode)
+    const name = row.name.trim()
+    if (!code || !name) return
+    if (isDemoThirdParty({ cif: row.cif, name, accountCode: row.accountCode })) return
+
+    const existing = byCode.get(code)
+    const cif = row.cif?.trim() || existing?.cif || null
+    if (existing) {
+      byCode.set(code, { ...existing, name: existing.name || name, cif })
+      return
+    }
+    byCode.set(code, { code, name, cif, accountCode: row.accountCode })
+  }
+
+  for (const row of thirdParties) upsert(row)
+  for (const row of subaccounts) upsert(row)
+
+  return [...byCode.values()]
 }
 
 export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountBalance[]> {
@@ -213,11 +218,17 @@ export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountB
   ])
 
   const names = new Map(openedAccounts.map((row) => [row.code, row.name]))
+  const cifs = new Map(
+    openedAccounts
+      .filter((row) => row.cif?.trim())
+      .map((row) => [row.code, row.cif!.trim()]),
+  )
 
   return buildMovementBalanceRows(
     movements,
     names,
     query.detailLevel ?? "SUBCUENTAS",
+    cifs,
   )
 }
 

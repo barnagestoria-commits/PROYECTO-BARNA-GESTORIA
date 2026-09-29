@@ -13,6 +13,7 @@ describe("searchChartAccounts", () => {
       accountCode: "4300001",
       formattedAccountCode: "430.0001",
       name: "Retail Servicer Spain SL",
+      cif: "B85264141",
     },
   ]
   const ledgerSubaccounts = [
@@ -33,12 +34,42 @@ describe("searchChartAccounts", () => {
     expect(byCode.some((account) => account.source === "pgc" && account.code === "430.0000")).toBe(true)
     expect(codes).toContain("4300002")
     expect(codes).toContain("4300001")
+    expect(byCode.find((account) => account.accountCode.replace(/\D/g, "") === "4300001")?.cif).toBe(
+      "B85264141",
+    )
   })
 
   it("finds a subaccount by its name", () => {
     const results = searchChartAccounts("Tipay", { thirdParties, ledgerSubaccounts })
 
     expect(results.some((account) => account.name === "TIPAY SOLUTIONS SL")).toBe(true)
+    expect(results.find((account) => account.name === "TIPAY SOLUTIONS SL")?.cif).toBe("B12345678")
+  })
+
+  it("shows the NIF of a client even when the same code also exists as a ledger subaccount", () => {
+    const results = searchChartAccounts("RETAIL", {
+      thirdParties: [
+        {
+          accountCode: "4300001",
+          formattedAccountCode: "430.0001",
+          name: "Retail Servicer Spain SL",
+          cif: "B85264141",
+        },
+      ],
+      ledgerSubaccounts: [
+        {
+          id: "430-1",
+          parentCode: "430",
+          name: "Retail Servicer Spain SL",
+          accountCode: "4300001",
+          formattedAccountCode: "430.0001",
+        },
+        ...ledgerSubaccounts,
+      ],
+    })
+    const retail = results.find((account) => account.accountCode.replace(/\D/g, "") === "4300001")
+
+    expect(retail?.cif).toBe("B85264141")
   })
 
   it("includes ledger subaccounts by parent code", () => {

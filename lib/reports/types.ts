@@ -7,6 +7,7 @@ export interface AccountBalance {
   totalHaber: number
   saldo: number
   level: number
+  cif?: string | null
 }
 
 export interface ReportMeta {

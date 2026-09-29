@@ -21,6 +21,7 @@ export interface MovementTotals {
 export interface OpenedChartAccount {
   code: string
   name: string
+  cif?: string | null
 }
 
 function toChartKey(cuenta: string, detailLevel: GestoriaAccountDetailLevel): string {
@@ -55,6 +56,7 @@ export function buildMovementBalanceRows(
   movements: Map<string, MovementTotals>,
   names: Map<string, string>,
   detailLevel: GestoriaAccountDetailLevel,
+  cifs?: Map<string, string>,
 ): AccountBalance[] {
   const aggregated = aggregateMovementsByDetail(movements, detailLevel)
 
@@ -66,6 +68,7 @@ export function buildMovementBalanceRows(
       totalHaber: round2(totals.totalHaber),
       saldo: round2(totals.totalDebe - totals.totalHaber),
       level: getAccountLevel(cuenta),
+      cif: detailLevel === "SUBCUENTAS" ? cifs?.get(cuenta) ?? null : null,
     }))
     .sort((a, b) => cuentaSortKey(a.cuenta).localeCompare(cuentaSortKey(b.cuenta)))
 }
@@ -80,7 +83,7 @@ export function buildChartBalanceRows(input: {
   const aggregated = aggregateMovementsByDetail(input.movements, input.detailLevel)
   const rows = new Map<string, AccountBalance>()
 
-  const upsert = (cuenta: string, label: string, preferLabel = false) => {
+  const upsert = (cuenta: string, label: string, preferLabel = false, cif?: string | null) => {
     const code = normalizeCuenta(cuenta)
     if (!code) return
     const totals = aggregated.get(code) ?? { totalDebe: 0, totalHaber: 0 }
@@ -89,6 +92,7 @@ export function buildChartBalanceRows(input: {
     const resolvedLabel = formatAccountNameDisplay(
       preferLabel && label.trim() ? label : existing?.label ?? label,
     )
+    const resolvedCif = (preferLabel ? cif?.trim() || existing?.cif : existing?.cif ?? cif?.trim()) || null
     rows.set(code, {
       cuenta: code,
       label: resolvedLabel,
@@ -96,6 +100,7 @@ export function buildChartBalanceRows(input: {
       totalHaber: round2(totals.totalHaber),
       saldo: round2(totals.totalDebe - totals.totalHaber),
       level: getAccountLevel(code),
+      cif: resolvedCif,
     })
   }
 
@@ -105,7 +110,7 @@ export function buildChartBalanceRows(input: {
 
   if (input.detailLevel === "SUBCUENTAS") {
     for (const opened of input.openedAccounts) {
-      upsert(opened.code, opened.name, true)
+      upsert(opened.code, opened.name, true, opened.cif)
     }
   }
 

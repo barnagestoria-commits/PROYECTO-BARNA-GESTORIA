@@ -18,7 +18,7 @@ describe("build-chart-balances", () => {
     const rows = buildChartBalanceRows({
       planCodes: getPlanAccountCodes("PGC_PYME"),
       openedAccounts: [
-        { code: "41000001", name: "Catcher Marketplace SL" },
+        { code: "41000001", name: "Catcher Marketplace SL", cif: "B12345678" },
         { code: "62900001", name: "Comisiones Catcher" },
       ],
       movements,
@@ -28,6 +28,8 @@ describe("build-chart-balances", () => {
     expect(rows.length).toBeGreaterThan(100)
     expect(rows.find((row) => row.cuenta === "100")?.totalDebe).toBe(0)
     expect(rows.find((row) => row.cuenta === "41000001")?.label).toBe("CATCHER MARKETPLACE SL")
+    expect(rows.find((row) => row.cuenta === "41000001")?.cif).toBe("B12345678")
+    expect(rows.find((row) => row.cuenta === "410")?.cif).toBeFalsy()
     expect(rows.find((row) => row.cuenta === "629")?.label).toBe("OTROS SERVICIOS")
     expect(countAccountsWithMovement(rows)).toBe(3)
   })
@@ -127,9 +129,10 @@ describe("build-chart-balances", () => {
       ["60100001", "COMPRA MATERIAL DE CONSTRUCCI"],
     ])
 
-    const subcuentas = buildMovementBalanceRows(movements, names, "SUBCUENTAS")
+    const subcuentas = buildMovementBalanceRows(movements, names, "SUBCUENTAS", new Map([["41000035", "B59869081"]]))
     expect(subcuentas.find((row) => row.cuenta === "41000002")?.label).toBe("GALP ENERGIA ESPAÑA SAU")
     expect(subcuentas.find((row) => row.cuenta === "41000035")?.label).toBe("ASOROTNIC SL")
+    expect(subcuentas.find((row) => row.cuenta === "41000035")?.cif).toBe("B59869081")
     expect(subcuentas.find((row) => row.cuenta === "60100000")?.totalDebe).toBe(2746.85)
     expect(subcuentas.find((row) => row.cuenta === "60100001")?.totalDebe).toBe(5217.42)
 

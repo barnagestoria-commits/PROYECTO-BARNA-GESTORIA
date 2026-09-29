@@ -24,4 +24,12 @@ describe("extractAccountMatchesSearch", () => {
     expect(extractAccountMatchesSearch(catcher, "41.1")).toBe(true)
     expect(extractAccountMatchesSearch(ivaSub, "41.1")).toBe(false)
   })
-})
+
+  it("matches a third party by NIF/CIF", () => {
+    const galp = { cuenta: "41000002", label: "GALP ENERGIA ESPAÑA SAU", cif: "A81948077" }
+    expect(extractAccountMatchesSearch(galp, "A81948077")).toBe(true)
+    expect(extractAccountMatchesSearch(galp, "A-81.948.077")).toBe(true)
+    expect(extractAccountMatchesSearch(catcher, "A81948077")).toBe(false)
+  })
+}
+)

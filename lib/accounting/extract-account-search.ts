@@ -10,8 +10,12 @@ function foldSearchText(value: string): string {
     .replace(/\p{M}/gu, "")
 }
 
+function compactTaxId(value: string): string {
+  return foldSearchText(value).replace(/[^a-z0-9]/g, "")
+}
+
 export function extractAccountMatchesSearch(
-  row: { cuenta: string; label: string },
+  row: { cuenta: string; label: string; cif?: string | null },
   query: string,
 ): boolean {
   const raw = query.trim()
@@ -19,6 +23,10 @@ export function extractAccountMatchesSearch(
 
   const needle = foldSearchText(raw)
   if (needle && foldSearchText(row.label).includes(needle)) return true
+
+  const cif = compactTaxId(row.cif ?? "")
+  const taxNeedle = compactTaxId(raw)
+  if (cif && taxNeedle.length >= 3 && cif.includes(taxNeedle)) return true
 
   if (parseDottedAccountShortcut(raw)) {
     return accountMatchesDottedShortcut(row.cuenta, raw)

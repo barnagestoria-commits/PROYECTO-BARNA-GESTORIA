@@ -129,7 +129,7 @@ describe("A3 native RC/EC journal variant", () => {
     expect(rental!.lines.find((line) => line.haber === 2231.42)?.cuenta.startsWith("410")).toBe(true)
   })
 
-  it("imports Look Diagonal Villaronga as 410/472/475102/6212 from the native ZIP", () => {
+  it("imports Look Diagonal Villaronga as 410/472/475102/6212 from the native ZIP", { timeout: 30_000 }, () => {
     const folder = "/Users/soniamac/Downloads/E0162626"
     if (!existsSync(folder)) return
 

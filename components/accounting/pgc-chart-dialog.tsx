@@ -97,7 +97,7 @@ export function PgcChartDialog({
       layer={layer}
       footer={
         <p className="text-xs text-graphite-500">
-          Busca por código (430.2) o por nombre (Tipay, clientes, IVA…). Pulsa Enter o haz clic para
+          Busca por código (430.2), nombre o NIF/CIF. Pulsa Enter o haz clic para
           asignar la cuenta.
         </p>
       }
@@ -108,7 +108,7 @@ export function PgcChartDialog({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Buscar por código, subcuenta o descripción..."
+            placeholder="Buscar por código, nombre o NIF/CIF..."
             className="h-10 pl-10"
             autoFocus
           />
@@ -120,6 +120,7 @@ export function PgcChartDialog({
               <tr>
                 <th className="w-28 px-3 py-2">Cuenta</th>
                 <th className="px-3 py-2">Descripción PGC</th>
+                <th className="w-36 px-3 py-2">NIF / CIF</th>
               </tr>
             </thead>
             <tbody>
@@ -144,6 +145,9 @@ export function PgcChartDialog({
                     {account.source !== "pgc" && (
                       <span className="ml-2 text-xs text-graphite-400">Subcuenta</span>
                     )}
+                  </td>
+                  <td className="px-3 py-2 font-mono text-xs tabular-nums text-emerald-900">
+                    {account.cif?.trim() ? account.cif.trim().toUpperCase() : "—"}
                   </td>
                 </tr>
               ))}

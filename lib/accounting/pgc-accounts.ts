@@ -18,6 +18,7 @@ export interface ChartAccountOption {
   name: string
   accountCode: string
   source: "pgc" | "ledger" | "tercero"
+  cif?: string | null
 }
 
 export interface ChartAccountSearchParty {
@@ -248,7 +249,24 @@ export function searchPgcAccounts(query: string, limit = 50): PgcAccount[] {
     .map((item) => item.account)
 }
 
-function ledgerToSearchableAccount(account: LedgerSubaccountOption): {
+function accountDigitsKey(accountCode: string): string {
+  return accountCode.replace(/\D/g, "")
+}
+
+function cifIndexFromParties(parties: ChartAccountSearchParty[]): Map<string, string> {
+  const index = new Map<string, string>()
+  for (const party of parties) {
+    const cif = party.cif?.trim()
+    const key = accountDigitsKey(party.accountCode)
+    if (cif && key) index.set(key, cif)
+  }
+  return index
+}
+
+function ledgerToSearchableAccount(
+  account: LedgerSubaccountOption,
+  cif?: string | null,
+): {
   code: string
   name: string
   searchText: string
@@ -257,7 +275,9 @@ function ledgerToSearchableAccount(account: LedgerSubaccountOption): {
     code: account.accountCode,
     name: account.name,
     searchText: normalizePgcSearchText(
-      [account.accountCode, account.formattedAccountCode, account.name, account.parentCode].join(" "),
+      [account.accountCode, account.formattedAccountCode, account.name, account.parentCode, cif ?? ""].join(
+        " ",
+      ),
     ),
   }
 }
@@ -277,21 +297,24 @@ function thirdPartyToSearchableAccount(party: ChartAccountSearchParty): {
   }
 }
 
-function toLedgerOption(account: LedgerSubaccountOption): ChartAccountOption {
+function toLedgerOption(account: LedgerSubaccountOption, cif?: string | null): ChartAccountOption {
   return {
     code: account.formattedAccountCode,
     name: formatAccountNameDisplay(account.name),
     accountCode: account.accountCode,
     source: "ledger",
+    cif: cif?.trim() || null,
   }
 }
 
 function toThirdPartyOption(party: ChartAccountSearchParty): ChartAccountOption {
+  const cif = party.cif?.trim() || null
   return {
     code: party.formattedAccountCode || formatAccountCodeDisplay(party.accountCode),
     name: formatAccountNameDisplay(party.name),
     accountCode: party.accountCode,
     source: "tercero",
+    cif,
   }
 }
 
@@ -345,11 +368,14 @@ export function searchChartAccounts(
   const limit = options?.limit ?? 100
   const ledger = options?.ledgerSubaccounts ?? []
   const thirdParties = options?.thirdParties ?? []
+  const cifByAccount = cifIndexFromParties(thirdParties)
+  const ledgerCif = (account: LedgerSubaccountOption) =>
+    cifByAccount.get(accountDigitsKey(account.accountCode)) ?? null
   const normalized = normalizePgcSearchText(query)
 
   const openedOptions: ChartAccountOption[] = [
     ...thirdParties.map(toThirdPartyOption),
-    ...ledger.map(toLedgerOption),
+    ...ledger.map((account) => toLedgerOption(account, ledgerCif(account))),
   ]
 
   const pgcResults: ChartAccountOption[] = searchPgcAccounts(query, limit).map((account) => ({
@@ -369,8 +395,9 @@ export function searchChartAccounts(
       return { option: toThirdPartyOption(party), score: score < 0 ? score : score + 25 }
     }),
     ...ledger.map((account) => {
-      const score = scoreAccountMatch(ledgerToSearchableAccount(account), query)
-      return { option: toLedgerOption(account), score: score < 0 ? score : score + 25 }
+      const cif = ledgerCif(account)
+      const score = scoreAccountMatch(ledgerToSearchableAccount(account, cif), query)
+      return { option: toLedgerOption(account, cif), score: score < 0 ? score : score + 25 }
     }),
   ].filter((item) => item.score >= 0)
 
