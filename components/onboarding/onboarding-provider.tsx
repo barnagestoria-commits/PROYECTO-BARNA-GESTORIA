@@ -310,7 +310,6 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           stepIndex={stepIndex}
           continuous
           scrollToFirstStep
-          scrollOffset={narrowViewport ? 128 : 96}
           onEvent={handleJoyrideCallback}
           tooltipComponent={(props) => (
             <OnboardingTooltip
