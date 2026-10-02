@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
 import { ChevronDown } from "lucide-react"
+import { MobileNavSheet } from "@/components/layout/mobile-nav-sheet"
 import { SidebarFlyoutPanel } from "@/components/layout/sidebar-flyout-panel"
 import { cn } from "@/lib/utils"
 import {
@@ -19,6 +20,20 @@ import {
 
 const ITEM_GAP_PX = 4
 
+function useMediaQuery(query: string) {
+  const [matches, setMatches] = useState(false)
+
+  useEffect(() => {
+    const media = window.matchMedia(query)
+    const apply = () => setMatches(media.matches)
+    apply()
+    media.addEventListener("change", apply)
+    return () => media.removeEventListener("change", apply)
+  }, [query])
+
+  return matches
+}
+
 interface ModuleNavBarProps {
   modules: SidebarNavModule[]
   className?: string
@@ -29,6 +44,9 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
   const { openId, scheduleOpen, scheduleClose, toggle, close } = useHoverMenu()
+  const isCompactNav = useMediaQuery("(max-width: 767px)")
+  const prefersFineHover = useMediaQuery("(hover: hover) and (pointer: fine)")
+  const useHoverMenus = prefersFineHover && !isCompactNav
 
   const containerRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -95,7 +113,9 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
   }, [pathname, searchString, close])
 
   useEffect(() => {
-    function handlePointerDown(event: MouseEvent) {
+    if (isCompactNav) return
+
+    function handlePointerDown(event: PointerEvent) {
       if (!containerRef.current?.contains(event.target as Node)) {
         close()
       }
@@ -105,19 +125,20 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
       if (event.key === "Escape") close()
     }
 
-    document.addEventListener("mousedown", handlePointerDown)
+    document.addEventListener("pointerdown", handlePointerDown)
     document.addEventListener("keydown", handleEscape)
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown)
+      document.removeEventListener("pointerdown", handlePointerDown)
       document.removeEventListener("keydown", handleEscape)
     }
-  }, [close])
+  }, [close, isCompactNav])
 
   const visibleModules = modules.slice(0, visibleCount)
   const overflowModules = modules.slice(visibleCount)
   const overflowHasActive = overflowModules.some((module) =>
     isSidebarModuleActive(module, pathname, searchString),
   )
+  const showMore = isCompactNav || overflowModules.length > 0
 
   return (
     <div
@@ -133,7 +154,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
         className="pointer-events-none absolute left-0 top-0 -z-10 flex gap-1 opacity-0"
       >
         {modules.map((module) => (
-          <ModuleNavMeasureItem key={`measure-${module.id}`} module={module} />
+          <ModuleNavMeasureItem key={`measure-${module.id}`} module={module} compact={isCompactNav} />
         ))}
         <button
           ref={moreMeasureRef}
@@ -147,7 +168,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
       </div>
 
       <nav
-        className="mx-auto flex h-11 max-w-[1600px] items-center px-3 sm:h-12 sm:px-4"
+        className="mx-auto flex h-11 max-w-[1600px] items-center overflow-hidden px-3 sm:h-12 sm:px-4"
         aria-label="Módulos principales"
       >
         <ul className="flex min-w-0 flex-1 items-center gap-1">
@@ -158,25 +179,27 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
               pathname={pathname}
               searchString={searchString}
               isOpen={openId === module.id}
+              compact={isCompactNav}
+              enableHover={useHoverMenus}
               onHoverEnter={() => scheduleOpen(module.id)}
               onHoverLeave={scheduleClose}
-              onToggle={() => toggle(module.id)}
+              onToggle={() => (isCompactNav ? toggle(MORE_MENU_ID) : toggle(module.id))}
               onNavigate={close}
             />
           ))}
 
-          {overflowModules.length > 0 && (
+          {showMore && (
             <li
-              className="relative shrink-0"
-              onPointerEnter={() => scheduleOpen(MORE_MENU_ID)}
-              onPointerLeave={scheduleClose}
+              className="relative ml-auto shrink-0"
+              onPointerEnter={useHoverMenus ? () => scheduleOpen(MORE_MENU_ID) : undefined}
+              onPointerLeave={useHoverMenus ? scheduleClose : undefined}
             >
               <button
                 type="button"
                 className={modulePillClassName(overflowHasActive, moreOpen, false)}
                 onClick={() => toggle(MORE_MENU_ID)}
                 aria-expanded={moreOpen}
-                aria-haspopup="menu"
+                aria-haspopup={isCompactNav ? "dialog" : "menu"}
               >
                 Más
                 <ChevronDown
@@ -184,7 +207,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
                 />
               </button>
 
-              {moreOpen && (
+              {moreOpen && !isCompactNav && overflowModules.length > 0 && (
                 <div className={cn(HOVER_MENU_PANEL_CLASS, "right-0 left-auto w-[min(18rem,calc(100vw-1.25rem))]")}>
                   <div className="max-h-[min(70vh,calc(100dvh-8rem))] overflow-y-auto rounded-xl border border-sand-200 bg-white py-1 shadow-xl">
                     {overflowModules.map((module) => {
@@ -226,12 +249,20 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
           )}
         </ul>
       </nav>
+
+      <MobileNavSheet open={isCompactNav && moreOpen} onClose={close} modules={modules} />
     </div>
   )
 }
 
-function ModuleNavMeasureItem({ module }: { module: SidebarNavModule }) {
-  const hasSections = Boolean(module.sections?.length)
+function ModuleNavMeasureItem({
+  module,
+  compact,
+}: {
+  module: SidebarNavModule
+  compact: boolean
+}) {
+  const hasSections = Boolean(module.sections?.length) && !compact
 
   return (
     <span data-measure-item className={modulePillClassName(false, false, hasSections)}>
@@ -256,6 +287,8 @@ function ModuleNavItem({
   pathname,
   searchString,
   isOpen,
+  compact,
+  enableHover,
   onHoverEnter,
   onHoverLeave,
   onToggle,
@@ -265,6 +298,8 @@ function ModuleNavItem({
   pathname: string
   searchString: string
   isOpen: boolean
+  compact: boolean
+  enableHover: boolean
   onHoverEnter: () => void
   onHoverLeave: () => void
   onToggle: () => void
@@ -272,14 +307,12 @@ function ModuleNavItem({
 }) {
   const isActive = isSidebarModuleActive(module, pathname, searchString)
   const hasSections = Boolean(module.sections?.length)
+  const showChevron = hasSections && !compact
 
-  if (module.href && !hasSections) {
+  if ((module.href && !hasSections) || (compact && module.href)) {
     return (
       <li className="relative shrink-0">
-        <Link
-          href={module.href}
-          className={modulePillClassName(isActive, false, false)}
-        >
+        <Link href={module.href!} className={modulePillClassName(isActive, false, false)}>
           {module.label}
         </Link>
       </li>
@@ -289,16 +322,16 @@ function ModuleNavItem({
   return (
     <li
       className="relative shrink-0"
-      onPointerEnter={hasSections ? onHoverEnter : undefined}
-      onPointerLeave={hasSections ? onHoverLeave : undefined}
+      onPointerEnter={enableHover && hasSections ? onHoverEnter : undefined}
+      onPointerLeave={enableHover && hasSections ? onHoverLeave : undefined}
     >
       <div className="flex items-stretch">
         {module.href ? (
           <Link
             href={module.href}
             className={cn(
-              modulePillClassName(isActive, isOpen, hasSections),
-              "rounded-r-none pr-2",
+              modulePillClassName(isActive, isOpen, showChevron),
+              showChevron && "rounded-r-none pr-2",
             )}
             onClick={onNavigate}
           >
@@ -307,7 +340,7 @@ function ModuleNavItem({
         ) : (
           <button
             type="button"
-            className={modulePillClassName(isActive, isOpen, hasSections)}
+            className={modulePillClassName(isActive, isOpen, showChevron)}
             onClick={onToggle}
             aria-expanded={isOpen}
             aria-haspopup="true"
@@ -316,7 +349,7 @@ function ModuleNavItem({
           </button>
         )}
 
-        {hasSections && (
+        {showChevron && (
           <button
             type="button"
             className={cn(
@@ -336,7 +369,7 @@ function ModuleNavItem({
         )}
       </div>
 
-      {isOpen && hasSections && (
+      {isOpen && hasSections && !compact && (
         <div className={HOVER_MENU_PANEL_CLASS}>
           <SidebarFlyoutPanel module={module} onNavigate={onNavigate} variant="dropdown" />
         </div>

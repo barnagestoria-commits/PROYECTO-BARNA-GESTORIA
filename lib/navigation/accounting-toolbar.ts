@@ -62,8 +62,8 @@ export const ACCOUNTING_TOOLBAR_GROUPS: AccountingToolbarGroup[] = [
     items: [
       {
         id: "panorama",
-        label: "Vista panorámica fiscal",
-        description: "Matriz trimestral de modelos",
+        label: "Resumen trimestral",
+        description: "Desglose trimestral y vista panorámica de modelos",
         href: "/dashboard/fiscal",
       },
       {

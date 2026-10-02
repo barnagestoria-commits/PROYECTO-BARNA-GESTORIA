@@ -250,9 +250,9 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
         title: "Modelos fiscales",
         items: [
           {
-            label: "Vista panorámica fiscal",
+            label: "Resumen trimestral",
             href: "/dashboard/fiscal",
-            description: "Matriz trimestral de modelos",
+            description: "Desglose trimestral y vista panorámica de modelos",
           },
           {
             label: "A pagar / devolver",
@@ -275,6 +275,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             href: "/dashboard/fiscal/115",
             description: "Retenciones arrendamientos",
           },
+          {
+            label: "Modelo 180 — Resumen anual",
+            href: "/dashboard/fiscal/180",
+            description: "Resumen anual de retenciones de alquiler",
+          },
         ],
       },
       {
@@ -295,6 +300,16 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Certificados Mod. 180",
             href: "/dashboard/informes/certificados/modelo-180",
             description: "Retenciones alquileres",
+          },
+          {
+            label: "Certificado retenciones — Profesionales",
+            href: "/dashboard/informes/certificados/retenciones-profesionales",
+            description: "Modelo 111 / retenciones practicadas",
+          },
+          {
+            label: "Certificado retenciones — Alquileres",
+            href: "/dashboard/informes/certificados/retenciones-alquiler",
+            description: "Modelo 115 / arrendamientos urbanos",
           },
           {
             label: "Resumen anual retenciones",
