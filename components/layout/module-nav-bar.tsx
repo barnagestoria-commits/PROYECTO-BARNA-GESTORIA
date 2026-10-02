@@ -185,8 +185,8 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
               </button>
 
               {moreOpen && (
-                <div className={cn(HOVER_MENU_PANEL_CLASS, "min-w-[220px]")}>
-                  <div className="rounded-xl border border-sand-200 bg-white py-1 shadow-xl">
+                <div className={cn(HOVER_MENU_PANEL_CLASS, "right-0 left-auto w-[min(18rem,calc(100vw-1.25rem))]")}>
+                  <div className="max-h-[min(70vh,calc(100dvh-8rem))] overflow-y-auto rounded-xl border border-sand-200 bg-white py-1 shadow-xl">
                     {overflowModules.map((module) => {
                       const isActive = isSidebarModuleActive(module, pathname, searchString)
                       const hasSections = Boolean(module.sections?.length)
@@ -243,7 +243,7 @@ function ModuleNavMeasureItem({ module }: { module: SidebarNavModule }) {
 
 function modulePillClassName(isActive: boolean, isOpen: boolean, hasSubmenu: boolean) {
   return cn(
-    "inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-sm font-medium transition-colors",
+    "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-sm",
     hasSubmenu && "pr-2.5",
     isActive || isOpen
       ? "bg-emerald-800 text-white shadow-sm"

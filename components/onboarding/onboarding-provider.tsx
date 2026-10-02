@@ -79,13 +79,15 @@ function waitForSelector(selector: string, timeoutMs = 4000): Promise<boolean> {
   })
 }
 
-function toJoyrideSteps(definitions: OnboardingTourStepDefinition[]): Step[] {
+function toJoyrideSteps(definitions: OnboardingTourStepDefinition[], narrow: boolean): Step[] {
   return definitions.map((step) => ({
     target: step.target,
     title: step.title,
     content: step.content,
-    placement: step.placement ?? "bottom",
+    placement: narrow ? "center" : (step.placement ?? "bottom"),
     skipBeacon: true,
+    disableScrolling: narrow,
+    disableOverlay: narrow,
     data: { stepId: step.id, route: step.route },
   }))
 }
@@ -98,7 +100,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const roleProfile = accountTypeToRoleProfile(session?.user.accountType ?? "CLIENTE_FINAL")
   const roleLabel = roleProfileLabel(roleProfile)
   const stepDefinitions = useMemo(() => getTourStepsForProfile(roleProfile), [roleProfile])
-  const joyrideSteps = useMemo(() => toJoyrideSteps(stepDefinitions), [stepDefinitions])
+  const [narrowViewport, setNarrowViewport] = useState(false)
+  const joyrideSteps = useMemo(
+    () => toJoyrideSteps(stepDefinitions, narrowViewport),
+    [narrowViewport, stepDefinitions],
+  )
 
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -190,6 +196,14 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("barna-gestoria-onboarding-paused")
     void beginTour(0)
   }, [beginTour])
+
+  useEffect(() => {
+    const media = window.matchMedia("(max-width: 639px)")
+    const apply = () => setNarrowViewport(media.matches)
+    apply()
+    media.addEventListener("change", apply)
+    return () => media.removeEventListener("change", apply)
+  }, [])
 
   useEffect(() => {
     if (!session) return
@@ -296,6 +310,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           stepIndex={stepIndex}
           continuous
           scrollToFirstStep
+          scrollOffset={narrowViewport ? 128 : 96}
           onEvent={handleJoyrideCallback}
           tooltipComponent={(props) => (
             <OnboardingTooltip

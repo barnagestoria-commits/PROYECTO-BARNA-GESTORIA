@@ -40,7 +40,7 @@ export function OnboardingTooltip({
   const isRecommended = stepId ? recommendedStepIds.includes(stepId) : false
 
   return (
-    <div className="max-w-sm rounded-xl border border-sand-200 bg-white p-4 shadow-2xl">
+    <div className="w-[min(24rem,calc(100vw-1.25rem))] max-w-sm rounded-xl border border-sand-200 bg-white p-4 shadow-2xl">
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
           Tour {roleLabel}

@@ -163,10 +163,10 @@ export function CompanyCertificatePanel({
   }
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="min-w-0 space-y-4" data-tour="onboarding-certificate">
+      <div className="min-w-0">
         <h3 className="text-base font-semibold text-pine-900">{title}</h3>
-        <p className="mt-1 text-sm text-graphite-500">{description}</p>
+        <p className="mt-1 text-sm leading-relaxed text-graphite-500">{description}</p>
       </div>
 
       {feedback ? (

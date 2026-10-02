@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { usePathname } from "next/navigation"
 import { SeasonalLoadingScreen } from "./seasonal-loading-screen"
 
@@ -17,9 +17,18 @@ export function AppWrapper({ children }: AppWrapperProps) {
   const skipLoading = AUTH_PATHS.some((path) => pathname === path || pathname?.startsWith(`${path}/`))
   const [isLoading, setIsLoading] = useState(!skipLoading)
   const [showContent, setShowContent] = useState(skipLoading)
+  const [hasPlayedIntro, setHasPlayedIntro] = useState(skipLoading)
+
+  const handleLoadingComplete = useCallback(() => {
+    setIsLoading(false)
+    setHasPlayedIntro(true)
+    window.setTimeout(() => {
+      setShowContent(true)
+    }, 100)
+  }, [])
 
   useEffect(() => {
-    if (skipLoading) {
+    if (skipLoading || hasPlayedIntro) {
       setIsLoading(false)
       setShowContent(true)
       return
@@ -27,29 +36,7 @@ export function AppWrapper({ children }: AppWrapperProps) {
 
     setIsLoading(true)
     setShowContent(false)
-
-    // Simular carga de recursos
-    const preloadResources = async () => {
-      const logoImage = new Image()
-      logoImage.src = "/images/barna-logo-updated.png"
-
-      await new Promise((resolve) => {
-        logoImage.onload = resolve
-        logoImage.onerror = resolve
-      })
-
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-    }
-
-    preloadResources()
-  }, [skipLoading])
-
-  const handleLoadingComplete = () => {
-    setIsLoading(false)
-    setTimeout(() => {
-      setShowContent(true)
-    }, 100)
-  }
+  }, [hasPlayedIntro, skipLoading])
 
   return (
     <>

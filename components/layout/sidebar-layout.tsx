@@ -42,15 +42,15 @@ function SidebarLayoutInner({
       </Suspense>
 
       <header className="shrink-0 border-b border-sand-200 bg-white">
-        <div className="px-4 py-4 sm:px-6">
-          <h1 className="text-xl font-bold text-pine-900">
+        <div className="min-w-0 px-4 py-2.5 sm:px-6 sm:py-4">
+          <h1 className="truncate text-lg font-bold text-pine-900 sm:text-xl">
             {isDashboardHome ? panelTitle : pageTitle}
           </h1>
-          <p className="mt-1 text-sm text-graphite-500">{breadcrumb}</p>
+          <p className="mt-0.5 truncate text-xs text-graphite-500 sm:mt-1 sm:text-sm">{breadcrumb}</p>
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6">
+      <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3 sm:px-6 sm:py-6">
         {children}
       </main>
 

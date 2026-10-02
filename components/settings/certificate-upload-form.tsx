@@ -86,14 +86,14 @@ export function CertificateUploadForm({
   }
 
   return (
-    <Card className="border-sand-200 shadow-sm">
-      <CardHeader>
-        <CardTitle className="text-lg text-pine-900">Subir certificado digital</CardTitle>
+    <Card className="min-w-0 overflow-hidden border-sand-200 shadow-sm">
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="text-base text-pine-900 sm:text-lg">Subir certificado digital</CardTitle>
         <CardDescription>
           El certificado se analiza en el servidor para extraer NIF y titular. No se guarda el archivo .p12.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-5">
+      <CardContent className="space-y-5 p-4 pt-0 sm:p-6 sm:pt-0">
         <div
           {...getRootProps()}
           className={cn(
@@ -110,9 +110,9 @@ export function CertificateUploadForm({
           </p>
           <p className="mt-1 text-xs text-graphite-500">o haz clic para seleccionar archivo</p>
           {file && (
-            <p className="mt-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-800 shadow-sm">
-              <FileKey2 className="h-3.5 w-3.5" />
-              {file.name}
+            <p className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-800 shadow-sm">
+              <FileKey2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 break-all">{file.name}</span>
             </p>
           )}
         </div>
@@ -154,7 +154,7 @@ export function CertificateUploadForm({
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button
             type="button"
-            className="bg-emerald-800 hover:bg-pine-900"
+            className="w-full bg-emerald-800 hover:bg-pine-900 sm:w-auto"
             onClick={handleSave}
             disabled={isSaving}
           >
@@ -164,6 +164,7 @@ export function CertificateUploadForm({
           <Button
             type="button"
             variant="outline"
+            className="w-full sm:w-auto"
             onClick={handleTest}
             disabled={!hasCertificate || isTesting}
           >

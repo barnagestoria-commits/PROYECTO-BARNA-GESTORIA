@@ -55,7 +55,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
   return (
     <div
       className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br transition-opacity duration-500",
+        "fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-gradient-to-br px-3 transition-opacity duration-500",
         theme.colors.background,
         animationPhase === "exit" && "opacity-0",
       )}
@@ -63,7 +63,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
       {/* Decoraciones estacionales de fondo */}
       <SeasonalDecorations theme={theme} />
 
-      <div className="flex flex-col items-center space-y-8 relative z-10">
+      <div className="relative z-10 flex max-h-[100dvh] w-full max-w-[min(24rem,calc(100vw-1.5rem))] flex-col items-center space-y-4 overflow-hidden px-4 py-6 sm:space-y-8">
         {/* Logo profesional para pantalla de carga */}
         <div className="relative">
           <div
@@ -81,12 +81,12 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
                 alt="Barna Gestoría"
                 width={160}
                 height={160}
-                className="object-contain drop-shadow-2xl"
+                className="h-24 w-24 object-contain drop-shadow-2xl sm:h-40 sm:w-40"
                 onError={() => setLogoError(true)}
                 priority
               />
             ) : (
-              <div className="w-[160px] h-[160px] flex items-center justify-center">
+              <div className="flex h-24 w-24 items-center justify-center sm:h-[160px] sm:w-[160px]">
                 <LogoFallback size="lg" variant="icon" />
               </div>
             )}
@@ -95,15 +95,11 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
           {/* Círculo de carga con colores estacionales - más grande para el nuevo logo */}
           <div
             className={cn(
-              "absolute inset-0 rounded-full border-4 border-transparent animate-spin",
+              "absolute -inset-2 animate-spin rounded-full border-4 border-transparent sm:-inset-[10px]",
               animationPhase === "pulse" && "opacity-100",
               animationPhase !== "pulse" && "opacity-0",
             )}
             style={{
-              width: "180px",
-              height: "180px",
-              top: "-10px",
-              left: "-10px",
               borderTopColor:
                 theme.season === "spring"
                   ? "#145A32"
@@ -164,7 +160,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
         <div className="text-center space-y-2">
           <h1
             className={cn(
-              "text-3xl md:text-4xl font-bold transition-all duration-1000 delay-300 text-pine-900",
+              "text-2xl font-bold transition-all duration-1000 delay-300 text-pine-900 sm:text-3xl md:text-4xl",
               animationPhase === "enter" && "opacity-0 translate-y-4",
               animationPhase === "pulse" && "opacity-100 translate-y-0",
               animationPhase === "exit" && "opacity-80 translate-y-0",
@@ -174,7 +170,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
           </h1>
           <p
             className={cn(
-              "text-lg transition-all duration-1000 delay-500 text-emerald-800",
+              "text-sm transition-all duration-1000 delay-500 text-emerald-800 sm:text-lg",
               animationPhase === "enter" && "opacity-0 translate-y-4",
               animationPhase === "pulse" && "opacity-100 translate-y-0",
               animationPhase === "exit" && "opacity-60 translate-y-0",
@@ -195,7 +191,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
         </div>
 
         {/* Barra de progreso con colores de la nueva paleta */}
-        <div className="w-64 h-2 bg-white/30 rounded-full overflow-hidden backdrop-blur-sm">
+        <div className="h-2 w-48 overflow-hidden rounded-full bg-white/30 backdrop-blur-sm sm:w-64">
           <div
             className={cn(
               "h-full rounded-full transition-all duration-2000 ease-out",
