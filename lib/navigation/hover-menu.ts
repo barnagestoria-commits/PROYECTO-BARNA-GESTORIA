@@ -5,7 +5,7 @@ export const HOVER_MENU_CLOSE_DELAY_MS = 240
 export const MORE_MENU_ID = "__more__"
 
 /** Une el botón del menú con el panel para que el cursor no “caiga” en un hueco. */
-export const HOVER_MENU_PANEL_CLASS = "absolute left-0 top-full z-50 pt-2"
+export const HOVER_MENU_PANEL_CLASS = "absolute left-0 top-full z-[80] overflow-visible pt-2"
 
 export type HoverMenuAction =
   | { type: "open"; id: string }

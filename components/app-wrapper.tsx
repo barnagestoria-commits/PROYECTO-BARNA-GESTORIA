@@ -41,7 +41,7 @@ export function AppWrapper({ children }: AppWrapperProps) {
   return (
     <>
       {isLoading && <SeasonalLoadingScreen onLoadingComplete={handleLoadingComplete} />}
-      <div className={`min-w-0 w-full max-w-full overflow-x-hidden transition-opacity duration-500 ${showContent ? "opacity-100" : "opacity-0"}`}>
+      <div className={`min-w-0 w-full max-w-full transition-opacity duration-500 ${showContent ? "opacity-100" : "opacity-0"}`}>
         {children}
       </div>
     </>

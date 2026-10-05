@@ -25,8 +25,8 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="es" className="max-w-full overflow-x-hidden">
-      <body className={`${inter.className} max-w-full overflow-x-hidden`}>
+    <html lang="es" className="max-w-full">
+      <body className={`${inter.className} max-w-full`}>
         <AppWrapper>
           <NextAuthProvider>
             <AuthProvider>

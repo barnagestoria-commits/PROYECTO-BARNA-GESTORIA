@@ -17,22 +17,9 @@ import {
   isSidebarModuleActive,
   type SidebarNavModule,
 } from "@/lib/navigation/sidebar-nav"
+import { useIsCompactNav, useMediaQuery } from "@/lib/navigation/use-compact-nav"
 
 const ITEM_GAP_PX = 4
-
-function useMediaQuery(query: string) {
-  const [matches, setMatches] = useState(false)
-
-  useEffect(() => {
-    const media = window.matchMedia(query)
-    const apply = () => setMatches(media.matches)
-    apply()
-    media.addEventListener("change", apply)
-    return () => media.removeEventListener("change", apply)
-  }, [query])
-
-  return matches
-}
 
 interface ModuleNavBarProps {
   modules: SidebarNavModule[]
@@ -44,7 +31,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
   const { openId, scheduleOpen, scheduleClose, toggle, close } = useHoverMenu()
-  const isCompactNav = useMediaQuery("(max-width: 767px)")
+  const isCompactNav = useIsCompactNav()
   const prefersFineHover = useMediaQuery("(hover: hover) and (pointer: fine)")
   const useHoverMenus = prefersFineHover && !isCompactNav
 
@@ -97,7 +84,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
 
   useLayoutEffect(() => {
     recalculateVisibleCount()
-  }, [modules, recalculateVisibleCount])
+  }, [modules, isCompactNav, recalculateVisibleCount])
 
   useEffect(() => {
     const container = containerRef.current
@@ -110,7 +97,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
 
   useEffect(() => {
     close()
-  }, [pathname, searchString, close])
+  }, [pathname, searchString, isCompactNav, close])
 
   useEffect(() => {
     if (isCompactNav) return
@@ -144,7 +131,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
     <div
       ref={containerRef}
       className={cn(
-        "relative w-full min-w-0 max-w-full overflow-x-hidden border-t border-white/10 bg-sand-100/95 backdrop-blur supports-[backdrop-filter]:bg-sand-100/90",
+        "relative w-full min-w-0 max-w-full overflow-visible border-t border-white/10 bg-sand-100/95 backdrop-blur supports-[backdrop-filter]:bg-sand-100/90",
         className,
       )}
     >
@@ -161,7 +148,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
             ref={moreMeasureRef}
             type="button"
             data-measure-item
-            className={modulePillClassName(false, false, false)}
+            className={modulePillClassName(false, false, false, isCompactNav)}
           >
             Más
             <ChevronDown className="h-3.5 w-3.5 opacity-70" />
@@ -170,7 +157,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
       </div>
 
       <nav
-        className="mx-auto flex h-11 w-full min-w-0 max-w-[1600px] items-center overflow-hidden px-4 md:h-12"
+        className="mx-auto flex h-11 w-full min-w-0 max-w-[1600px] items-center overflow-visible px-4 md:h-12"
         aria-label="Módulos principales"
       >
         <ul className="flex min-w-0 flex-1 items-center gap-1">
@@ -198,7 +185,7 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
             >
               <button
                 type="button"
-                className={modulePillClassName(overflowHasActive, moreOpen, false)}
+                className={modulePillClassName(overflowHasActive, moreOpen, false, isCompactNav)}
                 onClick={() => toggle(MORE_MENU_ID)}
                 aria-expanded={moreOpen}
                 aria-haspopup={isCompactNav ? "dialog" : "menu"}
@@ -267,16 +254,22 @@ function ModuleNavMeasureItem({
   const hasSections = Boolean(module.sections?.length) && !compact
 
   return (
-    <span data-measure-item className={modulePillClassName(false, false, hasSections)}>
+    <span data-measure-item className={modulePillClassName(false, false, hasSections, compact)}>
       {module.label}
       {hasSections && <ChevronDown className="h-3.5 w-3.5 opacity-70" />}
     </span>
   )
 }
 
-function modulePillClassName(isActive: boolean, isOpen: boolean, hasSubmenu: boolean) {
+function modulePillClassName(
+  isActive: boolean,
+  isOpen: boolean,
+  hasSubmenu: boolean,
+  compact = false,
+) {
   return cn(
-    "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors sm:px-3 sm:py-1.5 sm:text-sm",
+    "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+    !compact && "sm:px-3 sm:py-1.5 sm:text-sm",
     hasSubmenu && "pr-2.5",
     isActive || isOpen
       ? "bg-emerald-800 text-white shadow-sm"
@@ -314,7 +307,7 @@ function ModuleNavItem({
   if ((module.href && !hasSections) || (compact && module.href)) {
     return (
       <li className="relative shrink-0">
-        <Link href={module.href!} className={modulePillClassName(isActive, false, false)}>
+        <Link href={module.href!} className={modulePillClassName(isActive, false, false, compact)}>
           {module.label}
         </Link>
       </li>
@@ -332,7 +325,7 @@ function ModuleNavItem({
           <Link
             href={module.href}
             className={cn(
-              modulePillClassName(isActive, isOpen, showChevron),
+              modulePillClassName(isActive, isOpen, showChevron, compact),
               showChevron && "rounded-r-none pr-2",
             )}
             onClick={onNavigate}
@@ -342,7 +335,7 @@ function ModuleNavItem({
         ) : (
           <button
             type="button"
-            className={modulePillClassName(isActive, isOpen, showChevron)}
+            className={modulePillClassName(isActive, isOpen, showChevron, compact)}
             onClick={onToggle}
             aria-expanded={isOpen}
             aria-haspopup="true"
@@ -355,7 +348,7 @@ function ModuleNavItem({
           <button
             type="button"
             className={cn(
-              modulePillClassName(isActive, isOpen, true),
+              modulePillClassName(isActive, isOpen, true, compact),
               "rounded-l-none border-l border-white/20 px-2.5",
               !isActive && !isOpen && "border-graphite-200",
             )}

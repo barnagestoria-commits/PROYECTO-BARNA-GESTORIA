@@ -32,7 +32,7 @@ function SidebarLayoutInner({
   const isDashboardHome = pathname === "/dashboard"
 
   return (
-    <div className="flex min-h-screen w-full min-w-0 max-w-full flex-col overflow-x-hidden bg-sand-50/80">
+    <div className="flex min-h-screen w-full min-w-0 max-w-full flex-col bg-sand-50/80">
       <Suspense fallback={null}>
         <AppTopNav
           onLogout={onLogout}

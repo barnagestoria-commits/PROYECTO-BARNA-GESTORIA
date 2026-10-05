@@ -10,6 +10,7 @@ import { SidebarUserMenu } from "@/components/layout/sidebar-user-menu"
 import { OnboardingHelpMenu } from "@/components/onboarding/onboarding-help-menu"
 import { cn } from "@/lib/utils"
 import { getSidebarNavModules } from "@/lib/navigation/sidebar-nav"
+import { useIsCompactNav } from "@/lib/navigation/use-compact-nav"
 
 interface AppTopNavProps {
   onLogout: () => void
@@ -20,20 +21,26 @@ interface AppTopNavProps {
 export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNavProps) {
   const { session } = useAuth()
   const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL")
+  const isCompactNav = useIsCompactNav()
 
   return (
     <header
       data-tour="accounting-toolbar"
-      className="sticky top-0 z-50 w-full min-w-0 max-w-full shrink-0 overflow-x-hidden border-b border-emerald-950/30 bg-[#141a17] text-white shadow-sm"
+      className="sticky top-0 z-50 w-full min-w-0 max-w-full shrink-0 overflow-visible border-b border-emerald-950/30 bg-[#141a17] text-white shadow-sm"
     >
-      <div className="mx-auto flex h-14 w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4 md:h-16">
+      <div
+        className={cn(
+          "mx-auto flex w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4",
+          isCompactNav ? "h-14" : "h-16",
+        )}
+      >
         <Link
           href="/dashboard"
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-white/5"
           aria-label="Ir al dashboard principal"
         >
           <ResponsiveLogo size="sm" className="brightness-110" />
-          <div className="min-w-0 hidden sm:block">
+          <div className={cn("min-w-0", isCompactNav ? "hidden" : "block")}>
             <p className="truncate text-sm font-bold text-white">Barna Gestoría</p>
             <p className="truncate text-[11px] text-white/45">Panel financiero</p>
           </div>
@@ -45,7 +52,8 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
               type="button"
               onClick={onOpenCommandPalette}
               className={cn(
-                "hidden items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white sm:inline-flex",
+                "items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white/75 transition-colors hover:bg-white/10 hover:text-white",
+                isCompactNav ? "hidden" : "inline-flex",
               )}
               aria-label="Buscar"
             >
@@ -58,7 +66,7 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
             </button>
           )}
 
-          <SidebarCompanySelector userName={userName} className="hidden max-w-[220px] md:block" />
+          <SidebarCompanySelector userName={userName} className={cn("max-w-[220px]", isCompactNav ? "hidden" : "block")} />
 
           <SidebarUserMenu
             userName={userName}
@@ -82,7 +90,10 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
             <button
               type="button"
               onClick={onOpenCommandPalette}
-              className="rounded-lg p-2 text-white/65 transition-colors hover:bg-white/10 hover:text-white sm:hidden"
+              className={cn(
+                "rounded-lg p-2 text-white/65 transition-colors hover:bg-white/10 hover:text-white",
+                isCompactNav ? "" : "hidden",
+              )}
               aria-label="Buscar"
             >
               <Search className="h-4 w-4" />
