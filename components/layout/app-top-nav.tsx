@@ -24,9 +24,9 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
   return (
     <header
       data-tour="accounting-toolbar"
-      className="sticky top-0 z-50 shrink-0 border-b border-emerald-950/30 bg-[#141a17] text-white shadow-sm"
+      className="sticky top-0 z-50 w-full min-w-0 max-w-full shrink-0 overflow-x-hidden border-b border-emerald-950/30 bg-[#141a17] text-white shadow-sm"
     >
-      <div className="mx-auto flex h-14 max-w-[1600px] items-center justify-between gap-3 px-3 sm:h-16 sm:px-4">
+      <div className="mx-auto flex h-14 w-full min-w-0 max-w-[1600px] items-center justify-between gap-3 px-4 md:h-16">
         <Link
           href="/dashboard"
           className="flex min-w-0 shrink-0 items-center gap-2.5 rounded-lg px-1 py-1 transition-colors hover:bg-white/5"

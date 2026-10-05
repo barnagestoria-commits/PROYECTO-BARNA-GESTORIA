@@ -36,11 +36,11 @@ export function FiscalPresentationChoicePanel({
     return (
       <div className={cn("space-y-2", className)}>
         <p className="text-xs text-graphite-500">{choice.headerDescription}</p>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row md:flex-wrap md:items-center">
           <Button
             type="button"
             size="sm"
-            className="gap-2 bg-[#1a4480] hover:bg-[#153a6b]"
+            className="h-auto w-full whitespace-normal bg-[#1a4480] px-3 py-2 text-left hover:bg-[#153a6b] md:h-9 md:w-auto md:whitespace-nowrap"
             disabled={disabled}
             asChild
           >
@@ -58,6 +58,7 @@ export function FiscalPresentationChoicePanel({
             compact
             officialOnly
             menuPlacement={menuPlacement}
+            className="w-full md:w-auto"
           />
         </div>
       </div>
@@ -67,7 +68,7 @@ export function FiscalPresentationChoicePanel({
   return (
     <section
       id="presentacion-modelo"
-      className={cn("border-x border-b border-black bg-white", className)}
+      className={cn("min-w-0 overflow-hidden border-x border-b border-black bg-white", className)}
       aria-label="Formas de presentar el modelo"
     >
       <div className="bg-[#1a4480] px-4 py-3 text-white">
@@ -75,8 +76,8 @@ export function FiscalPresentationChoicePanel({
         <p className="mt-0.5 text-xs text-white/85">{choice.headerDescription}</p>
       </div>
 
-      <div className="grid md:grid-cols-2">
-        <div className="space-y-3 border-b border-black p-4 md:border-b-0 md:border-r">
+      <div className="grid min-w-0 md:grid-cols-2">
+        <div className="space-y-3 border-b border-black p-4 min-w-0 md:border-b-0 md:border-r">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[#1a4480]">
             {choice.sedeOptionLabel}
           </p>
@@ -87,11 +88,11 @@ export function FiscalPresentationChoicePanel({
               <p className="mt-1 text-xs leading-relaxed text-slate-600">{choice.sedeDescription}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row md:flex-wrap md:items-center">
             <Button
               type="button"
               size="sm"
-              className="gap-2 bg-[#1a4480] hover:bg-[#153a6b]"
+              className="h-auto w-full whitespace-normal bg-[#1a4480] px-3 py-2 hover:bg-[#153a6b] md:h-9 md:w-auto md:whitespace-nowrap"
               disabled={disabled}
               asChild
             >
@@ -100,7 +101,7 @@ export function FiscalPresentationChoicePanel({
                 <ExternalLink className="h-3.5 w-3.5" />
               </a>
             </Button>
-            <Button type="button" size="sm" variant="outline" className="gap-2 border-slate-300" asChild>
+            <Button type="button" size="sm" variant="outline" className="h-auto w-full whitespace-normal px-3 py-2 md:h-9 md:w-auto md:whitespace-nowrap" asChild>
               <Link href={choice.certificateHref}>
                 <ShieldCheck className="h-4 w-4" />
                 Certificado digital
@@ -109,7 +110,7 @@ export function FiscalPresentationChoicePanel({
           </div>
         </div>
 
-        <div className="space-y-3 p-4">
+        <div className="min-w-0 space-y-3 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">
             {choice.filesOptionLabel}
           </p>
@@ -138,6 +139,7 @@ export function FiscalPresentationChoicePanel({
             compact
             officialOnly
             menuPlacement={menuPlacement}
+            className="w-full md:w-auto"
           />
         </div>
       </div>

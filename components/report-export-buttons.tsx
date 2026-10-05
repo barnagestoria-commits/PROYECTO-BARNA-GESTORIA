@@ -228,7 +228,7 @@ function ExportFormatDropdown<T extends string>({
   }
 
   return (
-    <div ref={containerRef} className="relative shrink-0">
+    <div ref={containerRef} className="relative w-full min-w-0 md:w-auto md:shrink-0">
       <button
         type="button"
         title="Exportar listado"
@@ -321,7 +321,7 @@ function renderFormatButtons<T extends string>({
     const menuFormats = highlighted.length > 0 ? formats.filter((format) => !highlighted.includes(format)) : formats
 
     return (
-      <div className={cn("flex shrink-0 flex-wrap items-center gap-1", className)}>
+      <div className={cn("flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row md:flex-wrap md:items-center", className)}>
         {highlighted.map((format) => {
           const Icon = FORMAT_ICONS[format as keyof typeof FORMAT_ICONS] ?? FileText
           const loading = downloading === format
@@ -333,7 +333,7 @@ function renderFormatButtons<T extends string>({
               variant="outline"
               disabled={disabled || downloading !== null}
               title={descriptions[format]}
-              className="shrink-0 gap-2 border-emerald-700 bg-white text-emerald-800 hover:bg-emerald-50"
+              className="h-auto w-full min-w-0 whitespace-normal border-emerald-700 bg-white px-3 py-2 text-left text-emerald-800 hover:bg-emerald-50 md:h-9 md:w-auto md:shrink-0 md:whitespace-nowrap"
               onClick={() => onDownload(format)}
             >
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}
@@ -358,7 +358,7 @@ function renderFormatButtons<T extends string>({
   }
 
   return (
-    <div className={cn("grid grid-cols-2 gap-2 sm:flex sm:flex-wrap", className)}>
+    <div className={cn("flex w-full min-w-0 flex-col gap-2 md:flex-row md:flex-wrap", className)}>
       {formats.map((format) => {
         const Icon = FORMAT_ICONS[format as keyof typeof FORMAT_ICONS] ?? Download
         const loading = downloading === format
@@ -368,7 +368,7 @@ function renderFormatButtons<T extends string>({
             variant="outline"
             size="sm"
             disabled={disabled || loading}
-            className="gap-2 border-emerald-200 hover:bg-emerald-50"
+            className="h-auto w-full min-w-0 whitespace-normal border-emerald-200 px-3 py-2 hover:bg-emerald-50 md:h-9 md:w-auto md:whitespace-nowrap"
             onClick={() => onDownload(format)}
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />}

@@ -144,31 +144,33 @@ export function ModuleNavBar({ modules, className }: ModuleNavBarProps) {
     <div
       ref={containerRef}
       className={cn(
-        "relative border-t border-white/10 bg-sand-100/95 backdrop-blur supports-[backdrop-filter]:bg-sand-100/90",
+        "relative w-full min-w-0 max-w-full overflow-x-hidden border-t border-white/10 bg-sand-100/95 backdrop-blur supports-[backdrop-filter]:bg-sand-100/90",
         className,
       )}
     >
       <div
         ref={measureRef}
         aria-hidden="true"
-        className="pointer-events-none absolute left-0 top-0 -z-10 flex gap-1 opacity-0"
+        className="pointer-events-none absolute left-0 top-0 -z-10 h-0 w-0 overflow-hidden opacity-0"
       >
-        {modules.map((module) => (
-          <ModuleNavMeasureItem key={`measure-${module.id}`} module={module} compact={isCompactNav} />
-        ))}
-        <button
-          ref={moreMeasureRef}
-          type="button"
-          data-measure-item
-          className={modulePillClassName(false, false, false)}
-        >
-          Más
-          <ChevronDown className="h-3.5 w-3.5 opacity-70" />
-        </button>
+        <div className="flex w-max gap-1">
+          {modules.map((module) => (
+            <ModuleNavMeasureItem key={`measure-${module.id}`} module={module} compact={isCompactNav} />
+          ))}
+          <button
+            ref={moreMeasureRef}
+            type="button"
+            data-measure-item
+            className={modulePillClassName(false, false, false)}
+          >
+            Más
+            <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+          </button>
+        </div>
       </div>
 
       <nav
-        className="mx-auto flex h-11 max-w-[1600px] items-center overflow-hidden px-3 sm:h-12 sm:px-4"
+        className="mx-auto flex h-11 w-full min-w-0 max-w-[1600px] items-center overflow-hidden px-4 md:h-12"
         aria-label="Módulos principales"
       >
         <ul className="flex min-w-0 flex-1 items-center gap-1">

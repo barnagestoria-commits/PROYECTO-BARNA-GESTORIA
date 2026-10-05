@@ -132,8 +132,8 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
       className="overflow-hidden border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white"
     >
       <CardHeader className="px-4 pb-2 sm:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+        <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
             <CardTitle className="flex items-start gap-2 text-base leading-snug text-emerald-900">
               <Scale className="mt-0.5 h-5 w-5 shrink-0" />
               <span className="break-words">A pagar / devolver</span>
@@ -145,7 +145,7 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
           <Button
             variant="outline"
             size="sm"
-            className="gap-2 border-emerald-300"
+            className="w-full gap-2 border-emerald-300 md:w-auto"
             onClick={() => setShowConfig((value) => !value)}
           >
             <Settings2 className="h-4 w-4" />
@@ -199,7 +199,7 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
               const quarter =
                 model.periodicity === "anual" ? "anual" : currentQuarter
               return (
-                <div key={model.id} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+                <div key={model.id} className="min-w-0 overflow-hidden rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
                   <p className="mb-2 text-sm font-medium text-emerald-900">
                     {model.label} · {model.periodicity === "anual" ? "anual" : `${currentQuarter}T`}
                   </p>
@@ -212,12 +212,12 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
                 </div>
               )
             })}
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row">
               <Button
                 variant="outline"
                 size="sm"
                 disabled={!!bundleLoading}
-                className="gap-2 border-emerald-300"
+                className="w-full gap-2 border-emerald-300 md:w-auto"
                 onClick={() => handleBundle("trimestral")}
               >
                 {bundleLoading === "trimestral" ? (
@@ -231,7 +231,7 @@ export function TaxSummaryPanel({ companyId }: TaxSummaryPanelProps) {
                 variant="outline"
                 size="sm"
                 disabled={!!bundleLoading}
-                className="gap-2 border-emerald-300"
+                className="w-full gap-2 border-emerald-300 md:w-auto"
                 onClick={() => handleBundle("annual")}
               >
                 {bundleLoading === "annual" ? (

@@ -32,7 +32,7 @@ function SidebarLayoutInner({
   const isDashboardHome = pathname === "/dashboard"
 
   return (
-    <div className="flex min-h-screen flex-col bg-sand-50/80">
+    <div className="flex min-h-screen w-full min-w-0 max-w-full flex-col overflow-x-hidden bg-sand-50/80">
       <Suspense fallback={null}>
         <AppTopNav
           onLogout={onLogout}
@@ -41,8 +41,8 @@ function SidebarLayoutInner({
         />
       </Suspense>
 
-      <header className="shrink-0 border-b border-sand-200 bg-white">
-        <div className="min-w-0 px-4 py-2.5 sm:px-6 sm:py-4">
+      <header className="w-full min-w-0 shrink-0 overflow-x-hidden border-b border-sand-200 bg-white">
+        <div className="min-w-0 px-4 py-2.5 md:px-6 md:py-4">
           <h1 className="truncate text-lg font-bold text-pine-900 sm:text-xl">
             {isDashboardHome ? panelTitle : pageTitle}
           </h1>
@@ -50,7 +50,7 @@ function SidebarLayoutInner({
         </div>
       </header>
 
-      <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-3 py-3 sm:px-6 sm:py-6">
+      <main className="min-h-0 w-full min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto px-4 py-3 md:px-6 md:py-6">
         {children}
       </main>
 

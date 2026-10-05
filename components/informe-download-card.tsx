@@ -180,7 +180,7 @@ export function InformeDownloadCard({
                 {ANNUAL_SUMMARY_MODELS.map((modelId) => {
                   const model = FISCAL_MODEL_OPTIONS.find((item) => item.id === modelId)!
                   return (
-                    <div key={modelId} className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
+                    <div key={modelId} className="min-w-0 overflow-hidden rounded-lg border border-emerald-100 bg-emerald-50/40 p-3">
                       <p className="mb-2 text-sm font-medium text-emerald-900">{model.label} · anual</p>
                       <FiscalPresentationChoicePanel
                         model={modelId}
@@ -192,12 +192,12 @@ export function InformeDownloadCard({
                     </div>
                   )
                 })}
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex w-full min-w-0 flex-col gap-2 md:w-auto md:flex-row">
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={!canExport || !!bundleLoading}
-                    className="gap-2 border-emerald-300"
+                    className="w-full gap-2 border-emerald-300 md:w-auto"
                     onClick={() => handleBundleDownload("annual")}
                   >
                     {bundleLoading === "annual" ? (
@@ -211,7 +211,7 @@ export function InformeDownloadCard({
                     variant="outline"
                     size="sm"
                     disabled={!canExport || !!bundleLoading}
-                    className="gap-2 border-emerald-300"
+                    className="w-full gap-2 border-emerald-300 md:w-auto"
                     onClick={() => handleBundleDownload("trimestral")}
                   >
                     {bundleLoading === "trimestral" ? (
