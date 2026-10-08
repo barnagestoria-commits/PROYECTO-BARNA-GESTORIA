@@ -90,6 +90,7 @@ function DocumentUploadWorkspaceContent({
   const [savingCounterpart, setSavingCounterpart] = useState(false)
 
   const defaultTab = searchParams.get("tab") === "documentos" ? "documents" : "upload"
+  const [tab, setTab] = useState(defaultTab)
 
   const loadDocuments = useCallback(async () => {
     if (!session?.activeCompanyId) return
@@ -190,6 +191,8 @@ function DocumentUploadWorkspaceContent({
       setOcrError("No hay empresa activa. Contacta con tu gestoría si el problema persiste.")
       return
     }
+
+    setTab("upload")
 
     if (type === "factura-recibida" || type === "factura-emitida") {
       setSessionDocumentIds([])
@@ -443,7 +446,7 @@ function DocumentUploadWorkspaceContent({
 
   return (
     <>
-    <Tabs defaultValue={defaultTab} className={pendingValidation ? "space-y-2" : "space-y-6"}>
+    <Tabs value={tab} onValueChange={setTab} className={pendingValidation ? "space-y-2" : "space-y-6"}>
       {documentType === "factura-emitida" && (
         <Card className="border-emerald-200 bg-emerald-50/60" data-tour="onboarding-verifactu">
           <CardHeader className="pb-2">
@@ -470,7 +473,11 @@ function DocumentUploadWorkspaceContent({
         </TabsList>
       ) : null}
 
-      <TabsContent value="upload" className={pendingValidation ? "mt-0 space-y-2" : "space-y-6"}>
+      <TabsContent
+        value="upload"
+        forceMount
+        className={pendingValidation ? "mt-0 space-y-2" : "space-y-6"}
+      >
         {isProcessingOcr && (
           <Card className="border-emerald-200 bg-emerald-50">
             <CardContent className="flex items-center gap-3 py-6">
@@ -557,7 +564,7 @@ function DocumentUploadWorkspaceContent({
               ) : null}
             </div>
           </CardHeader>
-          <CardContent className="overflow-x-hidden px-4 pb-4 sm:px-6 sm:pb-6">
+          <CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
             <FileUpload
               fixedDocumentType={documentType}
               onFilesSelected={(files, type) => handleFileUpload(files, type)}

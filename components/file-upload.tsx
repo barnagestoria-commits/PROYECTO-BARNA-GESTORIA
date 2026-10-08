@@ -1,10 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { InvoiceCameraCapture } from "@/components/invoice-camera-capture"
 import { apiFormFetch } from "@/lib/api-client"
+import { isOcrMediaFile, isSpreadsheetFile } from "@/lib/documents/upload-file-type"
 import { cn } from "@/lib/utils"
 import {
   Camera,
@@ -91,6 +93,8 @@ const DOCUMENT_TYPES: DocumentTypeConfig[] = [
 
 const SPREADSHEET_ACCEPT = ".csv,.xlsx,.xls,.txt"
 
+export { isOcrMediaFile, isSpreadsheetFile } from "@/lib/documents/upload-file-type"
+
 export function FileUpload({
   onFilesSelected,
   onAccountingImport,
@@ -105,6 +109,8 @@ export function FileUpload({
   )
   const [cameraOpen, setCameraOpen] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
+  const [isDragActive, setIsDragActive] = useState(false)
+  const [canPortal, setCanPortal] = useState(false)
 
   useEffect(() => {
     setSelectedType(fixedDocumentType ?? initialDocumentType)
@@ -132,10 +138,9 @@ export function FileUpload({
   )
 
   const handleSpreadsheetImport = useCallback(
-    async (fileList: FileList | null) => {
-      if (!fileList?.[0] || disabled || isImporting) return
+    async (file: File | undefined) => {
+      if (!file || disabled || isImporting) return
 
-      const file = fileList[0]
       setIsImporting(true)
 
       try {
@@ -157,8 +162,88 @@ export function FileUpload({
     [disabled, isImporting, onAccountingImport, onImportError],
   )
 
+  const receiveDroppedFiles = useCallback(
+    (files: File[]) => {
+      if (disabled || files.length === 0) return
+
+      const media = files.filter(isOcrMediaFile)
+      const spreadsheet = files.find(isSpreadsheetFile)
+
+      if (media.length > 0) {
+        onFilesSelected(media, selectedType)
+      }
+      if (spreadsheet) {
+        void handleSpreadsheetImport(spreadsheet)
+      }
+    },
+    [disabled, handleSpreadsheetImport, onFilesSelected, selectedType],
+  )
+
+  useEffect(() => {
+    setCanPortal(true)
+  }, [])
+
+  useEffect(() => {
+    if (disabled || cameraOpen) {
+      setIsDragActive(false)
+      return
+    }
+
+    let depth = 0
+    const hasFiles = (event: DragEvent) => Boolean(event.dataTransfer?.types?.includes("Files"))
+
+    const onDragEnter = (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      depth += 1
+      setIsDragActive(true)
+    }
+    const onDragOver = (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "copy"
+    }
+    const onDragLeave = (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      depth = Math.max(0, depth - 1)
+      if (depth === 0) setIsDragActive(false)
+    }
+    const onDrop = (event: DragEvent) => {
+      if (!hasFiles(event)) return
+      event.preventDefault()
+      depth = 0
+      setIsDragActive(false)
+      receiveDroppedFiles(Array.from(event.dataTransfer?.files ?? []))
+    }
+
+    window.addEventListener("dragenter", onDragEnter)
+    window.addEventListener("dragover", onDragOver)
+    window.addEventListener("dragleave", onDragLeave)
+    window.addEventListener("drop", onDrop)
+    return () => {
+      window.removeEventListener("dragenter", onDragEnter)
+      window.removeEventListener("dragover", onDragOver)
+      window.removeEventListener("dragleave", onDragLeave)
+      window.removeEventListener("drop", onDrop)
+    }
+  }, [cameraOpen, disabled, receiveDroppedFiles])
+
   return (
-    <div className="space-y-6 overflow-x-hidden">
+    <div className="relative min-w-0 space-y-6">
+      {canPortal && isDragActive
+        ? createPortal(
+            <div className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center bg-emerald-950/40 p-6">
+              <div className="max-w-md rounded-2xl border-2 border-dashed border-white bg-white px-6 py-8 text-center shadow-2xl">
+                <ImageUp className="mx-auto h-10 w-10 text-emerald-700" />
+                <p className="mt-3 text-lg font-semibold text-pine-900">Suelta el archivo aquí</p>
+                <p className="mt-1 text-sm text-graphite-600">
+                  PDF o imagen para OCR · Excel/CSV para importar asientos
+                </p>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       {!fixedDocumentType && (
         <div>
           <p className="mb-3 text-sm font-medium text-gray-700">1. ¿Qué vas a subir?</p>
@@ -203,7 +288,12 @@ export function FileUpload({
         </div>
       )}
 
-      <Card className="border-emerald-200/80 shadow-sm overflow-hidden">
+      <Card
+        className={cn(
+          "border-emerald-200/80 shadow-sm",
+          isDragActive && "ring-2 ring-emerald-500",
+        )}
+      >
         <CardHeader className="pb-3 px-4 sm:px-6">
           <CardTitle className="flex items-start gap-2 text-base sm:text-lg text-emerald-900 leading-snug">
             <activeConfig.icon className={cn("mt-0.5 h-5 w-5 shrink-0", activeConfig.accent)} />
@@ -257,6 +347,7 @@ export function FileUpload({
                 {selectedType === "factura-recibida" || selectedType === "factura-emitida"
                   ? " · OCR automático"
                   : ""}
+                <span className="hidden md:inline"> · o arrástralo a esta ventana</span>
               </span>
             </span>
           </Button>
@@ -299,7 +390,7 @@ export function FileUpload({
             type="file"
             className="hidden"
             accept={SPREADSHEET_ACCEPT}
-            onChange={(event) => handleSpreadsheetImport(event.target.files)}
+            onChange={(event) => void handleSpreadsheetImport(event.target.files?.[0])}
           />
         </CardContent>
       </Card>
