@@ -3,6 +3,7 @@ import { createEmptyLine } from "@/lib/accounting/command-templates"
 import {
   buildBalancingCounterpartLine,
   createContinuedEntryLine,
+  getAdjacentEntryField,
   getNextNavigableField,
   shouldCreateBalancingLineBelow,
   type EntryNavigationContext,
@@ -73,6 +74,22 @@ describe("buildBalancingCounterpartLine", () => {
     const draft = buildBalancingCounterpartLine(lines, { documento: "FV-12" })
 
     expect(draft?.line.documento).toBe("FV-12")
+  })
+})
+
+describe("getAdjacentEntryField", () => {
+  it("moves right from the date to the command code on the first line", () => {
+    expect(getAdjacentEntryField(0, "fecha", "right")).toEqual({ row: 0, field: "codigo" })
+  })
+
+  it("does not leave the grid past the first or last column", () => {
+    expect(getAdjacentEntryField(0, "fecha", "left")).toBeNull()
+    expect(getAdjacentEntryField(0, "contrapartida", "right")).toBeNull()
+  })
+
+  it("starts extra lines at concepto", () => {
+    expect(getAdjacentEntryField(1, "concepto", "left")).toBeNull()
+    expect(getAdjacentEntryField(1, "cuenta", "right")).toEqual({ row: 1, field: "debe" })
   })
 })
 

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
+import { COMMAND_CODES } from "@/lib/accounting/command-templates"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import {
@@ -9,12 +10,60 @@ import {
   round2,
 } from "@/lib/reports/format"
 
+const ACCOUNTING_COMMAND_CODES = new Set<string>(COMMAND_CODES)
+
+export interface MovementDocumentSource {
+  invoiceNumber?: string | null
+  invoiceDataJson?: string | null
+  commandCode?: string | null
+  concepts?: string[]
+}
+
+function documentFromInvoiceJson(json: string | null | undefined): string | null {
+  if (!json?.trim()) return null
+  try {
+    const parsed = JSON.parse(json) as { invoiceNumber?: unknown; numeroFactura?: unknown }
+    const invoiceNumber = typeof parsed.invoiceNumber === "string" ? parsed.invoiceNumber.trim() : ""
+    const numeroFactura = typeof parsed.numeroFactura === "string" ? parsed.numeroFactura.trim() : ""
+    return invoiceNumber || numeroFactura || null
+  } catch {
+    return null
+  }
+}
+
+function documentFromConcepts(concepts: string[] | undefined): string | null {
+  for (const concept of concepts ?? []) {
+    const match = concept.match(/factura\s+n\.?\s+(.+)$/i)
+    const number = match?.[1]?.trim()
+    if (number) return number
+  }
+  return null
+}
+
+/** Número de factura/documento del asiento, igual para autónomos, gestoría y empresa. */
+export function resolveMovementDocumentNumber(source: MovementDocumentSource): string | null {
+  const invoiceNumber = source.invoiceNumber?.trim()
+  if (invoiceNumber) return invoiceNumber
+
+  const fromJson = documentFromInvoiceJson(source.invoiceDataJson)
+  if (fromJson) return fromJson
+
+  const fromConcept = documentFromConcepts(source.concepts)
+  if (fromConcept) return fromConcept
+
+  const commandCode = source.commandCode?.trim()
+  if (commandCode && !ACCOUNTING_COMMAND_CODES.has(commandCode)) return commandCode
+
+  return null
+}
+
 export interface AccountMovementRow {
   id: string
   entryId: string
   refNumber: number
   fecha: string
   commandCode: string | null
+  documento: string | null
   concepto: string
   contrapartida: string | null
   debe: number
@@ -115,6 +164,8 @@ export async function fetchAccountMovements(
           refNumber: true,
           fecha: true,
           commandCode: true,
+          invoiceNumber: true,
+          invoiceDataJson: true,
           lines: {
             select: { cuenta: true, concepto: true, debe: true, haber: true, sortOrder: true },
             orderBy: { sortOrder: "asc" },
@@ -134,6 +185,12 @@ export async function fetchAccountMovements(
     running = round2(running + debe - haber)
 
     const contrapartida = formatContrapartida(line.entry.lines, normalized)
+    const documento = resolveMovementDocumentNumber({
+      invoiceNumber: line.entry.invoiceNumber,
+      invoiceDataJson: line.entry.invoiceDataJson,
+      commandCode: line.entry.commandCode,
+      concepts: line.entry.lines.map((item) => item.concepto),
+    })
 
     return {
       id: line.id,
@@ -141,6 +198,7 @@ export async function fetchAccountMovements(
       refNumber: line.entry.refNumber,
       fecha: line.entry.fecha.toISOString().split("T")[0],
       commandCode: line.entry.commandCode,
+      documento,
       concepto: line.concepto,
       contrapartida,
       debe,

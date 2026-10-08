@@ -10,6 +10,7 @@ export async function GET(request: Request) {
     const fromParam = url.searchParams.get("from")
     const toParam = url.searchParams.get("to")
     const refParam = url.searchParams.get("ref")
+    const query = url.searchParams.get("q")?.trim() || undefined
 
     let fromRef: number | undefined
     let toRef: number | undefined
@@ -40,7 +41,8 @@ export async function GET(request: Request) {
       companyId,
       fromRef,
       toRef,
-      last,
+      query,
+      last: last && !query,
     })
 
     return NextResponse.json({ success: true, ...result })

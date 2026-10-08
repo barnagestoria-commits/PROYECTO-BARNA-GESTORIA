@@ -23,6 +23,7 @@ export interface SegmentedDateInputProps {
   onChange: (value: string) => void
   onFocus?: () => void
   onAdvance?: () => void
+  onKeyDown?: (event: KeyboardEvent<HTMLInputElement>) => void
   inputRef?: (el: HTMLInputElement | null) => void
   className?: string
   "aria-label"?: string
@@ -76,6 +77,7 @@ export function SegmentedDateInput({
   onChange,
   onFocus,
   onAdvance,
+  onKeyDown,
   inputRef,
   className,
   "aria-label": ariaLabel = "Fecha contable",
@@ -165,6 +167,40 @@ export function SegmentedDateInput({
     event: KeyboardEvent<HTMLInputElement>,
   ) => {
     const currentValue = parts[segment]
+
+    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+      event.preventDefault()
+      onKeyDown?.(event)
+      return
+    }
+
+    if (event.key === "ArrowLeft") {
+      event.preventDefault()
+      if (segment === "month") {
+        focusSegment(refs.current, "day")
+        return
+      }
+      if (segment === "year") {
+        focusSegment(refs.current, "month")
+        return
+      }
+      onKeyDown?.(event)
+      return
+    }
+
+    if (event.key === "ArrowRight") {
+      event.preventDefault()
+      if (segment === "day") {
+        focusSegment(refs.current, "month")
+        return
+      }
+      if (segment === "month") {
+        focusSegment(refs.current, "year")
+        return
+      }
+      onKeyDown?.(event)
+      return
+    }
 
     if (event.key === "Tab") {
       if (event.shiftKey) {

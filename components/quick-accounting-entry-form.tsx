@@ -22,6 +22,7 @@ import {
   getInvoiceAmountsFromDetails,
   getLineAmountSide,
   getLinePrefilledAmount,
+  getAdjacentEntryField,
   getNavigableFieldsForRow,
   getNextNavigableField,
   isAmountFieldDisabled,
@@ -88,6 +89,7 @@ import { duplicateInvoiceKey } from "@/lib/accounting/duplicate-invoice-message"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { ApiRequestError, apiFetch } from "@/lib/api-client"
 import { confirmReleaseAccount } from "@/lib/accounting/release-account-client"
+import { describeEntryAccountLabels } from "@/lib/accounting/entry-account-label"
 import { useAuth } from "@/components/auth-provider"
 import { AccountCellInput } from "@/components/accounting/account-cell-input"
 import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
@@ -111,6 +113,20 @@ function parseAmount(value: string): number {
   const normalized = value.replace(",", ".").trim()
   const parsed = Number.parseFloat(normalized)
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0
+}
+
+/** La flecha sale de la casilla si el texto está seleccionado o el cursor está en el borde. */
+function arrowLeavesEntryField(event: KeyboardEvent<HTMLInputElement>): boolean {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return true
+  const input = event.currentTarget
+  if (input.type === "number" || input.readOnly) return true
+  const start = input.selectionStart
+  const end = input.selectionEnd
+  if (start == null || end == null) return true
+  const allSelected = start === 0 && end === input.value.length
+  if (allSelected) return true
+  if (event.key === "ArrowLeft") return start === 0 && end === 0
+  return start === input.value.length && end === input.value.length
 }
 
 function isValidAccountValue(value: string): boolean {
@@ -177,6 +193,7 @@ export function QuickAccountingEntryForm() {
   const [editEntryId, setEditEntryId] = useState<string | null>(null)
   const [editAccount, setEditAccount] = useState<{ cuenta: string; label: string } | null>(null)
   const [movementsRefreshKey, setMovementsRefreshKey] = useState(0)
+  const [draftFocusNonce, setDraftFocusNonce] = useState(0)
   const [committedEntries, setCommittedEntries] = useState<CommittedEntry[]>([])
   const [selectedCommittedEntryId, setSelectedCommittedEntryId] = useState<string | null>(null)
   const [analyticEnabled, setAnalyticEnabled] = useState(false)
@@ -373,6 +390,11 @@ export function QuickAccountingEntryForm() {
     el?.select()
   }, [])
 
+  useEffect(() => {
+    if (draftFocusNonce === 0) return
+    focusCell(0, "fecha")
+  }, [draftFocusNonce, focusCell])
+
   const selectedCommittedIndex = useMemo(() => {
     if (!selectedCommittedEntryId) return -1
     return committedEntries.findIndex((entry) => entry.id === selectedCommittedEntryId)
@@ -393,10 +415,10 @@ export function QuickAccountingEntryForm() {
     (entryId: string | null) => {
       setSelectedCommittedEntryId(entryId)
       if (entryId) {
-        if (document.activeElement instanceof HTMLElement) {
-          document.activeElement.blur()
-        }
-        scrollCommittedEntryIntoView(entryId)
+        requestAnimationFrame(() => {
+          committedListRef.current?.focus({ preventScroll: true })
+          scrollCommittedEntryIntoView(entryId)
+        })
       }
     },
     [scrollCommittedEntryIntoView],
@@ -1023,9 +1045,28 @@ export function QuickAccountingEntryForm() {
     field: EntryCellField,
   ) => {
     if (!isEntryNavigationBlocked()) {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        const leavingDate = field === "fecha"
+        if (!leavingDate && !arrowLeavesEntryField(event)) return
+        const next = getAdjacentEntryField(
+          row,
+          field,
+          event.key === "ArrowLeft" ? "left" : "right",
+        )
+        if (!next) {
+          if (leavingDate || event.currentTarget.type === "number") event.preventDefault()
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        focusCell(next.row, next.field)
+        return
+      }
+
       if (event.key === "ArrowUp") {
         if (committedEntries.length > 0 && row === 0) {
           event.preventDefault()
+          event.stopPropagation()
           if (selectedCommittedEntryId) {
             navigateCommittedEntry("up")
           } else {
@@ -1035,6 +1076,7 @@ export function QuickAccountingEntryForm() {
         }
         if (row > 0) {
           event.preventDefault()
+          event.stopPropagation()
           focusCell(row - 1, field)
           return
         }
@@ -1043,11 +1085,13 @@ export function QuickAccountingEntryForm() {
       if (event.key === "ArrowDown") {
         if (selectedCommittedEntryId) {
           event.preventDefault()
+          event.stopPropagation()
           navigateCommittedEntry("down")
           return
         }
         if (row < lines.length - 1) {
           event.preventDefault()
+          event.stopPropagation()
           focusCell(row + 1, field)
           return
         }
@@ -1165,6 +1209,7 @@ export function QuickAccountingEntryForm() {
 
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (committedEntries.length === 0) return
+        if (committedListRef.current?.contains(event.target as Node)) return
         if (inDraftInput && !selectedCommittedEntryId) return
 
         event.preventDefault()
@@ -1267,12 +1312,19 @@ export function QuickAccountingEntryForm() {
     [activeCommand],
   )
 
+  const activeAccountLabel = useMemo(() => {
+    const cuentas = selectedCommittedEntry
+      ? selectedCommittedEntry.lines.map((line) => line.cuenta)
+      : [lines[activeCell.row]?.cuenta ?? ""]
+    return describeEntryAccountLabels(cuentas, thirdParties, ledgerSubaccounts)
+  }, [activeCell.row, ledgerSubaccounts, lines, selectedCommittedEntry, thirdParties])
+
   const entryStatusHint = useMemo((): string => {
     if (selectedCommittedEntry) {
       return `Asiento Ref. ${selectedCommittedEntry.refNumber} — ↑↓ navegar · Enter editar · Esc nuevo asiento`
     }
     if (committedEntries.length > 0) {
-      return "↑ desde la primera línea para ir al último asiento grabado · Tab para avanzar entre campos"
+      return "↑ desde la primera línea vuelve al último asiento · ←→ entre campos · Tab para avanzar"
     }
     if (activeCell.field === "codigo") {
       return "Indique el Código de Predefinido o Pulse F4"
@@ -1386,7 +1438,7 @@ export function QuickAccountingEntryForm() {
       ])
       setMovementsRefreshKey((value) => value + 1)
       resetForm()
-      requestAnimationFrame(() => focusCell(0, "fecha"))
+      setDraftFocusNonce((value) => value + 1)
     } catch (error) {
       if (error instanceof ApiRequestError && error.code === "DUPLICATE_INVOICE") {
         if (error.duplicate) setDuplicate(error.duplicate)
@@ -1483,7 +1535,7 @@ export function QuickAccountingEntryForm() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-graphite-500">
-              Tab entre campos · F4 plan contable · F6 NIF · EX extracto de cuentas
+              ←→ entre campos · ↑ al asiento anterior · Tab · F4 plan contable · F6 NIF · EX extracto
             </p>
             <button
               type="button"
@@ -1536,7 +1588,7 @@ export function QuickAccountingEntryForm() {
                   {committedEntries.length} asiento{committedEntries.length === 1 ? "" : "s"}
                 </strong>{" "}
                 · {committedEntries.reduce((sum, entry) => sum + entry.lines.length, 0)} líneas
-                visibles · <span className="text-graphite-500">↑↓ navegar · Enter editar</span>
+                visibles · <span className="text-graphite-500">↑↓ navegar · ←→ entre campos · Enter editar</span>
               </span>
               <Button
                 type="button"
@@ -1577,10 +1629,12 @@ export function QuickAccountingEntryForm() {
                   if (isEntryNavigationBlocked()) return
                   if (event.key === "ArrowUp") {
                     event.preventDefault()
+                    event.stopPropagation()
                     navigateCommittedEntry("up")
                   }
                   if (event.key === "ArrowDown") {
                     event.preventDefault()
+                    event.stopPropagation()
                     navigateCommittedEntry("down")
                   }
                   if (event.key === "Enter" && selectedCommittedEntryId) {
@@ -1713,6 +1767,7 @@ export function QuickAccountingEntryForm() {
                             onChange={setFecha}
                             onFocus={() => setActiveCell({ row: rowIndex, field: "fecha" })}
                             onAdvance={() => focusNextCell(rowIndex, "fecha")}
+                            onKeyDown={(event) => void handleCellKeyDown(event, rowIndex, "fecha")}
                             inputRef={(el) => registerRef(rowIndex, "fecha", el)}
                             aria-label="Fecha contable"
                           />
@@ -1904,7 +1959,10 @@ export function QuickAccountingEntryForm() {
           </div>
 
           <div className="border-t bg-emerald-50/80 px-4 py-2 text-xs text-emerald-900">
-            {entryStatusHint}
+            {activeAccountLabel ? (
+              <p className="mb-0.5 break-words font-semibold">{activeAccountLabel}</p>
+            ) : null}
+            <p className="break-words text-emerald-800/90">{entryStatusHint}</p>
           </div>
 
           {lineValidations.length > 0 && (

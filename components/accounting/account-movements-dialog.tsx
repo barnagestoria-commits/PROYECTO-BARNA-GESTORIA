@@ -174,12 +174,13 @@ export function AccountMovementsDialog({
           </div>
 
           <div className="max-h-[420px] overflow-auto rounded-lg border border-sand-200">
-            <table className="w-full min-w-[820px] text-sm">
+            <table className="w-full min-w-[980px] text-sm">
               <thead className="sticky top-0 bg-sand-100 text-left text-xs uppercase tracking-wide text-graphite-600">
                 <tr>
                   <th className="px-3 py-2">Ref.</th>
                   <th className="px-3 py-2">Fecha</th>
                   <th className="px-3 py-2">Concepto</th>
+                  <th className="px-3 py-2">Documento</th>
                   <th className="px-3 py-2">Contrapartida</th>
                   <th className="px-3 py-2 text-right">Debe</th>
                   <th className="px-3 py-2 text-right">Haber</th>
@@ -190,7 +191,7 @@ export function AccountMovementsDialog({
               <tbody>
                 {summary.movements.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="px-3 py-8 text-center text-graphite-500">
+                    <td colSpan={9} className="px-3 py-8 text-center text-graphite-500">
                       No hay movimientos para esta cuenta en {year}.
                     </td>
                   </tr>
@@ -206,6 +207,7 @@ export function AccountMovementsDialog({
                       <td className="px-3 py-2 font-mono text-xs font-semibold">{row.refNumber}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.fecha}</td>
                       <td className="px-3 py-2">{row.concepto || "—"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.documento || "—"}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.contrapartida ?? "—"}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">
                         {row.debe ? formatEuro(row.debe) : ""}

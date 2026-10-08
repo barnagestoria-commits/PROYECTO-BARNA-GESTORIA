@@ -216,6 +216,7 @@ export function TransferMovementsDialog({
                   <th className="px-3 py-2">Ref.</th>
                   <th className="px-3 py-2">Fecha</th>
                   <th className="px-3 py-2">Concepto</th>
+                  <th className="px-3 py-2">Documento</th>
                   <th className="px-3 py-2">Contrapartida</th>
                   <th className="px-3 py-2 text-right">Debe</th>
                   <th className="px-3 py-2 text-right">Haber</th>
@@ -224,7 +225,7 @@ export function TransferMovementsDialog({
               <tbody>
                 {movements.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-8 text-center text-graphite-500">
+                    <td colSpan={8} className="px-3 py-8 text-center text-graphite-500">
                       No hay movimientos para traspasar.
                     </td>
                   </tr>
@@ -246,6 +247,7 @@ export function TransferMovementsDialog({
                       <td className="px-3 py-2 font-mono text-xs font-semibold">{row.refNumber}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.fecha}</td>
                       <td className="px-3 py-2">{row.concepto || "—"}</td>
+                      <td className="px-3 py-2 font-mono text-xs">{row.documento || "—"}</td>
                       <td className="px-3 py-2 font-mono text-xs">{row.contrapartida ?? "—"}</td>
                       <td className="px-3 py-2 text-right font-mono tabular-nums">
                         {row.debe ? formatEuro(row.debe) : ""}

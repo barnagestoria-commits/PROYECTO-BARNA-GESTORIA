@@ -133,6 +133,40 @@ const ROW0_PREFIX_FIELDS: EntryCellField[] = ["fecha", "codigo"]
 const ROW0_SUFFIX_FIELDS: EntryCellField[] = ["concepto", "documento", "cuenta"]
 const MANUAL_PREFIX_FIELDS: EntryCellField[] = ["concepto", "documento", "cuenta"]
 
+/** Columnas visibles de la rejilla, de izquierda a derecha. */
+const ROW0_ARROW_FIELDS: EntryCellField[] = [
+  "fecha",
+  "codigo",
+  "concepto",
+  "documento",
+  "cuenta",
+  "debe",
+  "haber",
+  "contrapartida",
+]
+const MANUAL_ARROW_FIELDS: EntryCellField[] = [
+  "concepto",
+  "documento",
+  "cuenta",
+  "debe",
+  "haber",
+  "contrapartida",
+]
+
+/** Celda contigua con flecha izquierda o derecha. No cambia de línea. */
+export function getAdjacentEntryField(
+  rowIndex: number,
+  field: EntryCellField,
+  direction: "left" | "right",
+): { row: number; field: EntryCellField } | null {
+  const fields = rowIndex === 0 ? ROW0_ARROW_FIELDS : MANUAL_ARROW_FIELDS
+  const index = fields.indexOf(field)
+  if (index < 0) return null
+  const nextIndex = direction === "right" ? index + 1 : index - 1
+  if (nextIndex < 0 || nextIndex >= fields.length) return null
+  return { row: rowIndex, field: fields[nextIndex] }
+}
+
 function isConceptFieldSkippable(
   rowIndex: number,
   line: AccountingEntryLine,

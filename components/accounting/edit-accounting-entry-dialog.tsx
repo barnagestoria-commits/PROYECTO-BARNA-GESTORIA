@@ -20,6 +20,7 @@ import {
   validateEntryLines,
 } from "@/lib/accounting/command-templates"
 import { createContinuedEntryLine } from "@/lib/accounting/entry-line-navigation"
+import { describeEntryAccountLabel } from "@/lib/accounting/entry-account-label"
 import type { AccountingEntryDetail } from "@/lib/accounting/entry-payload"
 import { getEditableInvoiceDetails, hasInvoiceData } from "@/lib/accounting/entry-service"
 import type { AccountingEntryLine } from "@/lib/types/accounting-entry"
@@ -611,6 +612,8 @@ export function EditAccountingEntryDialog({
         entry ? formatEntryRefLabel(entry.refNumber, entry.commandCode) : undefined
       }
       onClose={closeEditor}
+      onBack={closeEditor}
+      backLabel="Volver"
       className="max-w-6xl"
       footer={
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -747,6 +750,11 @@ export function EditAccountingEntryDialog({
                 {lines.map((line) => {
                   const derivedAmount =
                     showInvoicePanel && isDerivedInvoiceAmountAccount(line.cuenta)
+                  const accountLabel = describeEntryAccountLabel(
+                    line.cuenta,
+                    thirdParties,
+                    ledgerSubaccounts,
+                  )
 
                   return (
                   <tr key={line.id} className="border-t border-sand-100">
@@ -758,7 +766,13 @@ export function EditAccountingEntryDialog({
                           void commitAccountLine(line, event.target.value)
                         }}
                         className="h-9 font-mono"
+                        title={accountLabel ?? undefined}
                       />
+                      {accountLabel ? (
+                        <p className="mt-0.5 max-w-[14rem] break-words text-[11px] font-medium leading-tight text-emerald-800">
+                          {accountLabel}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-2 py-1">
                       <Input

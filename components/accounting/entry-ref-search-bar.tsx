@@ -16,6 +16,7 @@ interface EntryRefSearchBarProps {
 }
 
 export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearchBarProps) {
+  const [query, setQuery] = useState("")
   const [fromRef, setFromRef] = useState("")
   const [toRef, setToRef] = useState("")
   const [nextRefNumber, setNextRefNumber] = useState<number | null>(null)
@@ -43,7 +44,7 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
     }
   }, [refreshKey])
 
-  const runSearch = async (options: { last?: boolean; from?: string; to?: string }) => {
+  const runSearch = async (options: { last?: boolean }) => {
     setIsSearching(true)
     setError(null)
 
@@ -52,13 +53,20 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
       if (options.last) {
         url += "last=true"
       } else {
-        const from = options.from?.trim() || fromRef.trim()
-        const to = options.to?.trim() || toRef.trim() || from
-        if (!from) {
-          setError("Indica el número de ref. desde.")
+        const q = query.trim()
+        const from = fromRef.trim()
+        const to = toRef.trim()
+        if (!q && !from) {
+          setError("Indica un importe, documento, concepto, cuenta, fecha o nº de ref.")
           return
         }
-        url += `from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+        const params = new URLSearchParams()
+        if (q) params.set("q", q)
+        if (from) {
+          params.set("from", from)
+          params.set("to", to || from)
+        }
+        url += params.toString()
       }
 
       const data = await apiFetch<{
@@ -70,7 +78,7 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
       setNextRefNumber(data.nextRefNumber)
 
       if (data.entries.length === 0) {
-        setError("No se encontraron asientos con esos números de ref.")
+        setError("No se encontraron asientos.")
         setResults([])
         setResultsOpen(false)
         return
@@ -96,7 +104,7 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
       <div className="rounded-lg border border-sand-200 bg-sand-50/80 p-3">
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-sm font-medium text-emerald-900">Búsqueda por Nº Ref.</p>
+            <p className="text-sm font-medium text-emerald-900">Buscar asiento</p>
             {nextRefNumber !== null && (
               <p className="text-xs text-graphite-600">
                 Próximo asiento: <span className="font-mono font-semibold">{nextRefNumber}</span>
@@ -118,6 +126,25 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
           </Button>
         </div>
 
+        <div className="mb-2 space-y-1">
+          <Label htmlFor="entry-query" className="text-xs">
+            Importe, documento, concepto, cuenta o fecha
+          </Label>
+          <Input
+            id="entry-query"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault()
+                void runSearch({})
+              }
+            }}
+            placeholder="1520,82 o FV-14 o 430.0001"
+            className="h-9"
+          />
+        </div>
+
         <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
           <div className="space-y-1">
             <Label htmlFor="ref-from" className="text-xs">
@@ -127,7 +154,13 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
               id="ref-from"
               value={fromRef}
               onChange={(event) => setFromRef(event.target.value.replace(/\D/g, ""))}
-              placeholder="1"
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  void runSearch({})
+                }
+              }}
+              placeholder="Opcional"
               className="h-9 font-mono"
             />
           </div>
@@ -139,6 +172,12 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
               id="ref-to"
               value={toRef}
               onChange={(event) => setToRef(event.target.value.replace(/\D/g, ""))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault()
+                  void runSearch({})
+                }
+              }}
               placeholder="Igual que desde"
               className="h-9 font-mono"
             />
@@ -173,16 +212,17 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
         title={resultsTitle}
         subtitle="Selecciona un asiento para abrirlo"
         onClose={() => setResultsOpen(false)}
-        className="max-w-3xl"
+        className="max-w-4xl"
       >
         <div className="max-h-[360px] overflow-auto rounded-lg border border-sand-200">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="sticky top-0 bg-sand-100 text-left text-xs uppercase tracking-wide text-graphite-600">
               <tr>
                 <th className="px-3 py-2">Ref.</th>
                 <th className="px-3 py-2">Fecha</th>
+                <th className="px-3 py-2">Documento</th>
                 <th className="px-3 py-2">Concepto</th>
-                <th className="px-3 py-2">Tipo</th>
+                <th className="px-3 py-2">Cuenta</th>
                 <th className="px-3 py-2 text-right">Importe</th>
               </tr>
             </thead>
@@ -198,8 +238,9 @@ export function EntryRefSearchBar({ onOpenEntry, refreshKey = 0 }: EntryRefSearc
                 >
                   <td className="px-3 py-2 font-mono font-semibold">{entry.refNumber}</td>
                   <td className="px-3 py-2 font-mono text-xs">{entry.fecha}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{entry.documento ?? "—"}</td>
                   <td className="px-3 py-2">{entry.concepto ?? "—"}</td>
-                  <td className="px-3 py-2 font-mono text-xs">{entry.commandCode ?? "Manual"}</td>
+                  <td className="px-3 py-2 font-mono text-xs">{entry.cuentas ?? "—"}</td>
                   <td className="px-3 py-2 text-right font-mono">{formatEuro(entry.totalDebe)}</td>
                 </tr>
               ))}
