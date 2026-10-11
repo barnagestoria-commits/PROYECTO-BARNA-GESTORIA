@@ -79,15 +79,21 @@ export async function GET(request: Request, { params }: RouteContext) {
     let telematicFile = bundle.telematicFile
     let taxReturnId: string | undefined
     if (detail.modelCode === "303") {
-      const persisted = await persistModel303EngineResult({
-        companyId,
-        detail,
-        companyName: company.name,
-        companyCif: company.cif,
-        eventType: "EXPORT_GENERATED",
-      })
-      telematicFile = persisted.artifact.content
-      taxReturnId = persisted.taxReturnId
+      try {
+        const persisted = await persistModel303EngineResult({
+          companyId,
+          detail,
+          companyName: company.name,
+          companyCif: company.cif,
+          eventType: "EXPORT_GENERATED",
+        })
+        telematicFile = persisted.artifact.content
+        taxReturnId = persisted.taxReturnId
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ""
+        if (message.includes("ya fue presentada")) throw error
+        console.error("No se pudo archivar el modelo 303. Se entrega el fichero igualmente.", error)
+      }
     }
 
     const filename = bundle.validation.filename

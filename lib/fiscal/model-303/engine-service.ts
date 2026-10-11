@@ -178,43 +178,50 @@ export async function persistModel303EngineResult(options: PersistModel303Option
       tx.taxValidationResult.deleteMany({ where: { returnId: taxReturn.id } }),
     ])
 
+    const valueRecords = await tx.taxReturnValue.createManyAndReturn({
+      data: casillas.map((casilla) => ({
+        returnId: taxReturn.id,
+        casilla: casilla.casilla,
+        amount: new Prisma.Decimal(casilla.amount),
+      })),
+    })
+    const valueIdByCasilla = new Map(valueRecords.map((row) => [row.casilla, row.id]))
+    const sourceRows: Prisma.TaxReturnValueSourceCreateManyInput[] = []
     for (const casilla of casillas) {
-      const sources = casilla.sources ?? []
-      await tx.taxReturnValue.create({
-        data: {
-          returnId: taxReturn.id,
-          casilla: casilla.casilla,
-          amount: new Prisma.Decimal(casilla.amount),
-          sources: sources.length
-            ? {
-                createMany: {
-                  data: sources.map((item) => ({
-                    entryId: item.entryId,
-                    lineId: item.lineId,
-                    concept: item.concept,
-                    accountCode: item.accountCode,
-                  })),
-                },
-              }
-            : undefined,
-        },
-      })
-
-      if (casilla.amount !== 0) {
-        await tx.taxFact.create({
-          data: {
-            companyId: options.companyId,
-            returnId: taxReturn.id,
-            modelCode: "303",
-            year: context.year,
-            period: context.period,
-            factType: "CASILLA_303",
-            casilla: casilla.casilla,
-            amount: new Prisma.Decimal(casilla.amount),
-            payload: toJsonValue({ sources }),
-          },
+      const returnValueId = valueIdByCasilla.get(casilla.casilla)
+      if (!returnValueId) continue
+      for (const item of casilla.sources ?? []) {
+        sourceRows.push({
+          returnValueId,
+          entryId: item.entryId,
+          lineId: item.lineId,
+          concept: item.concept,
+          accountCode: item.accountCode,
         })
       }
+    }
+    const sourceChunk = 1000
+    for (let index = 0; index < sourceRows.length; index += sourceChunk) {
+      await tx.taxReturnValueSource.createMany({
+        data: sourceRows.slice(index, index + sourceChunk),
+      })
+    }
+
+    const facts = casillas.filter((casilla) => casilla.amount !== 0)
+    if (facts.length > 0) {
+      await tx.taxFact.createMany({
+        data: facts.map((casilla) => ({
+          companyId: options.companyId,
+          returnId: taxReturn.id,
+          modelCode: "303",
+          year: context.year,
+          period: context.period,
+          factType: "CASILLA_303",
+          casilla: casilla.casilla,
+          amount: new Prisma.Decimal(casilla.amount),
+          payload: toJsonValue({ sourceCount: casilla.sources?.length ?? 0 }),
+        })),
+      })
     }
 
     await tx.taxValidationResult.create({
@@ -260,7 +267,7 @@ export async function persistModel303EngineResult(options: PersistModel303Option
     })
 
     return taxReturn.id
-  })
+  }, { maxWait: 10_000, timeout: 30_000 })
 
   return { taxReturnId, artifact }
 }

@@ -137,15 +137,21 @@ export async function GET(request: Request, { params }: RouteContext) {
         contentType = "text/plain; charset=iso-8859-1"
         aeatValidation = bundle.validation
         if (detail.modelCode === "303") {
-          const persisted = await persistModel303EngineResult({
-            companyId,
-            detail,
-            companyName: company.name,
-            companyCif: company.cif,
-            eventType: "EXPORT_GENERATED",
-          })
-          buffer = persisted.artifact.content
-          taxReturnId = persisted.taxReturnId
+          try {
+            const persisted = await persistModel303EngineResult({
+              companyId,
+              detail,
+              companyName: company.name,
+              companyCif: company.cif,
+              eventType: "EXPORT_GENERATED",
+            })
+            buffer = persisted.artifact.content
+            taxReturnId = persisted.taxReturnId
+          } catch (error) {
+            const message = error instanceof Error ? error.message : ""
+            if (message.includes("ya fue presentada")) throw error
+            console.error("No se pudo archivar el modelo 303. Se entrega el fichero igualmente.", error)
+          }
         }
         break
       }
