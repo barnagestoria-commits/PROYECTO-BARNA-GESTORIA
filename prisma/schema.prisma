@@ -140,6 +140,12 @@ model Company {
   cif        String?
   /// Fecha de alta en autónomos o de la empresa. Determina la minoración del modelo 130.
   activityStartDate DateTime?
+  /// IBAN donde domiciliar el pago de impuestos (modelo 303 a ingresar).
+  taxDirectDebitIban  String?
+  taxDirectDebitBank  String?
+  /// IBAN que se muestra en las facturas emitidas para el cobro al cliente.
+  salesCollectionIban String?
+  salesCollectionBank String?
   accountId  String
   kind       CompanyKind         @default(STANDARD)
   account    Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)

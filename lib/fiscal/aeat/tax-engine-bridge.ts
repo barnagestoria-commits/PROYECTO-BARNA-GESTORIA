@@ -15,10 +15,15 @@ function quarterToPeriod(quarter: FiscalModelDetailResponse["quarter"]): string 
   return `${quarter}T`
 }
 
+export interface Model303FileOptions {
+  taxDirectDebitIban?: string | null
+}
+
 export function buildTaxEngine303Context(
   detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter">,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): TaxReturnContext {
   const configuredDeveloperNif = process.env.AEAT_DEVELOPER_NIF?.trim()
   const clientNif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase()
@@ -48,6 +53,7 @@ export function buildTaxEngine303Context(
           developerNif,
         }
       : undefined,
+    taxDirectDebitIban: options?.taxDirectDebitIban || null,
   }
 }
 
@@ -97,8 +103,9 @@ export function generateAeatTxt303ViaTaxEngine(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): Buffer {
-  const context = buildTaxEngine303Context(detail, companyName, companyCif)
+  const context = buildTaxEngine303Context(detail, companyName, companyCif, options)
   const casillas = buildTaxEngine303Casillas(detail)
   const artifact = exportModel303Dr303({ context, casillas })
   return artifact.content

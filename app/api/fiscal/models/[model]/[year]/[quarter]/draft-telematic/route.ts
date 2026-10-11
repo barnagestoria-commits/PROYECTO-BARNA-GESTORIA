@@ -57,7 +57,9 @@ export async function GET(request: Request, { params }: RouteContext) {
       )
     }
 
-    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif)
+    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {
+      taxDirectDebitIban: company.taxDirectDebitIban,
+    })
     if (!bundle.telematicFile) {
       return NextResponse.json(
         { success: false, error: "No se pudo generar el fichero telemático." },
@@ -85,6 +87,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           detail,
           companyName: company.name,
           companyCif: company.cif,
+          taxDirectDebitIban: company.taxDirectDebitIban,
           eventType: "EXPORT_GENERATED",
         })
         telematicFile = persisted.artifact.content

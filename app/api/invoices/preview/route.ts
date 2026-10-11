@@ -47,6 +47,8 @@ export async function POST(request: Request) {
       template: body.template ?? parseInvoiceTemplateJson(company.gestoriaProfile?.invoiceTemplateJson),
       verifactuEnvironment: environment,
       entityType: company.gestoriaProfile?.entityType ?? "PERSONA_JURIDICA",
+      salesCollectionIban: company.salesCollectionIban,
+      salesCollectionBank: company.salesCollectionBank,
     })
 
     const buffer = await generateInvoicePdf(pdfData)

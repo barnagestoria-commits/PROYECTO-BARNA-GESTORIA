@@ -40,6 +40,8 @@ export interface TaxReturnContext {
   software?: TaxSoftwareIdentity
   /** Versión normativa AEAT, p. ej. AEAT:303:2026:1T:101 */
   versionKey?: string
+  /** IBAN de domiciliación. Si hay cuota a ingresar, el tipo de declaración pasa a U. */
+  taxDirectDebitIban?: string | null
 }
 
 export interface TaxFactSourceRef {

@@ -11,6 +11,7 @@ import {
 import {
   buildAeat303Filename,
   generateAeatTxt303ViaTaxEngine,
+  type Model303FileOptions,
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
 
 function periodLabelForFile(quarter: FiscalModelDetailResponse["quarter"]): string {
@@ -39,9 +40,10 @@ export function generateAeatTxt(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): Buffer {
   if (detail.modelCode === "303") {
-    return generateAeatTxt303ViaTaxEngine(detail, companyName, companyCif)
+    return generateAeatTxt303ViaTaxEngine(detail, companyName, companyCif, options)
   }
 
   if (detail.modelCode === "130") {

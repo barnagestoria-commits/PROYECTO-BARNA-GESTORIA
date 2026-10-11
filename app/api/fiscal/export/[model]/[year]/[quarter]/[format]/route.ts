@@ -122,7 +122,9 @@ export async function GET(request: Request, { params }: RouteContext) {
         break
       }
       case "txt": {
-        const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif)
+        const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {
+          taxDirectDebitIban: company.taxDirectDebitIban,
+        })
         if (detail.modelCode === "303" && !bundle.validation.valid) {
           return NextResponse.json(
             {
@@ -143,6 +145,7 @@ export async function GET(request: Request, { params }: RouteContext) {
               detail,
               companyName: company.name,
               companyCif: company.cif,
+              taxDirectDebitIban: company.taxDirectDebitIban,
               eventType: "EXPORT_GENERATED",
             })
             buffer = persisted.artifact.content

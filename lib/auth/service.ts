@@ -22,6 +22,7 @@ import {
   getSessionExpiry,
   SESSION_COOKIE,
 } from "@/lib/auth/session-cookie"
+import { parseOptionalBankName, parseOptionalIban } from "@/lib/banking/iban"
 
 function createSessionToken(): string {
   return randomBytes(32).toString("hex")
@@ -35,6 +36,10 @@ function toCompanySummary(company: {
   cif: string | null
   kind?: CompanyKind | null
   activityStartDate?: Date | null
+  taxDirectDebitIban?: string | null
+  taxDirectDebitBank?: string | null
+  salesCollectionIban?: string | null
+  salesCollectionBank?: string | null
 }): CompanySummary {
   return {
     id: company.id,
@@ -44,6 +49,10 @@ function toCompanySummary(company: {
     activityStartDate: company.activityStartDate
       ? company.activityStartDate.toISOString().slice(0, 10)
       : null,
+    taxDirectDebitIban: company.taxDirectDebitIban ?? null,
+    taxDirectDebitBank: company.taxDirectDebitBank ?? null,
+    salesCollectionIban: company.salesCollectionIban ?? null,
+    salesCollectionBank: company.salesCollectionBank ?? null,
   }
 }
 
@@ -57,7 +66,17 @@ async function getCompaniesForUser(
     prisma.company.findMany({
       where: { accountId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, cif: true, kind: true, activityStartDate: true },
+      select: {
+        id: true,
+        name: true,
+        cif: true,
+        kind: true,
+        activityStartDate: true,
+        taxDirectDebitIban: true,
+        taxDirectDebitBank: true,
+        salesCollectionIban: true,
+        salesCollectionBank: true,
+      },
     }),
     prisma.userCompanyAccess.findMany({
       where: { userId },
@@ -385,6 +404,10 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
         ? input.activeCompanyCif.trim().replace(/[^A-Z0-9]/gi, "").toUpperCase()
         : null
   const activityStartDate = parseActivityStartDate(input.activityStartDate)
+  const taxDirectDebitIban = parseOptionalIban(input.taxDirectDebitIban)
+  const taxDirectDebitBank = parseOptionalBankName(input.taxDirectDebitBank)
+  const salesCollectionIban = parseOptionalIban(input.salesCollectionIban)
+  const salesCollectionBank = parseOptionalBankName(input.salesCollectionBank)
 
   if (name !== undefined && !name) {
     throw new Error("El nombre es obligatorio.")
@@ -439,10 +462,19 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(activeCompanyName !== undefined ? { name: activeCompanyName } : {}),
           ...(activeCompanyCif !== undefined ? { cif: activeCompanyCif } : {}),
           ...(activityStartDate !== undefined ? { activityStartDate } : {}),
+          ...(taxDirectDebitIban !== undefined ? { taxDirectDebitIban } : {}),
+          ...(taxDirectDebitBank !== undefined ? { taxDirectDebitBank } : {}),
+          ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
+          ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
         },
       })
     } else if (
-      (activeCompanyCif !== undefined || activityStartDate !== undefined) &&
+      (activeCompanyCif !== undefined ||
+        activityStartDate !== undefined ||
+        taxDirectDebitIban !== undefined ||
+        taxDirectDebitBank !== undefined ||
+        salesCollectionIban !== undefined ||
+        salesCollectionBank !== undefined) &&
       session.activeCompanyId
     ) {
       if (!session.companies.some((company) => company.id === session.activeCompanyId)) {
@@ -454,6 +486,10 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
         data: {
           ...(activeCompanyCif !== undefined ? { cif: activeCompanyCif } : {}),
           ...(activityStartDate !== undefined ? { activityStartDate } : {}),
+          ...(taxDirectDebitIban !== undefined ? { taxDirectDebitIban } : {}),
+          ...(taxDirectDebitBank !== undefined ? { taxDirectDebitBank } : {}),
+          ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
+          ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
         },
       })
     }

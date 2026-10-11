@@ -11,6 +11,10 @@ export interface CompanySummary {
   kind: CompanyKind
   /** Fecha de alta en autónomos o de la empresa, en formato AAAA-MM-DD. */
   activityStartDate?: string | null
+  taxDirectDebitIban?: string | null
+  taxDirectDebitBank?: string | null
+  salesCollectionIban?: string | null
+  salesCollectionBank?: string | null
 }
 
 export interface AuthUser {
@@ -32,6 +36,10 @@ export interface UpdateUserProfileRequest {
   activeCompanyName?: string
   activeCompanyCif?: string | null
   activityStartDate?: string | null
+  taxDirectDebitIban?: string | null
+  taxDirectDebitBank?: string | null
+  salesCollectionIban?: string | null
+  salesCollectionBank?: string | null
 }
 
 export interface AuthSession {

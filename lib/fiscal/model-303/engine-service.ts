@@ -12,6 +12,7 @@ import { prisma } from "@/lib/db"
 import {
   buildTaxEngine303Casillas,
   buildTaxEngine303Context,
+  type Model303FileOptions,
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
@@ -51,6 +52,7 @@ export function buildModel303EngineResult(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): Model303EngineResult {
   if (detail.modelCode !== "303" || detail.quarter === "annual") {
     throw new Error("El motor DR303 solo admite el modelo 303 en periodos trimestrales.")
@@ -58,7 +60,7 @@ export function buildModel303EngineResult(
 
   const source = requireModel303Source(detail.year)
   const context = {
-    ...buildTaxEngine303Context(detail, companyName, companyCif),
+    ...buildTaxEngine303Context(detail, companyName, companyCif, options),
     versionKey: source.id,
   }
   const casillas = buildTaxEngine303Casillas(detail)
@@ -92,6 +94,7 @@ interface PersistModel303Options {
   companyName: string
   companyCif: string | null | undefined
   eventType: "DRAFT_VALIDATED" | "EXPORT_GENERATED"
+  taxDirectDebitIban?: string | null
 }
 
 export async function persistModel303EngineResult(options: PersistModel303Options): Promise<{
@@ -102,6 +105,7 @@ export async function persistModel303EngineResult(options: PersistModel303Option
     options.detail,
     options.companyName,
     options.companyCif,
+    { taxDirectDebitIban: options.taxDirectDebitIban },
   )
   const { artifact, casillas, context, source } = result
   const status = artifact.validation.valid ? TaxReturnStatus.VALIDATED : TaxReturnStatus.DRAFT

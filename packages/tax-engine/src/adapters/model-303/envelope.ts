@@ -37,7 +37,7 @@ export function buildModel303Dr303File(
 ): string {
   const page01000 = buildModel303Page01000(context, casillas)
   const page03000 = buildModel303Page03000(casillas)
-  const pageDid = buildModel303PageDid()
+  const pageDid = buildModel303PageDid(context.taxDirectDebitIban)
   return buildModel303EnvelopeHeader(context) + page01000 + page03000 + pageDid + buildModel303EnvelopeFooter(context)
 }
 

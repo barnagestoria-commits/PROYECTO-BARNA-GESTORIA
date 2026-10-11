@@ -18,9 +18,13 @@ function quarterToPeriod(period: string): string {
   return period
 }
 
-function resolveDeclarationType(cuota71: number, explicit?: TaxReturnContext["declarationType"]): string {
+function resolveDeclarationType(
+  cuota71: number,
+  explicit?: TaxReturnContext["declarationType"],
+  directDebit?: boolean,
+): string {
   if (explicit) return explicit
-  if (cuota71 > 0) return "I"
+  if (cuota71 > 0) return directDebit ? "U" : "I"
   if (cuota71 < 0) return "C"
   return "N"
 }
@@ -53,7 +57,8 @@ export function buildModel303Page01000(
   writeAt(record, 6, "01000", 5)
   writeAt(record, 11, ">", 1)
   writeAt(record, 12, " ", 1)
-  writeAt(record, 13, resolveDeclarationType(cuota71, context.declarationType), 1)
+  const directDebit = Boolean((context.taxDirectDebitIban ?? "").replace(/[^A-Za-z0-9]/g, ""))
+  writeAt(record, 13, resolveDeclarationType(cuota71, context.declarationType, directDebit), 1)
   writeAt(record, 14, normalizeNif(context.companyNif), 9)
   writeAt(record, 23, normalizeCompanyName(context.companyName), 80)
   writeAt(record, 103, String(context.year).padStart(4, "0"), 4)

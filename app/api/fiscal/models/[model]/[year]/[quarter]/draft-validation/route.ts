@@ -44,7 +44,9 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Empresa no encontrada." }, { status: 404 })
     }
 
-    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif)
+    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {
+      taxDirectDebitIban: company.taxDirectDebitIban,
+    })
 
     return NextResponse.json({
       success: true,

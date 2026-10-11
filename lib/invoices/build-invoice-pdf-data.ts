@@ -1,4 +1,5 @@
 import type { GestoriaEntityType } from "@prisma/client"
+import { formatIbanDisplay } from "@/lib/banking/iban"
 import type { GestoriaBankAccount, GestoriaClientProfileDto } from "@/lib/contabilidad/gestoria-client-profile-types"
 import {
   formatRegistroMercantilLine,
@@ -32,6 +33,8 @@ export interface BuildInvoicePdfContext {
   template: InvoiceTemplateConfig | null
   verifactuEnvironment: VerifactuEnvironment
   entityType: GestoriaEntityType
+  salesCollectionIban?: string | null
+  salesCollectionBank?: string | null
 }
 
 function formatAddress(profile: GestoriaClientProfileDto | null): InvoicePartyAddress {
@@ -119,7 +122,13 @@ export function buildInvoicePdfData(
       : 0
   const grandTotal = Math.round((totals.total - irpfAmount) * 100) / 100
   const profile = context.profile
-  const bank = profile ? pickDefaultBank(profile.bankAccounts) : null
+  const profileBank = profile ? pickDefaultBank(profile.bankAccounts) : null
+  const bank = context.salesCollectionIban
+    ? {
+        iban: formatIbanDisplay(context.salesCollectionIban),
+        bankName: context.salesCollectionBank || undefined,
+      }
+    : profileBank
   const sociedad = isSociedadMercantil(context.entityType)
   const registro = sociedad && hasRegistroMercantil(context.registroMercantil)
     ? context.registroMercantil

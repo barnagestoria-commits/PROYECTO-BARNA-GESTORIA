@@ -10,6 +10,7 @@ import { getAeatModelOfficialSource } from "@/lib/fiscal/aeat/official-sources"
 import {
   buildTaxEngine303Casillas,
   buildTaxEngine303Context,
+  type Model303FileOptions,
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import { buildOfficialCasillaEntries } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
@@ -79,6 +80,7 @@ export function validateAeatSubmission(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): AeatSubmissionValidationResult {
   const issues: AeatSubmissionValidationIssue[] = []
   const source = getAeatModelOfficialSource(detail.modelCode)
@@ -108,7 +110,7 @@ export function validateAeatSubmission(
   }
 
   const casillas = buildOfficialCasillaEntries(detail)
-  const buffer = generateAeatTxt(detail, companyName, companyCif)
+  const buffer = generateAeatTxt(detail, companyName, companyCif, options)
   const content = buffer.toString("latin1")
 
   if (usesDr130Envelope(detail.modelCode)) {
@@ -148,7 +150,7 @@ export function validateAeatSubmission(
   }
 
   if (usesDr303Envelope(detail.modelCode)) {
-    const context = buildTaxEngine303Context(detail, companyName, companyCif)
+    const context = buildTaxEngine303Context(detail, companyName, companyCif, options)
     const taxCasillas = buildTaxEngine303Casillas(detail)
     const validation = buildModel303ValidationOnly({ context, casillas: taxCasillas })
     issues.push(

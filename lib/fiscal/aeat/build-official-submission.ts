@@ -9,6 +9,7 @@ import {
   summarizeModel303EngineResult,
   type Model303EngineSummary,
 } from "@/lib/fiscal/model-303/engine-service"
+import type { Model303FileOptions } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
 export interface OfficialAeatDraftBundle {
@@ -33,10 +34,11 @@ export async function buildOfficialAeatDraftBundle(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): Promise<OfficialAeatDraftBundle> {
-  const validation = await validateWithOfficialAeatPipeline(detail, companyName, companyCif)
+  const validation = await validateWithOfficialAeatPipeline(detail, companyName, companyCif, options)
   const telematicFile = shouldOfferAeatTxt(detail)
-    ? generateAeatTxt(detail, companyName, companyCif)
+    ? generateAeatTxt(detail, companyName, companyCif, options)
     : null
 
   let draftPdf: Buffer | null = null
@@ -50,7 +52,7 @@ export async function buildOfficialAeatDraftBundle(
   if (detail.modelCode === "303" && detail.quarter !== "annual") {
     try {
       engineSummary = summarizeModel303EngineResult(
-        buildModel303EngineResult(detail, companyName, companyCif),
+        buildModel303EngineResult(detail, companyName, companyCif, options),
       )
     } catch {
       engineSummary = null

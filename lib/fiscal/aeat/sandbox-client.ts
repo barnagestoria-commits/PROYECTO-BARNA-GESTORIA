@@ -1,5 +1,6 @@
 import type { AeatSubmissionValidationResult } from "@/lib/fiscal/aeat/validate-submission"
 import { validateAeatSubmission } from "@/lib/fiscal/aeat/validate-submission"
+import type { Model303FileOptions } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
 /**
@@ -44,8 +45,9 @@ export async function validateWithOfficialAeatPipeline(
   detail: FiscalModelDetailResponse,
   companyName: string,
   companyCif: string | null | undefined,
+  options?: Model303FileOptions,
 ): Promise<AeatOfficialValidationResult> {
-  const local = validateAeatSubmission(detail, companyName, companyCif)
+  const local = validateAeatSubmission(detail, companyName, companyCif, options)
   const sandboxConfigured = isAeatSandboxConfigured()
 
   if (!sandboxConfigured) {
