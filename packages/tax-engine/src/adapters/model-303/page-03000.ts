@@ -1,6 +1,11 @@
-import { formatAeatNumAmount, formatAeatPercent, formatAeatSignedAmount } from "../../amount-format"
+import { formatAeatNumAmount, formatAeatSignedAmount } from "../../amount-format"
 import { createBlankRecord, recordToString, writeAt } from "../../record-builder"
-import { MODEL_303_PAGE_03000_FIELDS, MODEL_303_PAGE_03000_LENGTH } from "./field-map"
+import { MODEL_303_PAGE_03000_FIELDS, MODEL_303_PAGE_03000_LENGTH, type Model303FieldSpec } from "./field-map"
+
+function formatField(spec: Model303FieldSpec, amount: number): string {
+  if (spec.kind === "percent") return spec.constant ?? "00000"
+  return spec.signed ? formatAeatSignedAmount(amount) : formatAeatNumAmount(amount)
+}
 
 export function buildModel303Page03000(casillas: Map<string, number>): string {
   const record = createBlankRecord(MODEL_303_PAGE_03000_LENGTH)
@@ -13,10 +18,7 @@ export function buildModel303Page03000(casillas: Map<string, number>): string {
   writeAt(record, 6, "03000", 5)
   writeAt(record, 11, ">", 1)
 
-  writeAt(record, 216, formatAeatPercent(100), 5)
-
   for (const field of MODEL_303_PAGE_03000_FIELDS) {
-    if (field.kind === "percent") continue
     let amount = casillas.get(field.casilla) ?? 0
     if (field.casilla === "64" || field.casilla === "66" || field.casilla === "69") {
       amount = cuota46
@@ -27,8 +29,7 @@ export function buildModel303Page03000(casillas: Map<string, number>): string {
     if (field.casilla === "110") {
       amount = cuota110
     }
-    const formatted = field.signed ? formatAeatSignedAmount(amount) : formatAeatNumAmount(amount)
-    writeAt(record, field.position, formatted, field.length)
+    writeAt(record, field.position, formatField(field, amount), field.length)
   }
 
   const activityCasillas = [

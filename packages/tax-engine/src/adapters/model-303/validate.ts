@@ -16,8 +16,8 @@ function readAt(record: string, position: number, length: number): string {
 }
 
 function parseAeatAmount(value: string): number {
-  const negative = value.startsWith("N")
-  const digits = negative ? value.slice(1) : value.trimStart()
+  const negative = value.startsWith("N") || value.startsWith("-")
+  const digits = (negative ? value.slice(1) : value).trim()
   if (!/^\d+$/.test(digits)) return 0
   return (Number(digits) / 100) * (negative ? -1 : 1)
 }

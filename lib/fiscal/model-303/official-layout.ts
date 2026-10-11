@@ -122,16 +122,17 @@ function assignDevengadoBucket(
     return
   }
 
+  // DR303e26v101: casilla 01 = 4 %, 04 = 10 %, 07 = 21 %.
   const bucket = inferRateBucket(base, cuota)
   if (bucket === "10") {
     values.base04 = round2(values.base04 + base)
     values.cuota06 = round2(values.cuota06 + cuota)
   } else if (bucket === "4") {
-    values.base07 = round2(values.base07 + base)
-    values.cuota09 = round2(values.cuota09 + cuota)
-  } else {
     values.base01 = round2(values.base01 + base)
     values.cuota03 = round2(values.cuota03 + cuota)
+  } else {
+    values.base07 = round2(values.base07 + base)
+    values.cuota09 = round2(values.cuota09 + cuota)
   }
 }
 
@@ -239,8 +240,8 @@ function applyAggregateFallback(
   const next = { ...values }
 
   if (repercutido > 0 && next.cuota03 + next.cuota06 + next.cuota09 + next.cuota11 + next.cuota13 === 0) {
-    next.cuota03 = repercutido
-    next.base01 = deriveBaseFromCuota(repercutido)
+    next.cuota09 = repercutido
+    next.base07 = deriveBaseFromCuota(repercutido)
   }
 
   if (soportado > 0 && next.cuota29 + next.cuota31 + next.cuota33 + next.cuota35 + next.cuota37 + next.cuota39 === 0) {
@@ -325,9 +326,9 @@ export function buildOfficialModel303Sections(
       id: "iva-devengado",
       title: "A. IVA devengado — Cuotas repercutidas",
       casillas: [
-        casillaRow("303-01", "01", "03", "Régimen general 21%", v.base01, v.cuota03, "repercutido-21"),
+        casillaRow("303-01", "01", "03", "Régimen general 4%", v.base01, v.cuota03, "repercutido-4"),
         casillaRow("303-04", "04", "06", "Régimen general 10%", v.base04, v.cuota06, "repercutido-10"),
-        casillaRow("303-07", "07", "09", "Régimen general 4%", v.base07, v.cuota09, "repercutido-4"),
+        casillaRow("303-07", "07", "09", "Régimen general 21%", v.base07, v.cuota09, "repercutido-21"),
         casillaRow(
           "303-10",
           "10",

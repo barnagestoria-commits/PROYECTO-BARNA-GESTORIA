@@ -19,11 +19,15 @@ export function formatAeatNumAmount(amount: number, length = 17): string {
   return padLeft(String(toCents(amount)), length, "0")
 }
 
-/** Importe N (17 pos.) — signo + 16 posiciones numéricas. */
+/**
+ * Importe con signo (17 pos.) que acepta la sede de 2026.
+ * El diseño histórico admite blanco o «N»; la sede rechaza ambos
+ * («caracteres no válidos» y, si es negativo, signo menos).
+ * Positivo: 17 dígitos. Negativo: «-» y 16 dígitos.
+ */
 export function formatAeatSignedAmount(amount: number, length = 17): string {
-  const sign = amount < 0 ? "N" : " "
-  const body = padLeft(String(toCents(amount)), length - 1, "0")
-  return sign + body
+  if (amount >= 0) return formatAeatNumAmount(amount, length)
+  return `-${formatAeatNumAmount(amount, length - 1)}`
 }
 
 /** Tipo porcentaje (5 pos.) — 3 enteros + 2 decimales, p. ej. 21% → 02100. */
@@ -83,12 +87,16 @@ export function isValidSpanishTaxId(value: string | null | undefined): boolean {
   return actualControl === String(controlDigit) || actualControl === controlLetter
 }
 
+/** Razón social An: solo letras, números y blancos, alineada a la izquierda. */
 export function normalizeCompanyName(value: string): string {
-  return value
+  const cleaned = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
-    .replace(/[^\w\sÁÉÍÓÚÜÑ./-]/gi, "")
-    .slice(0, 80)
-    .padEnd(80, " ")
+    .replace(/[^A-Z0-9 ]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+  return cleaned.slice(0, 80).padEnd(80, " ")
 }
 
 export function buildRecordBuffer(parts: string[]): Buffer {

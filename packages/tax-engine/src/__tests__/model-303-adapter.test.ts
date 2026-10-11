@@ -73,11 +73,16 @@ describe("exportModel303Dr303", () => {
     expect(page01000.slice(117, 125)).toBe("        ")
     expect(page01000.slice(125, 126)).toBe(" ")
     expect(page01000.slice(126, 130)).toBe("2000")
+    expect(page01000.slice(130, 147)).toBe("00000000000000000")
     expect(page01000.slice(208, 225)).toBe("00000000010000000")
-    expect(page01000.slice(225, 230)).toBe("02100")
+    expect(page01000.slice(225, 230)).toBe("00400")
     expect(page01000.slice(230, 247)).toBe("00000000002100000")
+    expect(page01000.slice(342, 347)).toBe("02100")
+    expect(/^\d+$/.test(page01000.slice(130, 1035))).toBe(true)
+    expect(page03000.slice(11, 28)).toBe("00000000000000000")
     expect(page03000.slice(215, 220)).toBe("10000")
-    expect(page03000.slice(407, 424)).toBe(" 0000000001050000")
+    expect(page03000.slice(407, 424)).toBe("00000000001050000")
+    expect(/^\d+$/.test(page03000.slice(11, 424))).toBe(true)
     expect(validateModel303Export(content, {
       modelCode: "303",
       year: 2026,
@@ -107,9 +112,37 @@ describe("exportModel303Dr303", () => {
       casillas,
     })
     const content = artifact.content.toString("latin1")
+    const page01000 = content.slice(content.indexOf("<T30301000>"))
+    const page03000 = content.slice(content.indexOf("<T30303000>"))
+
+    expect(page01000.slice(12, 13)).toBe("C")
+    expect(page03000.slice(407, 424)).toBe("-0000000000021000")
+    expect(artifact.validation.valid).toBe(true)
+  })
+
+  it("writes the declarant name with only letters, digits and spaces", () => {
+    const casillas = finalizeModel303Casillas({
+      base01: 0, cuota03: 0, base04: 0, cuota06: 0, base07: 1000, cuota09: 210,
+      base10: 0, cuota11: 0, base12: 0, cuota13: 0, base28: 0, cuota29: 0,
+      base30: 0, cuota31: 0, base32: 0, cuota33: 0, base34: 0, cuota35: 0,
+      base36: 0, cuota37: 0, base38: 0, cuota39: 0, cuota110: 0,
+    })
+    const artifact = exportModel303Dr303({
+      context: {
+        modelCode: "303",
+        year: 2026,
+        period: "1T",
+        companyNif: "B12345674",
+        companyName: "Arteaga Tumbaco, Melany Estació",
+        software: { version: "0102", developerNif: "B12345674" },
+      },
+      casillas,
+    })
+    const content = artifact.content.toString("latin1")
     const page = content.slice(content.indexOf("<T30301000>"))
 
-    expect(page.slice(12, 13)).toBe("C")
+    expect(page.slice(22, 102)).toBe("ARTEAGA TUMBACO MELANY ESTACIO".padEnd(80, " "))
+    expect(page.slice(22, 102)).not.toMatch(/[^A-Z0-9 ]/)
     expect(artifact.validation.valid).toBe(true)
   })
 

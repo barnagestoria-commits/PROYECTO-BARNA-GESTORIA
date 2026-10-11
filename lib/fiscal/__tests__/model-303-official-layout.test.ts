@@ -28,6 +28,8 @@ describe("model 303 official layout", () => {
     expect(sections[1].title).toContain("deducible")
     expect(sections[2].title).toContain("Resultado")
 
+    expect(sections[0].casillas[0]?.label).toContain("4%")
+    expect(sections[0].casillas[2]?.label).toContain("21%")
     const codes = sections.flatMap((section) => section.casillas.map((cell) => cell.code))
     expect(codes).toContain("01")
     expect(codes).toContain("27")
@@ -38,7 +40,9 @@ describe("model 303 official layout", () => {
 
   it("calculates totals from repercutido and soportado", () => {
     const values = buildModel303CasillaValues(baseDetail)
-    expect(values.cuota03).toBe(5000)
+    expect(values.cuota09).toBe(5000)
+    expect(values.base07).toBe(23809.52)
+    expect(values.cuota03).toBe(0)
     expect(values.cuota29).toBe(4000)
     expect(values.cuota27).toBe(5000)
     expect(values.cuota45).toBe(4000)

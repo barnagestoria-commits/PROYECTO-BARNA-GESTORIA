@@ -1,8 +1,6 @@
 import {
   formatAeatNumAmount,
-  formatAeatPercent,
   formatAeatSignedAmount,
-  inferPercentFromBaseCuota,
   normalizeCompanyName,
   normalizeNif,
 } from "../../amount-format"
@@ -11,7 +9,6 @@ import type { TaxReturnContext } from "../../types"
 import {
   MODEL_303_PAGE_01000_FIELDS,
   MODEL_303_PAGE_01000_LENGTH,
-  MODEL_303_PERCENT_PAIRS,
   type Model303FieldSpec,
 } from "./field-map"
 
@@ -38,16 +35,9 @@ function lastPeriodFlag(period: string, value: boolean | undefined): "0" | "1" |
   return value ? "1" : "2"
 }
 
-function cuotaForBase(baseCasilla: string, casillas: Map<string, number>): number {
-  if (baseCasilla === "01") return casillas.get("03") ?? 0
-  if (baseCasilla === "04") return casillas.get("06") ?? 0
-  if (baseCasilla === "07") return casillas.get("09") ?? 0
-  return 0
-}
-
-function writeAmountField(record: string[], spec: Model303FieldSpec, amount: number): void {
-  const formatted = spec.signed ? formatAeatSignedAmount(amount) : formatAeatNumAmount(amount)
-  writeAt(record, spec.position, formatted, spec.length)
+function formatField(spec: Model303FieldSpec, amount: number): string {
+  if (spec.kind === "percent") return spec.constant ?? "00000"
+  return spec.signed ? formatAeatSignedAmount(amount) : formatAeatNumAmount(amount)
 }
 
 export function buildModel303Page01000(
@@ -91,17 +81,8 @@ export function buildModel303Page01000(
   writeAt(record, 130, "0", 1)
 
   for (const field of MODEL_303_PAGE_01000_FIELDS) {
-    if (field.kind === "percent") continue
-    writeAmountField(record, field, casillas.get(field.casilla) ?? 0)
-  }
-
-  for (const pair of MODEL_303_PERCENT_PAIRS) {
-    const spec = MODEL_303_PAGE_01000_FIELDS.find((field) => field.casilla === pair.percent)
-    if (!spec) continue
-    const base = casillas.get(pair.base) ?? 0
-    const cuota = cuotaForBase(pair.base, casillas)
-    const rate = base > 0 ? inferPercentFromBaseCuota(base, cuota) || pair.defaultRate : 0
-    writeAt(record, spec.position, base > 0 ? formatAeatPercent(rate) : "00000", spec.length)
+    const amount = field.kind === "amount" ? casillas.get(field.casilla) ?? 0 : 0
+    writeAt(record, field.position, formatField(field, amount), field.length)
   }
 
   writeAt(record, 1570, "</T30301000>", 12)
