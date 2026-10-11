@@ -138,6 +138,8 @@ model Company {
   id         String              @id @default(cuid())
   name       String
   cif        String?
+  /// Fecha de alta en autónomos o de la empresa. Determina la minoración del modelo 130.
+  activityStartDate DateTime?
   accountId  String
   kind       CompanyKind         @default(STANDARD)
   account    Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)

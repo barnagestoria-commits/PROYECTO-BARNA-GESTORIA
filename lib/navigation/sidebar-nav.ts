@@ -348,6 +348,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             href: "/dashboard/informes/sumas-saldos",
             description: "Mayor resumido",
           },
+          {
+            label: "Libro registro de facturas",
+            href: "/dashboard/informes/libro-facturas",
+            description: "IVA de facturas emitidas y recibidas",
+          },
         ],
       },
       {

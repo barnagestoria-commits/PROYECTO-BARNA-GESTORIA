@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { getEnabledModelsForCompany } from "@/lib/fiscal/fiscal-settings-service"
+import { loadModel130Options } from "@/lib/fiscal/model-130-context"
 import { buildFiscalPanorama, fetchFiscalYearLines } from "@/lib/fiscal/panorama-service"
 import { calculateTaxSummary } from "@/lib/fiscal/tax-summary"
 import { FISCAL_MODEL_DEFINITIONS, calculateModelAmount, parseDetailQuarter } from "@/lib/fiscal/panorama"
@@ -21,17 +22,21 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Periodo no válido." }, { status: 400 })
     }
 
-    const lines = await fetchFiscalYearLines(companyId, year)
-    const enabledModels = await getEnabledModelsForCompany(companyId)
+    const [lines, enabledModels, model130] = await Promise.all([
+      fetchFiscalYearLines(companyId, year),
+      getEnabledModelsForCompany(companyId),
+      loadModel130Options(companyId, year),
+    ])
+    const calculationOptions = { model130 }
     const panorama = await buildFiscalPanorama(companyId, "", year, enabledModels)
     const periodKey: FiscalPeriodKey = quarter === "annual" ? "annual" : (`q${quarter}` as FiscalPeriodKey)
     const breakdown = panorama.summary.breakdown?.[periodKey]
-    const summary = calculateTaxSummary(lines, year, quarter, {}, enabledModels)
+    const summary = calculateTaxSummary(lines, year, quarter, {}, enabledModels, calculationOptions)
 
     const models = FISCAL_MODEL_DEFINITIONS.filter((model) =>
       enabledModels.includes(model.code),
     ).map((model) => {
-      const result = calculateModelAmount(model.code, lines, year, quarter)
+      const result = calculateModelAmount(model.code, lines, year, quarter, calculationOptions)
       const q = quarter === "annual" ? "anual" : String(quarter)
       const cell = panorama.blocks
         .flatMap((block) => block.rows)

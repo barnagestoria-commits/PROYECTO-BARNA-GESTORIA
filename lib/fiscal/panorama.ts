@@ -21,6 +21,18 @@ import {
 } from "@/lib/fiscal/fiscal-line-detection"
 import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
 import { buildModel349BreakdownLines } from "@/lib/fiscal/model-349-base-imponible"
+import {
+  resolvePriorYearNetIncome,
+  settleModel130Quarter,
+  type Model130Carry,
+  type Model130Options,
+} from "@/lib/fiscal/model-130"
+
+export type { Model130Options }
+
+export interface ModelCalculationOptions {
+  model130?: Model130Options
+}
 
 export interface FiscalModelDefinition {
   code: FiscalModelId
@@ -221,75 +233,137 @@ function filterLinesThroughQuarter(
   })
 }
 
-function calculateModel130FromActivity(
-  lines: RawEntryLine[],
-  year: number,
-  quarter: 1 | 2 | 3 | 4,
-): ModelAmountResult {
+function model130Figures(lines: RawEntryLine[], year: number, quarter: 1 | 2 | 3 | 4) {
   const ytdLines = filterLinesThroughQuarter(lines, year, quarter)
   const incomeLines = ytdLines.filter(isModel130IncomeLine)
   const expenseLines = ytdLines.filter(isModel130ExpenseLine)
   const withholdingLines = ytdLines.filter(isModel130WithholdingSufferedLine)
-
   const ingresos = round2(incomeLines.reduce((sum, line) => sum + signedIngresoAmount(line), 0))
   const gastos = round2(expenseLines.reduce((sum, line) => sum + signedGastoAmount(line), 0))
-  const rendimiento = round2(ingresos - gastos)
-  const cuota = rendimiento > 0 ? round2(rendimiento * 0.2) : 0
   const retenciones = round2(
     withholdingLines.reduce((sum, line) => sum + signedGastoAmount(line), 0),
   )
-  const retencionesSoportadas = Math.max(0, retenciones)
+  return {
+    ingresos,
+    gastos,
+    retenciones,
+    incomeLines,
+    expenseLines,
+    withholdingLines,
+    lineCount: incomeLines.length + expenseLines.length + withholdingLines.length,
+  }
+}
 
-  let previousPaid = 0
-  for (let previous = 1 as 1 | 2 | 3 | 4; previous < quarter; previous = (previous + 1) as 1 | 2 | 3 | 4) {
-    previousPaid = round2(previousPaid + calculateModel130Amount(lines, year, previous).amount)
+function calculateModel130FromActivity(
+  lines: RawEntryLine[],
+  year: number,
+  quarter: 1 | 2 | 3 | 4,
+  options?: Model130Options,
+): ModelAmountResult {
+  const prior = resolvePriorYearNetIncome({
+    declarationYear: year,
+    activityStartDate: options?.activityStartDate ?? null,
+    priorYearNetFromBooks: options?.priorYearNetFromBooks ?? null,
+  })
+
+  let carry: Model130Carry = { previousPositive07: 0, pendingNegatives: 0 }
+  let settled: ReturnType<typeof settleModel130Quarter> | null = null
+  let figures = model130Figures(lines, year, quarter)
+
+  for (let current = 1 as 1 | 2 | 3 | 4; current <= quarter; current = (current + 1) as 1 | 2 | 3 | 4) {
+    const currentFigures = model130Figures(lines, year, current)
+    if (currentFigures.lineCount === 0) continue
+    settled = settleModel130Quarter({
+      ingresos: currentFigures.ingresos,
+      gastos: currentFigures.gastos,
+      retenciones: currentFigures.retenciones,
+      carry,
+      priorYearNetIncome: prior.net,
+      minoracionReason: prior.reason,
+    })
+    carry = settled.nextCarry
+    if (current === quarter) figures = currentFigures
   }
 
-  const amount = Math.max(0, round2(cuota - retencionesSoportadas - previousPaid))
+  if (!settled || figures.lineCount === 0) {
+    return { amount: 0, lineCount: 0, entryIds: new Set(), breakdown: [] }
+  }
+
+  const casillas = settled.casillas
   const entryIds = new Set<string>()
-  for (const line of [...incomeLines, ...expenseLines, ...withholdingLines]) {
+  for (const line of [...figures.incomeLines, ...figures.expenseLines, ...figures.withholdingLines]) {
     entryIds.add(line.entry.id)
   }
 
   return {
-    amount,
-    lineCount: incomeLines.length + expenseLines.length + withholdingLines.length,
+    amount: casillas.amount,
+    lineCount: figures.lineCount,
     entryIds,
     breakdown: [
       {
         key: "ingresos",
         label: "Ingresos computables (grupo 7)",
-        total: ingresos,
-        lines: expandMatchedLinesToEntries(lines, incomeLines, signedIngresoAmount),
+        total: casillas.c01,
+        lines: expandMatchedLinesToEntries(lines, figures.incomeLines, signedIngresoAmount),
       },
       {
         key: "gastos",
         label: "Gastos computables (grupo 6)",
-        total: gastos,
-        lines: expandMatchedLinesToEntries(lines, expenseLines, signedGastoAmount),
+        total: casillas.c02,
+        lines: expandMatchedLinesToEntries(lines, figures.expenseLines, signedGastoAmount),
+      },
+      {
+        key: "rendimiento",
+        label: "Rendimiento neto (01 − 02)",
+        total: casillas.c03,
+        lines: [],
       },
       {
         key: "cuota",
         label: "20 % del rendimiento neto",
-        total: cuota,
+        total: casillas.c04,
+        lines: [],
+      },
+      {
+        key: "pagos-previos",
+        label: "Pagos fraccionados de trimestres anteriores (casilla 07 positiva)",
+        total: casillas.c05,
         lines: [],
       },
       {
         key: "retenciones-soportadas",
         label: "Retenciones soportadas (473)",
-        total: retencionesSoportadas,
-        lines: expandMatchedLinesToEntries(lines, withholdingLines, signedGastoAmount),
+        total: casillas.c06,
+        lines: expandMatchedLinesToEntries(lines, figures.withholdingLines, signedGastoAmount),
       },
       {
-        key: "pagos-previos",
-        label: "Pagos fraccionados anteriores del ejercicio",
-        total: previousPaid,
+        key: "pago-fraccionado",
+        label: "Pago fraccionado previo del trimestre (04 − 05 − 06)",
+        total: casillas.c07,
+        lines: [],
+      },
+      {
+        key: "minoracion",
+        label: casillas.minoracionReason,
+        total: casillas.c13,
+        lines: [],
+      },
+      {
+        key: "diferencia",
+        label: "Diferencia (12 − 13)",
+        total: casillas.c14,
+        lines: [],
+      },
+      {
+        key: "resultados-negativos",
+        label: "Resultados negativos de trimestres anteriores",
+        total: casillas.c15,
         lines: [],
       },
       {
         key: "resultado",
-        label: "Pago fraccionado del periodo",
-        total: amount,
+        label: "Resultado de la autoliquidación (casilla 19)",
+        total: casillas.c19,
         lines: [],
       },
     ],
@@ -300,6 +374,7 @@ function calculateModel130Amount(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
+  options?: Model130Options,
 ): ModelAmountResult {
   const empty: ModelAmountResult = {
     amount: 0,
@@ -309,7 +384,9 @@ function calculateModel130Amount(
   }
 
   if (quarter === "annual") {
-    const quarterly = ([1, 2, 3, 4] as const).map((item) => calculateModel130Amount(lines, year, item))
+    const quarterly = ([1, 2, 3, 4] as const).map((item) =>
+      calculateModel130Amount(lines, year, item, options),
+    )
     const entryIds = new Set<string>()
     for (const result of quarterly) {
       for (const id of result.entryIds) entryIds.add(id)
@@ -328,6 +405,9 @@ function calculateModel130Amount(
       ],
     }
   }
+
+  const activity = calculateModel130FromActivity(lines, year, quarter, options)
+  if (activity.lineCount > 0) return activity
 
   const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "130")
   if (liquidation) {
@@ -355,11 +435,7 @@ function calculateModel130Amount(
     }
   }
 
-  const activity = calculateModel130FromActivity(lines, year, quarter)
-  if (activity.lineCount === 0 && Math.abs(activity.amount) < 0.01) {
-    return empty
-  }
-  return activity
+  return empty
 }
 
 export interface ModelAmountResult {
@@ -445,6 +521,7 @@ export function calculateModelAmount(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
+  options?: ModelCalculationOptions,
 ): ModelAmountResult {
   const periodLines = filterLinesForPeriod(lines, year, quarter)
   const linesByEntry = groupLinesByEntry(lines)
@@ -517,7 +594,7 @@ export function calculateModelAmount(
   }
 
   if (modelCode === "130") {
-    return calculateModel130Amount(lines, year, quarter)
+    return calculateModel130Amount(lines, year, quarter, options?.model130)
   }
 
   if (modelCode === "115") {

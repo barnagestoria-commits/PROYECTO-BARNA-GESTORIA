@@ -19,6 +19,7 @@ describe("sidebar nav catalog", () => {
       expect(labels).toContain("Modelo 303 — IVA")
       expect(labels).toContain("Modelo 180 — Resumen anual")
       expect(labels).toContain("Analítica")
+      expect(labels).toContain("Libro registro de facturas")
       expect(labels).toContain("Impuestos")
     }
   })

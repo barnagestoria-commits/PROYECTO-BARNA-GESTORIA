@@ -2,8 +2,10 @@ import {
   buildAeatTxtFilename,
   generateAeatTxt,
   shouldOfferAeatTxt,
+  usesDr130Envelope,
   usesDr303Envelope,
 } from "@/lib/fiscal/aeat/generate-aeat-txt"
+import { MODEL_130_PAGE_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
 import { getAeatModelOfficialSource } from "@/lib/fiscal/aeat/official-sources"
 import {
   buildTaxEngine303Casillas,
@@ -108,6 +110,42 @@ export function validateAeatSubmission(
   const casillas = buildOfficialCasillaEntries(detail)
   const buffer = generateAeatTxt(detail, companyName, companyCif)
   const content = buffer.toString("latin1")
+
+  if (usesDr130Envelope(detail.modelCode)) {
+    const opening = `<T1300${detail.year}${detail.quarter}T0000>`
+    const pageStart = content.indexOf("<T13001000>")
+    const page = pageStart >= 0 ? content.slice(pageStart, pageStart + MODEL_130_PAGE_LENGTH) : ""
+    if (!content.startsWith(opening) || !content.includes("<AUX>") || !content.includes("</AUX>")) {
+      issues.push({
+        code: "DR130_ENVELOPE",
+        message: "El fichero del modelo 130 no tiene la envolvente <T1300…> ni el bloque <AUX> del diseño DR130.",
+        severity: "error",
+      })
+    }
+    if (page.length !== MODEL_130_PAGE_LENGTH || !page.endsWith("</T13001000>")) {
+      issues.push({
+        code: "DR130_PAGE",
+        message: `La página 01 del modelo 130 debe ocupar ${MODEL_130_PAGE_LENGTH} posiciones.`,
+        severity: "error",
+      })
+    }
+    if (!content.endsWith(`</T1300${detail.year}${detail.quarter}T0000>`)) {
+      issues.push({
+        code: "DR130_CLOSING",
+        message: "Falta el cierre </T1300…> del fichero del modelo 130.",
+        severity: "error",
+      })
+    }
+    const hasErrors = issues.some((issue) => issue.severity === "error")
+    return {
+      valid: !hasErrors,
+      modelCode: detail.modelCode,
+      recordCount: 1,
+      casillaCount: casillas.length,
+      filename: buildAeatTxtFilename(detail, companyCif),
+      issues,
+    }
+  }
 
   if (usesDr303Envelope(detail.modelCode)) {
     const context = buildTaxEngine303Context(detail, companyName, companyCif)

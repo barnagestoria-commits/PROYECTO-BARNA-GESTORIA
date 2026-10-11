@@ -9,6 +9,8 @@ export interface CompanySummary {
   name: string
   cif: string | null
   kind: CompanyKind
+  /** Fecha de alta en autónomos o de la empresa, en formato AAAA-MM-DD. */
+  activityStartDate?: string | null
 }
 
 export interface AuthUser {
@@ -29,6 +31,7 @@ export interface UpdateUserProfileRequest {
   accountName?: string
   activeCompanyName?: string
   activeCompanyCif?: string | null
+  activityStartDate?: string | null
 }
 
 export interface AuthSession {

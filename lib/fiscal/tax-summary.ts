@@ -1,6 +1,7 @@
 import type { FiscalModelId, FiscalPeriodKey } from "@/lib/types/fiscal-panorama"
 import {
   calculateModelAmount,
+  type ModelCalculationOptions,
   type RawEntryLine,
 } from "@/lib/fiscal/panorama"
 
@@ -36,12 +37,13 @@ export function calculateTaxSummary(
   quarter: 1 | 2 | 3 | 4 | "annual",
   overrides: TaxSummaryAmountOverrides = {},
   enabledModels?: readonly FiscalModelId[],
+  options?: ModelCalculationOptions,
 ): TaxSummaryBreakdown {
   const iva = calculateModelAmount("303", lines, year, quarter)
   const m111 = calculateModelAmount("111", lines, year, quarter)
   const m115 = calculateModelAmount("115", lines, year, quarter)
   const m123 = calculateModelAmount("123", lines, year, quarter)
-  const m130 = calculateModelAmount("130", lines, year, quarter)
+  const m130 = calculateModelAmount("130", lines, year, quarter, options)
   const m180 =
     quarter === "annual"
       ? calculateModelAmount("180", lines, year, "annual")

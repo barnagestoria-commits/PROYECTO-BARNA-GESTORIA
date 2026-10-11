@@ -5,6 +5,10 @@ import {
   supportsLegacyAeatTxt,
 } from "@/lib/fiscal/aeat/generate-aeat-txt-legacy"
 import {
+  buildModel130Filename,
+  generateModel130AeatTxt,
+} from "@/lib/fiscal/aeat/generate-aeat-txt-130"
+import {
   buildAeat303Filename,
   generateAeatTxt303ViaTaxEngine,
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
@@ -22,6 +26,10 @@ export function buildAeatTxtFilename(
     return buildAeat303Filename(detail, companyCif)
   }
 
+  if (detail.modelCode === "130") {
+    return buildModel130Filename(detail, companyCif)
+  }
+
   const nif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 9).padEnd(9, " ").trim() || "SINNIF"
   const period = periodLabelForFile(detail.quarter)
   return `${detail.modelCode}${detail.year}${period}_${nif}.txt`
@@ -34,6 +42,10 @@ export function generateAeatTxt(
 ): Buffer {
   if (detail.modelCode === "303") {
     return generateAeatTxt303ViaTaxEngine(detail, companyName, companyCif)
+  }
+
+  if (detail.modelCode === "130") {
+    return generateModel130AeatTxt(detail, companyName, companyCif)
   }
 
   return generateLegacyAeatTxt(detail, companyName, companyCif)
@@ -60,4 +72,8 @@ export const AEAT_RECORD_LENGTH = LEGACY_AEAT_RECORD_LENGTH
 
 export function usesDr303Envelope(modelCode: FiscalModelId): boolean {
   return modelCode === "303"
+}
+
+export function usesDr130Envelope(modelCode: FiscalModelId): boolean {
+  return modelCode === "130"
 }

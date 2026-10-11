@@ -34,6 +34,14 @@ interface ProfileFormState {
   accountName: string
   activeCompanyName: string
   activeCompanyCif: string
+  activityStartDate: string
+}
+
+function formatSpanishDate(iso: string | null | undefined): string {
+  if (!iso) return "Sin informar"
+  const [year, month, day] = iso.split("-")
+  if (!year || !month || !day) return "Sin informar"
+  return `${day}/${month}/${year}`
 }
 
 export function AccountSettingsPage() {
@@ -49,6 +57,7 @@ export function AccountSettingsPage() {
     accountName: "",
     activeCompanyName: "",
     activeCompanyCif: "",
+    activityStartDate: "",
   })
 
   const canEditAccountName =
@@ -65,8 +74,9 @@ export function AccountSettingsPage() {
       accountName: session.user.accountName,
       activeCompanyName: activeCompany?.name ?? "",
       activeCompanyCif: activeCompany?.cif ?? "",
+      activityStartDate: activeCompany?.activityStartDate ?? "",
     })
-  }, [session, activeCompany?.name, activeCompany?.cif])
+  }, [session, activeCompany?.name, activeCompany?.cif, activeCompany?.activityStartDate])
 
   if (!session) return null
 
@@ -78,6 +88,7 @@ export function AccountSettingsPage() {
       accountName: session.user.accountName,
       activeCompanyName: activeCompany?.name ?? "",
       activeCompanyCif: activeCompany?.cif ?? "",
+      activityStartDate: activeCompany?.activityStartDate ?? "",
     })
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -98,6 +109,7 @@ export function AccountSettingsPage() {
           ...(canEditAccountName ? { accountName: form.accountName } : {}),
           ...(activeCompany ? { activeCompanyName: form.activeCompanyName } : {}),
           ...(activeCompany ? { activeCompanyCif: form.activeCompanyCif || null } : {}),
+          ...(activeCompany ? { activityStartDate: form.activityStartDate || null } : {}),
         }),
       })
       await refreshSession()
@@ -198,6 +210,10 @@ export function AccountSettingsPage() {
               <ProfileField label="Rol" value={roleLabel} />
               <ProfileField label="Empresa activa" value={activeCompany?.name ?? "—"} />
               <ProfileField label="NIF / CIF" value={activeCompany?.cif ?? "—"} />
+              <ProfileField
+                label="Fecha de alta"
+                value={formatSpanishDate(activeCompany?.activityStartDate)}
+              />
               <ProfileField label="Cuenta" value={session.user.accountName} />
             </div>
           ) : (
@@ -240,11 +256,21 @@ export function AccountSettingsPage() {
                       setForm((current) => ({ ...current, activeCompanyCif: value }))
                     }
                   />
+                  <ProfileInput
+                    id="profile-activity-start"
+                    label="Fecha de alta de autónomo / empresa"
+                    type="date"
+                    value={form.activityStartDate}
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, activityStartDate: value }))
+                    }
+                  />
                 </>
               ) : (
                 <>
                   <ProfileField label="Empresa activa" value="—" />
                   <ProfileField label="NIF / CIF" value="—" />
+                  <ProfileField label="Fecha de alta" value="—" />
                 </>
               )}
               {canEditAccountName ? (
@@ -259,6 +285,11 @@ export function AccountSettingsPage() {
               )}
             </div>
           )}
+          <p className="text-xs leading-relaxed text-graphite-500">
+            La fecha de alta sirve para el modelo 130. Si el alta es de este ejercicio, se aplica la
+            minoración de 100 € del art. 110.3.c del Reglamento del IRPF. Si es anterior, la minoración
+            se calcula con el rendimiento del ejercicio previo que haya en los libros.
+          </p>
         </CardContent>
       </Card>
 

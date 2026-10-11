@@ -5,6 +5,7 @@ import {
   FISCAL_PERIOD_KEYS,
   buildDetailHref,
   calculateModelAmount,
+  type ModelCalculationOptions,
   periodKeyFromQuarter,
   periodLabel,
   prismaCodeToModelId,
@@ -21,6 +22,7 @@ import type {
   FiscalPanoramaSummary,
   FiscalPeriodKey,
 } from "@/lib/types/fiscal-panorama"
+import { loadModel130Options } from "@/lib/fiscal/model-130-context"
 import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summary"
 import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
 import type { A3ImportedFiscalResult } from "@/lib/imports/a3/types"
@@ -175,6 +177,7 @@ function computeRowCells(
   allLines: RawEntryLine[],
   declarationMap: Map<string, FiscalDeclaration>,
   importedResults: ImportedFiscalResultMap,
+  options?: ModelCalculationOptions,
 ): Record<FiscalPeriodKey, FiscalPanoramaCell> {
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)!
   const cells = {} as Record<FiscalPeriodKey, FiscalPanoramaCell>
@@ -184,7 +187,7 @@ function computeRowCells(
       cells[period] = buildCell(modelCode, year, period, 0, 0, 0)
     }
 
-    const annualResult = calculateModelAmount(modelCode, allLines, year, "annual")
+    const annualResult = calculateModelAmount(modelCode, allLines, year, "annual", options)
     cells.annual = buildCell(
       modelCode,
       year,
@@ -200,7 +203,7 @@ function computeRowCells(
 
   for (const period of ["q1", "q2", "q3", "q4"] as const) {
     const quarter = Number(period.replace("q", "")) as 1 | 2 | 3 | 4
-    const result = calculateModelAmount(modelCode, allLines, year, quarter)
+    const result = calculateModelAmount(modelCode, allLines, year, quarter, options)
     const amount =
       importedAmountForPeriod(importedResults, modelCode, year, quarter) ?? result.amount
     quarterlyAmounts.push(amount)
@@ -228,7 +231,7 @@ function computeRowCells(
   const annualEntryCount = new Set(
     FISCAL_PERIOD_KEYS.slice(0, 4).flatMap((key) => {
       const quarter = Number(key.replace("q", "")) as 1 | 2 | 3 | 4
-      return [...calculateModelAmount(modelCode, allLines, year, quarter).entryIds]
+      return [...calculateModelAmount(modelCode, allLines, year, quarter, options).entryIds]
     }),
   ).size
 
@@ -262,11 +265,13 @@ export async function buildFiscalPanorama(
   const activeDefinitions = FISCAL_MODEL_DEFINITIONS.filter((model) =>
     activeModels.includes(model.code),
   )
-  const [allLines, declarations, importedResults] = await Promise.all([
+  const [allLines, declarations, importedResults, model130] = await Promise.all([
     fetchYearLines(companyId, year),
     prisma.fiscalDeclaration.findMany({ where: { companyId, year } }),
     fetchImportedFiscalResults(companyId, year),
+    loadModel130Options(companyId, year),
   ])
+  const calculationOptions: ModelCalculationOptions = { model130 }
 
   const declarationMap = buildDeclarationMap(declarations)
 
@@ -278,7 +283,7 @@ export async function buildFiscalPanorama(
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
-        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults),
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults, calculationOptions),
       })),
     },
     {
@@ -288,7 +293,7 @@ export async function buildFiscalPanorama(
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
-        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults),
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults, calculationOptions),
       })),
     },
     {
@@ -298,7 +303,7 @@ export async function buildFiscalPanorama(
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
-        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults),
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults, calculationOptions),
       })),
     },
   ].filter((block) => block.rows.length > 0)
@@ -329,6 +334,7 @@ export async function buildFiscalPanorama(
           : {}),
       },
       activeModels,
+      calculationOptions,
     )
 
     const amount = Math.round(
@@ -406,15 +412,17 @@ export async function buildFiscalModelDetail(
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   if (!model) return null
 
-  const [allLines, importedResults, thirdParties] = await Promise.all([
+  const [allLines, importedResults, thirdParties, model130] = await Promise.all([
     fetchYearLines(companyId, year),
     fetchImportedFiscalResults(companyId, year),
     prisma.thirdParty.findMany({
       where: { companyId },
       select: { accountCode: true, cif: true, name: true },
     }),
+    modelCode === "130" ? loadModel130Options(companyId, year) : Promise.resolve(undefined),
   ])
-  let result = calculateModelAmount(modelCode, allLines, year, quarter)
+  const calculationOptions: ModelCalculationOptions | undefined = model130 ? { model130 } : undefined
+  let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions)
 
   // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
   // las bases ni el desglose de tipos necesario para renderizar el modelo.

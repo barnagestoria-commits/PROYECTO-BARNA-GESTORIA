@@ -34,12 +34,16 @@ function toCompanySummary(company: {
   name: string
   cif: string | null
   kind?: CompanyKind | null
+  activityStartDate?: Date | null
 }): CompanySummary {
   return {
     id: company.id,
     name: company.name,
     cif: company.cif,
     kind: company.kind ?? "STANDARD",
+    activityStartDate: company.activityStartDate
+      ? company.activityStartDate.toISOString().slice(0, 10)
+      : null,
   }
 }
 
@@ -53,7 +57,7 @@ async function getCompaniesForUser(
     prisma.company.findMany({
       where: { accountId },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, cif: true, kind: true },
+      select: { id: true, name: true, cif: true, kind: true, activityStartDate: true },
     }),
     prisma.userCompanyAccess.findMany({
       where: { userId },
@@ -334,6 +338,24 @@ export async function upgradeAccountPlan(
   return buildAuthSession(user, session.activeCompanyId)
 }
 
+function parseActivityStartDate(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined
+  const trimmed = value?.trim() ?? ""
+  if (!trimmed) return null
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new Error("La fecha de alta debe tener el formato AAAA-MM-DD.")
+  }
+  const parsed = new Date(`${trimmed}T00:00:00.000Z`)
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("La fecha de alta no es válida.")
+  }
+  const year = parsed.getUTCFullYear()
+  if (year < 1970 || year > 2100) {
+    throw new Error("La fecha de alta queda fuera del rango admitido.")
+  }
+  return parsed
+}
+
 function canEditAccountName(session: AuthSession): boolean {
   return (
     session.user.role === "ADMIN_GESTOR" ||
@@ -362,6 +384,7 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
       : input.activeCompanyCif?.trim()
         ? input.activeCompanyCif.trim().replace(/[^A-Z0-9]/gi, "").toUpperCase()
         : null
+  const activityStartDate = parseActivityStartDate(input.activityStartDate)
 
   if (name !== undefined && !name) {
     throw new Error("El nombre es obligatorio.")
@@ -415,16 +438,23 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
         data: {
           ...(activeCompanyName !== undefined ? { name: activeCompanyName } : {}),
           ...(activeCompanyCif !== undefined ? { cif: activeCompanyCif } : {}),
+          ...(activityStartDate !== undefined ? { activityStartDate } : {}),
         },
       })
-    } else if (activeCompanyCif !== undefined && session.activeCompanyId) {
+    } else if (
+      (activeCompanyCif !== undefined || activityStartDate !== undefined) &&
+      session.activeCompanyId
+    ) {
       if (!session.companies.some((company) => company.id === session.activeCompanyId)) {
         throw new Error("No tienes acceso a la empresa activa.")
       }
 
       await tx.company.update({
         where: { id: session.activeCompanyId },
-        data: { cif: activeCompanyCif },
+        data: {
+          ...(activeCompanyCif !== undefined ? { cif: activeCompanyCif } : {}),
+          ...(activityStartDate !== undefined ? { activityStartDate } : {}),
+        },
       })
     }
   })
