@@ -6,6 +6,7 @@ import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import {
   accountMatchesQuery,
   formatAccountNameDisplay,
+  formatListingText,
   normalizeCuenta,
   round2,
 } from "@/lib/reports/format"
@@ -198,8 +199,8 @@ export async function fetchAccountMovements(
       refNumber: line.entry.refNumber,
       fecha: line.entry.fecha.toISOString().split("T")[0],
       commandCode: line.entry.commandCode,
-      documento,
-      concepto: line.concepto,
+      documento: documento ? formatListingText(documento) : documento,
+      concepto: formatListingText(line.concepto),
       contrapartida,
       debe,
       haber,

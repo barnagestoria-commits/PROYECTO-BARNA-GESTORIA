@@ -5,6 +5,7 @@ import { mapEntriesToLibrosRegistro } from "@/lib/fiscal/aeat/libros-registro/ma
 import type { IssuedLibrosRow, ReceivedLibrosRow } from "@/lib/fiscal/aeat/libros-registro/types"
 import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
+import { formatListingText } from "@/lib/reports/format"
 import { normalizeTaxId } from "@/lib/tax-id"
 
 export type InvoiceRegisterBook = "emitidas" | "recibidas" | "ambas"
@@ -156,14 +157,26 @@ function inRange(isoDate: string, from: string, to: string): boolean {
   return isoDate >= from && isoDate <= to
 }
 
+function presentRegisterRow(row: InvoiceRegisterRow): InvoiceRegisterRow {
+  return {
+    ...row,
+    number: formatListingText(row.number),
+    party: formatListingText(row.party),
+    nif: formatListingText(row.nif),
+    operation: formatListingText(row.operation),
+    invoiceType: formatListingText(row.invoiceType),
+  }
+}
+
 function sectionOf(book: "emitidas" | "recibidas", title: string, rows: InvoiceRegisterRow[]): InvoiceRegisterSection {
+  const presented = rows.map(presentRegisterRow)
   return {
     book,
-    title,
-    rows,
-    base: round2(rows.reduce((sum, row) => sum + row.base, 0)),
-    vatQuota: round2(rows.reduce((sum, row) => sum + row.vatQuota, 0)),
-    total: round2(rows.reduce((sum, row) => sum + row.total, 0)),
+    title: formatListingText(title),
+    rows: presented,
+    base: round2(presented.reduce((sum, row) => sum + row.base, 0)),
+    vatQuota: round2(presented.reduce((sum, row) => sum + row.vatQuota, 0)),
+    total: round2(presented.reduce((sum, row) => sum + row.total, 0)),
   }
 }
 
@@ -271,7 +284,7 @@ export async function buildInvoiceRegisterListing(
   return {
     from: query.from,
     to: query.to,
-    companyName: company?.name ?? "",
+    companyName: formatListingText(company?.name ?? ""),
     sections: groupInvoiceRegister(visible, query),
     issuedCount: visible.filter((row) => row.book === "emitidas").length,
     receivedCount: visible.filter((row) => row.book === "recibidas").length,
@@ -310,7 +323,7 @@ export async function buildInvoiceRegisterXlsx(listing: InvoiceRegisterListing, 
     title.font = { bold: true, color: { argb: "FF0F3D2E" } }
     for (const row of section.rows) {
       sheet.addRow([
-        row.book === "emitidas" ? "Emitida" : "Recibida",
+        formatListingText(row.book === "emitidas" ? "Emitida" : "Recibida"),
         row.date,
         row.number,
         row.party,
@@ -328,7 +341,7 @@ export async function buildInvoiceRegisterXlsx(listing: InvoiceRegisterListing, 
       "",
       "",
       "",
-      "Total",
+      formatListingText("Total"),
       money(section.base),
       "",
       money(section.vatQuota),

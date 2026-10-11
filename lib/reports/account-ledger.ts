@@ -17,7 +17,7 @@ import {
   getPlanAccountCodes,
   type CompanyChartPlanInfo,
 } from "@/lib/reports/pgc-chart-plans"
-import { normalizeCuenta, round2 } from "@/lib/reports/format"
+import { formatListingText, normalizeCuenta, round2 } from "@/lib/reports/format"
 import { isDemoThirdParty } from "@/lib/contacts/demo-contacts"
 import { purgeDemoThirdParties } from "@/lib/accounting/third-party-service"
 import { repairCanonicalAccountCodes } from "@/lib/accounting/canonical-account-repair"
@@ -296,8 +296,8 @@ export async function buildReportMeta(
   }
 
   return {
-    companyName: company.name,
-    companyCif: company.cif,
+    companyName: formatListingText(company.name),
+    companyCif: company.cif ? formatListingText(company.cif) : company.cif,
     year,
     periodLabel: buildPeriodLabel(year, fromMonth, toMonth),
     reportTitle,

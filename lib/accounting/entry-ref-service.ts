@@ -8,6 +8,7 @@ import {
 } from "@/lib/accounting/entry-search"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatListingText } from "@/lib/reports/format"
 
 export async function getNextEntryRefNumber(
   companyId: string,
@@ -228,13 +229,19 @@ function mapEntryRefSummary(entry: {
     refNumber: entry.refNumber,
     fecha: entry.fecha.toISOString().split("T")[0],
     commandCode: entry.commandCode,
-    documento: resolveMovementDocumentNumber({
-      invoiceNumber: entry.invoiceNumber,
-      invoiceDataJson: entry.invoiceDataJson,
-      commandCode: entry.commandCode,
-      concepts: entry.lines.map((line) => line.concepto),
-    }),
-    concepto: entry.lines.find((line) => line.concepto.trim())?.concepto ?? null,
+    documento: (() => {
+      const documento = resolveMovementDocumentNumber({
+        invoiceNumber: entry.invoiceNumber,
+        invoiceDataJson: entry.invoiceDataJson,
+        commandCode: entry.commandCode,
+        concepts: entry.lines.map((line) => line.concepto),
+      })
+      return documento ? formatListingText(documento) : documento
+    })(),
+    concepto: (() => {
+      const concepto = entry.lines.find((line) => line.concepto.trim())?.concepto ?? null
+      return concepto ? formatListingText(concepto) : concepto
+    })(),
     cuentas: cuentas.length > 0 ? cuentas.join(" · ") : null,
     totalDebe: Math.round(totalDebe * 100) / 100,
   }

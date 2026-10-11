@@ -8,7 +8,7 @@ import {
 } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import type { FiscalExportFormat } from "@/lib/fiscal/export-formats"
 import { createPdfBuffer } from "@/lib/reports/pdf/pdfmake-client"
-import { formatAmount, formatDateTimeEs } from "@/lib/reports/format"
+import { formatAmount, formatDateTimeEs, formatListingText } from "@/lib/reports/format"
 import { slugifyCompanyName } from "@/lib/reports/report-query"
 import type { FiscalModelDetailResponse, FiscalModelId } from "@/lib/types/fiscal-panorama"
 
@@ -20,6 +20,10 @@ function sanitizePdfText(value: string): string {
     .replace(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
+}
+
+function listingText(value: string): string {
+  return formatListingText(sanitizePdfText(value))
 }
 
 function escapeCsv(value: string | number): string {
@@ -60,20 +64,23 @@ export function buildFiscalBundleFilename(companyName: string, year: number): st
 function flattenFiscalLines(detail: FiscalModelDetailResponse) {
   return detail.breakdown.flatMap((section) =>
     section.lines.map((line) => ({
-      section: section.label,
       ...line,
+      section: formatListingText(section.label),
+      concepto: formatListingText(line.concepto),
+      entryConcept: line.entryConcept ? formatListingText(line.entryConcept) : line.entryConcept,
+      cuenta: formatListingText(line.cuenta),
     })),
   )
 }
 
 export function generateFiscalCsv(detail: FiscalModelDetailResponse, companyName: string): Buffer {
   const lines = [
-    csvRow(["Empresa", companyName]),
-    csvRow(["Modelo", detail.modelLabel]),
+    csvRow(["Empresa", listingText(companyName)]),
+    csvRow(["Modelo", listingText(detail.modelLabel)]),
     csvRow(["Ejercicio", detail.year]),
     csvRow(["Periodo", detail.periodLabel]),
     csvRow(["Importe total", detail.amount.toFixed(2)]),
-    csvRow(["Estado", detail.statusLabel]),
+    csvRow(["Estado", listingText(detail.statusLabel)]),
     "",
     csvRow(["Sección", "Fecha", "Cuenta", "Concepto", "Debe", "Haber", "Importe"]),
     ...flattenFiscalLines(detail).map((line) =>
@@ -102,17 +109,17 @@ export async function generateFiscalXlsx(
 
   sheet.getCell("A1").value = "BARNA GESTORÍA"
   sheet.getCell("A1").font = { bold: true, color: { argb: "FF145A32" } }
-  sheet.getCell("A2").value = detail.modelLabel
+  sheet.getCell("A2").value = listingText(detail.modelLabel)
   sheet.getCell("A2").font = { bold: true, size: 14 }
   sheet.getCell("A4").value = "Empresa"
-  sheet.getCell("B4").value = companyName
+  sheet.getCell("B4").value = listingText(companyName)
   sheet.getCell("A5").value = "Periodo"
   sheet.getCell("B5").value = detail.periodLabel
   sheet.getCell("A6").value = "Importe total"
   sheet.getCell("B6").value = detail.amount
   sheet.getCell("B6").numFmt = "#,##0.00"
   sheet.getCell("A7").value = "Estado"
-  sheet.getCell("B7").value = detail.statusLabel
+  sheet.getCell("B7").value = listingText(detail.statusLabel)
 
   const header = sheet.getRow(9)
   header.values = ["Sección", "Fecha", "Cuenta", "Concepto", "Debe", "Haber", "Importe"]
@@ -148,7 +155,7 @@ export async function generateFiscalPdf(
 ): Promise<Buffer> {
   const bodyRows = detail.breakdown.flatMap((section) => {
     const sectionHeader: Content = {
-      text: sanitizePdfText(section.label),
+      text: listingText(section.label),
       style: "section",
       margin: [0, 8, 0, 4],
     }
@@ -173,7 +180,7 @@ export async function generateFiscalPdf(
               { text: "Importe", style: "tableHeader", alignment: "right" },
             ],
             ...section.lines.map((line) => {
-              const conceptParts = [line.entryConcept, line.concepto].filter(Boolean).map((part) => sanitizePdfText(part ?? ""))
+              const conceptParts = [line.entryConcept, line.concepto].filter(Boolean).map((part) => listingText(part ?? ""))
               const conceptText = conceptParts.length > 1 ? `${conceptParts[0]} — ${conceptParts[1]}` : conceptParts[0] || "—"
               return [
                 sanitizePdfText(line.entryDate),
@@ -213,15 +220,15 @@ export async function generateFiscalPdf(
     },
     content: [
       { text: "BARNA GESTORÍA", style: "brand" },
-      { text: sanitizePdfText(detail.modelLabel), style: "title" },
+      { text: listingText(detail.modelLabel), style: "title" },
       {
         columns: [
           {
             width: "*",
             stack: [
-              { text: sanitizePdfText(companyName), style: "company" },
-              { text: sanitizePdfText(detail.periodLabel), style: "meta" },
-              { text: `Estado: ${sanitizePdfText(detail.statusLabel)}`, style: "meta" },
+              { text: listingText(companyName), style: "company" },
+              { text: listingText(detail.periodLabel), style: "meta" },
+              { text: `Estado: ${listingText(detail.statusLabel)}`, style: "meta" },
             ],
           },
           {
