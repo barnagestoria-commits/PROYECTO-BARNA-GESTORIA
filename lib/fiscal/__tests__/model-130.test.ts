@@ -147,10 +147,46 @@ describe("fichero AEAT modelo 130", () => {
     const pageStart = content.indexOf("<T13001000>")
     const page = content.slice(pageStart, pageStart + 600)
     expect(page).toHaveLength(600)
+    expect(page.slice(142, 159)).toBe("00000000000080000")
+    expect(page.slice(210, 227)).toBe("00000000000016000")
     expect(page.slice(312, 329)).toBe("00000000000010000")
+    expect(page.slice(414, 431)).toBe("00000000000006000")
+    expect(page.slice(142, 431)).toMatch(/^[0-9]+$/)
 
     const validation = validateAeatSubmission(detail, "GARCIA LOPEZ, ANA", "12345678Z")
     expect(validation.valid).toBe(true)
     expect(validation.issues.filter((issue) => issue.severity === "error")).toHaveLength(0)
+  })
+
+  it("escribe el resultado negativo con signo menos", () => {
+    const detail = {
+      modelCode: "130",
+      modelLabel: "Modelo 130",
+      year: 2026,
+      quarter: 2,
+      periodLabel: "2T 2026",
+      amount: 0,
+      status: "pendiente",
+      statusLabel: "Pendiente",
+      breakdown: [
+        { key: "ingresos", label: "Ingresos", total: 1000, lines: [] },
+        { key: "gastos", label: "Gastos", total: 0, lines: [] },
+        { key: "rendimiento", label: "Rendimiento", total: 1000, lines: [] },
+        { key: "cuota", label: "Cuota", total: 200, lines: [] },
+        { key: "pagos-previos", label: "Previos", total: 200, lines: [] },
+        { key: "retenciones-soportadas", label: "Retenciones", total: 0, lines: [] },
+        { key: "pago-fraccionado", label: "Pago", total: 0, lines: [] },
+        { key: "minoracion", label: "Minoración", total: 100, lines: [] },
+        { key: "diferencia", label: "Diferencia", total: -100, lines: [] },
+        { key: "resultados-negativos", label: "Negativos", total: 0, lines: [] },
+        { key: "resultado", label: "Resultado", total: -100, lines: [] },
+      ],
+    } as FiscalModelDetailResponse
+
+    const content = generateAeatTxt(detail, "GARCIA LOPEZ, ANA", "12345678Z").toString("latin1")
+    const page = content.slice(content.indexOf("<T13001000>"), content.indexOf("<T13001000>") + 600)
+    expect(page.slice(329, 346)).toBe("-0000000000010000")
+    expect(page.slice(414, 431)).toBe("-0000000000010000")
+    expect(page[12]).toBe("B")
   })
 })

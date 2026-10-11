@@ -3,7 +3,7 @@
  * Diseño de registro DR130e15v12 (Orden HAP/258/2015, ejercicios 2019 y siguientes).
  * Página 01 de 600 posiciones, envolvente <T1300…> y bloque <AUX>.
  */
-import { formatAeatNumAmount, formatAeatSignedAmount, normalizeNif } from "@gestoria/tax-engine"
+import { formatAeatNumAmount, normalizeNif } from "@gestoria/tax-engine"
 import { buildOfficialCasillaEntries } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
@@ -45,11 +45,17 @@ function writeAt(record: string[], position: number, value: string, length: numb
   }
 }
 
+/**
+ * La sede de 2026 rechaza el signo del diseño de 2019 (blanco o «N») en las casillas
+ * con signo. El importe positivo va en 17 dígitos y el negativo empieza por «-».
+ */
+function formatModel130Amount(amount: number, signed: boolean): string {
+  if (!signed || amount >= 0) return formatAeatNumAmount(amount)
+  return `-${formatAeatNumAmount(amount, 16)}`
+}
+
 function writeAmount(record: string[], position: number, casilla: string, amount: number): void {
-  const formatted = SIGNED_CASILLAS.has(casilla)
-    ? formatAeatSignedAmount(amount)
-    : formatAeatNumAmount(amount)
-  writeAt(record, position, formatted, 17)
+  writeAt(record, position, formatModel130Amount(amount, SIGNED_CASILLAS.has(casilla)), 17)
 }
 
 function aeatText(value: string, length: number): string {
