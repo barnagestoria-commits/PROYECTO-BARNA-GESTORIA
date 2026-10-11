@@ -87,13 +87,17 @@ export function isValidSpanishTaxId(value: string | null | undefined): boolean {
   return actualControl === String(controlDigit) || actualControl === controlLetter
 }
 
-/** Razón social An: solo letras, números y blancos, alineada a la izquierda. */
+/** Razón social An: letras y blancos. El NIF va en su propio campo. */
 export function normalizeCompanyName(value: string): string {
   const cleaned = value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase()
     .replace(/[^A-Z0-9 ]/g, " ")
+    .replace(/\b[XYZ]\d{7}[A-Z]\b/g, " ")
+    .replace(/\b\d{8}[A-Z]\b/g, " ")
+    .replace(/\b[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]\b/g, " ")
+    .replace(/[^A-Z ]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
   return cleaned.slice(0, 80).padEnd(80, " ")

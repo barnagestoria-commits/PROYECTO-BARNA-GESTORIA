@@ -53,6 +53,8 @@ describe("exportModel303Dr303", () => {
     expect(artifact.filename).toBe("30320261T_B12345674.303")
     expect(content.startsWith("<T303020261T0000>")).toBe(true)
     expect(content.endsWith("</T303020261T0000>")).toBe(true)
+    expect(content).toContain("<T303DID00>")
+    expect(content).toContain("</T303DID00>")
     expect(content).toContain("<AUX>")
     expect(content).toContain("</AUX>")
     expect(content).toContain("EMPRESA TEST SL")
@@ -133,7 +135,7 @@ describe("exportModel303Dr303", () => {
         year: 2026,
         period: "1T",
         companyNif: "B12345674",
-        companyName: "Arteaga Tumbaco, Melany Estació",
+        companyName: "Arteaga Tumbaco, Melany Mishelle - 39506184G",
         software: { version: "0102", developerNif: "B12345674" },
       },
       casillas,
@@ -141,8 +143,12 @@ describe("exportModel303Dr303", () => {
     const content = artifact.content.toString("latin1")
     const page = content.slice(content.indexOf("<T30301000>"))
 
-    expect(page.slice(22, 102)).toBe("ARTEAGA TUMBACO MELANY ESTACIO".padEnd(80, " "))
-    expect(page.slice(22, 102)).not.toMatch(/[^A-Z0-9 ]/)
+    expect(page.slice(22, 102)).toBe("ARTEAGA TUMBACO MELANY MISHELLE".padEnd(80, " "))
+    expect(page.slice(22, 102)).not.toMatch(/[^A-Z ]/)
+    const did = content.slice(content.indexOf("<T303DID00>"))
+    expect(did.slice(0, 11)).toBe("<T303DID00>")
+    expect(did.slice(193, 194)).toBe("0")
+    expect(did.slice(811, 823)).toBe("</T303DID00>")
     expect(artifact.validation.valid).toBe(true)
   })
 

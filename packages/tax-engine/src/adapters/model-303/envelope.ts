@@ -3,6 +3,7 @@ import { createBlankRecord, recordToString, writeAt } from "../../record-builder
 import type { TaxReturnContext } from "../../types"
 import { buildModel303Page01000 } from "./page-01000"
 import { buildModel303Page03000 } from "./page-03000"
+import { buildModel303PageDid } from "./page-did"
 
 export const TAX_ENGINE_PROGRAM_VERSION = "0102"
 
@@ -36,7 +37,8 @@ export function buildModel303Dr303File(
 ): string {
   const page01000 = buildModel303Page01000(context, casillas)
   const page03000 = buildModel303Page03000(casillas)
-  return buildModel303EnvelopeHeader(context) + page01000 + page03000 + buildModel303EnvelopeFooter(context)
+  const pageDid = buildModel303PageDid()
+  return buildModel303EnvelopeHeader(context) + page01000 + page03000 + pageDid + buildModel303EnvelopeFooter(context)
 }
 
 export function buildModel303Filename(context: TaxReturnContext): string {

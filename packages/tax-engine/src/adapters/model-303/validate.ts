@@ -4,6 +4,7 @@ import {
   MODEL_303_PAGE_01000_LENGTH,
   MODEL_303_PAGE_03000_LENGTH,
 } from "./field-map"
+import { MODEL_303_PAGE_DID_LENGTH } from "./page-did"
 
 function quarterToPeriod(period: string): string {
   if (/^\dT$/.test(period)) return period
@@ -332,6 +333,29 @@ export function validateModel303Export(content: string, context: TaxReturnContex
         hasActivity ? "blanco cuando existe actividad" : "X cuando no existe actividad",
         noActivity,
       )
+    }
+  }
+
+  const didStart = content.indexOf("<T303DID00>")
+  const didEnd = content.indexOf("</T303DID00>")
+  if (didStart === -1 || didEnd === -1) {
+    issues.push({
+      code: "MISSING_PAGE_DID",
+      message: "Falta la página DID de domiciliación o devolución.",
+      severity: "error",
+    })
+  } else {
+    const didLength = didEnd + "</T303DID00>".length - didStart
+    if (didLength !== MODEL_303_PAGE_DID_LENGTH) {
+      issues.push({
+        code: "PAGE_DID_LENGTH",
+        message: `La página DID mide ${didLength} posiciones; se esperaban ${MODEL_303_PAGE_DID_LENGTH}.`,
+        severity: "error",
+      })
+    }
+    const sepa = content.slice(didStart + 193, didStart + 194)
+    if (!["0", "1", "2", "3"].includes(sepa)) {
+      addFieldIssue(issues, "INVALID_SEPA_MARK", 194, "0, 1, 2 o 3", sepa)
     }
   }
 
