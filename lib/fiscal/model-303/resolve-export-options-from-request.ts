@@ -14,5 +14,10 @@ export function resolveModel303OptionsFromRequest(
   const url = new URL(request.url)
   const payment = parseModel303ExportPayment(url.searchParams.get("pago303"))
   const resultAmount = resolveDraftResultAmount(detail)
-  return resolveModel303FileOptions({ payment, resultAmount, taxDirectDebitIban })
+  return resolveModel303FileOptions({
+    payment,
+    resultAmount,
+    taxDirectDebitIban,
+    period: { year: detail.year, quarter: detail.quarter },
+  })
 }

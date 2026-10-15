@@ -186,6 +186,8 @@ export function FiscalExportButtons({
         <Model303DownloadDialog
           open={model303DialogOpen}
           resultAmount={model303ResultAmount}
+          year={currentYear}
+          quarter={quarter}
           taxDirectDebitIban={taxDirectDebitIban}
           taxDirectDebitBank={taxDirectDebitBank}
           onConfirm={(payment) => void handleModel303Confirm(payment)}
