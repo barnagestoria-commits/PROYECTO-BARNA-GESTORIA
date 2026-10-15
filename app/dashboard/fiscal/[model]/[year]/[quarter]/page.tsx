@@ -87,6 +87,8 @@ export default function FiscalModelDetailPage() {
             quarterParam={params.quarter}
             year={Number.parseInt(params.year, 10)}
             onRefresh={loadDetail}
+            taxDirectDebitIban={activeCompany.taxDirectDebitIban}
+            taxDirectDebitBank={activeCompany.taxDirectDebitBank}
           />
         ) : (
           <Card>

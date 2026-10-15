@@ -7,6 +7,7 @@ import {
   officialModelFileLabel,
   officialPackLabel,
 } from "@/lib/fiscal/presentation-choice"
+import type { Model303ExportPayment } from "@/lib/fiscal/model-303/export-payment"
 
 export interface ReportDownloadParams {
   year?: number
@@ -150,13 +151,22 @@ export async function fetchReportPreview(
 import type { FiscalExportFormat } from "@/lib/fiscal/export-formats"
 export type { FiscalExportFormat }
 
+export interface FiscalDownloadOptions {
+  model303Payment?: Model303ExportPayment
+}
+
 function getFiscalExportUrl(
   model: string,
   year: number,
   quarter: string | number,
   format: FiscalExportFormat,
+  options: FiscalDownloadOptions = {},
 ): string {
-  return `/api/fiscal/export/${model}/${year}/${quarter}/${format}`
+  const search = new URLSearchParams()
+  if (options.model303Payment) search.set("pago303", options.model303Payment)
+  const query = search.toString()
+  const base = `/api/fiscal/export/${model}/${year}/${quarter}/${format}`
+  return query ? `${base}?${query}` : base
 }
 
 export async function downloadFiscalExport(
@@ -164,6 +174,7 @@ export async function downloadFiscalExport(
   year: number,
   quarter: string | number,
   format: FiscalExportFormat,
+  options: FiscalDownloadOptions = {},
 ): Promise<void> {
   const labels: Record<FiscalExportFormat, string> = {
     pdf: "PDF",
@@ -175,7 +186,7 @@ export async function downloadFiscalExport(
   }
 
   await downloadReportBlob(
-    getFiscalExportUrl(model, year, quarter, format),
+    getFiscalExportUrl(model, year, quarter, format, options),
     `modelo-${model}.${format === "xlsx" || format === "lsi" ? "xlsx" : format}`,
     `No se pudo generar el ${labels[format]} del modelo ${model}.`,
   )

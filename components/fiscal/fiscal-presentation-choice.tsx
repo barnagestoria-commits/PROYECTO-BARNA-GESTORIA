@@ -16,6 +16,9 @@ interface FiscalPresentationChoiceProps {
   variant?: "cards" | "inline"
   menuPlacement?: "top" | "bottom"
   className?: string
+  model303ResultAmount?: number
+  taxDirectDebitIban?: string | null
+  taxDirectDebitBank?: string | null
 }
 
 export function FiscalPresentationChoicePanel({
@@ -26,6 +29,9 @@ export function FiscalPresentationChoicePanel({
   variant = "cards",
   menuPlacement = "bottom",
   className,
+  model303ResultAmount,
+  taxDirectDebitIban,
+  taxDirectDebitBank,
 }: FiscalPresentationChoiceProps) {
   const choice = useMemo(
     () => getFiscalPresentationChoice({ modelCode: model, quarter }),
@@ -59,6 +65,9 @@ export function FiscalPresentationChoicePanel({
             officialOnly
             menuPlacement={menuPlacement}
             className="w-full md:w-auto"
+            model303ResultAmount={model303ResultAmount}
+            taxDirectDebitIban={taxDirectDebitIban}
+            taxDirectDebitBank={taxDirectDebitBank}
           />
         </div>
       </div>
@@ -140,6 +149,9 @@ export function FiscalPresentationChoicePanel({
             officialOnly
             menuPlacement={menuPlacement}
             className="w-full md:w-auto"
+            model303ResultAmount={model303ResultAmount}
+            taxDirectDebitIban={taxDirectDebitIban}
+            taxDirectDebitBank={taxDirectDebitBank}
           />
         </div>
       </div>

@@ -1,4 +1,5 @@
 import { createBlankRecord, recordToString, writeAt } from "../../record-builder"
+import { isModel303RefundDeclarationType } from "./declaration-type"
 
 /** DP303DID — 823 posiciones. La sede rechaza el fichero si esta página no viene. */
 export const MODEL_303_PAGE_DID_LENGTH = 823
@@ -18,12 +19,17 @@ function sepaMark(iban: string): string {
   return sepa.has(iban.slice(0, 2)) ? "2" : "3"
 }
 
-export function buildModel303PageDid(taxDirectDebitIban?: string | null): string {
+export function buildModel303PageDid(
+  taxDirectDebitIban?: string | null,
+  declarationType = "I",
+): string {
   const record = createBlankRecord(MODEL_303_PAGE_DID_LENGTH)
   const iban = compactIban(taxDirectDebitIban)
+  const refund = isModel303RefundDeclarationType(declarationType)
+  const writeIban = declarationType === "U" || refund
   writeAt(record, 1, "<T303DID00>", 11)
-  if (iban) writeAt(record, 23, iban, 34)
-  writeAt(record, 194, sepaMark(iban), 1)
+  if (writeIban && iban) writeAt(record, 23, iban, 34)
+  writeAt(record, 194, refund && iban ? sepaMark(iban) : "0", 1)
   writeAt(record, 812, "</T303DID00>", 12)
   return recordToString(record)
 }

@@ -1,6 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useCallback } from "react"
+import { Model303DownloadDialog } from "@/components/fiscal/model-303-download-dialog"
+import type { Model303ExportPayment } from "@/lib/fiscal/model-303/export-payment"
 import { Button } from "@/components/ui/button"
 import {
   downloadFiscalExport,
@@ -96,6 +98,9 @@ interface FiscalExportButtonsProps {
   officialOnly?: boolean
   /** En barras inferiores, el menú debe abrirse hacia arriba para no recortarse. */
   menuPlacement?: "top" | "bottom"
+  model303ResultAmount?: number
+  taxDirectDebitIban?: string | null
+  taxDirectDebitBank?: string | null
 }
 
 export function FiscalExportButtons({
@@ -107,8 +112,12 @@ export function FiscalExportButtons({
   compact = false,
   officialOnly = false,
   menuPlacement = "bottom",
+  model303ResultAmount,
+  taxDirectDebitIban,
+  taxDirectDebitBank,
 }: FiscalExportButtonsProps) {
   const [downloading, setDownloading] = useState<FiscalExportFormat | null>(null)
+  const [model303DialogOpen, setModel303DialogOpen] = useState(false)
   const currentYear = year ?? new Date().getFullYear()
 
   const formats = useMemo(() => {
@@ -142,31 +151,65 @@ export function FiscalExportButtons({
     [model],
   )
 
+  const runDownload = useCallback(
+    async (format: FiscalExportFormat, model303Payment?: Model303ExportPayment) => {
+      setDownloading(format)
+      try {
+        await downloadFiscalExport(model, currentYear, quarter, format, {
+          model303Payment,
+        })
+      } catch (error) {
+        window.alert(error instanceof Error ? error.message : "No se pudo descargar la exportación.")
+      } finally {
+        setDownloading(null)
+      }
+    },
+    [model, currentYear, quarter],
+  )
+
   const handleDownload = async (format: FiscalExportFormat) => {
-    setDownloading(format)
-    try {
-      await downloadFiscalExport(model, currentYear, quarter, format)
-    } catch (error) {
-      window.alert(error instanceof Error ? error.message : "No se pudo descargar la exportación.")
-    } finally {
-      setDownloading(null)
+    if (model === "303" && format === "txt" && model303ResultAmount !== undefined) {
+      setModel303DialogOpen(true)
+      return
     }
+    await runDownload(format)
   }
 
-  return renderFormatButtons({
-    formats,
-    labels,
-    descriptions,
-    downloading,
-    disabled,
-    variant: compact ? "toolbar-desktop" : "default",
-    className,
-    menuPlacement,
-    highlightFormats: compact
-      ? formats.filter((format) => format === "txt" || format === "lsi" || (officialOnly && format === "zip"))
-      : [],
-    onDownload: handleDownload,
-  })
+  const handleModel303Confirm = async (payment: Model303ExportPayment) => {
+    setModel303DialogOpen(false)
+    await runDownload("txt", payment)
+  }
+
+  return (
+    <>
+      {model303ResultAmount !== undefined ? (
+        <Model303DownloadDialog
+          open={model303DialogOpen}
+          resultAmount={model303ResultAmount}
+          taxDirectDebitIban={taxDirectDebitIban}
+          taxDirectDebitBank={taxDirectDebitBank}
+          onConfirm={(payment) => void handleModel303Confirm(payment)}
+          onCancel={() => setModel303DialogOpen(false)}
+        />
+      ) : null}
+      {renderFormatButtons({
+        formats,
+        labels,
+        descriptions,
+        downloading,
+        disabled,
+        variant: compact ? "toolbar-desktop" : "default",
+        className,
+        menuPlacement,
+        highlightFormats: compact
+          ? formats.filter(
+              (format) => format === "txt" || format === "lsi" || (officialOnly && format === "zip"),
+            )
+          : [],
+        onDownload: handleDownload,
+      })}
+    </>
+  )
 }
 
 function orderToolbarFormats<T extends string>(formats: readonly T[]): T[] {

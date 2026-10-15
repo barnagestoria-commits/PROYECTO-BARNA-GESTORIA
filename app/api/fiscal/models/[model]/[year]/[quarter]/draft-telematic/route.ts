@@ -8,6 +8,8 @@ import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 import { shouldOfferAeatTxt } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import { persistModel303EngineResult } from "@/lib/fiscal/model-303/engine-service"
+import { resolveModel303OptionsFromRequest } from "@/lib/fiscal/model-303/resolve-export-options-from-request"
+import type { Model303FileOptions } from "@/lib/fiscal/aeat/tax-engine-bridge"
 
 export const runtime = "nodejs"
 
@@ -57,9 +59,16 @@ export async function GET(request: Request, { params }: RouteContext) {
       )
     }
 
-    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {
-      taxDirectDebitIban: company.taxDirectDebitIban,
-    })
+    let model303FileOptions: Model303FileOptions = {}
+    if (detail.modelCode === "303") {
+      const resolved303 = resolveModel303OptionsFromRequest(request, detail, company.taxDirectDebitIban)
+      if (resolved303.error) {
+        return NextResponse.json({ success: false, error: resolved303.error }, { status: 400 })
+      }
+      model303FileOptions = resolved303.options
+    }
+
+    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, model303FileOptions)
     if (!bundle.telematicFile) {
       return NextResponse.json(
         { success: false, error: "No se pudo generar el fichero telemático." },
@@ -87,7 +96,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           detail,
           companyName: company.name,
           companyCif: company.cif,
-          taxDirectDebitIban: company.taxDirectDebitIban,
+          taxDirectDebitIban: model303FileOptions.taxDirectDebitIban ?? null,
           eventType: "EXPORT_GENERATED",
         })
         telematicFile = persisted.artifact.content

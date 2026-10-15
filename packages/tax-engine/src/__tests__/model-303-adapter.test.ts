@@ -147,7 +147,7 @@ describe("exportModel303Dr303", () => {
 
     expect(page.slice(12, 13)).toBe("U")
     expect(did.slice(22, 46)).toBe("ES9121000418450200051332")
-    expect(did.slice(193, 194)).toBe("1")
+    expect(did.slice(193, 194)).toBe("0")
     expect(artifact.validation.valid).toBe(true)
   })
 

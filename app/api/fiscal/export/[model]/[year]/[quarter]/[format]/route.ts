@@ -18,6 +18,8 @@ import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-
 import { parseDetailQuarter } from "@/lib/fiscal/panorama"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 import { persistModel303EngineResult } from "@/lib/fiscal/model-303/engine-service"
+import { resolveModel303OptionsFromRequest } from "@/lib/fiscal/model-303/resolve-export-options-from-request"
+import type { Model303FileOptions } from "@/lib/fiscal/aeat/tax-engine-bridge"
 
 export const runtime = "nodejs"
 
@@ -95,6 +97,15 @@ export async function GET(request: Request, { params }: RouteContext) {
     let aeatValidation: Awaited<ReturnType<typeof buildOfficialAeatDraftBundle>>["validation"] | undefined
     let taxReturnId: string | undefined
 
+    let model303FileOptions: Model303FileOptions = {}
+    if (detail.modelCode === "303") {
+      const resolved303 = resolveModel303OptionsFromRequest(request, detail, company.taxDirectDebitIban)
+      if (resolved303.error) {
+        return NextResponse.json({ success: false, error: resolved303.error }, { status: 400 })
+      }
+      model303FileOptions = resolved303.options
+    }
+
     switch (format) {
       case "pdf":
         buffer = await generateFiscalPdf(detail, company.name)
@@ -122,9 +133,7 @@ export async function GET(request: Request, { params }: RouteContext) {
         break
       }
       case "txt": {
-        const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {
-          taxDirectDebitIban: company.taxDirectDebitIban,
-        })
+        const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, model303FileOptions)
         if (detail.modelCode === "303" && !bundle.validation.valid) {
           return NextResponse.json(
             {
@@ -145,7 +154,7 @@ export async function GET(request: Request, { params }: RouteContext) {
               detail,
               companyName: company.name,
               companyCif: company.cif,
-              taxDirectDebitIban: company.taxDirectDebitIban,
+              taxDirectDebitIban: model303FileOptions.taxDirectDebitIban ?? null,
               eventType: "EXPORT_GENERATED",
             })
             buffer = persisted.artifact.content

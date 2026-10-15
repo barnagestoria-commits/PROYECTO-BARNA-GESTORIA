@@ -12,6 +12,7 @@ import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans
 import { GestoriaTeamPanel } from "@/components/settings/gestoria-team-panel"
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 import { formatIbanDisplay } from "@/lib/banking/iban"
+import { SPANISH_BANK_NAMES, SPANISH_BANKS_DATALIST_ID } from "@/lib/banking/spanish-banks"
 
 const SETTINGS_LINKS = [
   {
@@ -364,6 +365,13 @@ export function AccountSettingsPage() {
             />
             </>
             ) : null}
+            {isEditing ? (
+              <datalist id={SPANISH_BANKS_DATALIST_ID}>
+                {SPANISH_BANK_NAMES.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            ) : null}
           </div>
         </CardContent>
       </Card>
@@ -467,6 +475,8 @@ function BankAccountBlock({
             label="Banco"
             value={bank}
             onChange={onBankChange ?? (() => undefined)}
+            list={SPANISH_BANKS_DATALIST_ID}
+            placeholder="Escribe o elige del listado"
           />
         </div>
       )}
@@ -491,6 +501,8 @@ function ProfileInput({
   type = "text",
   autoComplete,
   spellCheck,
+  list,
+  placeholder,
 }: {
   id: string
   label: string
@@ -499,6 +511,8 @@ function ProfileInput({
   type?: string
   autoComplete?: string
   spellCheck?: boolean
+  list?: string
+  placeholder?: string
 }) {
   return (
     <div className="space-y-1.5">
@@ -511,6 +525,8 @@ function ProfileInput({
         value={value}
         autoComplete={autoComplete}
         spellCheck={spellCheck}
+        list={list}
+        placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
       />
     </div>

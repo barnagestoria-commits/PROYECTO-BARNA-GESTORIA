@@ -1,6 +1,7 @@
 import { normalizeNif } from "../../amount-format"
 import { createBlankRecord, recordToString, writeAt } from "../../record-builder"
 import type { TaxReturnContext } from "../../types"
+import { resolveModel303DeclarationType } from "./declaration-type"
 import { buildModel303Page01000 } from "./page-01000"
 import { buildModel303Page03000 } from "./page-03000"
 import { buildModel303PageDid } from "./page-did"
@@ -35,9 +36,16 @@ export function buildModel303Dr303File(
   context: TaxReturnContext,
   casillas: Map<string, number>,
 ): string {
+  const cuota71 = casillas.get("71") ?? casillas.get("46") ?? 0
+  const directDebit = Boolean((context.taxDirectDebitIban ?? "").replace(/[^A-Za-z0-9]/g, ""))
+  const declarationType = resolveModel303DeclarationType(
+    cuota71,
+    context.declarationType,
+    directDebit,
+  )
   const page01000 = buildModel303Page01000(context, casillas)
   const page03000 = buildModel303Page03000(casillas)
-  const pageDid = buildModel303PageDid(context.taxDirectDebitIban)
+  const pageDid = buildModel303PageDid(context.taxDirectDebitIban, declarationType)
   return buildModel303EnvelopeHeader(context) + page01000 + page03000 + pageDid + buildModel303EnvelopeFooter(context)
 }
 

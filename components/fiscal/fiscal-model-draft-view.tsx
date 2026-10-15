@@ -38,6 +38,8 @@ interface FiscalModelDraftViewProps {
   quarterParam: string
   year: number
   onRefresh: () => Promise<void>
+  taxDirectDebitIban?: string | null
+  taxDirectDebitBank?: string | null
 }
 
 export function FiscalModelDraftView({
@@ -48,6 +50,8 @@ export function FiscalModelDraftView({
   quarterParam,
   year,
   onRefresh,
+  taxDirectDebitIban,
+  taxDirectDebitBank,
 }: FiscalModelDraftViewProps) {
   const draft = useMemo(
     () => buildFiscalModelDraft(detail, companyName, companyCif),
@@ -175,6 +179,9 @@ export function FiscalModelDraftView({
           quarter={quarterParam}
           year={year}
           menuPlacement="top"
+          model303ResultAmount={detail.modelCode === "303" ? draft.resultAmount : undefined}
+          taxDirectDebitIban={taxDirectDebitIban}
+          taxDirectDebitBank={taxDirectDebitBank}
         />
 
         <div className="sticky bottom-0 z-30 overflow-visible border border-black bg-[#f0f0f0] px-3 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.12)]">
