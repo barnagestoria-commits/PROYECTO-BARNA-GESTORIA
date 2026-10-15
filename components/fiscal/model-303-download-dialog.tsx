@@ -48,7 +48,8 @@ export function Model303DownloadDialog({
   onConfirm,
   onCancel,
 }: Model303DownloadDialogProps) {
-  const periodQuarter = quarter === "annual" || quarter === "anual" ? "annual" : Number(quarter)
+  const periodQuarter: number | "annual" =
+    quarter === "annual" || quarter === "anual" ? "annual" : Number(quarter)
   const period = { year, quarter: periodQuarter }
   const directDebitOpen = isModel303DirectDebitOpen(period)
   const directDebitDeadline = formatModel303DirectDebitDeadline(year, periodQuarter)
