@@ -1,6 +1,7 @@
 import type { AccountingPlanType, CompanyClientProfile } from "@prisma/client"
 import { prisma } from "@/lib/db"
 import { DEFAULT_SETTINGS_BY_PROFILE } from "@/lib/fiscal/fiscal-settings"
+import { mapRecordToDto } from "@/lib/fiscal/fiscal-settings-service"
 import { buildGestoriaCompanyCode, resolveCompanyAccessPath } from "@/lib/contabilidad/gestoria-companies"
 import {
   createEmptyGestoriaProfile,
@@ -195,9 +196,9 @@ export async function getGestoriaClientDetail(
   userId: string,
 ): Promise<GestoriaClientDetailDto> {
   const company = await assertGestoriaCompanyAccess(companyId, accountId, userId)
-  const fiscalSettings =
-    company.fiscalSettings ??
-    DEFAULT_SETTINGS_BY_PROFILE.PYME
+  const fiscalSettings = company.fiscalSettings
+    ? mapRecordToDto(company.fiscalSettings)
+    : DEFAULT_SETTINGS_BY_PROFILE.PYME
 
   const profileRecord =
     company.gestoriaProfile ??
@@ -247,7 +248,7 @@ export async function updateGestoriaClientCompany(
 
     const fiscalPayload = fiscalSettingsFromProfileImpresos(
       input.profile,
-      currentFiscal ?? DEFAULT_SETTINGS_BY_PROFILE.PYME,
+      currentFiscal ? mapRecordToDto(currentFiscal) : DEFAULT_SETTINGS_BY_PROFILE.PYME,
     )
 
     await tx.companyFiscalSettings.upsert({
@@ -313,7 +314,9 @@ export async function listGestoriaClientProfiles(
 
   const map = new Map<string, GestoriaClientProfileDto>()
   companies.forEach((company, index) => {
-    const fiscalSettings = company.fiscalSettings ?? DEFAULT_SETTINGS_BY_PROFILE.PYME
+    const fiscalSettings = company.fiscalSettings
+      ? mapRecordToDto(company.fiscalSettings)
+      : DEFAULT_SETTINGS_BY_PROFILE.PYME
     if (company.gestoriaProfile) {
       map.set(company.id, profileRecordToDto(company.gestoriaProfile, fiscalSettings))
       return

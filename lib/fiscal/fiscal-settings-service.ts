@@ -16,7 +16,7 @@ import {
 } from "@/lib/fiscal/fiscal-settings"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 
-function mapRecordToDto(record: {
+export function mapRecordToDto(record: {
   clientProfile: CompanyClientProfile
   model111Enabled: boolean
   model115Enabled: boolean

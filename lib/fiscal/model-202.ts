@@ -51,14 +51,14 @@ export function model202InstallmentPercent(
   return Math.floor((5 * taxRate) / 7)
 }
 
-export function model202PaymentForQuarter(quarter: 1 | 2 | 3 | 4): Model202Payment | null {
+export function model202PaymentForQuarter(quarter: number): Model202Payment | null {
   if (quarter === 1) return "1P"
   if (quarter === 3) return "2P"
   if (quarter === 4) return "3P"
   return null
 }
 
-export function model202PeriodLabel(quarter: 1 | 2 | 3 | 4 | "annual", year: number): string {
+export function model202PeriodLabel(quarter: number | "annual", year: number): string {
   if (quarter === "annual") return `Pagos fraccionados ${year}`
   const payment = model202PaymentForQuarter(quarter)
   if (payment === "1P") return `1P ${year} · presentación en abril`
