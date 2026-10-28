@@ -63,7 +63,7 @@ export default function FiscalModelHubPage() {
               Presentación trimestral
             </h2>
             <div className="grid gap-3 sm:grid-cols-2">
-              {([1, 2, 3, 4] as const).map((quarter) => (
+              {(modelCode === "202" ? ([1, 3, 4] as const) : ([1, 2, 3, 4] as const)).map((quarter) => (
                 <Link
                   key={quarter}
                   href={`/dashboard/fiscal/${modelCode}/${year}/${quarter}`}
@@ -73,16 +73,10 @@ export default function FiscalModelHubPage() {
                     <div>
                       <p className="font-semibold text-gray-900">
                         {modelCode === "202"
-                          ? model202PaymentForQuarter(quarter)
-                            ? `${model202PaymentForQuarter(quarter)} ${year}`
-                            : `2T ${year} · sin pago`
+                          ? `${model202PaymentForQuarter(quarter)} ${year}`
                           : `${quarter}T ${year}`}
                       </p>
-                      <p className="text-sm text-gray-500">
-                        {modelCode === "202" && !model202PaymentForQuarter(quarter)
-                          ? "El 202 no se presenta en julio"
-                          : "Borrador y presentación en la Sede"}
-                      </p>
+                      <p className="text-sm text-gray-500">Borrador y presentación en la Sede</p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-700" />
                   </div>
