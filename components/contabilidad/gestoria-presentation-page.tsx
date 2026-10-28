@@ -182,7 +182,8 @@ export function GestoriaPresentationPage() {
             Presentación fiscal y cuentas anuales
           </h1>
           <p className="mt-1 max-w-2xl text-sm text-graphite-500">
-            Plan contable, balances, impuesto de sociedades, modelo 232 y legalización de libros.
+            Impuesto de sociedades, libros y cuentas anuales. La memoria, la certificación y la
+            carátula son los documentos que se adjuntan al depósito del Registro Mercantil.
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -251,6 +252,40 @@ export function GestoriaPresentationPage() {
           {savedMessage}
         </p>
       ) : null}
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-sand-200 bg-white p-4 text-sm text-graphite-700">
+          <p className="font-semibold text-emerald-900">Impuesto de sociedades</p>
+          <p className="mt-1">
+            El pago fraccionado es el modelo 202. El modelo 200 anual recoge filiación, caracteres,
+            balance, cuenta de pérdidas y ganancias, correcciones y retenciones.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/dashboard/fiscal/202" className="text-emerald-800 underline">
+              Modelo 202
+            </Link>
+            <Link href="/dashboard/inmovilizado/ajustes" className="text-emerald-800 underline">
+              Ajustes extracontables
+            </Link>
+          </div>
+        </div>
+        <div className="rounded-xl border border-sand-200 bg-white p-4 text-sm text-graphite-700">
+          <p className="font-semibold text-emerald-900">Cuentas anuales</p>
+          <p className="mt-1">
+            El balance y la cuenta de pérdidas y ganancias se listan eligiendo el ejercicio y el año
+            de comparativa. Esos estados, junto con la memoria, van en el fichero del Registro
+            Mercantil.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-3">
+            <Link href="/dashboard/informes/balance" className="text-emerald-800 underline">
+              Balance de situación
+            </Link>
+            <Link href="/dashboard/informes/pyg" className="text-emerald-800 underline">
+              Pérdidas y ganancias
+            </Link>
+          </div>
+        </div>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center rounded-xl border border-sand-200 bg-white py-20 text-emerald-800">

@@ -45,6 +45,7 @@ const TOOLBAR_FORMAT_ORDER = ["xlsx", "csv", "pdf", "zip"] as const
 interface ReportExportButtonsProps {
   reportType: ReportType
   year?: number
+  compareYear?: number | null
   costCenterId?: string
   detailLevel?: GestoriaAccountDetailLevel
   disabled?: boolean
@@ -55,6 +56,7 @@ interface ReportExportButtonsProps {
 export function ReportExportButtons({
   reportType,
   year,
+  compareYear,
   costCenterId,
   detailLevel,
   disabled = false,
@@ -67,7 +69,7 @@ export function ReportExportButtons({
   const handleDownload = async (format: ReportExportFormat) => {
     setDownloading(format)
     try {
-      await downloadReport(reportType, format, currentYear, { costCenterId, detailLevel })
+      await downloadReport(reportType, format, currentYear, { compareYear, costCenterId, detailLevel })
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "No se pudo descargar el informe.")
     } finally {

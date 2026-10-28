@@ -16,6 +16,7 @@ interface ReportPreviewModalProps {
   isLoading: boolean
   error: string | null
   year: number
+  compareYear?: number | null
   costCenterId?: string
   detailLevel?: GestoriaAccountDetailLevel
 }
@@ -28,6 +29,7 @@ export function ReportPreviewModal({
   isLoading,
   error,
   year,
+  compareYear,
   costCenterId,
   detailLevel,
 }: ReportPreviewModalProps) {
@@ -83,6 +85,7 @@ export function ReportPreviewModal({
           <ReportExportButtons
             reportType={reportType}
             year={year}
+            compareYear={compareYear}
             costCenterId={costCenterId}
             detailLevel={detailLevel}
             disabled={isLoading || !!error}

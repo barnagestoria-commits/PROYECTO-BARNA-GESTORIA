@@ -196,39 +196,57 @@ function buildSumasSaldosPdf(report: SumasSaldosReportData): Content[] {
 function sectionTable(
   sections: Array<{
     title: string
-    rows: Array<{ cuenta: string; label: string; amount: number; level: number }>
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; level: number }>
     subtotal: number
+    compareSubtotal?: number
   }>,
+  year: number,
+  compareYear?: number | null,
 ): Content[] {
+  const comparing = Boolean(compareYear)
   const content: Content[] = []
 
   for (const section of sections) {
     content.push({ text: section.title, style: "sectionTitle", margin: [0, 6, 0, 3] })
 
+    const header: TableCell[] = [
+      { text: "Cuenta", style: "tableHeader" },
+      { text: "Descripción", style: "tableHeader" },
+      { text: comparing ? String(year) : "Importe", style: "tableHeader", alignment: "right" },
+    ]
+    if (comparing) {
+      header.push({ text: String(compareYear), style: "tableHeader", alignment: "right" })
+    }
+
     const body: TableCell[][] = [
-      [
-        { text: "Cuenta", style: "tableHeader" },
-        { text: "Descripción", style: "tableHeader" },
-        { text: "Importe", style: "tableHeader", alignment: "right" },
-      ],
-      ...section.rows.map(
-        (row): TableCell[] => [
+      header,
+      ...section.rows.map((row): TableCell[] => {
+        const cells: TableCell[] = [
           cuentaCell(row.cuenta),
           labelCell(row.label, row.level),
           amountCell(row.amount),
-        ],
-      ),
-      [
-        { text: `Subtotal ${section.title}`, style: "totalRow" },
-        { text: "", style: "totalRow" },
-        { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
-      ],
+        ]
+        if (comparing) cells.push(amountCell(row.compareAmount ?? 0))
+        return cells
+      }),
+      comparing
+        ? [
+            { text: `Subtotal ${section.title}`, style: "totalRow" },
+            { text: "", style: "totalRow" },
+            { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
+            { text: formatAmount(section.compareSubtotal ?? 0), style: "totalRow", alignment: "right" },
+          ]
+        : [
+            { text: `Subtotal ${section.title}`, style: "totalRow" },
+            { text: "", style: "totalRow" },
+            { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
+          ],
     ]
 
     content.push({
       table: {
         headerRows: 1,
-        widths: [52, "*", 72],
+        widths: comparing ? [48, "*", 64, 64] : [52, "*", 72],
         body,
       },
       layout: {
@@ -242,30 +260,41 @@ function sectionTable(
   return content
 }
 
+function totalLine(label: string, amount: number, compareAmount?: number): Content {
+  if (compareAmount === undefined) {
+    return {
+      columns: [
+        { text: label, style: "totalRow" },
+        { text: formatEuro(amount), style: "totalRow", alignment: "right" },
+      ],
+      margin: [0, 6, 0, 12],
+    }
+  }
+
+  return {
+    columns: [
+      { text: label, style: "totalRow" },
+      { text: formatEuro(amount), style: "totalRow", alignment: "right", width: 70 },
+      { text: formatEuro(compareAmount), style: "totalRow", alignment: "right", width: 70 },
+    ],
+    margin: [0, 6, 0, 12],
+  }
+}
+
 function buildBalancePdf(report: BalanceReportData): Content[] {
+  const year = report.meta.year
+  const compareYear = report.meta.compareYear
   return [
     { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.activo.length > 0
-      ? sectionTable(report.activo)
+      ? sectionTable(report.activo, year, compareYear)
       : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
-    {
-      columns: [
-        { text: "TOTAL ACTIVO", style: "totalRow" },
-        { text: formatEuro(report.totalActivo), style: "totalRow", alignment: "right" },
-      ],
-      margin: [0, 6, 0, 12],
-    },
+    totalLine("TOTAL ACTIVO", report.totalActivo, report.totalActivoCompare),
     { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.pasivo.length > 0
-      ? sectionTable(report.pasivo)
+      ? sectionTable(report.pasivo, year, compareYear)
       : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
-    {
-      columns: [
-        { text: "TOTAL PATRIMONIO NETO Y PASIVO", style: "totalRow" },
-        { text: formatEuro(report.totalPasivo), style: "totalRow", alignment: "right" },
-      ],
-      margin: [0, 6, 0, 0],
-    },
+    totalLine("TOTAL PATRIMONIO NETO Y PASIVO", report.totalPasivo, report.totalPasivoCompare),
   ]
 }
 
@@ -321,6 +350,16 @@ function pygColumn(
 }
 
 function buildPygPdf(report: PygReportData): Content[] {
+  if (report.meta.compareYear) {
+    return [
+      ...sectionTable(report.ingresos, report.meta.year, report.meta.compareYear),
+      totalLine("TOTAL INGRESOS", report.totalIngresos, report.totalIngresosCompare),
+      ...sectionTable(report.gastos, report.meta.year, report.meta.compareYear),
+      totalLine("TOTAL GASTOS", report.totalGastos, report.totalGastosCompare),
+      totalLine("RESULTADO DEL EJERCICIO", report.resultado, report.resultadoCompare),
+    ]
+  }
+
   return [
     {
       columns: [

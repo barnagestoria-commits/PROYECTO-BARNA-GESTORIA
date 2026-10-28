@@ -1,4 +1,5 @@
 import { buildReportMeta, fetchAccountBalances } from "@/lib/reports/account-ledger"
+import { mergeComparedAmounts, sumAmounts, type ComparableRow } from "@/lib/reports/compare-years"
 import { normalizeCuenta, round2 } from "@/lib/reports/format"
 import type { AccountBalance, BalanceReportData, BalanceSection } from "@/lib/reports/types"
 import type { LedgerQuery } from "@/lib/reports/account-ledger"
@@ -50,8 +51,8 @@ function balanceAmount(cuenta: string, saldo: number, bucket: BalanceBucket): nu
   return round2(Math.abs(saldo >= 0 ? saldo : -saldo))
 }
 
-function buildSection(title: string, rows: AccountBalance[], bucket: BalanceBucket): BalanceSection {
-  const sectionRows = rows
+function rowsForBucket(rows: AccountBalance[], bucket: BalanceBucket): ComparableRow[] {
+  return rows
     .filter((row) => classifyBalanceBucket(row.cuenta, row.saldo) === bucket)
     .map((row) => ({
       cuenta: row.cuenta,
@@ -59,17 +60,34 @@ function buildSection(title: string, rows: AccountBalance[], bucket: BalanceBuck
       amount: balanceAmount(row.cuenta, row.saldo, bucket),
       level: row.level,
     }))
-    .filter((row) => row.amount !== 0)
+}
+
+function buildSection(
+  title: string,
+  rows: AccountBalance[],
+  bucket: BalanceBucket,
+  compareRows: AccountBalance[] | null,
+): BalanceSection {
+  const current = rowsForBucket(rows, bucket)
+  const merged = compareRows
+    ? mergeComparedAmounts(current, rowsForBucket(compareRows, bucket))
+    : current.filter((row) => row.amount !== 0)
+  const totals = sumAmounts(merged)
 
   return {
     title,
-    rows: sectionRows,
-    subtotal: round2(sectionRows.reduce((sum, row) => sum + row.amount, 0)),
+    rows: merged,
+    subtotal: totals.subtotal,
+    compareSubtotal: compareRows ? totals.compareSubtotal : undefined,
   }
 }
 
 export async function buildBalanceReport(query: LedgerQuery): Promise<BalanceReportData> {
   const balances = await fetchAccountBalances(query)
+  const compareYear = query.compareYear && query.compareYear !== query.year ? query.compareYear : null
+  const compareBalances = compareYear
+    ? await fetchAccountBalances({ ...query, year: compareYear, compareYear: null })
+    : null
   const meta = await buildReportMeta(
     query.companyId,
     "Balance de Situación",
@@ -77,20 +95,33 @@ export async function buildBalanceReport(query: LedgerQuery): Promise<BalanceRep
     query.fromMonth,
     query.toMonth,
   )
+  meta.compareYear = compareYear
 
   const activo = [
-    buildSection("A) Activo no corriente", balances, "activo_nc"),
-    buildSection("B) Activo corriente", balances, "activo_c"),
+    buildSection("A) Activo no corriente", balances, "activo_nc", compareBalances),
+    buildSection("B) Activo corriente", balances, "activo_c", compareBalances),
   ].filter((section) => section.rows.length > 0)
 
   const pasivo = [
-    buildSection("A) Patrimonio neto", balances, "patrimonio"),
-    buildSection("B) Pasivo no corriente", balances, "pasivo_nc"),
-    buildSection("C) Pasivo corriente", balances, "pasivo_c"),
+    buildSection("A) Patrimonio neto", balances, "patrimonio", compareBalances),
+    buildSection("B) Pasivo no corriente", balances, "pasivo_nc", compareBalances),
+    buildSection("C) Pasivo corriente", balances, "pasivo_c", compareBalances),
   ].filter((section) => section.rows.length > 0)
 
   const totalActivo = round2(activo.reduce((sum, section) => sum + section.subtotal, 0))
   const totalPasivo = round2(pasivo.reduce((sum, section) => sum + section.subtotal, 0))
 
-  return { meta, activo, pasivo, totalActivo, totalPasivo }
+  return {
+    meta,
+    activo,
+    pasivo,
+    totalActivo,
+    totalPasivo,
+    totalActivoCompare: compareBalances
+      ? round2(activo.reduce((sum, section) => sum + (section.compareSubtotal ?? 0), 0))
+      : undefined,
+    totalPasivoCompare: compareBalances
+      ? round2(pasivo.reduce((sum, section) => sum + (section.compareSubtotal ?? 0), 0))
+      : undefined,
+  }
 }

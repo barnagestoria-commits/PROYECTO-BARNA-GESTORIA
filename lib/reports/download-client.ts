@@ -11,6 +11,7 @@ import type { Model303ExportPayment } from "@/lib/fiscal/model-303/export-paymen
 
 export interface ReportDownloadParams {
   year?: number
+  compareYear?: number | null
   costCenterId?: string
   detailLevel?: GestoriaAccountDetailLevel
 }
@@ -55,6 +56,7 @@ function getReportUrl(
 ): string {
   const y = params.year ?? new Date().getFullYear()
   const search = new URLSearchParams({ year: String(y) })
+  if (params.compareYear) search.set("compareYear", String(params.compareYear))
   if (params.costCenterId) search.set("costCenterId", params.costCenterId)
   if (params.detailLevel) search.set("detail", params.detailLevel)
   return `/api/reports/${type}/${format}?${search.toString()}`
@@ -79,6 +81,7 @@ export function getReportZipUrl(type: ReportType, year?: number): string {
 export function getListadosBundleZipUrl(params: ReportDownloadParams = {}): string {
   const y = params.year ?? new Date().getFullYear()
   const search = new URLSearchParams({ year: String(y) })
+  if (params.compareYear) search.set("compareYear", String(params.compareYear))
   if (params.costCenterId) search.set("costCenterId", params.costCenterId)
   if (params.detailLevel) search.set("detail", params.detailLevel)
   return `/api/reports/bundle/zip?${search.toString()}`

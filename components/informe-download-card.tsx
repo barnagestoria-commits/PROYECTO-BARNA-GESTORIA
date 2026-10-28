@@ -54,11 +54,17 @@ export function InformeDownloadCard({
   const [costCenters, setCostCenters] = useState<CostCenterOption[]>([])
   const [selectedCostCenterId, setSelectedCostCenterId] = useState("")
   const [detailLevel, setDetailLevel] = useState<GestoriaAccountDetailLevel>("SUBCUENTAS")
-  const currentYear = new Date().getFullYear()
+  const thisYear = new Date().getFullYear()
+  const [year, setYear] = useState(thisYear)
+  const [compareYear, setCompareYear] = useState<number | "">(thisYear - 1)
+  const yearOptions = Array.from({ length: 8 }, (_, index) => thisYear - index)
 
   const supportsCostCenterFilter = reportType === "balance" || reportType === "pyg"
+  const supportsComparison = reportType === "balance" || reportType === "pyg"
   const supportsDetailLevel = reportType === "balance" || reportType === "pyg" || reportType === "sumas-saldos"
+  const selectedCompareYear = supportsComparison && compareYear !== "" && compareYear !== year ? compareYear : undefined
   const reportOptions = {
+    compareYear: selectedCompareYear,
     costCenterId: selectedCostCenterId || undefined,
     detailLevel: supportsDetailLevel ? detailLevel : undefined,
   }
@@ -86,7 +92,7 @@ export function InformeDownloadCard({
     setPreviewData(null)
 
     try {
-      const preview = await fetchReportPreview(reportType, currentYear, reportOptions)
+      const preview = await fetchReportPreview(reportType, year, reportOptions)
       setPreviewData(preview)
     } catch (err) {
       setPreviewError(err instanceof Error ? err.message : "No se pudo cargar la vista previa.")
@@ -101,9 +107,9 @@ export function InformeDownloadCard({
     setError(null)
     try {
       if (scope === "listados") {
-        await downloadListadosBundleZip(currentYear, reportOptions)
+        await downloadListadosBundleZip(year, reportOptions)
       } else {
-        await downloadFiscalBundleZip(currentYear, scope)
+        await downloadFiscalBundleZip(year, scope)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo generar el paquete ZIP.")
@@ -129,7 +135,10 @@ export function InformeDownloadCard({
             <p className="text-sm text-gray-600">
               Empresa: <span className="font-medium text-gray-900">{activeCompany.name}</span>
               {" · "}
-              <span className="text-gray-500">Ejercicio {currentYear}</span>
+              <span className="text-gray-500">
+                Ejercicio {year}
+                {selectedCompareYear ? ` · comparativa ${selectedCompareYear}` : ""}
+              </span>
             </p>
           )}
 
@@ -144,6 +153,49 @@ export function InformeDownloadCard({
 
             {reportType ? (
               <>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="report-year" className="text-xs text-graphite-600">
+                      Ejercicio
+                    </Label>
+                    <select
+                      id="report-year"
+                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={year}
+                      onChange={(event) => setYear(Number(event.target.value))}
+                    >
+                      {yearOptions.map((option) => (
+                        <option key={option} value={option}>
+                          {option}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {supportsComparison ? (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="report-compare-year" className="text-xs text-graphite-600">
+                        Comparar con
+                      </Label>
+                      <select
+                        id="report-compare-year"
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={compareYear === year ? "" : compareYear}
+                        onChange={(event) =>
+                          setCompareYear(event.target.value === "" ? "" : Number(event.target.value))
+                        }
+                      >
+                        <option value="">Sin comparativa</option>
+                        {yearOptions
+                          .filter((option) => option !== year)
+                          .map((option) => (
+                            <option key={option} value={option}>
+                              {option}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  ) : null}
+                </div>
                 {supportsDetailLevel && (
                   <AccountDetailLevelPicker value={detailLevel} onChange={setDetailLevel} />
                 )}
@@ -169,7 +221,8 @@ export function InformeDownloadCard({
                 )}
                 <ReportExportButtons
                   reportType={reportType}
-                  year={currentYear}
+                  year={year}
+                  compareYear={selectedCompareYear}
                   costCenterId={reportOptions.costCenterId}
                   detailLevel={reportOptions.detailLevel}
                   disabled={!canExport}
@@ -185,7 +238,7 @@ export function InformeDownloadCard({
                       <FiscalPresentationChoicePanel
                         model={modelId}
                         quarter="anual"
-                        year={currentYear}
+                        year={year}
                         disabled={!canExport}
                         variant="inline"
                       />
@@ -227,7 +280,7 @@ export function InformeDownloadCard({
               <FiscalPresentationChoicePanel
                 model={fiscalExport.model}
                 quarter={fiscalExport.quarter}
-                year={currentYear}
+                year={year}
                 disabled={!canExport}
                 variant="inline"
               />
@@ -281,7 +334,8 @@ export function InformeDownloadCard({
           preview={previewData}
           isLoading={previewLoading}
           error={previewError}
-          year={currentYear}
+          year={year}
+          compareYear={selectedCompareYear}
           costCenterId={reportOptions.costCenterId}
           detailLevel={reportOptions.detailLevel}
         />

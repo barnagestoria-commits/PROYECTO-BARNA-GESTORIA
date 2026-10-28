@@ -39,6 +39,7 @@ function ReportHeader({ meta }: { meta: SerializedReportMeta }) {
         </p>
         <p>
           <span className="font-medium text-gray-800">Ejercicio:</span> {meta.year}
+          {meta.compareYear ? ` · Comparativa ${meta.compareYear}` : ""}
         </p>
         <p>
           <span className="font-medium text-gray-800">Periodo:</span> {meta.periodLabel}
@@ -55,13 +56,18 @@ function IndentLabel({ text, level }: { text: string; level: number }) {
 function SectionTable({
   title,
   sections,
+  year,
+  compareYear,
 }: {
   title: string
   sections: Array<{
     title: string
-    rows: Array<{ cuenta: string; label: string; amount: number; level: number }>
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; level: number }>
     subtotal: number
+    compareSubtotal?: number
   }>
+  year: number
+  compareYear?: number | null
 }) {
   if (sections.length === 0) {
     return <p className="text-sm italic text-gray-500">Sin datos en {title.toLowerCase()}.</p>
@@ -79,7 +85,10 @@ function SectionTable({
                 <TableRow className="bg-emerald-900 hover:bg-emerald-900">
                   <TableHead className="w-24 text-white">Cuenta</TableHead>
                   <TableHead className="text-white">Descripción</TableHead>
-                  <TableHead className="w-32 text-right text-white">Importe</TableHead>
+                  <TableHead className="w-32 text-right text-white">{compareYear ? year : "Importe"}</TableHead>
+                  {compareYear ? (
+                    <TableHead className="w-32 text-right text-white">{compareYear}</TableHead>
+                  ) : null}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -92,6 +101,11 @@ function SectionTable({
                     <TableCell className="text-right font-mono text-sm tabular-nums">
                       {formatAmount(row.amount)}
                     </TableCell>
+                    {compareYear ? (
+                      <TableCell className="text-right font-mono text-sm tabular-nums">
+                        {formatAmount(row.compareAmount ?? 0)}
+                      </TableCell>
+                    ) : null}
                   </TableRow>
                 ))}
                 <TableRow className="bg-emerald-50 font-semibold">
@@ -99,6 +113,11 @@ function SectionTable({
                   <TableCell className="text-right font-mono tabular-nums">
                     {formatAmount(section.subtotal)}
                   </TableCell>
+                  {compareYear ? (
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {formatAmount(section.compareSubtotal ?? 0)}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               </TableBody>
             </Table>
@@ -173,15 +192,31 @@ function BalancePreview({ data }: { data: SerializedPreview & { type: "balance" 
   return (
     <div className="space-y-6">
       <ReportHeader meta={data.data.meta} />
-      <SectionTable title="Activo" sections={data.data.activo} />
-      <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
+      <SectionTable
+        title="Activo"
+        sections={data.data.activo}
+        year={data.data.meta.year}
+        compareYear={data.data.meta.compareYear}
+      />
+      <div className="flex items-center justify-between gap-4 rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
         <span>Total activo</span>
-        <span className="font-mono tabular-nums">{formatEuro(data.data.totalActivo)}</span>
+        <span className="font-mono tabular-nums">
+          {formatEuro(data.data.totalActivo)}
+          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalActivoCompare ?? 0)}` : ""}
+        </span>
       </div>
-      <SectionTable title="Patrimonio neto y pasivo" sections={data.data.pasivo} />
-      <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
+      <SectionTable
+        title="Patrimonio neto y pasivo"
+        sections={data.data.pasivo}
+        year={data.data.meta.year}
+        compareYear={data.data.meta.compareYear}
+      />
+      <div className="flex items-center justify-between gap-4 rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
         <span>Total patrimonio neto y pasivo</span>
-        <span className="font-mono tabular-nums">{formatEuro(data.data.totalPasivo)}</span>
+        <span className="font-mono tabular-nums">
+          {formatEuro(data.data.totalPasivo)}
+          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalPasivoCompare ?? 0)}` : ""}
+        </span>
       </div>
     </div>
   )
@@ -191,15 +226,31 @@ function PygPreview({ data }: { data: SerializedPreview & { type: "pyg" } }) {
   return (
     <div className="space-y-6">
       <ReportHeader meta={data.data.meta} />
-      <SectionTable title="Ingresos" sections={data.data.ingresos} />
+      <SectionTable
+        title="Ingresos"
+        sections={data.data.ingresos}
+        year={data.data.meta.year}
+        compareYear={data.data.meta.compareYear}
+      />
       <div className="flex items-center justify-between rounded-md border px-4 py-2 font-semibold">
         <span>Total ingresos</span>
-        <span className="font-mono tabular-nums">{formatEuro(data.data.totalIngresos)}</span>
+        <span className="font-mono tabular-nums">
+          {formatEuro(data.data.totalIngresos)}
+          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalIngresosCompare ?? 0)}` : ""}
+        </span>
       </div>
-      <SectionTable title="Gastos" sections={data.data.gastos} />
+      <SectionTable
+        title="Gastos"
+        sections={data.data.gastos}
+        year={data.data.meta.year}
+        compareYear={data.data.meta.compareYear}
+      />
       <div className="flex items-center justify-between rounded-md border px-4 py-2 font-semibold">
         <span>Total gastos</span>
-        <span className="font-mono tabular-nums">{formatEuro(data.data.totalGastos)}</span>
+        <span className="font-mono tabular-nums">
+          {formatEuro(data.data.totalGastos)}
+          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalGastosCompare ?? 0)}` : ""}
+        </span>
       </div>
       <div
         className={cn(
@@ -208,7 +259,10 @@ function PygPreview({ data }: { data: SerializedPreview & { type: "pyg" } }) {
         )}
       >
         <span>Resultado del ejercicio</span>
-        <span className="font-mono tabular-nums">{formatEuro(data.data.resultado)}</span>
+        <span className="font-mono tabular-nums">
+          {formatEuro(data.data.resultado)}
+          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.resultadoCompare ?? 0)}` : ""}
+        </span>
       </div>
     </div>
   )

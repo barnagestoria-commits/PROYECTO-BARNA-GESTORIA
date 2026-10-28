@@ -52,63 +52,121 @@ function buildSumasSaldosCsv(data: SumasSaldosReportData): string {
   return lines.join("\n")
 }
 
+function statementHeader(year: number, compareYear?: number | null): string[] {
+  return compareYear
+    ? ["Sección", "Subsección", "Cuenta", "Descripción", String(year), String(compareYear)]
+    : ["Sección", "Subsección", "Cuenta", "Descripción", "Importe"]
+}
+
+function statementCells(
+  row: { cuenta: string; label: string; amount: number; compareAmount?: number; level: number },
+  compareYear?: number | null,
+): string[] {
+  const cells = ["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]
+  if (compareYear) cells.push((row.compareAmount ?? 0).toFixed(2))
+  return cells
+}
+
 function buildBalanceCsv(data: BalanceReportData): string {
+  const compareYear = data.meta.compareYear
   const lines = [
     ...metaRows(data.meta),
-    csvRow(["Sección", "Subsección", "Cuenta", "Descripción", "Importe"]),
+    csvRow(statementHeader(data.meta.year, compareYear)),
   ]
 
   lines.push(csvRow(["ACTIVO", "", "", "", ""]))
   for (const section of data.activo) {
     lines.push(csvRow(["", section.title, "", "", ""]))
     for (const row of section.rows) {
-      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+      lines.push(csvRow(statementCells(row, compareYear)))
     }
-    lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
+    lines.push(
+      csvRow(
+        compareYear
+          ? ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2), (section.compareSubtotal ?? 0).toFixed(2)]
+          : ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)],
+      ),
+    )
   }
-  lines.push(csvRow(["TOTAL ACTIVO", "", "", "", data.totalActivo.toFixed(2)]))
+  lines.push(
+    csvRow(
+      compareYear
+        ? ["TOTAL ACTIVO", "", "", "", data.totalActivo.toFixed(2), (data.totalActivoCompare ?? 0).toFixed(2)]
+        : ["TOTAL ACTIVO", "", "", "", data.totalActivo.toFixed(2)],
+    ),
+  )
   lines.push("")
 
   lines.push(csvRow(["PATRIMONIO NETO Y PASIVO", "", "", "", ""]))
   for (const section of data.pasivo) {
     lines.push(csvRow(["", section.title, "", "", ""]))
     for (const row of section.rows) {
-      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+      lines.push(csvRow(statementCells(row, compareYear)))
     }
-    lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
+    lines.push(
+      csvRow(
+        compareYear
+          ? ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2), (section.compareSubtotal ?? 0).toFixed(2)]
+          : ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)],
+      ),
+    )
   }
-  lines.push(csvRow(["TOTAL PATRIMONIO NETO Y PASIVO", "", "", "", data.totalPasivo.toFixed(2)]))
+  lines.push(
+    csvRow(
+      compareYear
+        ? ["TOTAL PATRIMONIO NETO Y PASIVO", "", "", "", data.totalPasivo.toFixed(2), (data.totalPasivoCompare ?? 0).toFixed(2)]
+        : ["TOTAL PATRIMONIO NETO Y PASIVO", "", "", "", data.totalPasivo.toFixed(2)],
+    ),
+  )
 
   return lines.join("\n")
 }
 
 function buildPygCsv(data: PygReportData): string {
+  const compareYear = data.meta.compareYear
   const lines = [
     ...metaRows(data.meta),
-    csvRow(["Sección", "Subsección", "Cuenta", "Descripción", "Importe"]),
+    csvRow(statementHeader(data.meta.year, compareYear)),
   ]
 
-  lines.push(csvRow(["INGRESOS", "", "", "", ""]))
-  for (const section of data.ingresos) {
-    lines.push(csvRow(["", section.title, "", "", ""]))
-    for (const row of section.rows) {
-      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
+  const appendSections = (
+    title: string,
+    sections: PygReportData["ingresos"],
+    totalLabel: string,
+    total: number,
+    totalCompare?: number,
+  ) => {
+    lines.push(csvRow([title, "", "", "", ""]))
+    for (const section of sections) {
+      lines.push(csvRow(["", section.title, "", "", ""]))
+      for (const row of section.rows) lines.push(csvRow(statementCells(row, compareYear)))
+      lines.push(
+        csvRow(
+          compareYear
+            ? ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2), (section.compareSubtotal ?? 0).toFixed(2)]
+            : ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)],
+        ),
+      )
     }
-    lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
+    lines.push(
+      csvRow(
+        compareYear
+          ? [totalLabel, "", "", "", total.toFixed(2), (totalCompare ?? 0).toFixed(2)]
+          : [totalLabel, "", "", "", total.toFixed(2)],
+      ),
+    )
   }
-  lines.push(csvRow(["TOTAL INGRESOS", "", "", "", data.totalIngresos.toFixed(2)]))
-  lines.push("")
 
-  lines.push(csvRow(["GASTOS", "", "", "", ""]))
-  for (const section of data.gastos) {
-    lines.push(csvRow(["", section.title, "", "", ""]))
-    for (const row of section.rows) {
-      lines.push(csvRow(["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]))
-    }
-    lines.push(csvRow(["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)]))
-  }
-  lines.push(csvRow(["TOTAL GASTOS", "", "", "", data.totalGastos.toFixed(2)]))
-  lines.push(csvRow(["RESULTADO DEL EJERCICIO", "", "", "", data.resultado.toFixed(2)]))
+  appendSections("INGRESOS", data.ingresos, "TOTAL INGRESOS", data.totalIngresos, data.totalIngresosCompare)
+  lines.push("")
+  appendSections("GASTOS", data.gastos, "TOTAL GASTOS", data.totalGastos, data.totalGastosCompare)
+  lines.push(
+    csvRow(
+      compareYear
+        ? ["RESULTADO DEL EJERCICIO", "", "", "", data.resultado.toFixed(2), (data.resultadoCompare ?? 0).toFixed(2)]
+        : ["RESULTADO DEL EJERCICIO", "", "", "", data.resultado.toFixed(2)],
+    ),
+  )
 
   return lines.join("\n")
 }

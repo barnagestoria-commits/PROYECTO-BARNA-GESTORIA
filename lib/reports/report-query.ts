@@ -11,6 +11,7 @@ const ACCOUNT_DETAIL_LEVELS = new Set<GestoriaAccountDetailLevel>([
 
 export interface ParsedReportQuery {
   year: number
+  compareYear: number | null
   fromMonth?: number
   toMonth?: number
   costCenterId?: string
@@ -41,12 +42,25 @@ export function parseMonth(value: string | null): number | undefined {
   return month
 }
 
+function parseCompareYear(value: string | null, year: number): number | null | { error: string } {
+  if (!value || value === "none") return null
+  const compareYear = Number.parseInt(value, 10)
+  if (!Number.isFinite(compareYear) || compareYear < 2000 || compareYear > 2100) {
+    return { error: "El ejercicio de comparativa no es válido." }
+  }
+  if (compareYear === year) return null
+  return compareYear
+}
+
 export function parseReportQueryFromUrl(url: URL): ParsedReportQuery | { error: string } {
   const year = parseYear(url.searchParams.get("year"))
   if (year === null) return { error: "Ejercicio no válido." }
+  const compareYear = parseCompareYear(url.searchParams.get("compareYear"), year)
+  if (compareYear && typeof compareYear === "object") return compareYear
   const costCenterId = url.searchParams.get("costCenterId")?.trim() || undefined
   return {
     year,
+    compareYear,
     fromMonth: parseMonth(url.searchParams.get("fromMonth")),
     toMonth: parseMonth(url.searchParams.get("toMonth")),
     costCenterId,
@@ -58,6 +72,7 @@ export function toLedgerQueryFields(companyId: string, parsed: ParsedReportQuery
   return {
     companyId,
     year: parsed.year,
+    compareYear: parsed.compareYear,
     fromMonth: parsed.fromMonth,
     toMonth: parsed.toMonth,
     costCenterId: parsed.costCenterId,

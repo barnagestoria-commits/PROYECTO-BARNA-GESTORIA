@@ -26,6 +26,7 @@ import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
 export interface LedgerQuery {
   companyId: string
   year: number
+  compareYear?: number | null
   fromMonth?: number
   toMonth?: number
   costCenterId?: string

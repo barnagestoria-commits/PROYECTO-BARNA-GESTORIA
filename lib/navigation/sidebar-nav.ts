@@ -182,12 +182,6 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             accountTypes: ["GESTORIA"],
           },
           {
-            label: "Presentación fiscal",
-            href: "/dashboard/contabilidad/presentacion-fiscal",
-            description: "Plan contable, balances, IS, cuentas anuales y legalización de libros",
-            accountTypes: ["GESTORIA"],
-          },
-          {
             label: "Libro diario / Asientos",
             href: "/dashboard/contabilidad",
             description: "Contabilización con flujo de teclado profesional",
@@ -291,9 +285,9 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
         title: "Sociedades y cuentas anuales",
         items: [
           {
-            label: "Presentación fiscal (IS / CA)",
+            label: "Presentación fiscal — IS y cuentas anuales",
             href: "/dashboard/contabilidad/presentacion-fiscal",
-            description: "Balances Pymes, modelo 200, 202, 232 y depósito de cuentas",
+            description: "Libros, impuesto de sociedades, cuentas anuales y depósito en el Registro Mercantil",
             accountTypes: ["GESTORIA"],
           },
         ],
