@@ -639,6 +639,24 @@ export function calculateModelAmount(
           total: settlement.priorQuotaMissing ? 1 : 0,
           lines: [],
         },
+        {
+          key: "gravamen",
+          label: "Tipo de gravamen",
+          total: options?.model202?.taxRate ?? 25,
+          lines: [],
+        },
+        {
+          key: "cnae",
+          label: (options?.model202?.cnae ?? "").replace(/\D/g, "").slice(0, 4),
+          total: 0,
+          lines: [],
+        },
+        {
+          key: "tramo",
+          label: "Cifra de negocios",
+          total: options?.model202?.turnoverAtLeast10m ? 1 : 0,
+          lines: [],
+        },
       ],
     }
   }

@@ -23,6 +23,7 @@ import {
   SESSION_COOKIE,
 } from "@/lib/auth/session-cookie"
 import { parseOptionalBankName, parseOptionalIban } from "@/lib/banking/iban"
+import { parseCnae } from "@/lib/company/cnae"
 
 function createSessionToken(): string {
   return randomBytes(32).toString("hex")
@@ -40,6 +41,7 @@ function toCompanySummary(company: {
   taxDirectDebitBank?: string | null
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
+  cnae?: string | null
 }): CompanySummary {
   return {
     id: company.id,
@@ -53,6 +55,7 @@ function toCompanySummary(company: {
     taxDirectDebitBank: company.taxDirectDebitBank ?? null,
     salesCollectionIban: company.salesCollectionIban ?? null,
     salesCollectionBank: company.salesCollectionBank ?? null,
+    cnae: company.cnae ?? null,
   }
 }
 
@@ -76,6 +79,7 @@ async function getCompaniesForUser(
         taxDirectDebitBank: true,
         salesCollectionIban: true,
         salesCollectionBank: true,
+        cnae: true,
       },
     }),
     prisma.userCompanyAccess.findMany({
@@ -408,6 +412,7 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
   const taxDirectDebitBank = parseOptionalBankName(input.taxDirectDebitBank)
   const salesCollectionIban = parseOptionalIban(input.salesCollectionIban)
   const salesCollectionBank = parseOptionalBankName(input.salesCollectionBank)
+  const cnae = parseCnae(input.cnae)
 
   if (name !== undefined && !name) {
     throw new Error("El nombre es obligatorio.")
@@ -466,6 +471,7 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(taxDirectDebitBank !== undefined ? { taxDirectDebitBank } : {}),
           ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
           ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
+          ...(cnae !== undefined ? { cnae } : {}),
         },
       })
     } else if (
@@ -474,7 +480,8 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
         taxDirectDebitIban !== undefined ||
         taxDirectDebitBank !== undefined ||
         salesCollectionIban !== undefined ||
-        salesCollectionBank !== undefined) &&
+        salesCollectionBank !== undefined ||
+        cnae !== undefined) &&
       session.activeCompanyId
     ) {
       if (!session.companies.some((company) => company.id === session.activeCompanyId)) {
@@ -490,6 +497,7 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(taxDirectDebitBank !== undefined ? { taxDirectDebitBank } : {}),
           ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
           ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
+          ...(cnae !== undefined ? { cnae } : {}),
         },
       })
     }

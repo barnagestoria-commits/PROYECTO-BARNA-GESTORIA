@@ -9,6 +9,11 @@ import {
   generateModel130AeatTxt,
 } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
 import {
+  buildModel202Filename,
+  generateModel202AeatTxt,
+  model202FilePeriod,
+} from "@/lib/fiscal/aeat/generate-aeat-txt-202"
+import {
   buildAeat303Filename,
   generateAeatTxt303ViaTaxEngine,
   type Model303FileOptions,
@@ -31,6 +36,10 @@ export function buildAeatTxtFilename(
     return buildModel130Filename(detail, companyCif)
   }
 
+  if (detail.modelCode === "202") {
+    return buildModel202Filename(detail, companyCif)
+  }
+
   const nif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 9).padEnd(9, " ").trim() || "SINNIF"
   const period = periodLabelForFile(detail.quarter)
   return `${detail.modelCode}${detail.year}${period}_${nif}.txt`
@@ -50,11 +59,15 @@ export function generateAeatTxt(
     return generateModel130AeatTxt(detail, companyName, companyCif)
   }
 
+  if (detail.modelCode === "202") {
+    return generateModel202AeatTxt(detail, companyName, companyCif)
+  }
+
   return generateLegacyAeatTxt(detail, companyName, companyCif)
 }
 
 export function supportsAeatTxtImport(model: FiscalModelId): boolean {
-  return model === "303" || supportsLegacyAeatTxt(model)
+  return model === "303" || model === "202" || supportsLegacyAeatTxt(model)
 }
 
 export function shouldOfferAeatTxt(
@@ -62,6 +75,10 @@ export function shouldOfferAeatTxt(
 ): boolean {
   if (detail.modelCode === "303") {
     return detail.quarter !== "annual"
+  }
+
+  if (detail.modelCode === "202") {
+    return model202FilePeriod(detail.quarter) !== null
   }
 
   const annualModels: FiscalModelId[] = ["180", "190", "347", "390"]
@@ -78,4 +95,8 @@ export function usesDr303Envelope(modelCode: FiscalModelId): boolean {
 
 export function usesDr130Envelope(modelCode: FiscalModelId): boolean {
   return modelCode === "130"
+}
+
+export function usesDr202Envelope(modelCode: FiscalModelId): boolean {
+  return modelCode === "202"
 }

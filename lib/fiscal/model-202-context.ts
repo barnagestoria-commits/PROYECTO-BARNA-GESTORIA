@@ -44,22 +44,49 @@ function modalityOf(value: string | null | undefined): Model202Modality {
   return value === "ART_40_3" ? "ART_40_3" : "ART_40_2"
 }
 
-export async function loadModel202Options(companyId: string): Promise<Model202Options> {
-  const settings = await prisma.companyFiscalSettings.findUnique({
-    where: { companyId },
-    select: {
-      model202Modality: true,
-      model202TaxRate: true,
-      model202PriorNetQuota: true,
-      model202LargeTurnover: true,
-      model202Increase: true,
-      model202Decrease: true,
-      model202NegativeBases: true,
-    },
-  })
+function cnaeDigits(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "")
+  return digits.length === 4 ? digits : ""
+}
 
-  const assets = await loadExtracontableAssets(companyId)
-  if (!settings) return { ...DEFAULT_MODEL_202_OPTIONS, assets }
+function cnaeFromActivities(json: string | null | undefined): string {
+  if (!json) return ""
+  try {
+    const activities = JSON.parse(json) as Array<{ epigraph?: string; isMain?: boolean }>
+    const main = activities.find((item) => item.isMain) ?? activities[0]
+    return cnaeDigits(main?.epigraph)
+  } catch {
+    return ""
+  }
+}
+
+export async function loadModel202Options(companyId: string): Promise<Model202Options> {
+  const [settings, assets, company, profile] = await Promise.all([
+    prisma.companyFiscalSettings.findUnique({
+      where: { companyId },
+      select: {
+        model202Modality: true,
+        model202TaxRate: true,
+        model202PriorNetQuota: true,
+        model202LargeTurnover: true,
+        model202Increase: true,
+        model202Decrease: true,
+        model202NegativeBases: true,
+      },
+    }),
+    loadExtracontableAssets(companyId),
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { cnae: true },
+    }),
+    prisma.companyGestoriaProfile.findUnique({
+      where: { companyId },
+      select: { activitiesJson: true },
+    }),
+  ])
+
+  const cnae = cnaeDigits(company?.cnae) || cnaeFromActivities(profile?.activitiesJson)
+  if (!settings) return { ...DEFAULT_MODEL_202_OPTIONS, assets, cnae }
 
   return {
     modality: modalityOf(settings.model202Modality),
@@ -71,5 +98,6 @@ export async function loadModel202Options(companyId: string): Promise<Model202Op
     correctionsDecrease: decimalToNumber(settings.model202Decrease),
     negativeBases: decimalToNumber(settings.model202NegativeBases),
     assets,
+    cnae,
   }
 }

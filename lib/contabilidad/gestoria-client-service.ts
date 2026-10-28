@@ -19,6 +19,7 @@ import {
   profileDtoToRecordData,
   profileRecordToDto,
 } from "@/lib/contabilidad/gestoria-client-profile-serializers"
+import { parseCnae } from "@/lib/company/cnae"
 import type { CompanySummary, UserRole } from "@/lib/types/auth"
 
 export type GestoriaClientEntityType = "juridica" | "fisica"
@@ -34,6 +35,7 @@ export interface CreateGestoriaClientInput {
 export interface UpdateGestoriaClientInput {
   name: string
   cif?: string
+  cnae?: string | null
   profile: GestoriaClientProfileDto
 }
 
@@ -215,6 +217,7 @@ export async function getGestoriaClientDetail(
     id: company.id,
     name: company.name,
     cif: company.cif,
+    cnae: company.cnae,
     profile: profileRecordToDto(profileRecord, fiscalSettings),
     fiscalSettings,
   }
@@ -234,12 +237,17 @@ export async function updateGestoriaClientCompany(
   await assertGestoriaCompanyAccess(companyId, accountId, userId)
 
   const cif = normalizeCif(input.cif)
+  const cnae = parseCnae(input.cnae)
   const profileData = profileDtoToRecordData(input.profile)
 
   await prisma.$transaction(async (tx) => {
     await tx.company.update({
       where: { id: companyId },
-      data: { name, cif },
+      data: {
+        name,
+        cif,
+        ...(cnae !== undefined ? { cnae } : {}),
+      },
     })
 
     const currentFiscal = await tx.companyFiscalSettings.findUnique({

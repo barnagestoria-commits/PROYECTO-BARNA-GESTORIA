@@ -6,6 +6,8 @@ export interface DraftCasilla {
   label: string
   description?: string
   amount: number
+  /** Texto ya formateado. Los porcentajes del 202 no se muestran como euros. */
+  amountText?: string
   baseAmount?: number
   relatedCode?: string
   sectionKey?: string

@@ -159,6 +159,8 @@ export interface GestoriaClientDetailDto {
   id: string
   name: string
   cif: string | null
+  /** CNAE-2025 de la actividad principal, cuatro cifras. */
+  cnae: string | null
   profile: GestoriaClientProfileDto
   fiscalSettings: CompanyFiscalSettingsDto
 }

@@ -3,9 +3,16 @@ import {
   generateAeatTxt,
   shouldOfferAeatTxt,
   usesDr130Envelope,
+  usesDr202Envelope,
   usesDr303Envelope,
 } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import { MODEL_130_PAGE_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
+import {
+  MODEL_202_PAGE1_LENGTH,
+  MODEL_202_PAGE2_LENGTH,
+  model202Cnae,
+  model202FilePeriod,
+} from "@/lib/fiscal/aeat/generate-aeat-txt-202"
 import { getAeatModelOfficialSource } from "@/lib/fiscal/aeat/official-sources"
 import {
   buildTaxEngine303Casillas,
@@ -135,6 +142,59 @@ export function validateAeatSubmission(
       issues.push({
         code: "DR130_CLOSING",
         message: "Falta el cierre </T1300…> del fichero del modelo 130.",
+        severity: "error",
+      })
+    }
+    const hasErrors = issues.some((issue) => issue.severity === "error")
+    return {
+      valid: !hasErrors,
+      modelCode: detail.modelCode,
+      recordCount: 1,
+      casillaCount: casillas.length,
+      filename: buildAeatTxtFilename(detail, companyCif),
+      issues,
+    }
+  }
+
+  if (usesDr202Envelope(detail.modelCode)) {
+    const period = model202FilePeriod(detail.quarter)
+    const opening = period ? `<T2020${detail.year}${period}0000>` : ""
+    const page1Start = content.indexOf("<T20201000>")
+    const page2Start = content.indexOf("<T20202000>")
+    const page1 = page1Start >= 0 ? content.slice(page1Start, page1Start + MODEL_202_PAGE1_LENGTH) : ""
+    const page2 = page2Start >= 0 ? content.slice(page2Start, page2Start + MODEL_202_PAGE2_LENGTH) : ""
+    if (!period || !content.startsWith(opening) || !content.includes("<AUX>") || !content.includes("</AUX>")) {
+      issues.push({
+        code: "DR202_ENVELOPE",
+        message: "El fichero del modelo 202 no tiene la envolvente <T2020…> ni el bloque <AUX> del diseño DR202.",
+        severity: "error",
+      })
+    }
+    if (page1.length !== MODEL_202_PAGE1_LENGTH || !page1.endsWith("</T20201000>")) {
+      issues.push({
+        code: "DR202_PAGE1",
+        message: `La página 01 del modelo 202 debe ocupar ${MODEL_202_PAGE1_LENGTH} posiciones.`,
+        severity: "error",
+      })
+    }
+    if (page2.length !== MODEL_202_PAGE2_LENGTH || !page2.endsWith("</T20202000>")) {
+      issues.push({
+        code: "DR202_PAGE2",
+        message: `La página 02 del modelo 202 debe ocupar ${MODEL_202_PAGE2_LENGTH} posiciones.`,
+        severity: "error",
+      })
+    }
+    if (period && !content.endsWith(`</T2020${detail.year}${period}0000>`)) {
+      issues.push({
+        code: "DR202_CLOSING",
+        message: "Falta el cierre </T2020…> del fichero del modelo 202.",
+        severity: "error",
+      })
+    }
+    if (model202Cnae(detail).length !== 4) {
+      issues.push({
+        code: "DR202_CNAE",
+        message: "Indica el CNAE de cuatro cifras de la actividad principal. Sin él, la Sede rechaza el fichero.",
         severity: "error",
       })
     }

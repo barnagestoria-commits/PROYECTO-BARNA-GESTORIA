@@ -139,6 +139,23 @@ export function FiscalModelDraftView({
               ? "border-emerald-700 bg-emerald-50 text-emerald-800"
               : "border-amber-700 bg-amber-50 text-amber-800"
           }
+          cnae={
+            detail.modelCode === "202"
+              ? detail.breakdown.find((item) => item.key === "cnae")?.label ?? ""
+              : undefined
+          }
+          taxRate={
+            detail.modelCode === "202"
+              ? detail.breakdown.find((item) => item.key === "gravamen")?.total
+              : undefined
+          }
+          modalityLabel={
+            detail.modelCode === "202"
+              ? detail.breakdown.find((item) => item.key === "modalidad")?.total === 3
+                ? "B · artículo 40.3"
+                : "A · artículo 40.2"
+              : undefined
+          }
         />
 
         {draft.sections.map((section) =>

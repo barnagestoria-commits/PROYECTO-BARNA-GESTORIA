@@ -73,6 +73,9 @@ export function AeatOfficialFormHeader({
   periodLabel,
   statusLabel,
   statusClassName,
+  cnae,
+  taxRate,
+  modalityLabel,
 }: {
   modelCode: string
   modelLabel: string
@@ -82,6 +85,9 @@ export function AeatOfficialFormHeader({
   periodLabel: string
   statusLabel: string
   statusClassName: string
+  cnae?: string
+  taxRate?: number
+  modalityLabel?: string
 }) {
   return (
     <div className={cn("border border-black", AEAT_HEADER_BG)}>
@@ -150,6 +156,46 @@ export function AeatOfficialFormHeader({
                   </span>
                 </td>
               </tr>
+              {modalityLabel ? (
+                <tr>
+                  <td className="py-1 pr-2 text-xs font-bold uppercase text-black">Modalidad</td>
+                  <td className="py-1">
+                    <span className="inline-block border border-black bg-white px-2 py-1 font-mono font-bold">
+                      {modalityLabel}
+                    </span>
+                  </td>
+                </tr>
+              ) : null}
+              {taxRate !== undefined ? (
+                <tr>
+                  <td className="py-1 pr-2 text-xs font-bold uppercase text-black">Tipo</td>
+                  <td className="py-1">
+                    <span className="inline-block border border-black bg-white px-2 py-1 text-center font-mono font-bold">
+                      {taxRate} %
+                    </span>
+                  </td>
+                </tr>
+              ) : null}
+              {cnae !== undefined ? (
+                <tr>
+                  <td className="py-1 pr-2 text-xs font-bold uppercase text-black">C.N.A.E.</td>
+                  <td className="py-1">
+                    <span
+                      className={cn(
+                        "inline-block border border-black px-2 py-1 font-mono font-bold",
+                        cnae ? "bg-white" : "bg-amber-50 text-amber-900",
+                      )}
+                    >
+                      {cnae || "Sin indicar"}
+                    </span>
+                    {cnae ? null : (
+                      <p className="mt-1 text-[11px] text-amber-900">
+                        Indica las cuatro cifras en el perfil de la empresa. En una gestoría, en la ficha del cliente. Sin el CNAE, Hacienda rechaza el fichero.
+                      </p>
+                    )}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>
@@ -264,6 +310,7 @@ function isCountCasilla(cell: DraftCasilla): boolean {
 }
 
 function formatCellAmount(cell: DraftCasilla): string {
+  if (cell.amountText) return cell.amountText
   if (isCountCasilla(cell)) return String(Math.round(cell.amount))
   return formatFiscalAmount(cell.amount)
 }

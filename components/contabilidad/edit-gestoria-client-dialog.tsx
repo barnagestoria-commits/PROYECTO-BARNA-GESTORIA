@@ -87,6 +87,7 @@ export function EditGestoriaClientDialog({
   const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [cif, setCif] = useState("")
+  const [cnae, setCnae] = useState("")
   const [profile, setProfile] = useState<GestoriaClientProfileDto>(
     createEmptyGestoriaProfile("01564"),
   )
@@ -104,6 +105,7 @@ export function EditGestoriaClientDialog({
       .then((data) => {
         setName(data.client.name)
         setCif(data.client.cif ?? "")
+        setCnae(data.client.cnae ?? "")
         setProfile(data.client.profile)
       })
       .catch((err: Error) => setError(err.message))
@@ -124,6 +126,7 @@ export function EditGestoriaClientDialog({
       .then((data) => {
         setName(data.client.name)
         setCif(data.client.cif ?? "")
+        setCnae(data.client.cnae ?? "")
       })
       .catch(() => undefined)
   }, [companyId])
@@ -190,7 +193,7 @@ export function EditGestoriaClientDialog({
     try {
       await apiFetch(`/api/companies/${companyId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, cif, profile }),
+        body: JSON.stringify({ name, cif, cnae, profile }),
       })
       onSaved()
       onClose()
@@ -261,6 +264,19 @@ export function EditGestoriaClientDialog({
                   </Field>
                   <Field label="N.I.F. / C.I.F.">
                     <Input value={cif} onChange={(e) => setCif(e.target.value.toUpperCase())} />
+                  </Field>
+                  <Field label="CNAE actividad principal">
+                    <Input
+                      value={cnae}
+                      inputMode="numeric"
+                      maxLength={4}
+                      className="font-mono"
+                      placeholder="Cuatro cifras"
+                      onChange={(e) => setCnae(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    />
+                    <p className="text-xs text-graphite-500">
+                      Dato mercantil obligatorio. Hacienda lo pide en el modelo 202.
+                    </p>
                   </Field>
                   <Field label="Nombre / Razón social" className="md:col-span-2">
                     <Input value={name} onChange={(e) => setName(e.target.value)} />

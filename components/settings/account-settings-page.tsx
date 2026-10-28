@@ -41,6 +41,7 @@ interface ProfileFormState {
   taxDirectDebitBank: string
   salesCollectionIban: string
   salesCollectionBank: string
+  cnae: string
 }
 
 function formatSpanishDate(iso: string | null | undefined): string {
@@ -68,6 +69,7 @@ export function AccountSettingsPage() {
     taxDirectDebitBank: "",
     salesCollectionIban: "",
     salesCollectionBank: "",
+    cnae: "",
   })
 
   const canEditAccountName =
@@ -89,6 +91,7 @@ export function AccountSettingsPage() {
       taxDirectDebitBank: activeCompany?.taxDirectDebitBank ?? "",
       salesCollectionIban: formatIbanDisplay(activeCompany?.salesCollectionIban),
       salesCollectionBank: activeCompany?.salesCollectionBank ?? "",
+      cnae: activeCompany?.cnae ?? "",
     })
   }, [
     session,
@@ -99,6 +102,7 @@ export function AccountSettingsPage() {
     activeCompany?.taxDirectDebitBank,
     activeCompany?.salesCollectionIban,
     activeCompany?.salesCollectionBank,
+    activeCompany?.cnae,
   ])
 
   if (!session) return null
@@ -116,6 +120,7 @@ export function AccountSettingsPage() {
       taxDirectDebitBank: activeCompany?.taxDirectDebitBank ?? "",
       salesCollectionIban: formatIbanDisplay(activeCompany?.salesCollectionIban),
       salesCollectionBank: activeCompany?.salesCollectionBank ?? "",
+      cnae: activeCompany?.cnae ?? "",
     })
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -143,6 +148,7 @@ export function AccountSettingsPage() {
                 taxDirectDebitBank: form.taxDirectDebitBank || null,
                 salesCollectionIban: form.salesCollectionIban || null,
                 salesCollectionBank: form.salesCollectionBank || null,
+                cnae: form.cnae || null,
               }
             : {}),
         }),
@@ -245,6 +251,7 @@ export function AccountSettingsPage() {
               <ProfileField label="Rol" value={roleLabel} />
               <ProfileField label="Empresa activa" value={activeCompany?.name ?? "—"} />
               <ProfileField label="NIF / CIF" value={activeCompany?.cif ?? "—"} />
+              <ProfileField label="CNAE" value={activeCompany?.cnae || "Sin indicar"} />
               <ProfileField
                 label="Fecha de alta"
                 value={formatSpanishDate(activeCompany?.activityStartDate)}
@@ -292,6 +299,15 @@ export function AccountSettingsPage() {
                     }
                   />
                   <ProfileInput
+                    id="profile-cnae"
+                    label="CNAE actividad principal"
+                    value={form.cnae}
+                    placeholder="Cuatro cifras"
+                    onChange={(value) =>
+                      setForm((current) => ({ ...current, cnae: value.replace(/\D/g, "").slice(0, 4) }))
+                    }
+                  />
+                  <ProfileInput
                     id="profile-activity-start"
                     label="Fecha de alta de autónomo / empresa"
                     type="date"
@@ -321,9 +337,10 @@ export function AccountSettingsPage() {
             </div>
           )}
           <p className="text-xs leading-relaxed text-graphite-500">
-            La fecha de alta sirve para el modelo 130. Si el alta es de este ejercicio, se aplica la
-            minoración de 100 € del art. 110.3.c del Reglamento del IRPF. Si es anterior, la minoración
-            se calcula con el rendimiento del ejercicio previo que haya en los libros.
+            El CNAE es el de la actividad principal, cuatro cifras del CNAE-2025. Hacienda lo pide en
+            el modelo 202. La fecha de alta sirve para el modelo 130. Si el alta es de este ejercicio,
+            se aplica la minoración de 100 € del art. 110.3.c del Reglamento del IRPF. Si es anterior,
+            la minoración se calcula con el rendimiento del ejercicio previo que haya en los libros.
           </p>
 
           <div className="space-y-3 border-t border-sand-200 pt-4">

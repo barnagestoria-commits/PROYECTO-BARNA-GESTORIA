@@ -24,7 +24,7 @@ export interface AeatModelOfficialSource {
   modelCode: FiscalModelId
   label: string
   /** Formato BOE de presentación por fichero. */
-  submissionFormat: "dr303-envelope" | "boe-500" | "xml-ws"
+  submissionFormat: "dr303-envelope" | "dr202-envelope" | "boe-500" | "xml-ws"
   /** Extensión del fichero de importación en la sede (p. ej. .303, .111). */
   boeFileExtension: string
   recordDesignPath?: string
@@ -97,9 +97,10 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
   "202": {
     modelCode: "202",
     label: "Impuesto sobre Sociedades — pago fraccionado",
-    submissionFormat: "boe-500",
+    submissionFormat: "dr202-envelope",
     boeFileExtension: ".202",
-    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    recordDesignPath:
+      "https://www3.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/DR_200_299/archivos_25/DR202e25.xlsx",
     presentationPath:
       "https://sede.agenciatributaria.gob.es/Sede/impuesto-sobre-sociedades/pagos-fraccionados-is-modelo-202.html",
   },

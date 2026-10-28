@@ -31,6 +31,8 @@ export interface Model202Options {
   negativeBases: number
   /** Amortización contable distinta de la fiscal. Casillas 07 y 08 del tramo del pago. */
   assets?: ExtracontableAsset[]
+  /** CNAE-2025 de cuatro cifras. Va en la cabecera del fichero. */
+  cnae?: string
 }
 
 export const DEFAULT_MODEL_202_OPTIONS: Model202Options = {

@@ -205,15 +205,16 @@ function Model202Options({
         </label>
       </div>
 
+      <AmountField
+        label="Tipo del impuesto (%)"
+        defaultValue={String(settings.model202TaxRate)}
+        disabled={disabled}
+        onCommit={(value) => onSave({ model202TaxRate: Math.round(Number(value)) })}
+      />
+
       {article403 ? (
         <div className="grid gap-3 sm:grid-cols-2">
-          <AmountField
-            label="Tipo del impuesto (%)"
-            defaultValue={String(settings.model202TaxRate)}
-            disabled={disabled}
-            onCommit={(value) => onSave({ model202TaxRate: Math.round(Number(value)) })}
-          />
-          <label className="flex items-start gap-2 pt-6 text-sm">
+          <label className="flex items-start gap-2 text-sm sm:col-span-2">
             <input
               type="checkbox"
               className="mt-1"

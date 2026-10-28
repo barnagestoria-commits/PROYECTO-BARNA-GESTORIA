@@ -15,6 +15,8 @@ export interface CompanySummary {
   taxDirectDebitBank?: string | null
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
+  /** CNAE-2025 de la actividad principal, cuatro cifras. */
+  cnae?: string | null
 }
 
 export interface AuthUser {
@@ -40,6 +42,7 @@ export interface UpdateUserProfileRequest {
   taxDirectDebitBank?: string | null
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
+  cnae?: string | null
 }
 
 export interface AuthSession {
