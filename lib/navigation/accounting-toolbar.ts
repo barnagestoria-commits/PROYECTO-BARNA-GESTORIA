@@ -148,6 +148,12 @@ export const ACCOUNTING_TOOLBAR_GROUPS: AccountingToolbarGroup[] = [
         href: "/dashboard/inmovilizado/parametrizacion",
       },
       {
+        id: "ajustes-extracontables",
+        label: "Ajustes extracontables",
+        description: "Amortización contable frente a la fiscal, para el 202 y el 200",
+        href: "/dashboard/inmovilizado/ajustes",
+      },
+      {
         id: "generar-amort",
         label: "Generar amortizaciones del periodo",
         description: "Asiento manual de amortización del periodo activo",
@@ -182,6 +188,7 @@ export function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/compras/extractos")) return "Conciliación bancaria"
   if (pathname.startsWith("/dashboard/contactos")) return "Clientes y Proveedores"
   if (pathname.startsWith("/dashboard/contabilidad")) return "Contabilización"
+  if (pathname.startsWith("/dashboard/inmovilizado/ajustes")) return "Ajustes extracontables"
   if (pathname.startsWith("/dashboard/inmovilizado/parametrizacion")) return "Parametrización"
   if (pathname.startsWith("/dashboard/inmovilizado")) return "Mantenimiento de Inmovilizado"
   if (pathname.startsWith("/dashboard/utilidades/importar")) return "Importar datos contables"

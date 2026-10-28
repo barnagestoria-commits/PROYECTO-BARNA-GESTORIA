@@ -31,11 +31,24 @@ enum DocumentStatus {
   PROCESADO
 }
 
+enum Model202Modality {
+  ART_40_2
+  ART_40_3
+}
+
+enum FixedAssetAdjustmentKind {
+  NINGUNO
+  LIBRE_ACELERADA
+  ARRENDAMIENTO
+  LEY_16_2012
+}
+
 enum FiscalModelCode {
   M111
   M115
   M123
   M130
+  M202
   M180
   M190
   M303
@@ -294,6 +307,14 @@ model CompanyFiscalSettings {
   model115Enabled  Boolean              @default(false)
   model123Enabled  Boolean              @default(false)
   model130Enabled  Boolean              @default(false)
+  model202Enabled       Boolean           @default(false)
+  model202Modality      Model202Modality  @default(ART_40_2)
+  model202TaxRate       Int               @default(25)
+  model202PriorNetQuota Decimal?          @db.Decimal(14, 2)
+  model202LargeTurnover Boolean           @default(false)
+  model202Increase      Decimal           @default(0) @db.Decimal(14, 2)
+  model202Decrease      Decimal           @default(0) @db.Decimal(14, 2)
+  model202NegativeBases Decimal           @default(0) @db.Decimal(14, 2)
   model180Enabled  Boolean              @default(false)
   model190Enabled  Boolean              @default(false)
   model303Enabled  Boolean              @default(true)
@@ -362,6 +383,8 @@ model FixedAsset {
   acquisitionCost      Decimal                     @db.Decimal(14, 2)
   residualValue        Decimal                     @default(0) @db.Decimal(14, 2)
   usefulLifeMonths     Int
+  adjustmentKind       FixedAssetAdjustmentKind    @default(NINGUNO)
+  fiscalAnnualPercent  Decimal?                    @db.Decimal(6, 2)
   accumulatedAmort     Decimal                     @default(0) @db.Decimal(14, 2)
   isActive             Boolean                     @default(true)
   createdAt            DateTime                    @default(now())

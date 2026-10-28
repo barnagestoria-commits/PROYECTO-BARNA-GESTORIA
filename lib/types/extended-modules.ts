@@ -23,6 +23,12 @@ export interface CostCenterDistributionInput {
   percentage: number
 }
 
+export type FixedAssetAdjustmentKind =
+  | "NINGUNO"
+  | "LIBRE_ACELERADA"
+  | "ARRENDAMIENTO"
+  | "LEY_16_2012"
+
 export interface FixedAssetInput {
   code: string
   name: string
@@ -34,6 +40,8 @@ export interface FixedAssetInput {
   acquisitionCost: number
   residualValue?: number
   usefulLifeMonths: number
+  adjustmentKind?: FixedAssetAdjustmentKind
+  fiscalAnnualPercent?: number | null
   isActive?: boolean
   distributions?: CostCenterDistributionInput[]
 }

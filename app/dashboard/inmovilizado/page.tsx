@@ -24,6 +24,8 @@ const emptyForm: FixedAssetInput = {
   acquisitionCost: 0,
   residualValue: 0,
   usefulLifeMonths: 60,
+  adjustmentKind: "NINGUNO",
+  fiscalAnnualPercent: null,
   distributions: [],
 }
 
@@ -111,6 +113,35 @@ export default function InmovilizadoPage() {
           <Input type="number" placeholder="Coste adquisición" value={form.acquisitionCost || ""} onChange={(e) => setForm({ ...form, acquisitionCost: Number(e.target.value) })} />
           <Input type="number" placeholder="Valor residual" value={form.residualValue || ""} onChange={(e) => setForm({ ...form, residualValue: Number(e.target.value) })} />
           <Input type="number" placeholder="Vida útil (meses)" value={form.usefulLifeMonths || ""} onChange={(e) => setForm({ ...form, usefulLifeMonths: Number(e.target.value) })} />
+          <label className="text-sm text-graphite-700">
+            Ajuste extracontable
+            <select
+              className="mt-1 h-10 w-full rounded-md border px-3 text-sm"
+              value={form.adjustmentKind ?? "NINGUNO"}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  adjustmentKind: e.target.value as FixedAssetInput["adjustmentKind"],
+                })
+              }
+            >
+              <option value="NINGUNO">Sin ajuste</option>
+              <option value="LIBRE_ACELERADA">Amortización libre y acelerada</option>
+              <option value="ARRENDAMIENTO">Arrendamiento financiero</option>
+              <option value="LEY_16_2012">Corrección 30 % Ley 16/2012</option>
+            </select>
+          </label>
+          <Input
+            type="number"
+            placeholder="Coeficiente fiscal anual (%)"
+            value={form.fiscalAnnualPercent ?? ""}
+            onChange={(e) =>
+              setForm({
+                ...form,
+                fiscalAnnualPercent: e.target.value === "" ? null : Number(e.target.value),
+              })
+            }
+          />
         </CardContent>
       </Card>
 
@@ -175,6 +206,9 @@ export default function InmovilizadoPage() {
                   </p>
                   <p className="text-gray-600">
                     Coste: {asset.acquisitionCost.toFixed(2)} € · Amortizado: {asset.accumulatedAmort.toFixed(2)} €
+                    {asset.adjustmentKind && asset.adjustmentKind !== "NINGUNO"
+                      ? ` · Fiscal ${asset.fiscalAnnualPercent ?? "—"} %`
+                      : ""}
                   </p>
                   {asset.distributions.length > 0 && (
                     <p className="text-xs text-emerald-700">

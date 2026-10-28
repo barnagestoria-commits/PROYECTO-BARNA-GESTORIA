@@ -21,6 +21,7 @@ import {
 } from "@/lib/fiscal/fiscal-line-detection"
 import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
 import { buildModel349BreakdownLines } from "@/lib/fiscal/model-349-base-imponible"
+import { settleModel202, type Model202Options } from "@/lib/fiscal/model-202"
 import {
   resolvePriorYearNetIncome,
   settleModel130Quarter,
@@ -32,6 +33,7 @@ export type { Model130Options }
 
 export interface ModelCalculationOptions {
   model130?: Model130Options
+  model202?: Model202Options
 }
 
 export interface FiscalModelDefinition {
@@ -70,6 +72,14 @@ export const FISCAL_MODEL_DEFINITIONS: FiscalModelDefinition[] = [
     label: "Modelo 130",
     description: "IRPF — Pago fraccionado en estimación directa",
     block: "IRPF",
+  },
+  {
+    code: "202",
+    prismaCode: "M202",
+    label: "Modelo 202",
+    description:
+      "Impuesto sobre Sociedades — pago fraccionado. Art. 40.2 o art. 40.3. 1T es el 1P de abril, 3T el 2P de octubre y 4T el 3P de diciembre.",
+    block: "IS",
   },
   {
     code: "349",
@@ -597,6 +607,42 @@ export function calculateModelAmount(
     return calculateModel130Amount(lines, year, quarter, options?.model130)
   }
 
+  if (modelCode === "202") {
+    const settlement = settleModel202(lines, year, quarter, options?.model202)
+    const boxes = settlement.casillas
+    return {
+      amount: settlement.amountDue,
+      lineCount: settlement.lineCount,
+      entryIds: settlement.entryIds,
+      breakdown: [
+        { key: "modalidad", label: settlement.modality, total: settlement.modality === "ART_40_3" ? 3 : 2, lines: [] },
+        { key: "c01", label: "Base del pago fraccionado", total: boxes.c01, lines: [] },
+        { key: "c03", label: "A ingresar", total: boxes.c03, lines: [] },
+        { key: "c04", label: "Resultado contable después del impuesto", total: boxes.c04, lines: [] },
+        { key: "c05", label: "Aumento por impuesto sobre sociedades", total: boxes.c05, lines: [] },
+        { key: "c06", label: "Disminución por impuesto sobre sociedades", total: boxes.c06, lines: [] },
+        { key: "c07", label: "Resto de aumentos", total: boxes.c07, lines: [] },
+        { key: "c08", label: "Resto de disminuciones", total: boxes.c08, lines: [] },
+        { key: "c13", label: "Base imponible previa", total: boxes.c13, lines: [] },
+        { key: "c14", label: "Compensación de bases negativas", total: boxes.c14, lines: [] },
+        { key: "c16", label: "Base del pago fraccionado", total: boxes.c16, lines: [] },
+        { key: "c17", label: "Porcentaje", total: boxes.c17, lines: [] },
+        { key: "c18", label: "Cuota", total: boxes.c18, lines: [] },
+        { key: "c28", label: "Retenciones e ingresos a cuenta", total: boxes.c28, lines: [] },
+        { key: "c30", label: "Pagos fraccionados anteriores", total: boxes.c30, lines: [] },
+        { key: "c32", label: "Resultado", total: boxes.c32, lines: [] },
+        { key: "c33", label: "Mínimo a ingresar", total: boxes.c33, lines: [] },
+        { key: "c34", label: "Cantidad a ingresar", total: boxes.c34, lines: [] },
+        {
+          key: "aviso-cuota",
+          label: settlement.priorQuotaMissing ? "falta" : "",
+          total: settlement.priorQuotaMissing ? 1 : 0,
+          lines: [],
+        },
+      ],
+    }
+  }
+
   if (modelCode === "115") {
     if (quarter !== "annual") {
       const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "115")
@@ -995,6 +1041,8 @@ export function prismaCodeToModelId(code: FiscalModelCode): FiscalModelId {
       return "123"
     case "M130":
       return "130"
+    case "M202":
+      return "202"
     case "M180":
       return "180"
     case "M190":

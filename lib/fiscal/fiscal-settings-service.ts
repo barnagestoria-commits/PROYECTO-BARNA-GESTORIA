@@ -1,5 +1,12 @@
 import type { CompanyClientProfile } from "@prisma/client"
 import { prisma } from "@/lib/db"
+import type { Model202Modality } from "@/lib/fiscal/model-202"
+
+function money(value: { toString(): string } | number | null): number {
+  if (value === null) return 0
+  const parsed = Number(value.toString())
+  return Number.isFinite(parsed) ? parsed : 0
+}
 import {
   DEFAULT_SETTINGS_BY_PROFILE,
   inferClientProfile,
@@ -15,6 +22,14 @@ function mapRecordToDto(record: {
   model115Enabled: boolean
   model123Enabled: boolean
   model130Enabled: boolean
+  model202Enabled: boolean
+  model202Modality: Model202Modality
+  model202TaxRate: number
+  model202PriorNetQuota: { toString(): string } | number | null
+  model202LargeTurnover: boolean
+  model202Increase: { toString(): string } | number
+  model202Decrease: { toString(): string } | number
+  model202NegativeBases: { toString(): string } | number
   model180Enabled: boolean
   model190Enabled: boolean
   model303Enabled: boolean
@@ -28,6 +43,15 @@ function mapRecordToDto(record: {
     model115Enabled: record.model115Enabled,
     model123Enabled: record.model123Enabled,
     model130Enabled: record.model130Enabled,
+    model202Enabled: record.model202Enabled,
+    model202Modality: record.model202Modality === "ART_40_3" ? "ART_40_3" : "ART_40_2",
+    model202TaxRate: record.model202TaxRate,
+    model202PriorNetQuota:
+      record.model202PriorNetQuota === null ? null : money(record.model202PriorNetQuota),
+    model202LargeTurnover: record.model202LargeTurnover,
+    model202Increase: money(record.model202Increase),
+    model202Decrease: money(record.model202Decrease),
+    model202NegativeBases: money(record.model202NegativeBases),
     model180Enabled: record.model180Enabled,
     model190Enabled: record.model190Enabled,
     model303Enabled: record.model303Enabled,

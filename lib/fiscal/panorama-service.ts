@@ -23,6 +23,8 @@ import type {
   FiscalPeriodKey,
 } from "@/lib/types/fiscal-panorama"
 import { loadModel130Options } from "@/lib/fiscal/model-130-context"
+import { loadModel202Options } from "@/lib/fiscal/model-202-context"
+import { model202PeriodLabel } from "@/lib/fiscal/model-202"
 import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summary"
 import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
 import type { A3ImportedFiscalResult } from "@/lib/imports/a3/types"
@@ -265,13 +267,14 @@ export async function buildFiscalPanorama(
   const activeDefinitions = FISCAL_MODEL_DEFINITIONS.filter((model) =>
     activeModels.includes(model.code),
   )
-  const [allLines, declarations, importedResults, model130] = await Promise.all([
+  const [allLines, declarations, importedResults, model130, model202] = await Promise.all([
     fetchYearLines(companyId, year),
     prisma.fiscalDeclaration.findMany({ where: { companyId, year } }),
     fetchImportedFiscalResults(companyId, year),
     loadModel130Options(companyId, year),
+    loadModel202Options(companyId),
   ])
-  const calculationOptions: ModelCalculationOptions = { model130 }
+  const calculationOptions: ModelCalculationOptions = { model130, model202 }
 
   const declarationMap = buildDeclarationMap(declarations)
 
@@ -280,6 +283,16 @@ export async function buildFiscalPanorama(
       id: "IRPF" as const,
       label: "I.R.P.F.",
       rows: activeDefinitions.filter((model) => model.block === "IRPF").map((model) => ({
+        modelCode: model.code,
+        modelLabel: model.label,
+        description: model.description,
+        cells: computeRowCells(model.code, year, allLines, declarationMap, importedResults, calculationOptions),
+      })),
+    },
+    {
+      id: "IS" as const,
+      label: "Impuesto sobre Sociedades",
+      rows: activeDefinitions.filter((model) => model.block === "IS").map((model) => ({
         modelCode: model.code,
         modelLabel: model.label,
         description: model.description,
@@ -412,7 +425,7 @@ export async function buildFiscalModelDetail(
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   if (!model) return null
 
-  const [allLines, importedResults, thirdParties, model130] = await Promise.all([
+  const [allLines, importedResults, thirdParties, model130, model202] = await Promise.all([
     fetchYearLines(companyId, year),
     fetchImportedFiscalResults(companyId, year),
     prisma.thirdParty.findMany({
@@ -420,8 +433,10 @@ export async function buildFiscalModelDetail(
       select: { accountCode: true, cif: true, name: true },
     }),
     modelCode === "130" ? loadModel130Options(companyId, year) : Promise.resolve(undefined),
+    modelCode === "202" ? loadModel202Options(companyId) : Promise.resolve(undefined),
   ])
-  const calculationOptions: ModelCalculationOptions | undefined = model130 ? { model130 } : undefined
+  const calculationOptions: ModelCalculationOptions | undefined =
+    model130 || model202 ? { model130, model202 } : undefined
   let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions)
 
   // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
@@ -502,7 +517,8 @@ export async function buildFiscalModelDetail(
     modelLabel: model.label,
     year,
     quarter,
-    periodLabel: periodLabel(period, year),
+    periodLabel:
+      modelCode === "202" ? model202PeriodLabel(quarter, year) : periodLabel(period, year),
     amount: result.amount,
     status,
     statusLabel,
@@ -524,6 +540,7 @@ export function isValidModelCode(value: string): value is FiscalModelId {
     value === "115" ||
     value === "123" ||
     value === "130" ||
+    value === "202" ||
     value === "180" ||
     value === "190" ||
     value === "303" ||

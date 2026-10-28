@@ -1,0 +1,14 @@
+CREATE TYPE "Model202Modality" AS ENUM ('ART_40_2', 'ART_40_3');
+
+ALTER TABLE "CompanyFiscalSettings"
+ADD COLUMN "model202Modality" "Model202Modality" NOT NULL DEFAULT 'ART_40_2',
+ADD COLUMN "model202TaxRate" INTEGER NOT NULL DEFAULT 25,
+ADD COLUMN "model202PriorNetQuota" DECIMAL(14,2),
+ADD COLUMN "model202LargeTurnover" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "model202Increase" DECIMAL(14,2) NOT NULL DEFAULT 0,
+ADD COLUMN "model202Decrease" DECIMAL(14,2) NOT NULL DEFAULT 0,
+ADD COLUMN "model202NegativeBases" DECIMAL(14,2) NOT NULL DEFAULT 0;
+
+UPDATE "CompanyFiscalSettings"
+SET "model202Modality" = 'ART_40_3'
+WHERE "clientProfile" = 'GRAN_EMPRESA';

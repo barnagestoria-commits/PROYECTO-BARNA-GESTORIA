@@ -1,4 +1,5 @@
 import type { CompanyClientProfile } from "@prisma/client"
+import type { Model202Modality } from "@/lib/fiscal/model-202"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 
 export interface CompanyFiscalSettingsDto {
@@ -7,6 +8,14 @@ export interface CompanyFiscalSettingsDto {
   model115Enabled: boolean
   model123Enabled: boolean
   model130Enabled: boolean
+  model202Enabled: boolean
+  model202Modality: Model202Modality
+  model202TaxRate: number
+  model202PriorNetQuota: number | null
+  model202LargeTurnover: boolean
+  model202Increase: number
+  model202Decrease: number
+  model202NegativeBases: number
   model180Enabled: boolean
   model190Enabled: boolean
   model303Enabled: boolean
@@ -73,6 +82,12 @@ export const FISCAL_MODEL_OPTIONS: Array<{
     periodicity: "trimestral",
   },
   {
+    id: "202",
+    label: "Modelo 202",
+    description: "Impuesto sobre Sociedades — pago fraccionado, art. 40.2 o art. 40.3",
+    periodicity: "trimestral",
+  },
+  {
     id: "349",
     label: "Modelo 349",
     description: "IVA — operaciones intracomunitarias",
@@ -117,6 +132,14 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model115Enabled: false,
     model123Enabled: false,
     model130Enabled: false,
+    model202Enabled: false,
+    model202Modality: "ART_40_2",
+    model202TaxRate: 25,
+    model202PriorNetQuota: null,
+    model202LargeTurnover: false,
+    model202Increase: 0,
+    model202Decrease: 0,
+    model202NegativeBases: 0,
     model180Enabled: false,
     model190Enabled: false,
     model303Enabled: false,
@@ -130,6 +153,14 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model115Enabled: false,
     model123Enabled: false,
     model130Enabled: true,
+    model202Enabled: false,
+    model202Modality: "ART_40_2",
+    model202TaxRate: 25,
+    model202PriorNetQuota: null,
+    model202LargeTurnover: false,
+    model202Increase: 0,
+    model202Decrease: 0,
+    model202NegativeBases: 0,
     model180Enabled: false,
     model190Enabled: false,
     model303Enabled: true,
@@ -143,6 +174,14 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model115Enabled: true,
     model123Enabled: true,
     model130Enabled: false,
+    model202Enabled: true,
+    model202Modality: "ART_40_2",
+    model202TaxRate: 25,
+    model202PriorNetQuota: null,
+    model202LargeTurnover: false,
+    model202Increase: 0,
+    model202Decrease: 0,
+    model202NegativeBases: 0,
     model180Enabled: true,
     model190Enabled: true,
     model303Enabled: true,
@@ -156,6 +195,14 @@ export const DEFAULT_SETTINGS_BY_PROFILE: Record<CompanyClientProfile, CompanyFi
     model115Enabled: true,
     model123Enabled: true,
     model130Enabled: false,
+    model202Enabled: true,
+    model202Modality: "ART_40_3",
+    model202TaxRate: 25,
+    model202PriorNetQuota: null,
+    model202LargeTurnover: false,
+    model202Increase: 0,
+    model202Decrease: 0,
+    model202NegativeBases: 0,
     model180Enabled: true,
     model190Enabled: true,
     model303Enabled: true,
@@ -178,6 +225,8 @@ export function isModelEnabled(
       return settings.model123Enabled
     case "130":
       return settings.model130Enabled
+    case "202":
+      return settings.model202Enabled
     case "180":
       return settings.model180Enabled
     case "190":
@@ -232,6 +281,7 @@ export type FiscalModelSettingsKey =
   | "model115Enabled"
   | "model123Enabled"
   | "model130Enabled"
+  | "model202Enabled"
   | "model180Enabled"
   | "model190Enabled"
   | "model303Enabled"
@@ -249,6 +299,8 @@ export function settingsKeyForModel(model: FiscalModelId): FiscalModelSettingsKe
       return "model123Enabled"
     case "130":
       return "model130Enabled"
+    case "202":
+      return "model202Enabled"
     case "180":
       return "model180Enabled"
     case "190":
@@ -264,7 +316,7 @@ export function settingsKeyForModel(model: FiscalModelId): FiscalModelSettingsKe
   }
 }
 
-const QUARTERLY_MODELS = new Set<FiscalModelId>(["111", "115", "123", "130", "303", "349"])
+const QUARTERLY_MODELS = new Set<FiscalModelId>(["111", "115", "123", "130", "202", "303", "349"])
 const ANNUAL_ONLY_MODELS = new Set<FiscalModelId>(["180", "190", "347", "390"])
 
 export function isQuarterlyModel(model: FiscalModelId): boolean {
@@ -284,6 +336,7 @@ export const ANNUAL_SUMMARY_MODELS: FiscalModelId[] = [
   "115",
   "123",
   "130",
+  "202",
   "180",
   "190",
   "303",
@@ -297,6 +350,7 @@ export type FiscalImpresosMergeInput = Partial<{
   model115: boolean
   model123: boolean
   model130: boolean
+  model202: boolean
   model180: boolean
   model190: boolean
   model303: boolean
@@ -315,6 +369,7 @@ export function mergeImpresosIntoFiscalSettings(
     model115Enabled: impresos.model115 ?? settings.model115Enabled,
     model123Enabled: impresos.model123 ?? settings.model123Enabled,
     model130Enabled: impresos.model130 ?? settings.model130Enabled,
+    model202Enabled: impresos.model202 ?? settings.model202Enabled,
     model180Enabled: impresos.model180 ?? settings.model180Enabled,
     model190Enabled: impresos.model190 ?? settings.model190Enabled,
     model303Enabled: impresos.model303 ?? settings.model303Enabled,

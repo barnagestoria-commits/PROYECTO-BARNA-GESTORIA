@@ -52,6 +52,7 @@ export const DRAFT_SUPPORTED_MODELS = new Set<FiscalModelId>([
   "115",
   "123",
   "130",
+  "202",
   "180",
   "190",
   "303",

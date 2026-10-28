@@ -10,6 +10,7 @@ const FISCAL_MODEL_IDS: FiscalModelId[] = [
   "115",
   "123",
   "130",
+  "202",
   "180",
   "190",
   "303",

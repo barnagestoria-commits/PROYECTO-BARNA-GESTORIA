@@ -17,6 +17,8 @@ function mapAsset(asset: {
   acquisitionCost: Prisma.Decimal
   residualValue: Prisma.Decimal
   usefulLifeMonths: number
+  adjustmentKind: "NINGUNO" | "LIBRE_ACELERADA" | "ARRENDAMIENTO" | "LEY_16_2012"
+  fiscalAnnualPercent: Prisma.Decimal | null
   accumulatedAmort: Prisma.Decimal
   isActive: boolean
   costDistributions: Array<{
@@ -38,6 +40,9 @@ function mapAsset(asset: {
     acquisitionCost: decimalToNumber(asset.acquisitionCost),
     residualValue: decimalToNumber(asset.residualValue),
     usefulLifeMonths: asset.usefulLifeMonths,
+    adjustmentKind: asset.adjustmentKind,
+    fiscalAnnualPercent:
+      asset.fiscalAnnualPercent === null ? null : decimalToNumber(asset.fiscalAnnualPercent),
     accumulatedAmort: decimalToNumber(asset.accumulatedAmort),
     isActive: asset.isActive,
     distributions: asset.costDistributions.map((item) => ({
@@ -88,6 +93,8 @@ export async function createFixedAsset(
       acquisitionCost: input.acquisitionCost,
       residualValue: input.residualValue ?? 0,
       usefulLifeMonths: input.usefulLifeMonths,
+      adjustmentKind: input.adjustmentKind ?? "NINGUNO",
+      fiscalAnnualPercent: input.fiscalAnnualPercent ?? null,
       isActive: input.isActive ?? true,
       costDistributions: distributions.length
         ? {
@@ -144,6 +151,8 @@ export async function updateFixedAsset(
       acquisitionCost: input.acquisitionCost,
       residualValue: input.residualValue,
       usefulLifeMonths: input.usefulLifeMonths,
+      adjustmentKind: input.adjustmentKind,
+      fiscalAnnualPercent: input.fiscalAnnualPercent,
       isActive: input.isActive,
     },
     include: assetInclude,

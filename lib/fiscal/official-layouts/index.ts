@@ -17,6 +17,7 @@ import {
   model390CasillaEntries,
 } from "@/lib/fiscal/official-layouts/informative-layouts"
 import { buildOfficialModel349Sections, model349CasillaEntries } from "@/lib/fiscal/official-layouts/model-349-layout"
+import { buildOfficialModel202Sections } from "@/lib/fiscal/official-layouts/model-202-layout"
 import { casillaEntriesFromSections } from "@/lib/fiscal/official-layouts/shared"
 
 export type DraftTableLayout = "iva" | "retenciones" | "amount"
@@ -46,6 +47,8 @@ export function buildOfficialModelSections(detail: FiscalModelDetailResponse): D
       return buildOfficialModel115Sections(detail)
     case "130":
       return buildOfficialModel130Sections(detail)
+    case "202":
+      return buildOfficialModel202Sections(detail)
     case "123":
       return buildOfficialModel123Sections(detail)
     case "349":
@@ -96,6 +99,8 @@ export function getResultCasillaLabel(modelCode: FiscalModelId): string {
       return "Total a ingresar [04]"
     case "130":
       return "Total a ingresar [19]"
+    case "202":
+      return "Cantidad a ingresar"
     case "123":
       return "Total a ingresar [06]"
     case "347":

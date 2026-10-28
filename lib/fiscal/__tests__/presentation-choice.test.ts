@@ -58,8 +58,8 @@ describe("fiscal presentation choice", () => {
     const annual = ["180", "190", "347", "390"] as const
 
     const enabledIds = FISCAL_MODEL_OPTIONS.map((model) => model.id)
-    expect(enabledIds).toHaveLength(quarterly.length + annual.length)
-    expect(enabledIds.sort()).toEqual([...quarterly, ...annual].sort())
+    expect(enabledIds).toHaveLength(quarterly.length + annual.length + 1)
+    expect(enabledIds.sort()).toEqual([...quarterly, "202", ...annual].sort())
 
     for (const model of quarterly) {
       const choice = getFiscalPresentationChoice({ modelCode: model, quarter: 2 })

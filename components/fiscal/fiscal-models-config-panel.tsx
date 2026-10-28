@@ -87,7 +87,7 @@ export function FiscalModelsConfigPanel({
           </p>
           <p className="mt-1 text-xs text-graphite-600">
             {scope === "trimestral"
-              ? "Solo modelos trimestrales (111, 115, 123, 349, 303)."
+              ? "Solo modelos del periodo: 111, 115, 123, 130, 202, 303 y 349."
               : "Solo modelos anuales (180, 190, 347, 390)."}
           </p>
         </div>
@@ -129,8 +129,169 @@ export function FiscalModelsConfigPanel({
         <p className="mt-4 text-sm text-red-700">No se pudo cargar la configuración fiscal.</p>
       )}
 
+      {settings?.model202Enabled && scope === "trimestral" ? (
+        <Model202Options
+          settings={settings}
+          disabled={isSaving}
+          onSave={async (patch) => {
+            setIsSaving(true)
+            setMessage(null)
+            try {
+              const data = await apiFetch<{ success: true; settings: CompanyFiscalSettingsDto }>(
+                "/api/fiscal/settings",
+                { method: "PATCH", body: JSON.stringify(patch) },
+              )
+              setSettings(data.settings)
+              onSaved?.()
+            } catch (error) {
+              setMessage(error instanceof Error ? error.message : "No se pudo guardar la configuración.")
+            } finally {
+              setIsSaving(false)
+            }
+          }}
+        />
+      ) : null}
+
       {message && <p className="mt-3 text-xs text-red-700">{message}</p>}
     </div>
+  )
+}
+
+function Model202Options({
+  settings,
+  disabled,
+  onSave,
+}: {
+  settings: CompanyFiscalSettingsDto
+  disabled: boolean
+  onSave: (patch: Partial<CompanyFiscalSettingsDto>) => Promise<void>
+}) {
+  const article403 = settings.model202Modality === "ART_40_3"
+
+  return (
+    <div className="mt-4 space-y-3 rounded-md border border-white bg-white/80 p-3">
+      <div>
+        <p className="text-sm font-medium text-graphite-900">Modalidad del modelo 202</p>
+        <p className="mt-1 text-xs text-graphite-500">
+          Por defecto, el artículo 40.2. Si la sociedad optó en el censo, o si factura más de 6
+          millones, usa el artículo 40.3.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="model202-modality"
+            className="mt-1"
+            checked={!article403}
+            disabled={disabled}
+            onChange={() => void onSave({ model202Modality: "ART_40_2" })}
+          />
+          <span>Artículo 40.2. El 18 % de la cuota del último impuesto, igual en los tres pagos.</span>
+        </label>
+        <label className="flex cursor-pointer items-start gap-2 text-sm">
+          <input
+            type="radio"
+            name="model202-modality"
+            className="mt-1"
+            checked={article403}
+            disabled={disabled}
+            onChange={() => void onSave({ model202Modality: "ART_40_3" })}
+          />
+          <span>
+            Artículo 40.3. Sobre el resultado de los 3, 9 u 11 primeros meses. La diferencia de
+            amortización sale de las fichas de inmovilizado.
+          </span>
+        </label>
+      </div>
+
+      {article403 ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <AmountField
+            label="Tipo del impuesto (%)"
+            defaultValue={String(settings.model202TaxRate)}
+            disabled={disabled}
+            onCommit={(value) => onSave({ model202TaxRate: Math.round(Number(value)) })}
+          />
+          <label className="flex items-start gap-2 pt-6 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={settings.model202LargeTurnover}
+              disabled={disabled}
+              onChange={(event) => void onSave({ model202LargeTurnover: event.target.checked })}
+            />
+            <span>Cifra de negocios de al menos 10 millones. El porcentaje pasa a 19/20 y hay pago mínimo.</span>
+          </label>
+          <AmountField
+            label="Aumentos extracontables, casilla 07"
+            defaultValue={String(settings.model202Increase)}
+            disabled={disabled}
+            onCommit={(value) => onSave({ model202Increase: value === "" ? 0 : value })}
+          />
+          <AmountField
+            label="Disminuciones extracontables, casilla 08"
+            defaultValue={String(settings.model202Decrease)}
+            disabled={disabled}
+            onCommit={(value) => onSave({ model202Decrease: value === "" ? 0 : value })}
+          />
+          <AmountField
+            label="Bases negativas a compensar, casilla 14"
+            defaultValue={String(settings.model202NegativeBases)}
+            disabled={disabled}
+            onCommit={(value) => onSave({ model202NegativeBases: value === "" ? 0 : value })}
+          />
+        </div>
+      ) : (
+        <AmountField
+          label="Cuota neta del último impuesto, casilla 01"
+          defaultValue={settings.model202PriorNetQuota === null ? "" : String(settings.model202PriorNetQuota)}
+          disabled={disabled}
+          placeholder="Todavía sin indicar"
+          onCommit={(value) =>
+            onSave({ model202PriorNetQuota: value === "" ? null : value })
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+function AmountField({
+  label,
+  defaultValue,
+  disabled,
+  placeholder,
+  onCommit,
+}: {
+  label: string
+  defaultValue: string
+  disabled: boolean
+  placeholder?: string
+  onCommit: (value: number | "") => Promise<void>
+}) {
+  return (
+    <label className="block text-sm text-graphite-800">
+      {label}
+      <input
+        key={defaultValue}
+        type="text"
+        inputMode="decimal"
+        className="mt-1 h-9 w-full rounded-md border border-emerald-200 bg-white px-2 text-sm"
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        disabled={disabled}
+        onBlur={(event) => {
+          const raw = event.target.value.trim().replace(/\s/g, "").replace(",", ".")
+          if (raw === "") {
+            void onCommit("")
+            return
+          }
+          const parsed = Number(raw)
+          if (Number.isFinite(parsed) && parsed >= 0) void onCommit(Math.round(parsed * 100) / 100)
+        }}
+      />
+    </label>
   )
 }
 

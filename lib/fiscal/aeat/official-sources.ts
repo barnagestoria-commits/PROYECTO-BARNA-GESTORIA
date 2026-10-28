@@ -94,6 +94,15 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
     presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
+  "202": {
+    modelCode: "202",
+    label: "Impuesto sobre Sociedades — pago fraccionado",
+    submissionFormat: "boe-500",
+    boeFileExtension: ".202",
+    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    presentationPath:
+      "https://sede.agenciatributaria.gob.es/Sede/impuesto-sobre-sociedades/pagos-fraccionados-is-modelo-202.html",
+  },
   "303": MODEL_303,
   "347": {
     modelCode: "347",

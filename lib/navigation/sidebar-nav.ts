@@ -227,6 +227,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             href: "/dashboard/inmovilizado/parametrizacion",
             description: "Periodificación y generación",
           },
+          {
+            label: "Ajustes extracontables",
+            href: "/dashboard/inmovilizado/ajustes",
+            description: "Diferencia contable y fiscal para el 202 y el 200",
+          },
         ],
       },
       {

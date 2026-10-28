@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { model202PaymentForQuarter } from "@/lib/fiscal/model-202"
 import { FISCAL_MODEL_DEFINITIONS } from "@/lib/fiscal/panorama"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 import { ArrowRight, FileSpreadsheet } from "lucide-react"
@@ -13,6 +14,7 @@ const VALID_MODELS = new Set([
   "115",
   "123",
   "130",
+  "202",
   "180",
   "190",
   "303",
@@ -69,8 +71,18 @@ export default function FiscalModelHubPage() {
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-semibold text-gray-900">{quarter}T {year}</p>
-                      <p className="text-sm text-gray-500">Borrador, Sede AEAT o ficheros oficiales</p>
+                      <p className="font-semibold text-gray-900">
+                        {modelCode === "202"
+                          ? model202PaymentForQuarter(quarter)
+                            ? `${model202PaymentForQuarter(quarter)} ${year}`
+                            : `2T ${year} · sin pago`
+                          : `${quarter}T ${year}`}
+                      </p>
+                      <p className="text-sm text-gray-500">
+                        {modelCode === "202" && !model202PaymentForQuarter(quarter)
+                          ? "El 202 no se presenta en julio"
+                          : "Borrador y presentación en la Sede"}
+                      </p>
                     </div>
                     <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-700" />
                   </div>
