@@ -42,7 +42,7 @@ describe("fiscal presentation choice", () => {
     expect(choice.offersModelFile).toBe(true)
     expect(choice.offersBooks).toBe(false)
     expect(choice.offersOfficialPack).toBe(true)
-    expect(choice.sedeUrl).toBe(AEAT_OFFICIAL_PORTALS.declarationsByModel)
+    expect(choice.sedeUrl).toContain("modelo-111")
   })
 
   it("does not offer a 303 telematic file on the annual summary", () => {

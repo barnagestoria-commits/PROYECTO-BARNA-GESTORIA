@@ -40,52 +40,121 @@ function isWorkLine(line: FiscalModelBreakdownLine): boolean {
   return /Reten[\.\/]|Retenc|RETENCI/i.test(text)
 }
 
+function model111Group(
+  id: string,
+  title: string,
+  codes: [string, string, string],
+  labels: [string, string, string],
+  values: [number, number, number],
+): DraftSection {
+  return {
+    id,
+    title,
+    casillas: [
+      casillaAmount(`111-${codes[0]}`, codes[0], labels[0], values[0], "retenciones"),
+      casillaAmount(`111-${codes[1]}`, codes[1], labels[1], values[1], "retenciones"),
+      casillaAmount(`111-${codes[2]}`, codes[2], labels[2], values[2], "retenciones"),
+    ],
+  }
+}
+
+const MODEL_111_EMPTY_GROUP: [number, number, number] = [0, 0, 0]
+const MODEL_111_CASH_LABELS = [
+  "Número de perceptores",
+  "Importe de las percepciones",
+  "Importe de las retenciones",
+] as [string, string, string]
+const MODEL_111_INKIND_LABELS = [
+  "Número de perceptores",
+  "Valor de las percepciones en especie",
+  "Importe de los ingresos a cuenta",
+] as [string, string, string]
+
 export function buildOfficialModel111Sections(detail: FiscalModelDetailResponse): DraftSection[] {
   const work = retentionFromLines(detail, () => true)
   const totalRetenciones = hasLiquidation(detail) ? detail.amount : sumContributing(detail) || detail.amount
-  const perceptores = countPerceptores(detail) || work.perceptores
   const base = deriveBaseFromRetention(totalRetenciones)
+  const perceptores = totalRetenciones > 0 ? Math.max(countPerceptores(detail) || work.perceptores, 1) : 0
+  const workGroup: [number, number, number] = [perceptores, base, totalRetenciones]
 
   return [
+    model111Group(
+      "trabajo-dinerario",
+      "I. Rendimientos del trabajo — dinerarios",
+      ["01", "02", "03"],
+      MODEL_111_CASH_LABELS,
+      workGroup,
+    ),
+    model111Group(
+      "trabajo-especie",
+      "Rendimientos del trabajo — en especie",
+      ["04", "05", "06"],
+      MODEL_111_INKIND_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "actividades-dinerarias",
+      "II. Rendimientos de actividades económicas — dinerarios",
+      ["07", "08", "09"],
+      MODEL_111_CASH_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "actividades-especie",
+      "Rendimientos de actividades económicas — en especie",
+      ["10", "11", "12"],
+      MODEL_111_INKIND_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "premios-dinerarios",
+      "III. Premios — dinerarios",
+      ["13", "14", "15"],
+      MODEL_111_CASH_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "premios-especie",
+      "Premios — en especie",
+      ["16", "17", "18"],
+      MODEL_111_INKIND_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "forestales-dinerarias",
+      "IV. Ganancias patrimoniales de aprovechamientos forestales — dinerarias",
+      ["19", "20", "21"],
+      MODEL_111_CASH_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "forestales-especie",
+      "Ganancias patrimoniales de aprovechamientos forestales — en especie",
+      ["22", "23", "24"],
+      MODEL_111_INKIND_LABELS,
+      MODEL_111_EMPTY_GROUP,
+    ),
+    model111Group(
+      "derechos-imagen",
+      "V. Contraprestaciones por la cesión de derechos de imagen",
+      ["25", "26", "27"],
+      ["Número de perceptores", "Contraprestaciones satisfechas", "Importe de los ingresos a cuenta"],
+      MODEL_111_EMPTY_GROUP,
+    ),
     {
-      id: "rendimientos-trabajo",
-      title: "I. Rendimientos del trabajo",
+      id: "liquidacion",
+      title: "Liquidación",
       casillas: [
-        casillaAmount("111-01", "01", "Número de perceptores", perceptores, "retenciones"),
-        casillaAmount("111-02", "02", "Importe de las percepciones", base, "retenciones"),
-        casillaAmount("111-03", "03", "Retenciones e ingresos a cuenta", totalRetenciones, "retenciones"),
-      ],
-    },
-    {
-      id: "actividades-profesionales",
-      title: "II. Rendimientos de actividades profesionales",
-      casillas: [
-        casillaAmount("111-04", "04", "Número de perceptores", 0, "retenciones"),
-        casillaAmount("111-05", "05", "Importe de las percepciones", 0, "retenciones"),
-        casillaAmount("111-06", "06", "Retenciones e ingresos a cuenta", 0, "retenciones"),
-      ],
-    },
-    {
-      id: "premios",
-      title: "III. Premios por participación en juegos, concursos y sorteos",
-      casillas: [
-        casillaAmount("111-07", "07", "Número de perceptores", 0, "retenciones"),
-        casillaAmount("111-08", "08", "Importe de las percepciones", 0, "retenciones"),
-        casillaAmount("111-09", "09", "Retenciones e ingresos a cuenta", 0, "retenciones"),
-      ],
-    },
-    {
-      id: "resultado",
-      title: "IV. Resultado de la declaración",
-      casillas: [
+        casillaAmount("111-28", "28", "Suma de retenciones e ingresos a cuenta", totalRetenciones, "retenciones"),
+        casillaAmount("111-29", "29", "Resultado a ingresar de anteriores declaraciones", 0, "retenciones"),
         casillaAmount(
-          "111-13",
-          "13",
-          "Suma de retenciones e ingresos a cuenta ([03]+[06]+[09]+…)",
+          "111-30",
+          "30",
+          "Resultado a ingresar",
           totalRetenciones,
           "retenciones",
+          "Resultado del periodo",
         ),
-        casillaAmount("111-15", "15", "Total a ingresar", totalRetenciones, "retenciones", "Resultado del periodo"),
       ],
     },
   ]

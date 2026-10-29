@@ -5,6 +5,11 @@ import {
   supportsLegacyAeatTxt,
 } from "@/lib/fiscal/aeat/generate-aeat-txt-legacy"
 import {
+  buildModel111Filename,
+  generateModel111AeatTxt,
+  model111FilePeriod,
+} from "@/lib/fiscal/aeat/generate-aeat-txt-111"
+import {
   buildModel130Filename,
   generateModel130AeatTxt,
 } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
@@ -32,6 +37,10 @@ export function buildAeatTxtFilename(
     return buildAeat303Filename(detail, companyCif)
   }
 
+  if (detail.modelCode === "111") {
+    return buildModel111Filename(detail, companyCif)
+  }
+
   if (detail.modelCode === "130") {
     return buildModel130Filename(detail, companyCif)
   }
@@ -55,6 +64,10 @@ export function generateAeatTxt(
     return generateAeatTxt303ViaTaxEngine(detail, companyName, companyCif, options)
   }
 
+  if (detail.modelCode === "111") {
+    return generateModel111AeatTxt(detail, companyName, companyCif)
+  }
+
   if (detail.modelCode === "130") {
     return generateModel130AeatTxt(detail, companyName, companyCif)
   }
@@ -67,12 +80,16 @@ export function generateAeatTxt(
 }
 
 export function supportsAeatTxtImport(model: FiscalModelId): boolean {
-  return model === "303" || model === "202" || supportsLegacyAeatTxt(model)
+  return model === "111" || model === "303" || model === "202" || supportsLegacyAeatTxt(model)
 }
 
 export function shouldOfferAeatTxt(
   detail: Pick<FiscalModelDetailResponse, "modelCode" | "quarter">,
 ): boolean {
+  if (detail.modelCode === "111") {
+    return model111FilePeriod(detail.quarter) !== null
+  }
+
   if (detail.modelCode === "303") {
     return detail.quarter !== "annual"
   }
@@ -91,6 +108,10 @@ export const AEAT_RECORD_LENGTH = LEGACY_AEAT_RECORD_LENGTH
 
 export function usesDr303Envelope(modelCode: FiscalModelId): boolean {
   return modelCode === "303"
+}
+
+export function usesDr111Envelope(modelCode: FiscalModelId): boolean {
+  return modelCode === "111"
 }
 
 export function usesDr130Envelope(modelCode: FiscalModelId): boolean {

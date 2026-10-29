@@ -70,7 +70,18 @@ describe("buildFiscalModelDraft", () => {
       breakdown: [{ key: "retenciones", label: "Retenciones practicadas", total: 1500, lines: [] }],
     }
     const draft = buildFiscalModelDraft(detail, "EMPRESA TEST SL", "B12345678")
-    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "15"))).toBe(true)
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "30" && cell.amount === 1500))).toBe(
+      true,
+    )
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "28" && cell.amount === 1500))).toBe(
+      true,
+    )
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "03" && cell.amount === 1500))).toBe(
+      true,
+    )
+    expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "09" && cell.amount === 0))).toBe(
+      true,
+    )
   })
 
   it("builds official casillas for modelo 130 from the imported quarterly result", () => {

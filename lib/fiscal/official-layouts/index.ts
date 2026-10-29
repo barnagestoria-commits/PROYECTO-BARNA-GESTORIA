@@ -94,7 +94,7 @@ export function getResultCasillaLabel(modelCode: FiscalModelId): string {
     case "390":
       return "Resultado anual [71]"
     case "111":
-      return "Total a ingresar [15]"
+      return "Total a ingresar [30]"
     case "115":
       return "Total a ingresar [04]"
     case "130":
@@ -136,8 +136,8 @@ export const OFFICIAL_CASILLA_LABELS: Record<string, Record<string, string>> = {
     "01": "NUM PERCEPTORES TRABAJO",
     "02": "IMPORTE PERCEPCIONES TRABAJO",
     "03": "RETENCIONES TRABAJO",
-    "13": "SUMA RETENCIONES",
-    "15": "TOTAL A INGRESAR",
+    "28": "SUMA RETENCIONES",
+    "30": "TOTAL A INGRESAR",
   },
   "115": {
     "01": "NUM PERCEPTORES ARRENDAMIENTOS",

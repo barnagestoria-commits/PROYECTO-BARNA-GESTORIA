@@ -24,7 +24,7 @@ export interface AeatModelOfficialSource {
   modelCode: FiscalModelId
   label: string
   /** Formato BOE de presentación por fichero. */
-  submissionFormat: "dr303-envelope" | "dr202-envelope" | "boe-500" | "xml-ws"
+  submissionFormat: "dr303-envelope" | "dr111-envelope" | "dr202-envelope" | "boe-500" | "xml-ws"
   /** Extensión del fichero de importación en la sede (p. ej. .303, .111). */
   boeFileExtension: string
   recordDesignPath?: string
@@ -49,10 +49,12 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
   "111": {
     modelCode: "111",
     label: "Retenciones IRPF — trimestral",
-    submissionFormat: "boe-500",
+    submissionFormat: "dr111-envelope",
     boeFileExtension: ".111",
-    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
-    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
+    recordDesignPath:
+      "https://sede.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/DR_100_199/archivos/dr111e16v18.xls",
+    presentationPath:
+      "https://sede.agenciatributaria.gob.es/Sede/ayuda/consultas-informaticas/presentacion-declaraciones-ayuda-tecnica/modelo-111.html",
   },
   "115": {
     modelCode: "115",
