@@ -6,6 +6,7 @@ import {
   buildDetailHref,
   calculateModelAmount,
   type ModelCalculationOptions,
+  monthPeriodLabel,
   periodKeyFromQuarter,
   periodLabel,
   prismaCodeToModelId,
@@ -421,6 +422,7 @@ export async function buildFiscalModelDetail(
   modelCode: FiscalModelId,
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
+  month?: number,
 ): Promise<FiscalModelDetailResponse | null> {
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   if (!model) return null
@@ -437,7 +439,7 @@ export async function buildFiscalModelDetail(
   ])
   const calculationOptions: ModelCalculationOptions | undefined =
     model130 || model202 ? { model130, model202 } : undefined
-  let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions)
+  let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions, month)
 
   // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
   // las bases ni el desglose de tipos necesario para renderizar el modelo.
@@ -455,18 +457,17 @@ export async function buildFiscalModelDetail(
       allLines.filter((line) => !liquidationEntryIds.has(line.entry.id)),
       year,
       quarter,
+      undefined,
+      month,
     )
     if (sourceResult.lineCount > 0) {
       result = sourceResult
     }
   }
 
-  const importedAmount = importedAmountForPeriod(
-    importedResults,
-    modelCode,
-    year,
-    quarter,
-  )
+  const importedAmount = month
+    ? undefined
+    : importedAmountForPeriod(importedResults, modelCode, year, quarter)
   if (importedAmount !== undefined) {
     result = {
       ...result,
@@ -484,7 +485,7 @@ export async function buildFiscalModelDetail(
   }
 
   let declarationStatus: FiscalDeclaration["status"] | undefined
-  if (quarter !== "annual") {
+  if (!month && quarter !== "annual") {
     const declaration = await prisma.fiscalDeclaration.findUnique({
       where: {
         companyId_year_quarter_modelCode: {
@@ -517,8 +518,12 @@ export async function buildFiscalModelDetail(
     modelLabel: model.label,
     year,
     quarter,
-    periodLabel:
-      modelCode === "202" ? model202PeriodLabel(quarter, year) : periodLabel(period, year),
+    month: month ?? null,
+    periodLabel: month
+      ? monthPeriodLabel(month, year)
+      : modelCode === "202"
+        ? model202PeriodLabel(quarter, year)
+        : periodLabel(period, year),
     amount: result.amount,
     status,
     statusLabel,

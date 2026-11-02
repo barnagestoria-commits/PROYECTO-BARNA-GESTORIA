@@ -30,7 +30,7 @@ function periodLabelForFile(quarter: FiscalModelDetailResponse["quarter"]): stri
 }
 
 export function buildAeatTxtFilename(
-  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter">,
+  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter" | "month">,
   companyCif: string | null | undefined,
 ): string {
   if (detail.modelCode === "303") {

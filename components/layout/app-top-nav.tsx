@@ -19,8 +19,10 @@ interface AppTopNavProps {
 }
 
 export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNavProps) {
-  const { session } = useAuth()
-  const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL")
+  const { session, activeCompany } = useAuth()
+  const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL", {
+    sii: activeCompany?.siiMode === "OBLIGATORIO" || activeCompany?.siiMode === "VOLUNTARIO",
+  })
   const isCompactNav = useIsCompactNav()
 
   return (

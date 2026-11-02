@@ -198,10 +198,30 @@ model Company {
   bankStatementImports BankStatementImport[]
   bankMovements        BankMovement[]
   digitalCertificate   CompanyDigitalCertificate?
+  siiSubmissions       SiiInvoiceSubmission[]
   taxReturns           TaxReturn[]
   taxFacts             TaxFact[]
 
   @@index([accountId, kind])
+}
+
+/// Respuesta de Hacienda a una factura enviada al SII. No guarda el certificado.
+model SiiInvoiceSubmission {
+  id           String   @id @default(cuid())
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  book         String
+  ejercicio    Int
+  periodo      String
+  invoiceKey   String
+  status       String
+  csv          String?
+  errorCode    String?
+  errorMessage String?
+  sentAt       DateTime @default(now())
+
+  @@unique([companyId, invoiceKey])
+  @@index([companyId, ejercicio, periodo])
 }
 
 /// Metadatos del certificado digital FNMT/AEAT vinculado a la empresa (sin almacenar el .p12).

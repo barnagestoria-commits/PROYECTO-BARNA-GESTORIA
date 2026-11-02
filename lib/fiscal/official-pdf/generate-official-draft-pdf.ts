@@ -109,7 +109,7 @@ export async function generateOfficialDraftPdf(
     nif: sanitizeAeatText(companyCif ?? "", 9),
     companyName: sanitizeAeatText(companyName, 40),
     year: detail.year,
-    period: formatAeatPeriod(detail.quarter),
+    period: detail.month ? String(detail.month).padStart(2, "0") : formatAeatPeriod(detail.quarter),
   }
 
   const model303Casillas =
@@ -129,10 +129,14 @@ export async function generateOfficialDraftPdf(
 }
 
 export function buildOfficialDraftPdfFilename(
-  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter">,
+  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter" | "month">,
   companyName: string,
 ): string {
-  const quarterSuffix = detail.quarter === "annual" ? "anual" : `${detail.quarter}T`
+  const quarterSuffix = detail.month
+    ? String(detail.month).padStart(2, "0")
+    : detail.quarter === "annual"
+      ? "anual"
+      : `${detail.quarter}T`
   const slug = companyName
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")

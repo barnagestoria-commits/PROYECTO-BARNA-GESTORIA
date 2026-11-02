@@ -32,6 +32,10 @@ export function resolveModel303OptionsFromRequest(
     payment,
     resultAmount,
     taxDirectDebitIban,
-    period: { year: detail.year, quarter: detail.quarter },
+    period: {
+      year: detail.year,
+      quarter: detail.quarter,
+      month: detail.month ?? undefined,
+    },
   })
 }

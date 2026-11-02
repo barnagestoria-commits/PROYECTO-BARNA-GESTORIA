@@ -24,6 +24,16 @@ export async function POST(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Año no válido." }, { status: 400 })
     }
 
+    if (/^(0[1-9]|1[0-2])$/.test(quarterParam)) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "El 303 mensual no genera el asiento de liquidación del trimestre.",
+        },
+        { status: 400 },
+      )
+    }
+
     const quarter = parseDetailQuarter(quarterParam)
     if (!quarter || quarter === "annual") {
       return NextResponse.json(

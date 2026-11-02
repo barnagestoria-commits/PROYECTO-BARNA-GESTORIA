@@ -4,10 +4,26 @@ import Link from "next/link"
 import { useParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { useRequireAuth } from "@/components/auth-provider"
 import { model202PaymentForQuarter } from "@/lib/fiscal/model-202"
 import { FISCAL_MODEL_DEFINITIONS } from "@/lib/fiscal/panorama"
 import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 import { ArrowRight, FileSpreadsheet } from "lucide-react"
+
+const MONTH_LABELS = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+]
 
 const VALID_MODELS = new Set([
   "111",
@@ -25,8 +41,12 @@ const VALID_MODELS = new Set([
 
 export default function FiscalModelHubPage() {
   const params = useParams<{ model: string }>()
+  const { activeCompany } = useRequireAuth()
   const year = new Date().getFullYear()
   const modelCode = params.model as FiscalModelId
+  const monthly303 =
+    modelCode === "303" &&
+    (activeCompany?.siiMode === "OBLIGATORIO" || activeCompany?.siiMode === "VOLUNTARIO")
 
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   const isAnnualOnly = modelCode === "180" || modelCode === "190" || modelCode === "347" || modelCode === "390"
@@ -56,7 +76,38 @@ export default function FiscalModelHubPage() {
         </CardContent>
       </Card>
 
-      {!isAnnualOnly ? (
+      {!isAnnualOnly && monthly303 ? (
+        <div>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-800">
+            Presentación mensual
+          </h2>
+          <p className="mb-3 text-sm text-graphite-500">
+            Esta empresa está en el SII. El modelo 303 se presenta por meses.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {MONTH_LABELS.map((label, index) => {
+              const token = String(index + 1).padStart(2, "0")
+              return (
+                <Link
+                  key={token}
+                  href={`/dashboard/fiscal/303/${year}/${token}`}
+                  className="group rounded-lg border border-gray-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50"
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {label} {year}
+                      </p>
+                      <p className="text-sm text-gray-500">Periodo {token}</p>
+                    </div>
+                    <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-emerald-700" />
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      ) : !isAnnualOnly ? (
         <>
           <div>
             <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-800">

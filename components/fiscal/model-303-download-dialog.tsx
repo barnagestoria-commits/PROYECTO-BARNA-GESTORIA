@@ -48,11 +48,17 @@ export function Model303DownloadDialog({
   onConfirm,
   onCancel,
 }: Model303DownloadDialogProps) {
+  const rawPeriod = String(quarter)
+  const month = /^(0[1-9]|1[0-2])$/.test(rawPeriod) ? Number(rawPeriod) : undefined
   const periodQuarter: number | "annual" =
-    quarter === "annual" || quarter === "anual" ? "annual" : Number(quarter)
-  const period = { year, quarter: periodQuarter }
+    quarter === "annual" || quarter === "anual"
+      ? "annual"
+      : month
+        ? (Math.floor((month - 1) / 3) + 1)
+        : Number(quarter)
+  const period = { year, quarter: periodQuarter, month }
   const directDebitOpen = isModel303DirectDebitOpen(period)
-  const directDebitDeadline = formatModel303DirectDebitDeadline(year, periodQuarter)
+  const directDebitDeadline = formatModel303DirectDebitDeadline(year, periodQuarter, month)
   const ibanDisplay = formatIbanDisplay(taxDirectDebitIban)
   const hasIban = Boolean((taxDirectDebitIban ?? "").replace(/\s/g, ""))
   const [payment, setPayment] = useState<Model303ExportPayment>(() =>

@@ -24,7 +24,7 @@ function yesNo(value: boolean | undefined): "1" | "2" {
 }
 
 function lastPeriodFlag(period: string, value: boolean | undefined): "0" | "1" | "2" {
-  if (period !== "4T") return "0"
+  if (period !== "4T" && period !== "12") return "0"
   if (value === undefined) return "0"
   return value ? "1" : "2"
 }

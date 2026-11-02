@@ -18,6 +18,8 @@ export interface SidebarNavLink {
   badge?: string
   /** Si se indica, el enlace solo aparece para estos tipos de cuenta */
   accountTypes?: AccountType[]
+  /** Solo para la empresa que tiene el SII marcado en su ficha. */
+  requiresSii?: boolean
 }
 
 export interface SidebarNavSection {
@@ -265,6 +267,12 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Autoliquidación trimestral",
           },
           {
+            label: "Libros SII",
+            href: "/dashboard/fiscal/sii",
+            description: "Facturas emitidas y recibidas del mes",
+            requiresSii: true,
+          },
+          {
             label: "Modelo 111 — Retenciones",
             href: "/dashboard/fiscal/111",
             description: "Trabajo y profesionales",
@@ -373,18 +381,24 @@ export const SIDEBAR_FOOTER_LINKS = [
   { label: "Soporte", href: "/contact" },
 ] as const
 
-function isNavLinkVisibleForAccount(item: SidebarNavLink, accountType: AccountType): boolean {
+function isNavLinkVisibleForAccount(
+  item: SidebarNavLink,
+  accountType: AccountType,
+  sii: boolean,
+): boolean {
+  if (item.requiresSii && !sii) return false
   return !item.accountTypes || item.accountTypes.includes(accountType)
 }
 
-export function getSidebarNavModules(accountType: AccountType): SidebarNavModule[] {
+export function getSidebarNavModules(accountType: AccountType, options?: { sii?: boolean }): SidebarNavModule[] {
+  const sii = options?.sii === true
   return SIDEBAR_NAV_MODULES.map((module) => {
     if (!module.sections?.length) return module
 
     const sections = module.sections
       .map((section) => ({
         ...section,
-        items: section.items.filter((item) => isNavLinkVisibleForAccount(item, accountType)),
+        items: section.items.filter((item) => isNavLinkVisibleForAccount(item, accountType, sii)),
       }))
       .filter((section) => section.items.length > 0)
 

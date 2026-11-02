@@ -11,9 +11,10 @@ import { buildModel303CasillaValues } from "@/lib/fiscal/model-303/official-layo
 import type { CompanySiiMode } from "@/lib/company/sii"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
-function quarterToPeriod(quarter: FiscalModelDetailResponse["quarter"]): string {
-  if (quarter === "annual") return "0A"
-  return `${quarter}T`
+function filePeriod(detail: Pick<FiscalModelDetailResponse, "quarter" | "month">): string {
+  if (detail.month) return String(detail.month).padStart(2, "0")
+  if (detail.quarter === "annual") return "0A"
+  return `${detail.quarter}T`
 }
 
 export interface Model303FileOptions {
@@ -25,7 +26,7 @@ export interface Model303FileOptions {
 }
 
 export function buildTaxEngine303Context(
-  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter">,
+  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter" | "month">,
   companyName: string,
   companyCif: string | null | undefined,
   options?: Model303FileOptions,
@@ -34,14 +35,16 @@ export function buildTaxEngine303Context(
   const clientNif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase()
   const developerNif = configuredDeveloperNif || clientNif
   const softwareVersion = process.env.AEAT_PROGRAM_VERSION?.trim() || "0102"
+  const period = filePeriod(detail)
+  const lastPeriod = period === "4T" || period === "12"
 
   return {
     modelCode: "303",
     year: detail.year,
-    period: quarterToPeriod(detail.quarter),
+    period,
     companyNif: clientNif,
     companyName,
-    versionKey: getDefault303VersionKey(detail.year, quarterToPeriod(detail.quarter)),
+    versionKey: getDefault303VersionKey(detail.year, period),
     model303: {
       exclusivelyForal: false,
       registeredMonthlyRefund: false,
@@ -53,6 +56,9 @@ export function buildTaxEngine303Context(
       voluntarySii: options?.voluntarySii ?? false,
       siiSubject:
         options?.siiMode === "OBLIGATORIO" || options?.siiMode === "VOLUNTARIO",
+      ...(lastPeriod
+        ? { annualSummaryExempt: false, annualOperationsNonZero: true }
+        : {}),
     },
     software: developerNif
       ? {
@@ -119,7 +125,7 @@ export function generateAeatTxt303ViaTaxEngine(
 }
 
 export function buildAeat303Filename(
-  detail: Pick<FiscalModelDetailResponse, "year" | "quarter">,
+  detail: Pick<FiscalModelDetailResponse, "year" | "quarter" | "month">,
   companyCif: string | null | undefined,
 ): string {
   const context = buildTaxEngine303Context(

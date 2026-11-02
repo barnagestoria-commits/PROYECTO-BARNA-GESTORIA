@@ -28,9 +28,11 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
   const searchParams = useSearchParams()
   const searchString = searchParams.toString()
   const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null)
-  const { session } = useAuth()
+  const { session, activeCompany } = useAuth()
 
-  const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL")
+  const sidebarModules = getSidebarNavModules(session?.user.accountType ?? "CLIENTE_FINAL", {
+    sii: activeCompany?.siiMode === "OBLIGATORIO" || activeCompany?.siiMode === "VOLUNTARIO",
+  })
 
   useEffect(() => {
     if (open) {

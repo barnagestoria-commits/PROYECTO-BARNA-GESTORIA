@@ -100,10 +100,12 @@ export function validateModel303Export(content: string, context: TaxReturnContex
     })
   }
 
-  if (!/^[1-4]T$/.test(period)) {
+  const quarterlyPeriod = /^[1-4]T$/.test(period)
+  const monthlyPeriod = /^(0[1-9]|1[0-2])$/.test(period)
+  if (!quarterlyPeriod && !monthlyPeriod) {
     issues.push({
       code: "INVALID_PERIOD",
-      message: "El modelo 303 trimestral requiere un periodo 1T, 2T, 3T o 4T.",
+      message: "El modelo 303 admite un trimestre 1T a 4T o un mes 01 a 12.",
       severity: "error",
     })
   }
@@ -152,7 +154,7 @@ export function validateModel303Export(content: string, context: TaxReturnContex
 
     const page = content.slice(page01000Start, page01000End + "</T30301000>".length)
     const options = context.model303 ?? {}
-    const periodIsLast = period === "4T"
+    const periodIsLast = period === "4T" || period === "12"
     const checks: Array<[number, number, string, string]> = [
       [109, 1, options.exclusivelyForal ? "1" : "2", "1 o 2 según tributación foral"],
       [110, 1, options.registeredMonthlyRefund ? "1" : "2", "1 o 2 según REDEME"],
@@ -236,7 +238,7 @@ export function validateModel303Export(content: string, context: TaxReturnContex
       })
     }
 
-    if ((options.voluntarySii || options.siiSubject) && /^[1-4]T$/.test(period)) {
+    if ((options.voluntarySii || options.siiSubject) && quarterlyPeriod) {
       issues.push({
         code: "SII_QUARTERLY_PERIOD",
         message:

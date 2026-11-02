@@ -33,6 +33,8 @@ const TO_PAY_WITHOUT_DIRECT_DEBIT = new Set<Model303ExportPayment>([
 export interface Model303FilingPeriod {
   year: number
   quarter: number | "annual"
+  /** Mes 1-12 del 303 de una empresa en SII. */
+  month?: number
   now?: Date
 }
 
@@ -58,7 +60,12 @@ function parseQuarter(quarter: number | "annual"): number | null {
 export function model303DirectDebitDeadline(
   year: number,
   quarter: number | "annual",
+  month?: number,
 ): { year: number; month: number; day: number } | null {
+  if (month && month >= 1 && month <= 12) {
+    if (month === 12) return { year: year + 1, month: 1, day: 25 }
+    return { year, month: month + 1, day: 25 }
+  }
   const period = parseQuarter(quarter)
   if (period === 1) return { year, month: 4, day: 15 }
   if (period === 2) return { year, month: 7, day: 15 }
@@ -67,8 +74,12 @@ export function model303DirectDebitDeadline(
   return null
 }
 
-export function formatModel303DirectDebitDeadline(year: number, quarter: number | "annual"): string | null {
-  const deadline = model303DirectDebitDeadline(year, quarter)
+export function formatModel303DirectDebitDeadline(
+  year: number,
+  quarter: number | "annual",
+  month?: number,
+): string | null {
+  const deadline = model303DirectDebitDeadline(year, quarter, month)
   if (!deadline) return null
   return new Intl.DateTimeFormat("es-ES", {
     day: "numeric",
@@ -80,7 +91,7 @@ export function formatModel303DirectDebitDeadline(year: number, quarter: number 
 
 /** La domiciliación solo puede pedirse hasta el día 15 del mes de presentación (25 de enero en el 4T). */
 export function isModel303DirectDebitOpen(period: Model303FilingPeriod): boolean {
-  const deadline = model303DirectDebitDeadline(period.year, period.quarter)
+  const deadline = model303DirectDebitDeadline(period.year, period.quarter, period.month)
   if (!deadline) return false
   const today = madridCalendar(period.now ?? new Date())
   const todayKey = today.year * 10000 + today.month * 100 + today.day

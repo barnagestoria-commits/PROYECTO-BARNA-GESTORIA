@@ -58,6 +58,13 @@ export default function FiscalModelDetailPage() {
   const detail = payload?.detail ?? null
   const usesDraftLayout =
     detail !== null && DRAFT_SUPPORTED_MODELS.has(detail.modelCode)
+  const sii303 =
+    params.model === "303" &&
+    (activeCompany?.siiMode === "OBLIGATORIO" || activeCompany?.siiMode === "VOLUNTARIO")
+  const monthToken = /^(0[1-9]|1[0-2])$/.test(params.quarter ?? "")
+  const quarterNumber = Number.parseInt(params.quarter ?? "", 10)
+  const showMonthChooser =
+    sii303 && !monthToken && params.quarter !== "anual" && params.quarter !== "annual" && quarterNumber >= 1 && quarterNumber <= 4
 
   return (
     <div className="space-y-4">
@@ -73,12 +80,41 @@ export default function FiscalModelDetailPage() {
           <Loader2 className="h-5 w-5 animate-spin" />
           Cargando borrador del modelo…
         </div>
+      ) : showMonthChooser ? (
+        <Card>
+          <CardContent className="space-y-3 py-6">
+            <p className="text-sm text-graphite-600">
+              Esta empresa está en el SII. Elige el mes de este trimestre. El fichero trimestral no se presenta.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {[0, 1, 2].map((offset) => {
+                const month = (quarterNumber - 1) * 3 + offset + 1
+                const token = String(month).padStart(2, "0")
+                return (
+                  <Button key={token} variant="outline" size="sm" asChild>
+                    <Link href={`/dashboard/fiscal/303/${params.year}/${token}`}>Periodo {token}</Link>
+                  </Button>
+                )
+              })}
+            </div>
+          </CardContent>
+        </Card>
       ) : error ? (
         <Card>
           <CardContent className="py-10 text-center text-red-700">{error}</CardContent>
         </Card>
       ) : detail && payload && activeCompany ? (
         usesDraftLayout ? (
+          <>
+            {sii303 && monthToken ? (
+              <p className="text-sm text-graphite-600">
+                Periodo {params.quarter}. Los libros de facturas de este mes se envían en{" "}
+                <Link href="/dashboard/fiscal/sii" className="font-medium text-emerald-800 underline">
+                  Libros SII
+                </Link>
+                .
+              </p>
+            ) : null}
           <FiscalModelDraftView
             detail={detail}
             companyName={payload.companyName}
@@ -90,6 +126,7 @@ export default function FiscalModelDetailPage() {
             taxDirectDebitIban={activeCompany.taxDirectDebitIban}
             taxDirectDebitBank={activeCompany.taxDirectDebitBank}
           />
+          </>
         ) : (
           <Card>
             <CardContent className="py-10 text-center text-sm text-graphite-600">

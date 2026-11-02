@@ -290,4 +290,50 @@ describe("exportModel303Dr303", () => {
     expect(page01000.slice(108, 117)).toBe("223211222")
     expect(page01000.slice(126, 130)).toBe("1000")
   })
+
+  it("accepts a monthly period for an SII company", () => {
+    const casillas = finalizeModel303Casillas({
+      base01: 100000,
+      cuota03: 21000,
+      base04: 0,
+      cuota06: 0,
+      base07: 0,
+      cuota09: 0,
+      base10: 0,
+      cuota11: 0,
+      base12: 0,
+      cuota13: 0,
+      base28: 0,
+      cuota29: 0,
+      base30: 0,
+      cuota31: 0,
+      base32: 0,
+      cuota33: 0,
+      base34: 0,
+      cuota35: 0,
+      base36: 0,
+      cuota37: 0,
+      base38: 0,
+      cuota39: 0,
+      cuota110: 0,
+    })
+    const artifact = exportModel303Dr303({
+      context: {
+        modelCode: "303",
+        year: 2026,
+        period: "01",
+        companyNif: "B12345674",
+        companyName: "EMPRESA TEST SL",
+        versionKey: "AEAT:303:2026:01:101",
+        software: { version: "0102", developerNif: "B12345674" },
+        model303: { voluntarySii: true, siiSubject: true },
+      },
+      casillas,
+    })
+    const content = artifact.content.toString("latin1")
+    expect(content.startsWith("<T30302026010000>")).toBe(true)
+    expect(artifact.validation.valid).toBe(true)
+    expect(artifact.validation.issues.some((issue) => issue.code === "SII_QUARTERLY_PERIOD")).toBe(false)
+    expect(artifact.filename).toBe("303202601_B12345674.303")
+  })
 })

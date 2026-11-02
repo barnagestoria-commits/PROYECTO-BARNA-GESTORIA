@@ -39,7 +39,7 @@ function csvRow(cells: Array<string | number>): string {
 }
 
 export function buildFiscalExportFilename(
-  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter">,
+  detail: Pick<FiscalModelDetailResponse, "modelCode" | "year" | "quarter" | "month">,
   companyName: string,
   extension: FiscalExportFormat | "pdf" | "xlsx" | "csv" | "txt",
   companyCif?: string | null,
@@ -51,8 +51,11 @@ export function buildFiscalExportFilename(
     return buildAeatTxtFilename(detail, companyCif).replace(/\.txt$/i, "-libros.xlsx")
   }
 
-  const quarterSuffix =
-    detail.quarter === "annual" ? "anual" : `${detail.quarter}T`
+  const quarterSuffix = detail.month
+    ? String(detail.month).padStart(2, "0")
+    : detail.quarter === "annual"
+      ? "anual"
+      : `${detail.quarter}T`
   const base = `modelo-${detail.modelCode}-${slugifyCompanyName(companyName)}-${detail.year}-${quarterSuffix}`
   return extension === "zip" ? `${base}-export.zip` : `${base}.${extension}`
 }

@@ -54,8 +54,8 @@ export function buildModel303EngineResult(
   companyCif: string | null | undefined,
   options?: Model303FileOptions,
 ): Model303EngineResult {
-  if (detail.modelCode !== "303" || detail.quarter === "annual") {
-    throw new Error("El motor DR303 solo admite el modelo 303 en periodos trimestrales.")
+  if (detail.modelCode !== "303" || (detail.quarter === "annual" && !detail.month)) {
+    throw new Error("El motor DR303 admite el modelo 303 en trimestre o en mes.")
   }
 
   const source = requireModel303Source(detail.year)

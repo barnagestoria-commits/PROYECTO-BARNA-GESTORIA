@@ -194,6 +194,36 @@ export function isDateInQuarter(date: Date, year: number, quarter: 1 | 2 | 3 | 4
   return getQuarterFromDate(date) === quarter && date.getUTCFullYear() === year
 }
 
+export function isDateInMonth(date: Date, year: number, month: number): boolean {
+  return date.getUTCFullYear() === year && date.getUTCMonth() + 1 === month
+}
+
+export function quarterFromMonth(month: number): 1 | 2 | 3 | 4 {
+  return (Math.floor((month - 1) / 3) + 1) as 1 | 2 | 3 | 4
+}
+
+export function monthPeriodLabel(month: number, year: number): string {
+  const name = new Intl.DateTimeFormat("es-ES", { month: "long", timeZone: "UTC" }).format(
+    new Date(Date.UTC(year, month - 1, 1)),
+  )
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`
+}
+
+export type FiscalRoutePeriod =
+  | { kind: "quarter"; quarter: 1 | 2 | 3 | 4 | "annual" }
+  | { kind: "month"; month: number; quarter: 1 | 2 | 3 | 4 }
+
+/** `01`–`12` es un mes. `1`–`4` sigue siendo el trimestre. */
+export function parseFiscalRoutePeriod(value: string): FiscalRoutePeriod | null {
+  if (/^(0[1-9]|1[0-2])$/.test(value)) {
+    const month = Number(value)
+    return { kind: "month", month, quarter: quarterFromMonth(month) }
+  }
+  const quarter = parseDetailQuarter(value)
+  if (!quarter) return null
+  return { kind: "quarter", quarter }
+}
+
 export function isDateInYear(date: Date, year: number): boolean {
   return date.getUTCFullYear() === year
 }
@@ -518,9 +548,11 @@ function filterLinesForPeriod(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
+  month?: number,
 ): RawEntryLine[] {
   return lines.filter((line) => {
     const fecha = line.entry.fecha
+    if (month) return isDateInMonth(fecha, year, month)
     if (quarter === "annual") return isDateInYear(fecha, year)
     return isDateInQuarter(fecha, year, quarter)
   })
@@ -532,8 +564,9 @@ export function calculateModelAmount(
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
   options?: ModelCalculationOptions,
+  month?: number,
 ): ModelAmountResult {
-  const periodLines = filterLinesForPeriod(lines, year, quarter)
+  const periodLines = filterLinesForPeriod(lines, year, quarter, month)
   const linesByEntry = groupLinesByEntry(lines)
   const rentalContext = buildRentalRetentionContext(lines)
   const entryIds = new Set<string>()
@@ -922,7 +955,7 @@ export function calculateModelAmount(
   }
 
   if (modelCode === "303") {
-    if (quarter !== "annual") {
+    if (!month && quarter !== "annual") {
       const liquidation = extractModel303LiquidationDetail(lines, year, quarter)
       if (liquidation) {
         const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
@@ -941,8 +974,10 @@ export function calculateModelAmount(
           ],
         }
       }
+    }
 
-      const bridge = calculateIvaBridgeSummary(lines, year, quarter)
+    if (month || quarter !== "annual") {
+      const bridge = calculateIvaBridgeSummary(lines, year, quarter, month)
       if (bridge.lineCount > 0) {
         for (const line of [...bridge.soportadoLines, ...bridge.repercutidoLines]) {
           entryIds.add(line.entry.id)

@@ -91,6 +91,8 @@ export interface FiscalModelDetailResponse {
   modelLabel: string
   year: number
   quarter: number | "annual"
+  /** Mes 1-12 cuando el 303 se presenta en periodos mensuales. */
+  month?: number | null
   periodLabel: string
   amount: number
   status: FiscalCellStatus

@@ -1,5 +1,6 @@
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import {
+  isDateInMonth,
   isDateInQuarter,
   isDateInYear,
   type RawEntryLine,
@@ -9,9 +10,11 @@ function filterLinesForPeriod(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
+  month?: number,
 ): RawEntryLine[] {
   return lines.filter((line) => {
     const fecha = line.entry.fecha
+    if (month) return isDateInMonth(fecha, year, month)
     if (quarter === "annual") return isDateInYear(fecha, year)
     return isDateInQuarter(fecha, year, quarter)
   })
@@ -42,8 +45,9 @@ export function calculateIvaBridgeSummary(
   lines: RawEntryLine[],
   year: number,
   quarter: 1 | 2 | 3 | 4 | "annual",
+  month?: number,
 ): IvaBridgeSummary {
-  const periodLines = filterLinesForPeriod(lines, year, quarter)
+  const periodLines = filterLinesForPeriod(lines, year, quarter, month)
   const soportadoLines = periodLines.filter(isIvaSoportadoBridgeLine)
   const repercutidoLines = periodLines.filter(isIvaRepercutidoBridgeLine)
 

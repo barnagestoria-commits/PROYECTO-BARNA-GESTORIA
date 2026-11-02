@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { buildOfficialAeatDraftBundle } from "@/lib/fiscal/aeat/build-official-submission"
 import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-service"
-import { parseDetailQuarter } from "@/lib/fiscal/panorama"
+import { quarterly303BlockedForSii, resolveFiscalRoutePeriod } from "@/lib/fiscal/parse-route-period"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 import { withCompanyVatCensus } from "@/lib/fiscal/model-303/resolve-export-options-from-request"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
@@ -27,13 +27,13 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Año no válido." }, { status: 400 })
     }
 
-    const quarter = parseDetailQuarter(quarterParam)
-    if (!quarter) {
-      return NextResponse.json({ success: false, error: "Trimestre no válido." }, { status: 400 })
+    const parsedPeriod = resolveFiscalRoutePeriod(model, quarterParam)
+    if ("error" in parsedPeriod) {
+      return NextResponse.json({ success: false, error: parsedPeriod.error }, { status: 400 })
     }
 
     const [detail, company] = await Promise.all([
-      buildFiscalModelDetail(companyId, model, year, quarter),
+      buildFiscalModelDetail(companyId, model, year, parsedPeriod.period.quarter, parsedPeriod.period.month),
       resolveCompanyTaxIdentity(companyId),
     ])
 
@@ -43,6 +43,11 @@ export async function GET(request: Request, { params }: RouteContext) {
 
     if (!company) {
       return NextResponse.json({ success: false, error: "Empresa no encontrada." }, { status: 404 })
+    }
+
+    const blocked = quarterly303BlockedForSii(model, parsedPeriod.period, company.siiMode)
+    if (blocked) {
+      return NextResponse.json({ success: false, error: blocked }, { status: 422 })
     }
 
     const bundle = await buildOfficialAeatDraftBundle(
