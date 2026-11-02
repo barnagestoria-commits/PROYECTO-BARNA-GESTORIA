@@ -16,6 +16,15 @@ export function formatEuro(value: number): string {
   }).format(value)
 }
 
+/** Variación porcentual. Sin base el cambio no se puede calcular. */
+export function formatChangePercent(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—"
+  const formatted = formatAmount(Math.abs(value))
+  if (value > 0) return `+${formatted} %`
+  if (value < 0) return `−${formatted} %`
+  return `${formatted} %`
+}
+
 export function normalizeCuenta(cuenta: string): string {
   return cuenta.replace(/\D/g, "").trim()
 }

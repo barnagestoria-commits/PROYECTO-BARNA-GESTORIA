@@ -1,4 +1,5 @@
 import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
+import type { CostCenterListing, ReportBreakdown } from "@/lib/reports/statement-layout"
 import type { ReportType } from "@/lib/reports/types"
 import type { ReportExportFormat } from "@/lib/reports/export-formats"
 import type { SerializedPreview } from "@/components/report-preview-content"
@@ -12,8 +13,27 @@ import type { Model303ExportPayment } from "@/lib/fiscal/model-303/export-paymen
 export interface ReportDownloadParams {
   year?: number
   compareYear?: number | null
+  compareYears?: number[]
+  breakdown?: ReportBreakdown
+  fromMonth?: number
+  toMonth?: number
+  costCenterListing?: CostCenterListing
   costCenterId?: string
   detailLevel?: GestoriaAccountDetailLevel
+}
+
+function appendReportSearch(search: URLSearchParams, params: ReportDownloadParams) {
+  const years = params.compareYears?.filter((year) => year !== params.year) ?? []
+  if (years.length > 0) search.set("compareYears", years.join(","))
+  else if (params.compareYear) search.set("compareYear", String(params.compareYear))
+  if (params.breakdown && params.breakdown !== "anual") search.set("breakdown", params.breakdown)
+  if (params.fromMonth) search.set("fromMonth", String(params.fromMonth))
+  if (params.toMonth) search.set("toMonth", String(params.toMonth))
+  if (params.costCenterListing && params.costCenterListing !== "consolidado") {
+    search.set("costCenters", params.costCenterListing)
+  }
+  if (params.costCenterId) search.set("costCenterId", params.costCenterId)
+  if (params.detailLevel) search.set("detail", params.detailLevel)
 }
 
 async function downloadReportBlob(
@@ -56,9 +76,7 @@ function getReportUrl(
 ): string {
   const y = params.year ?? new Date().getFullYear()
   const search = new URLSearchParams({ year: String(y) })
-  if (params.compareYear) search.set("compareYear", String(params.compareYear))
-  if (params.costCenterId) search.set("costCenterId", params.costCenterId)
-  if (params.detailLevel) search.set("detail", params.detailLevel)
+  appendReportSearch(search, params)
   return `/api/reports/${type}/${format}?${search.toString()}`
 }
 
@@ -81,9 +99,7 @@ export function getReportZipUrl(type: ReportType, year?: number): string {
 export function getListadosBundleZipUrl(params: ReportDownloadParams = {}): string {
   const y = params.year ?? new Date().getFullYear()
   const search = new URLSearchParams({ year: String(y) })
-  if (params.compareYear) search.set("compareYear", String(params.compareYear))
-  if (params.costCenterId) search.set("costCenterId", params.costCenterId)
-  if (params.detailLevel) search.set("detail", params.detailLevel)
+  appendReportSearch(search, params)
   return `/api/reports/bundle/zip?${search.toString()}`
 }
 

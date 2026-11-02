@@ -1,3 +1,6 @@
+import type { StatementColumn } from "@/lib/reports/statement-layout"
+
+export type { StatementColumn }
 export type ReportType = "balance" | "sumas-saldos" | "pyg"
 
 export interface AccountBalance {
@@ -15,6 +18,7 @@ export interface ReportMeta {
   companyCif: string | null
   year: number
   compareYear?: number | null
+  columns?: StatementColumn[]
   periodLabel: string
   reportTitle: string
   generatedAt: Date
@@ -25,6 +29,7 @@ export interface StatementRow {
   label: string
   amount: number
   compareAmount?: number
+  values?: Array<number | null>
   level: number
 }
 
@@ -33,6 +38,7 @@ export interface BalanceSection {
   rows: StatementRow[]
   subtotal: number
   compareSubtotal?: number
+  subtotals?: Array<number | null>
 }
 
 export interface BalanceReportData {
@@ -43,6 +49,8 @@ export interface BalanceReportData {
   totalPasivo: number
   totalActivoCompare?: number
   totalPasivoCompare?: number
+  totalActivoValues?: Array<number | null>
+  totalPasivoValues?: Array<number | null>
 }
 
 export interface SumasSaldosReportData {
@@ -57,6 +65,7 @@ export interface PygSection {
   rows: StatementRow[]
   subtotal: number
   compareSubtotal?: number
+  subtotals?: Array<number | null>
 }
 
 export interface PygReportData {
@@ -69,6 +78,9 @@ export interface PygReportData {
   totalIngresosCompare?: number
   totalGastosCompare?: number
   resultadoCompare?: number
+  totalIngresosValues?: Array<number | null>
+  totalGastosValues?: Array<number | null>
+  resultadoValues?: Array<number | null>
 }
 
 export const REPORT_LABELS: Record<ReportType, string> = {

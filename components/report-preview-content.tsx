@@ -1,6 +1,7 @@
 "use client"
 
-import { formatAmount, formatEuro } from "@/lib/reports/format"
+import { formatAmount, formatChangePercent } from "@/lib/reports/format"
+import type { StatementColumn } from "@/lib/reports/statement-layout"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type {
   BalanceReportData,
@@ -39,7 +40,6 @@ function ReportHeader({ meta }: { meta: SerializedReportMeta }) {
         </p>
         <p>
           <span className="font-medium text-gray-800">Ejercicio:</span> {meta.year}
-          {meta.compareYear ? ` · Comparativa ${meta.compareYear}` : ""}
         </p>
         <p>
           <span className="font-medium text-gray-800">Periodo:</span> {meta.periodLabel}
@@ -53,21 +53,56 @@ function IndentLabel({ text, level }: { text: string; level: number }) {
   return <span style={{ paddingLeft: `${level * 12}px` }}>{text}</span>
 }
 
+function columnsFor(
+  columns: StatementColumn[] | undefined,
+  year: number,
+  compareYear?: number | null,
+): StatementColumn[] {
+  if (columns && columns.length > 0) return columns
+  if (compareYear) {
+    return [
+      { id: "current", label: String(year), kind: "amount" },
+      { id: "compare", label: String(compareYear), kind: "amount" },
+    ]
+  }
+  return [{ id: "amount", label: "Importe", kind: "amount" }]
+}
+
+function valuesFor(
+  row: { amount: number; compareAmount?: number; values?: Array<number | null> },
+  columns: StatementColumn[],
+  compareYear?: number | null,
+): Array<number | null> {
+  if (row.values && row.values.length === columns.length) return row.values
+  if (compareYear) return [row.amount, row.compareAmount ?? 0]
+  return [row.amount]
+}
+
+function ColumnValue({ column, value }: { column: StatementColumn; value: number | null }) {
+  if (column.kind === "percent") {
+    return (
+      <span className={cn(value !== null && value < 0 && "text-red-700", value !== null && value > 0 && "text-emerald-800")}>
+        {formatChangePercent(value)}
+      </span>
+    )
+  }
+  return <>{formatAmount(value ?? 0)}</>
+}
+
 function SectionTable({
   title,
   sections,
-  year,
-  compareYear,
+  columns,
 }: {
   title: string
   sections: Array<{
     title: string
-    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; level: number }>
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>
     subtotal: number
     compareSubtotal?: number
+    subtotals?: Array<number | null>
   }>
-  year: number
-  compareYear?: number | null
+  columns: StatementColumn[]
 }) {
   if (sections.length === 0) {
     return <p className="text-sm italic text-gray-500">Sin datos en {title.toLowerCase()}.</p>
@@ -79,51 +114,70 @@ function SectionTable({
       {sections.map((section) => (
         <div key={section.title} className="space-y-2">
           <p className="text-sm font-semibold text-gray-800">{section.title}</p>
-          <div className="overflow-hidden rounded-lg border">
+          <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow className="bg-emerald-900 hover:bg-emerald-900">
                   <TableHead className="w-24 text-white">Cuenta</TableHead>
-                  <TableHead className="text-white">Descripción</TableHead>
-                  <TableHead className="w-32 text-right text-white">{compareYear ? year : "Importe"}</TableHead>
-                  {compareYear ? (
-                    <TableHead className="w-32 text-right text-white">{compareYear}</TableHead>
-                  ) : null}
+                  <TableHead className="min-w-40 text-white">Descripción</TableHead>
+                  {columns.map((column) => (
+                    <TableHead key={column.id} className="min-w-24 text-right text-white">
+                      {column.label}
+                    </TableHead>
+                  ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {section.rows.map((row) => (
-                  <TableRow key={row.cuenta}>
-                    <TableCell className="font-mono text-xs">{formatAccountCodeDisplay(row.cuenta)}</TableCell>
-                    <TableCell className="text-sm">
-                      <IndentLabel text={row.label} level={row.level} />
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-sm tabular-nums">
-                      {formatAmount(row.amount)}
-                    </TableCell>
-                    {compareYear ? (
-                      <TableCell className="text-right font-mono text-sm tabular-nums">
-                        {formatAmount(row.compareAmount ?? 0)}
+                {section.rows.map((row) => {
+                  const values = valuesFor(row, columns)
+                  return (
+                    <TableRow key={row.cuenta}>
+                      <TableCell className="font-mono text-xs">{formatAccountCodeDisplay(row.cuenta)}</TableCell>
+                      <TableCell className="text-sm">
+                        <IndentLabel text={row.label} level={row.level} />
                       </TableCell>
-                    ) : null}
-                  </TableRow>
-                ))}
+                      {columns.map((column, index) => (
+                        <TableCell key={column.id} className="text-right font-mono text-sm tabular-nums">
+                          <ColumnValue column={column} value={values[index] ?? null} />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  )
+                })}
                 <TableRow className="bg-emerald-50 font-semibold">
                   <TableCell colSpan={2}>Subtotal {section.title}</TableCell>
-                  <TableCell className="text-right font-mono tabular-nums">
-                    {formatAmount(section.subtotal)}
-                  </TableCell>
-                  {compareYear ? (
-                    <TableCell className="text-right font-mono tabular-nums">
-                      {formatAmount(section.compareSubtotal ?? 0)}
+                  {columns.map((column, index) => (
+                    <TableCell key={column.id} className="text-right font-mono tabular-nums">
+                      <ColumnValue
+                        column={column}
+                        value={section.subtotals?.[index] ?? (index === 0 ? section.subtotal : section.compareSubtotal ?? 0)}
+                      />
                     </TableCell>
-                  ) : null}
+                  ))}
                 </TableRow>
               </TableBody>
             </Table>
           </div>
         </div>
       ))}
+    </div>
+  )
+}
+
+function TotalLine({ label, values, columns }: { label: string; values?: Array<number | null>; columns: StatementColumn[] }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
+      <span>{label}</span>
+      <span className="flex flex-wrap justify-end gap-x-4 gap-y-1 font-mono text-sm tabular-nums">
+        {columns.map((column, index) => (
+          <span key={column.id} className="text-right">
+            <span className="mr-1 text-[10px] font-sans font-medium uppercase tracking-wide text-emerald-700">
+              {column.label}
+            </span>
+            <ColumnValue column={column} value={values?.[index] ?? null} />
+          </span>
+        ))}
+      </span>
     </div>
   )
 }
@@ -189,81 +243,32 @@ function SumasSaldosPreview({ data }: { data: SerializedPreview & { type: "sumas
 }
 
 function BalancePreview({ data }: { data: SerializedPreview & { type: "balance" } }) {
+  const columns = columnsFor(data.data.meta.columns, data.data.meta.year, data.data.meta.compareYear)
   return (
     <div className="space-y-6">
       <ReportHeader meta={data.data.meta} />
-      <SectionTable
-        title="Activo"
-        sections={data.data.activo}
-        year={data.data.meta.year}
-        compareYear={data.data.meta.compareYear}
+      <SectionTable title="Activo" sections={data.data.activo} columns={columns} />
+      <TotalLine label="Total activo" values={data.data.totalActivoValues ?? [data.data.totalActivo]} columns={columns} />
+      <SectionTable title="Patrimonio neto y pasivo" sections={data.data.pasivo} columns={columns} />
+      <TotalLine
+        label="Total patrimonio neto y pasivo"
+        values={data.data.totalPasivoValues ?? [data.data.totalPasivo]}
+        columns={columns}
       />
-      <div className="flex items-center justify-between gap-4 rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
-        <span>Total activo</span>
-        <span className="font-mono tabular-nums">
-          {formatEuro(data.data.totalActivo)}
-          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalActivoCompare ?? 0)}` : ""}
-        </span>
-      </div>
-      <SectionTable
-        title="Patrimonio neto y pasivo"
-        sections={data.data.pasivo}
-        year={data.data.meta.year}
-        compareYear={data.data.meta.compareYear}
-      />
-      <div className="flex items-center justify-between gap-4 rounded-lg bg-emerald-50 px-4 py-3 font-semibold text-emerald-950">
-        <span>Total patrimonio neto y pasivo</span>
-        <span className="font-mono tabular-nums">
-          {formatEuro(data.data.totalPasivo)}
-          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalPasivoCompare ?? 0)}` : ""}
-        </span>
-      </div>
     </div>
   )
 }
 
 function PygPreview({ data }: { data: SerializedPreview & { type: "pyg" } }) {
+  const columns = columnsFor(data.data.meta.columns, data.data.meta.year, data.data.meta.compareYear)
   return (
     <div className="space-y-6">
       <ReportHeader meta={data.data.meta} />
-      <SectionTable
-        title="Ingresos"
-        sections={data.data.ingresos}
-        year={data.data.meta.year}
-        compareYear={data.data.meta.compareYear}
-      />
-      <div className="flex items-center justify-between rounded-md border px-4 py-2 font-semibold">
-        <span>Total ingresos</span>
-        <span className="font-mono tabular-nums">
-          {formatEuro(data.data.totalIngresos)}
-          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalIngresosCompare ?? 0)}` : ""}
-        </span>
-      </div>
-      <SectionTable
-        title="Gastos"
-        sections={data.data.gastos}
-        year={data.data.meta.year}
-        compareYear={data.data.meta.compareYear}
-      />
-      <div className="flex items-center justify-between rounded-md border px-4 py-2 font-semibold">
-        <span>Total gastos</span>
-        <span className="font-mono tabular-nums">
-          {formatEuro(data.data.totalGastos)}
-          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.totalGastosCompare ?? 0)}` : ""}
-        </span>
-      </div>
-      <div
-        className={cn(
-          "flex items-center justify-between rounded-lg px-4 py-3 text-lg font-bold",
-          data.data.resultado >= 0 ? "bg-emerald-100 text-emerald-900" : "bg-red-50 text-red-800",
-        )}
-      >
-        <span>Resultado del ejercicio</span>
-        <span className="font-mono tabular-nums">
-          {formatEuro(data.data.resultado)}
-          {data.data.meta.compareYear ? ` · ${formatEuro(data.data.resultadoCompare ?? 0)}` : ""}
-        </span>
-      </div>
+      <SectionTable title="Ingresos" sections={data.data.ingresos} columns={columns} />
+      <TotalLine label="Total ingresos" values={data.data.totalIngresosValues ?? [data.data.totalIngresos]} columns={columns} />
+      <SectionTable title="Gastos" sections={data.data.gastos} columns={columns} />
+      <TotalLine label="Total gastos" values={data.data.totalGastosValues ?? [data.data.totalGastos]} columns={columns} />
+      <TotalLine label="Resultado del ejercicio" values={data.data.resultadoValues ?? [data.data.resultado]} columns={columns} />
     </div>
   )
 }

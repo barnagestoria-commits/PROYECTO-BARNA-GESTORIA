@@ -22,12 +22,34 @@ import { Eye, FileText, Loader2 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { AccountDetailLevelPicker } from "@/components/accounting/account-detail-level-picker"
 import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
+import type { CostCenterListing, ReportBreakdown } from "@/lib/reports/statement-layout"
 
 interface CostCenterOption {
   id: string
   code: string
   name: string
 }
+
+const MONTH_OPTIONS = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+]
+
+const BREAKDOWN_OPTIONS: Array<{ id: ReportBreakdown; label: string }> = [
+  { id: "anual", label: "Anual" },
+  { id: "trimestral", label: "Trimestral" },
+  { id: "mensual", label: "Mensual" },
+]
 
 interface InformeDownloadCardProps {
   title: string
@@ -53,19 +75,31 @@ export function InformeDownloadCard({
   const [bundleLoading, setBundleLoading] = useState<"annual" | "trimestral" | "listados" | null>(null)
   const [costCenters, setCostCenters] = useState<CostCenterOption[]>([])
   const [selectedCostCenterId, setSelectedCostCenterId] = useState("")
+  const [costCenterListing, setCostCenterListing] = useState<CostCenterListing>("consolidado")
   const [detailLevel, setDetailLevel] = useState<GestoriaAccountDetailLevel>("SUBCUENTAS")
   const thisYear = new Date().getFullYear()
   const [year, setYear] = useState(thisYear)
-  const [compareYear, setCompareYear] = useState<number | "">(thisYear - 1)
+  const [compareYears, setCompareYears] = useState<number[]>([thisYear - 1])
+  const [breakdown, setBreakdown] = useState<ReportBreakdown>("anual")
+  const [fromMonth, setFromMonth] = useState(1)
+  const [toMonth, setToMonth] = useState(12)
   const yearOptions = Array.from({ length: 8 }, (_, index) => thisYear - index)
 
   const supportsCostCenterFilter = reportType === "balance" || reportType === "pyg"
   const supportsComparison = reportType === "balance" || reportType === "pyg"
   const supportsDetailLevel = reportType === "balance" || reportType === "pyg" || reportType === "sumas-saldos"
-  const selectedCompareYear = supportsComparison && compareYear !== "" && compareYear !== year ? compareYear : undefined
+  const selectedCompareYears = supportsComparison ? compareYears.filter((value) => value !== year).slice(0, 5) : []
+  const listing: CostCenterListing =
+    supportsCostCenterFilter && costCenters.length > 0 ? costCenterListing : "consolidado"
+  const activeListing = listing === "centro" && !selectedCostCenterId ? "consolidado" : listing
   const reportOptions = {
-    compareYear: selectedCompareYear,
-    costCenterId: selectedCostCenterId || undefined,
+    compareYear: selectedCompareYears[0],
+    compareYears: selectedCompareYears,
+    breakdown: activeListing === "por-centros" ? "anual" : breakdown,
+    fromMonth,
+    toMonth,
+    costCenterListing: activeListing,
+    costCenterId: activeListing === "centro" ? selectedCostCenterId : undefined,
     detailLevel: supportsDetailLevel ? detailLevel : undefined,
   }
 
@@ -137,7 +171,7 @@ export function InformeDownloadCard({
               {" · "}
               <span className="text-gray-500">
                 Ejercicio {year}
-                {selectedCompareYear ? ` · comparativa ${selectedCompareYear}` : ""}
+                {selectedCompareYears.length > 0 ? ` · comparativa ${selectedCompareYears.join(", ")}` : ""}
               </span>
             </p>
           )}
@@ -153,7 +187,7 @@ export function InformeDownloadCard({
 
             {reportType ? (
               <>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="report-year" className="text-xs text-graphite-600">
                       Ejercicio
@@ -162,7 +196,11 @@ export function InformeDownloadCard({
                       id="report-year"
                       className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
                       value={year}
-                      onChange={(event) => setYear(Number(event.target.value))}
+                      onChange={(event) => {
+                        const nextYear = Number(event.target.value)
+                        setYear(nextYear)
+                        setCompareYears((current) => current.filter((value) => value !== nextYear))
+                      }}
                     >
                       {yearOptions.map((option) => (
                         <option key={option} value={option}>
@@ -172,57 +210,192 @@ export function InformeDownloadCard({
                     </select>
                   </div>
                   {supportsComparison ? (
-                    <div className="space-y-1.5">
-                      <Label htmlFor="report-compare-year" className="text-xs text-graphite-600">
-                        Comparar con
-                      </Label>
-                      <select
-                        id="report-compare-year"
-                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                        value={compareYear === year ? "" : compareYear}
-                        onChange={(event) =>
-                          setCompareYear(event.target.value === "" ? "" : Number(event.target.value))
-                        }
-                      >
-                        <option value="">Sin comparativa</option>
-                        {yearOptions
-                          .filter((option) => option !== year)
-                          .map((option) => (
-                            <option key={option} value={option}>
-                              {option}
+                    <>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="report-from-month" className="text-xs text-graphite-600">
+                          Desde
+                        </Label>
+                        <select
+                          id="report-from-month"
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={fromMonth}
+                          onChange={(event) => {
+                            const next = Number(event.target.value)
+                            setFromMonth(next)
+                            if (next > toMonth) setToMonth(next)
+                          }}
+                        >
+                          {MONTH_OPTIONS.map((label, index) => (
+                            <option key={label} value={index + 1}>
+                              {label}
                             </option>
                           ))}
-                      </select>
-                    </div>
+                        </select>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="report-to-month" className="text-xs text-graphite-600">
+                          Hasta
+                        </Label>
+                        <select
+                          id="report-to-month"
+                          className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                          value={toMonth}
+                          onChange={(event) => {
+                            const next = Number(event.target.value)
+                            setToMonth(next)
+                            if (next < fromMonth) setFromMonth(next)
+                          }}
+                        >
+                          {MONTH_OPTIONS.map((label, index) => (
+                            <option key={label} value={index + 1}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
                   ) : null}
                 </div>
+                {supportsComparison ? (
+                  <>
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                        Desglose
+                      </legend>
+                      <div className="flex flex-wrap gap-2">
+                        {BREAKDOWN_OPTIONS.map((option) => {
+                          const disabled = activeListing === "por-centros" && option.id !== "anual"
+                          const selected = (activeListing === "por-centros" ? "anual" : breakdown) === option.id
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              disabled={disabled}
+                              aria-pressed={selected}
+                              onClick={() => setBreakdown(option.id)}
+                              className={`rounded-full border px-3 py-1.5 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
+                                selected
+                                  ? "border-emerald-700 bg-emerald-800 text-white"
+                                  : "border-sand-300 bg-white text-graphite-700 hover:border-emerald-400"
+                              }`}
+                            >
+                              {option.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                      <p className="text-xs text-graphite-500">
+                        {activeListing === "por-centros"
+                          ? "Por centros usa el periodo elegido, con una columna por centro, el total y el porcentaje de cada ejercicio comparado."
+                          : breakdown === "trimestral"
+                            ? "El balance acumula el saldo hasta el cierre de cada trimestre. La cuenta de resultados suma el movimiento del trimestre. Con un ejercicio comparado, cada trimestre lleva su porcentaje."
+                            : breakdown === "mensual"
+                              ? "Mes a mes dentro del periodo. Los ejercicios comparados salen al cierre, con el porcentaje de cambio."
+                              : "Una columna por ejercicio. Entre el ejercicio y cada comparado va el porcentaje de cambio."}
+                      </p>
+                    </fieldset>
+                    <fieldset className="space-y-2">
+                      <legend className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                        Ejercicios a comparar
+                      </legend>
+                      <div className="flex flex-wrap gap-2">
+                        {yearOptions
+                          .filter((option) => option !== year)
+                          .map((option) => {
+                            const selected = selectedCompareYears.includes(option)
+                            return (
+                              <button
+                                key={option}
+                                type="button"
+                                aria-pressed={selected}
+                                onClick={() =>
+                                  setCompareYears((current) =>
+                                    current.includes(option)
+                                      ? current.filter((value) => value !== option)
+                                      : [...current, option].sort((a, b) => b - a).slice(0, 5),
+                                  )
+                                }
+                                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                                  selected
+                                    ? "border-emerald-700 bg-emerald-800 text-white"
+                                    : "border-sand-300 bg-white text-graphite-700 hover:border-emerald-400"
+                                }`}
+                              >
+                                {option}
+                              </button>
+                            )
+                          })}
+                      </div>
+                      <p className="text-xs text-graphite-500">
+                        Puedes marcar varios. El porcentaje compara el ejercicio {year} con cada uno de ellos.
+                      </p>
+                    </fieldset>
+                  </>
+                ) : null}
                 {supportsDetailLevel && (
                   <AccountDetailLevelPicker value={detailLevel} onChange={setDetailLevel} />
                 )}
                 {supportsCostCenterFilter && costCenters.length > 0 && (
-                  <div className="space-y-1.5">
-                    <Label htmlFor="report-cost-center" className="text-xs text-graphite-600">
-                      Centro de coste (analítica)
-                    </Label>
-                    <select
-                      id="report-cost-center"
-                      className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={selectedCostCenterId}
-                      onChange={(event) => setSelectedCostCenterId(event.target.value)}
-                    >
-                      <option value="">Todos los centros (consolidado)</option>
-                      {costCenters.map((center) => (
-                        <option key={center.id} value={center.id}>
-                          {center.code} · {center.name}
-                        </option>
+                  <fieldset className="space-y-2">
+                    <legend className="text-xs font-semibold uppercase tracking-wide text-emerald-800">
+                      Centros de coste
+                    </legend>
+                    <div className="flex flex-wrap gap-2">
+                      {(
+                        [
+                          ["consolidado", "Consolidado"],
+                          ["centro", "Un centro"],
+                          ["por-centros", "Por centros y total"],
+                        ] as const
+                      ).map(([id, label]) => (
+                        <button
+                          key={id}
+                          type="button"
+                          aria-pressed={costCenterListing === id}
+                          onClick={() => setCostCenterListing(id)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                            costCenterListing === id
+                              ? "border-emerald-700 bg-emerald-800 text-white"
+                              : "border-sand-300 bg-white text-graphite-700 hover:border-emerald-400"
+                          }`}
+                        >
+                          {label}
+                        </button>
                       ))}
-                    </select>
-                  </div>
+                    </div>
+                    {costCenterListing === "centro" ? (
+                      <select
+                        id="report-cost-center"
+                        aria-label="Centro de coste"
+                        className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        value={selectedCostCenterId}
+                        onChange={(event) => setSelectedCostCenterId(event.target.value)}
+                      >
+                        <option value="">Elige un centro</option>
+                        {costCenters.map((center) => (
+                          <option key={center.id} value={center.id}>
+                            {center.code} · {center.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-xs text-graphite-500">
+                        {costCenterListing === "por-centros"
+                          ? "Una columna por centro, el importe sin centro si queda algo sin repartir, el total y el porcentaje de los ejercicios comparados."
+                          : "Todo el movimiento de la empresa, sin separar centros."}
+                      </p>
+                    )}
+                  </fieldset>
                 )}
                 <ReportExportButtons
                   reportType={reportType}
                   year={year}
-                  compareYear={selectedCompareYear}
+                  compareYear={reportOptions.compareYear}
+                  compareYears={reportOptions.compareYears}
+                  breakdown={reportOptions.breakdown}
+                  fromMonth={reportOptions.fromMonth}
+                  toMonth={reportOptions.toMonth}
+                  costCenterListing={reportOptions.costCenterListing}
                   costCenterId={reportOptions.costCenterId}
                   detailLevel={reportOptions.detailLevel}
                   disabled={!canExport}
@@ -335,7 +508,12 @@ export function InformeDownloadCard({
           isLoading={previewLoading}
           error={previewError}
           year={year}
-          compareYear={selectedCompareYear}
+          compareYear={reportOptions.compareYear}
+          compareYears={reportOptions.compareYears}
+          breakdown={reportOptions.breakdown}
+          fromMonth={reportOptions.fromMonth}
+          toMonth={reportOptions.toMonth}
+          costCenterListing={reportOptions.costCenterListing}
           costCenterId={reportOptions.costCenterId}
           detailLevel={reportOptions.detailLevel}
         />

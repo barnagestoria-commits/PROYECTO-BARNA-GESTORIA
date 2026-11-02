@@ -2,7 +2,8 @@ import type { Content, TableCell, TDocumentDefinitions } from "pdfmake/interface
 import { createPdfBuffer } from "@/lib/reports/pdf/pdfmake-client"
 import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
 import { fetchReportData } from "@/lib/reports/fetch-report-data"
-import { formatAmount, formatDateTimeEs, formatEuro } from "@/lib/reports/format"
+import { formatAmount, formatChangePercent, formatDateTimeEs, formatEuro } from "@/lib/reports/format"
+import type { StatementColumn } from "@/lib/reports/statement-layout"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type {
   BalanceReportData,
@@ -193,18 +194,41 @@ function buildSumasSaldosPdf(report: SumasSaldosReportData): Content[] {
   ]
 }
 
+function statementColumns(meta: ReportMeta): StatementColumn[] {
+  if (meta.columns && meta.columns.length > 0) return meta.columns
+  if (meta.compareYear) {
+    return [
+      { id: "current", label: String(meta.year), kind: "amount" },
+      { id: "compare", label: String(meta.compareYear), kind: "amount" },
+    ]
+  }
+  return [{ id: "amount", label: "Importe", kind: "amount" }]
+}
+
+function pdfValue(column: StatementColumn, value: number | null, style: "amount" | "totalRow"): TableCell {
+  const text = column.kind === "percent" ? formatChangePercent(value) : formatAmount(value ?? 0)
+  return {
+    text,
+    style: style === "totalRow" ? "totalRow" : undefined,
+    alignment: "right",
+    fontSize: style === "totalRow" ? 9 : 8,
+    noWrap: true,
+    color: column.kind === "percent" && value !== null && value < 0 ? "#B91C1C" : undefined,
+  }
+}
+
 function sectionTable(
   sections: Array<{
     title: string
-    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; level: number }>
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>
     subtotal: number
     compareSubtotal?: number
+    subtotals?: Array<number | null>
   }>,
-  year: number,
-  compareYear?: number | null,
+  columns: StatementColumn[],
 ): Content[] {
-  const comparing = Boolean(compareYear)
   const content: Content[] = []
+  const valueWidth = columns.length > 6 ? 36 : 52
 
   for (const section of sections) {
     content.push({ text: section.title, style: "sectionTitle", margin: [0, 6, 0, 3] })
@@ -212,41 +236,38 @@ function sectionTable(
     const header: TableCell[] = [
       { text: "Cuenta", style: "tableHeader" },
       { text: "Descripción", style: "tableHeader" },
-      { text: comparing ? String(year) : "Importe", style: "tableHeader", alignment: "right" },
+      ...columns.map((column) => ({ text: column.label, style: "tableHeader", alignment: "right" as const })),
     ]
-    if (comparing) {
-      header.push({ text: String(compareYear), style: "tableHeader", alignment: "right" })
-    }
 
     const body: TableCell[][] = [
       header,
       ...section.rows.map((row): TableCell[] => {
-        const cells: TableCell[] = [
+        const values = row.values && row.values.length === columns.length
+          ? row.values
+          : columns.map((_, index) => (index === 0 ? row.amount : row.compareAmount ?? 0))
+        return [
           cuentaCell(row.cuenta),
           labelCell(row.label, row.level),
-          amountCell(row.amount),
+          ...columns.map((column, index) => pdfValue(column, values[index] ?? null, "amount")),
         ]
-        if (comparing) cells.push(amountCell(row.compareAmount ?? 0))
-        return cells
       }),
-      comparing
-        ? [
-            { text: `Subtotal ${section.title}`, style: "totalRow" },
-            { text: "", style: "totalRow" },
-            { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
-            { text: formatAmount(section.compareSubtotal ?? 0), style: "totalRow", alignment: "right" },
-          ]
-        : [
-            { text: `Subtotal ${section.title}`, style: "totalRow" },
-            { text: "", style: "totalRow" },
-            { text: formatAmount(section.subtotal), style: "totalRow", alignment: "right" },
-          ],
+      [
+        { text: `Subtotal ${section.title}`, style: "totalRow" },
+        { text: "", style: "totalRow" },
+        ...columns.map((column, index) =>
+          pdfValue(
+            column,
+            section.subtotals?.[index] ?? (index === 0 ? section.subtotal : section.compareSubtotal ?? 0),
+            "totalRow",
+          ),
+        ),
+      ],
     ]
 
     content.push({
       table: {
         headerRows: 1,
-        widths: comparing ? [48, "*", 64, 64] : [52, "*", 72],
+        widths: [44, "*", ...columns.map(() => valueWidth)],
         body,
       },
       layout: {
@@ -260,7 +281,27 @@ function sectionTable(
   return content
 }
 
-function totalLine(label: string, amount: number, compareAmount?: number): Content {
+function totalLine(
+  label: string,
+  amount: number,
+  compareAmount?: number,
+  columns?: StatementColumn[],
+  values?: Array<number | null>,
+): Content {
+  if (columns && columns.length > 1 && values) {
+    return {
+      columns: [
+        { text: label, style: "totalRow", width: "*" },
+        ...columns.map((column, index) => ({
+          text: column.kind === "percent" ? formatChangePercent(values[index]) : formatEuro(values[index] ?? 0),
+          style: "totalRow",
+          alignment: "right" as const,
+          width: 58,
+        })),
+      ],
+      margin: [0, 6, 0, 12] as [number, number, number, number],
+    }
+  }
   if (compareAmount === undefined) {
     return {
       columns: [
@@ -282,19 +323,24 @@ function totalLine(label: string, amount: number, compareAmount?: number): Conte
 }
 
 function buildBalancePdf(report: BalanceReportData): Content[] {
-  const year = report.meta.year
-  const compareYear = report.meta.compareYear
+  const columns = statementColumns(report.meta)
   return [
     { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.activo.length > 0
-      ? sectionTable(report.activo, year, compareYear)
+      ? sectionTable(report.activo, columns)
       : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
-    totalLine("TOTAL ACTIVO", report.totalActivo, report.totalActivoCompare),
+    totalLine("TOTAL ACTIVO", report.totalActivo, report.totalActivoCompare, columns, report.totalActivoValues),
     { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.pasivo.length > 0
-      ? sectionTable(report.pasivo, year, compareYear)
+      ? sectionTable(report.pasivo, columns)
       : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
-    totalLine("TOTAL PATRIMONIO NETO Y PASIVO", report.totalPasivo, report.totalPasivoCompare),
+    totalLine(
+      "TOTAL PATRIMONIO NETO Y PASIVO",
+      report.totalPasivo,
+      report.totalPasivoCompare,
+      columns,
+      report.totalPasivoValues,
+    ),
   ]
 }
 
@@ -350,13 +396,14 @@ function pygColumn(
 }
 
 function buildPygPdf(report: PygReportData): Content[] {
-  if (report.meta.compareYear) {
+  const columns = statementColumns(report.meta)
+  if (columns.length > 1) {
     return [
-      ...sectionTable(report.ingresos, report.meta.year, report.meta.compareYear),
-      totalLine("TOTAL INGRESOS", report.totalIngresos, report.totalIngresosCompare),
-      ...sectionTable(report.gastos, report.meta.year, report.meta.compareYear),
-      totalLine("TOTAL GASTOS", report.totalGastos, report.totalGastosCompare),
-      totalLine("RESULTADO DEL EJERCICIO", report.resultado, report.resultadoCompare),
+      ...sectionTable(report.ingresos, columns),
+      totalLine("TOTAL INGRESOS", report.totalIngresos, report.totalIngresosCompare, columns, report.totalIngresosValues),
+      ...sectionTable(report.gastos, columns),
+      totalLine("TOTAL GASTOS", report.totalGastos, report.totalGastosCompare, columns, report.totalGastosValues),
+      totalLine("RESULTADO DEL EJERCICIO", report.resultado, report.resultadoCompare, columns, report.resultadoValues),
     ]
   }
 
@@ -412,8 +459,10 @@ export async function generateReportPdf(type: ReportType, query: LedgerQuery): P
   }
 
   const compact = density === "compact"
+  const wide = (meta.columns?.length ?? 0) > 4
   const doc: TDocumentDefinitions = {
     pageSize: "A4",
+    pageOrientation: wide ? "landscape" : "portrait",
     pageMargins: compact ? [28, 24, 28, 36] : [40, 36, 40, 48],
     defaultStyle: { font: "Roboto", fontSize: compact ? 7 : 9, color: GRAPHITE },
     styles: baseStyles(),

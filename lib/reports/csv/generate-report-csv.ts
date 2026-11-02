@@ -1,6 +1,8 @@
 import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
 import { fetchReportData } from "@/lib/reports/fetch-report-data"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatChangePercent } from "@/lib/reports/format"
+import type { StatementColumn } from "@/lib/reports/statement-layout"
 import type { LedgerQuery } from "@/lib/reports/account-ledger"
 import type {
   BalanceReportData,
@@ -52,121 +54,94 @@ function buildSumasSaldosCsv(data: SumasSaldosReportData): string {
   return lines.join("\n")
 }
 
-function statementHeader(year: number, compareYear?: number | null): string[] {
-  return compareYear
-    ? ["Sección", "Subsección", "Cuenta", "Descripción", String(year), String(compareYear)]
-    : ["Sección", "Subsección", "Cuenta", "Descripción", "Importe"]
+function csvColumns(meta: ReportMeta): StatementColumn[] {
+  if (meta.columns && meta.columns.length > 0) return meta.columns
+  if (meta.compareYear) {
+    return [
+      { id: "current", label: String(meta.year), kind: "amount" },
+      { id: "compare", label: String(meta.compareYear), kind: "amount" },
+    ]
+  }
+  return [{ id: "amount", label: "Importe", kind: "amount" }]
+}
+
+function statementHeader(columns: StatementColumn[]): string[] {
+  return ["Sección", "Subsección", "Cuenta", "Descripción", ...columns.map((column) => column.label)]
+}
+
+function formatColumnValue(column: StatementColumn, value: number | null): string {
+  if (column.kind === "percent") return formatChangePercent(value)
+  return (value ?? 0).toFixed(2)
 }
 
 function statementCells(
-  row: { cuenta: string; label: string; amount: number; compareAmount?: number; level: number },
-  compareYear?: number | null,
+  row: { cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number },
+  columns: StatementColumn[],
 ): string[] {
-  const cells = ["", "", formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount.toFixed(2)]
-  if (compareYear) cells.push((row.compareAmount ?? 0).toFixed(2))
-  return cells
+  const values = row.values && row.values.length === columns.length
+    ? row.values
+    : columns.map((_, index) => (index === 0 ? row.amount : row.compareAmount ?? 0))
+  return [
+    "",
+    "",
+    formatAccountCodeDisplay(row.cuenta),
+    `${"  ".repeat(row.level)}${row.label}`,
+    ...columns.map((column, index) => formatColumnValue(column, values[index] ?? null)),
+  ]
+}
+
+function totalCells(label: string, columns: StatementColumn[], values: Array<number | null>): string[] {
+  return [label, "", "", "", ...columns.map((column, index) => formatColumnValue(column, values[index] ?? null))]
 }
 
 function buildBalanceCsv(data: BalanceReportData): string {
-  const compareYear = data.meta.compareYear
-  const lines = [
-    ...metaRows(data.meta),
-    csvRow(statementHeader(data.meta.year, compareYear)),
-  ]
+  const columns = csvColumns(data.meta)
+  const lines = [...metaRows(data.meta), csvRow(statementHeader(columns))]
 
-  lines.push(csvRow(["ACTIVO", "", "", "", ""]))
+  lines.push(csvRow(["ACTIVO"]))
   for (const section of data.activo) {
-    lines.push(csvRow(["", section.title, "", "", ""]))
-    for (const row of section.rows) {
-      lines.push(csvRow(statementCells(row, compareYear)))
-    }
-    lines.push(
-      csvRow(
-        compareYear
-          ? ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2), (section.compareSubtotal ?? 0).toFixed(2)]
-          : ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)],
-      ),
-    )
+    lines.push(csvRow(["", section.title]))
+    for (const row of section.rows) lines.push(csvRow(statementCells(row, columns)))
+    lines.push(csvRow(totalCells(`Subtotal ${section.title}`, columns, section.subtotals ?? [section.subtotal])))
   }
-  lines.push(
-    csvRow(
-      compareYear
-        ? ["TOTAL ACTIVO", "", "", "", data.totalActivo.toFixed(2), (data.totalActivoCompare ?? 0).toFixed(2)]
-        : ["TOTAL ACTIVO", "", "", "", data.totalActivo.toFixed(2)],
-    ),
-  )
+  lines.push(csvRow(totalCells("TOTAL ACTIVO", columns, data.totalActivoValues ?? [data.totalActivo])))
   lines.push("")
-
-  lines.push(csvRow(["PATRIMONIO NETO Y PASIVO", "", "", "", ""]))
+  lines.push(csvRow(["PATRIMONIO NETO Y PASIVO"]))
   for (const section of data.pasivo) {
-    lines.push(csvRow(["", section.title, "", "", ""]))
-    for (const row of section.rows) {
-      lines.push(csvRow(statementCells(row, compareYear)))
-    }
-    lines.push(
-      csvRow(
-        compareYear
-          ? ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2), (section.compareSubtotal ?? 0).toFixed(2)]
-          : ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)],
-      ),
-    )
+    lines.push(csvRow(["", section.title]))
+    for (const row of section.rows) lines.push(csvRow(statementCells(row, columns)))
+    lines.push(csvRow(totalCells(`Subtotal ${section.title}`, columns, section.subtotals ?? [section.subtotal])))
   }
   lines.push(
-    csvRow(
-      compareYear
-        ? ["TOTAL PATRIMONIO NETO Y PASIVO", "", "", "", data.totalPasivo.toFixed(2), (data.totalPasivoCompare ?? 0).toFixed(2)]
-        : ["TOTAL PATRIMONIO NETO Y PASIVO", "", "", "", data.totalPasivo.toFixed(2)],
-    ),
+    csvRow(totalCells("TOTAL PATRIMONIO NETO Y PASIVO", columns, data.totalPasivoValues ?? [data.totalPasivo])),
   )
 
   return lines.join("\n")
 }
 
 function buildPygCsv(data: PygReportData): string {
-  const compareYear = data.meta.compareYear
-  const lines = [
-    ...metaRows(data.meta),
-    csvRow(statementHeader(data.meta.year, compareYear)),
-  ]
+  const columns = csvColumns(data.meta)
+  const lines = [...metaRows(data.meta), csvRow(statementHeader(columns))]
 
   const appendSections = (
     title: string,
     sections: PygReportData["ingresos"],
     totalLabel: string,
-    total: number,
-    totalCompare?: number,
+    totals: Array<number | null>,
   ) => {
-    lines.push(csvRow([title, "", "", "", ""]))
+    lines.push(csvRow([title]))
     for (const section of sections) {
-      lines.push(csvRow(["", section.title, "", "", ""]))
-      for (const row of section.rows) lines.push(csvRow(statementCells(row, compareYear)))
-      lines.push(
-        csvRow(
-          compareYear
-            ? ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2), (section.compareSubtotal ?? 0).toFixed(2)]
-            : ["", `Subtotal ${section.title}`, "", "", section.subtotal.toFixed(2)],
-        ),
-      )
+      lines.push(csvRow(["", section.title]))
+      for (const row of section.rows) lines.push(csvRow(statementCells(row, columns)))
+      lines.push(csvRow(totalCells(`Subtotal ${section.title}`, columns, section.subtotals ?? [section.subtotal])))
     }
-    lines.push(
-      csvRow(
-        compareYear
-          ? [totalLabel, "", "", "", total.toFixed(2), (totalCompare ?? 0).toFixed(2)]
-          : [totalLabel, "", "", "", total.toFixed(2)],
-      ),
-    )
+    lines.push(csvRow(totalCells(totalLabel, columns, totals)))
   }
 
-  appendSections("INGRESOS", data.ingresos, "TOTAL INGRESOS", data.totalIngresos, data.totalIngresosCompare)
+  appendSections("INGRESOS", data.ingresos, "TOTAL INGRESOS", data.totalIngresosValues ?? [data.totalIngresos])
   lines.push("")
-  appendSections("GASTOS", data.gastos, "TOTAL GASTOS", data.totalGastos, data.totalGastosCompare)
-  lines.push(
-    csvRow(
-      compareYear
-        ? ["RESULTADO DEL EJERCICIO", "", "", "", data.resultado.toFixed(2), (data.resultadoCompare ?? 0).toFixed(2)]
-        : ["RESULTADO DEL EJERCICIO", "", "", "", data.resultado.toFixed(2)],
-    ),
-  )
+  appendSections("GASTOS", data.gastos, "TOTAL GASTOS", data.totalGastosValues ?? [data.totalGastos])
+  lines.push(csvRow(totalCells("RESULTADO DEL EJERCICIO", columns, data.resultadoValues ?? [data.resultado])))
 
   return lines.join("\n")
 }

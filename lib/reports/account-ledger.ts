@@ -21,12 +21,17 @@ import { formatListingText, normalizeCuenta, round2 } from "@/lib/reports/format
 import { isDemoThirdParty } from "@/lib/contacts/demo-contacts"
 import { purgeDemoThirdParties } from "@/lib/accounting/third-party-service"
 import { repairCanonicalAccountCodes } from "@/lib/accounting/canonical-account-repair"
+import { aggregateMovementFacts, type MovementFact } from "@/lib/reports/movement-facts"
+import type { StatementSlice } from "@/lib/reports/statement-layout"
 import type { AccountBalance, ReportMeta } from "@/lib/reports/types"
 
 export interface LedgerQuery {
   companyId: string
   year: number
   compareYear?: number | null
+  compareYears?: number[]
+  breakdown?: "anual" | "trimestral" | "mensual"
+  costCenterListing?: "consolidado" | "centro" | "por-centros"
   fromMonth?: number
   toMonth?: number
   costCenterId?: string
@@ -210,6 +215,76 @@ async function loadOpenedAccountNames(companyId: string) {
   for (const row of subaccounts) upsert(row)
 
   return [...byCode.values()]
+}
+
+async function loadMovementFacts(companyId: string, years: number[]): Promise<MovementFact[]> {
+  const uniqueYears = [...new Set(years)].filter((year) => year >= 2000 && year <= 2100)
+  if (uniqueYears.length === 0) return []
+  const minYear = Math.min(...uniqueYears)
+  const maxYear = Math.max(...uniqueYears)
+  const start = new Date(`${minYear}-01-01T00:00:00.000Z`)
+  const end = new Date(`${maxYear}-12-31T23:59:59.999Z`)
+
+  const lines = await prisma.entryLine.findMany({
+    where: {
+      entry: {
+        companyId,
+        fecha: { gte: start, lte: end },
+      },
+    },
+    select: {
+      cuenta: true,
+      debe: true,
+      haber: true,
+      entry: { select: { fecha: true } },
+      analyticDistributions: { select: { costCenterId: true, amount: true } },
+    },
+  })
+
+  return lines.flatMap((line) => {
+    const cuenta = normalizeCuenta(line.cuenta)
+    if (!cuenta) return []
+    const fecha = line.entry.fecha
+    return [
+      {
+        cuenta,
+        year: fecha.getUTCFullYear(),
+        month: fecha.getUTCMonth() + 1,
+        debe: decimalToNumber(line.debe),
+        haber: decimalToNumber(line.haber),
+        distributions: line.analyticDistributions.map((item) => ({
+          costCenterId: item.costCenterId,
+          amount: decimalToNumber(item.amount),
+        })),
+      },
+    ]
+  })
+}
+
+export async function fetchBalancesForSlices(
+  companyId: string,
+  slices: StatementSlice[],
+  detailLevel: GestoriaAccountDetailLevel = "SUBCUENTAS",
+): Promise<Map<string, AccountBalance[]>> {
+  const [facts, openedAccounts] = await Promise.all([
+    loadMovementFacts(
+      companyId,
+      slices.map((slice) => slice.year),
+    ),
+    loadOpenedAccountNames(companyId),
+  ])
+  const names = new Map(openedAccounts.map((row) => [row.code, row.name]))
+  const cifs = new Map(
+    openedAccounts.filter((row) => row.cif?.trim()).map((row) => [row.code, row.cif!.trim()]),
+  )
+  const result = new Map<string, AccountBalance[]>()
+  for (const slice of slices) {
+    result.set(
+      slice.id,
+      buildMovementBalanceRows(aggregateMovementFacts(facts, slice), names, detailLevel, cifs),
+    )
+  }
+  return result
 }
 
 export async function fetchAccountBalances(query: LedgerQuery): Promise<AccountBalance[]> {

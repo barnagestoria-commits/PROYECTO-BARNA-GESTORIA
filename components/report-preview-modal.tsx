@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { ReportExportButtons } from "@/components/report-export-buttons"
 import { ReportPreviewContent, type SerializedPreview } from "@/components/report-preview-content"
 import type { GestoriaAccountDetailLevel } from "@/lib/contabilidad/gestoria-presentation-config"
+import type { ReportDownloadParams } from "@/lib/reports/download-client"
 import type { ReportType } from "@/lib/reports/types"
 import { Loader2, X } from "lucide-react"
 
@@ -17,6 +18,11 @@ interface ReportPreviewModalProps {
   error: string | null
   year: number
   compareYear?: number | null
+  compareYears?: number[]
+  breakdown?: ReportDownloadParams["breakdown"]
+  fromMonth?: number
+  toMonth?: number
+  costCenterListing?: ReportDownloadParams["costCenterListing"]
   costCenterId?: string
   detailLevel?: GestoriaAccountDetailLevel
 }
@@ -30,6 +36,11 @@ export function ReportPreviewModal({
   error,
   year,
   compareYear,
+  compareYears,
+  breakdown,
+  fromMonth,
+  toMonth,
+  costCenterListing,
   costCenterId,
   detailLevel,
 }: ReportPreviewModalProps) {
@@ -86,6 +97,11 @@ export function ReportPreviewModal({
             reportType={reportType}
             year={year}
             compareYear={compareYear}
+            compareYears={compareYears}
+            breakdown={breakdown}
+            fromMonth={fromMonth}
+            toMonth={toMonth}
+            costCenterListing={costCenterListing}
             costCenterId={costCenterId}
             detailLevel={detailLevel}
             disabled={isLoading || !!error}

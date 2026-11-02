@@ -3,6 +3,7 @@ import { filterAccountsWithMovement } from "@/lib/reports/build-sumas-saldos"
 import { fetchReportData } from "@/lib/reports/fetch-report-data"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type { LedgerQuery } from "@/lib/reports/account-ledger"
+import type { StatementColumn } from "@/lib/reports/statement-layout"
 import type {
   BalanceReportData,
   PygReportData,
@@ -103,20 +104,48 @@ function buildSumasSaldosSheet(workbook: ExcelJS.Workbook, data: SumasSaldosRepo
   sheet.getColumn(5).width = 14
 }
 
+function excelColumns(meta: ReportMeta): StatementColumn[] {
+  if (meta.columns && meta.columns.length > 0) return meta.columns
+  if (meta.compareYear) {
+    return [
+      { id: "current", label: String(meta.year), kind: "amount" },
+      { id: "compare", label: String(meta.compareYear), kind: "amount" },
+    ]
+  }
+  return [{ id: "amount", label: "Importe", kind: "amount" }]
+}
+
+function writeValueCells(
+  row: ExcelJS.Row,
+  columns: StatementColumn[],
+  values: Array<number | null>,
+) {
+  columns.forEach((column, index) => {
+    const cell = row.getCell(3 + index)
+    const value = values[index]
+    if (column.kind === "percent") {
+      cell.value = value === null ? "—" : value / 100
+      if (value !== null) cell.numFmt = '+0.00%;-0.00%;0.00%'
+      return
+    }
+    cell.value = value ?? 0
+    cell.numFmt = "#,##0.00"
+  })
+}
+
 function addSectionRows(
   sheet: ExcelJS.Worksheet,
   startRow: number,
   sectionTitle: string,
   sections: Array<{
     title: string
-    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; level: number }>
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>
     subtotal: number
     compareSubtotal?: number
+    subtotals?: Array<number | null>
   }>,
-  year: number,
-  compareYear?: number | null,
+  columns: StatementColumn[],
 ): number {
-  const comparing = Boolean(compareYear)
   let rowIndex = startRow
   sheet.getRow(rowIndex).values = [sectionTitle]
   sheet.getRow(rowIndex).font = { bold: true, color: { argb: "FF0F3D2E" }, size: 11 }
@@ -128,107 +157,86 @@ function addSectionRows(
     rowIndex++
 
     const header = sheet.getRow(rowIndex)
-    header.values = comparing
-      ? ["Cuenta", "Descripción", String(year), String(compareYear)]
-      : ["Cuenta", "Descripción", "Importe"]
-    styleHeaderRow(header, comparing ? 4 : 3)
+    header.values = ["Cuenta", "Descripción", ...columns.map((column) => column.label)]
+    styleHeaderRow(header, 2 + columns.length)
     rowIndex++
 
     for (const row of section.rows) {
       const excelRow = sheet.getRow(rowIndex)
-      excelRow.values = comparing
-        ? [
-            formatAccountCodeDisplay(row.cuenta),
-            `${"  ".repeat(row.level)}${row.label}`,
-            row.amount,
-            row.compareAmount ?? 0,
-          ]
-        : [formatAccountCodeDisplay(row.cuenta), `${"  ".repeat(row.level)}${row.label}`, row.amount]
-      excelRow.getCell(3).numFmt = "#,##0.00"
-      if (comparing) excelRow.getCell(4).numFmt = "#,##0.00"
+      excelRow.getCell(1).value = formatAccountCodeDisplay(row.cuenta)
+      excelRow.getCell(2).value = `${"  ".repeat(row.level)}${row.label}`
+      const values = row.values && row.values.length === columns.length
+        ? row.values
+        : columns.map((_, index) => (index === 0 ? row.amount : row.compareAmount ?? 0))
+      writeValueCells(excelRow, columns, values)
       rowIndex++
     }
 
     const subtotal = sheet.getRow(rowIndex)
-    subtotal.values = comparing
-      ? [`Subtotal ${section.title}`, "", section.subtotal, section.compareSubtotal ?? 0]
-      : [`Subtotal ${section.title}`, "", section.subtotal]
+    subtotal.getCell(1).value = `Subtotal ${section.title}`
+    writeValueCells(
+      subtotal,
+      columns,
+      section.subtotals ?? columns.map((_, index) => (index === 0 ? section.subtotal : section.compareSubtotal ?? 0)),
+    )
     styleSubtotalRow(subtotal)
-    subtotal.getCell(3).numFmt = "#,##0.00"
-    if (comparing) subtotal.getCell(4).numFmt = "#,##0.00"
     rowIndex += 2
   }
 
   return rowIndex
 }
 
+function writeTotalRow(
+  sheet: ExcelJS.Worksheet,
+  rowIndex: number,
+  label: string,
+  columns: StatementColumn[],
+  values: Array<number | null>,
+) {
+  const row = sheet.getRow(rowIndex)
+  row.getCell(1).value = label
+  writeValueCells(row, columns, values)
+  row.font = { bold: true, size: 11, color: { argb: "FF0F3D2E" } }
+}
+
 function buildBalanceSheet(workbook: ExcelJS.Workbook, data: BalanceReportData) {
   const sheet = workbook.addWorksheet("Balance")
+  const columns = excelColumns(data.meta)
 
   addMetaHeader(sheet, data.meta)
-  const compareYear = data.meta.compareYear
-  let rowIndex = addSectionRows(sheet, 9, "ACTIVO", data.activo, data.meta.year, compareYear)
-
-  const totalActivo = sheet.getRow(rowIndex)
-  totalActivo.values = compareYear
-    ? ["TOTAL ACTIVO", "", data.totalActivo, data.totalActivoCompare ?? 0]
-    : ["TOTAL ACTIVO", "", data.totalActivo]
-  totalActivo.font = { bold: true, size: 11, color: { argb: "FF0F3D2E" } }
-  totalActivo.getCell(3).numFmt = "#,##0.00"
-  if (compareYear) totalActivo.getCell(4).numFmt = "#,##0.00"
+  let rowIndex = addSectionRows(sheet, 9, "ACTIVO", data.activo, columns)
+  writeTotalRow(sheet, rowIndex, "TOTAL ACTIVO", columns, data.totalActivoValues ?? [data.totalActivo])
   rowIndex += 2
+  rowIndex = addSectionRows(sheet, rowIndex, "PATRIMONIO NETO Y PASIVO", data.pasivo, columns)
+  writeTotalRow(
+    sheet,
+    rowIndex,
+    "TOTAL PATRIMONIO NETO Y PASIVO",
+    columns,
+    data.totalPasivoValues ?? [data.totalPasivo],
+  )
 
-  rowIndex = addSectionRows(sheet, rowIndex, "PATRIMONIO NETO Y PASIVO", data.pasivo, data.meta.year, compareYear)
-
-  const totalPasivo = sheet.getRow(rowIndex)
-  totalPasivo.values = compareYear
-    ? ["TOTAL PATRIMONIO NETO Y PASIVO", "", data.totalPasivo, data.totalPasivoCompare ?? 0]
-    : ["TOTAL PATRIMONIO NETO Y PASIVO", "", data.totalPasivo]
-  totalPasivo.font = { bold: true, size: 11, color: { argb: "FF0F3D2E" } }
-  totalPasivo.getCell(3).numFmt = "#,##0.00"
-  if (compareYear) totalPasivo.getCell(4).numFmt = "#,##0.00"
-
-  sheet.getColumn(3).width = 16
-  sheet.getColumn(4).width = 16
+  columns.forEach((_, index) => {
+    sheet.getColumn(3 + index).width = 16
+  })
 }
 
 function buildPygSheet(workbook: ExcelJS.Workbook, data: PygReportData) {
   const sheet = workbook.addWorksheet("PyG")
+  const columns = excelColumns(data.meta)
 
   addMetaHeader(sheet, data.meta)
-  const compareYear = data.meta.compareYear
-  let rowIndex = addSectionRows(sheet, 9, "INGRESOS", data.ingresos, data.meta.year, compareYear)
-
-  const totalIngresos = sheet.getRow(rowIndex)
-  totalIngresos.values = compareYear
-    ? ["TOTAL INGRESOS", "", data.totalIngresos, data.totalIngresosCompare ?? 0]
-    : ["TOTAL INGRESOS", "", data.totalIngresos]
-  totalIngresos.font = { bold: true, size: 11 }
-  totalIngresos.getCell(3).numFmt = "#,##0.00"
-  if (compareYear) totalIngresos.getCell(4).numFmt = "#,##0.00"
+  let rowIndex = addSectionRows(sheet, 9, "INGRESOS", data.ingresos, columns)
+  writeTotalRow(sheet, rowIndex, "TOTAL INGRESOS", columns, data.totalIngresosValues ?? [data.totalIngresos])
   rowIndex += 2
-
-  rowIndex = addSectionRows(sheet, rowIndex, "GASTOS", data.gastos, data.meta.year, compareYear)
-
-  const totalGastos = sheet.getRow(rowIndex)
-  totalGastos.values = compareYear
-    ? ["TOTAL GASTOS", "", data.totalGastos, data.totalGastosCompare ?? 0]
-    : ["TOTAL GASTOS", "", data.totalGastos]
-  totalGastos.font = { bold: true, size: 11 }
-  totalGastos.getCell(3).numFmt = "#,##0.00"
-  if (compareYear) totalGastos.getCell(4).numFmt = "#,##0.00"
+  rowIndex = addSectionRows(sheet, rowIndex, "GASTOS", data.gastos, columns)
+  writeTotalRow(sheet, rowIndex, "TOTAL GASTOS", columns, data.totalGastosValues ?? [data.totalGastos])
   rowIndex += 2
+  writeTotalRow(sheet, rowIndex, "RESULTADO DEL EJERCICIO", columns, data.resultadoValues ?? [data.resultado])
 
-  const resultado = sheet.getRow(rowIndex)
-  resultado.values = compareYear
-    ? ["RESULTADO DEL EJERCICIO", "", data.resultado, data.resultadoCompare ?? 0]
-    : ["RESULTADO DEL EJERCICIO", "", data.resultado]
-  resultado.font = { bold: true, size: 12, color: { argb: "FF0F3D2E" } }
-  resultado.getCell(3).numFmt = "#,##0.00"
-  if (compareYear) resultado.getCell(4).numFmt = "#,##0.00"
-
-  sheet.getColumn(3).width = 16
-  sheet.getColumn(4).width = 16
+  columns.forEach((_, index) => {
+    sheet.getColumn(3 + index).width = 16
+  })
 }
 
 export async function generateReportXlsx(type: ReportType, query: LedgerQuery): Promise<Buffer> {
