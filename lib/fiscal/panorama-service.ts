@@ -140,6 +140,24 @@ export async function fetchFiscalYearLines(companyId: string, year: number): Pro
   return fetchYearLines(companyId, year)
 }
 
+async function loadModel347Options(companyId: string) {
+  const [company, parties] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id: companyId },
+      select: { siiMode: true, cashBasisSubject: true },
+    }),
+    prisma.thirdParty.findMany({
+      where: { companyId },
+      select: { accountCode: true, cif: true, name: true, postalCode: true },
+    }),
+  ])
+  return {
+    sii: company?.siiMode === "OBLIGATORIO" || company?.siiMode === "VOLUNTARIO",
+    cashBasisSubject: company?.cashBasisSubject ?? false,
+    parties,
+  }
+}
+
 async function fetchYearLines(companyId: string, year: number): Promise<RawEntryLine[]> {
   const start = new Date(`${year}-01-01T00:00:00.000Z`)
   const end = new Date(`${year}-12-31T23:59:59.999Z`)
@@ -153,7 +171,7 @@ async function fetchYearLines(companyId: string, year: number): Promise<RawEntry
     },
     include: {
       entry: {
-        select: { id: true, fecha: true, commandCode: true },
+        select: { id: true, fecha: true, commandCode: true, issueDate: true, invoiceDataJson: true },
       },
     },
     orderBy: [{ entry: { fecha: "asc" } }, { sortOrder: "asc" }],
@@ -170,6 +188,8 @@ async function fetchYearLines(companyId: string, year: number): Promise<RawEntry
       id: line.entry.id,
       fecha: line.entry.fecha,
       concepto: line.entry.commandCode,
+      issueDate: line.entry.issueDate,
+      invoiceDataJson: line.entry.invoiceDataJson,
     },
   }))
 }
@@ -268,14 +288,15 @@ export async function buildFiscalPanorama(
   const activeDefinitions = FISCAL_MODEL_DEFINITIONS.filter((model) =>
     activeModels.includes(model.code),
   )
-  const [allLines, declarations, importedResults, model130, model202] = await Promise.all([
+  const [allLines, declarations, importedResults, model130, model202, model347] = await Promise.all([
     fetchYearLines(companyId, year),
     prisma.fiscalDeclaration.findMany({ where: { companyId, year } }),
     fetchImportedFiscalResults(companyId, year),
     loadModel130Options(companyId, year),
     loadModel202Options(companyId),
+    loadModel347Options(companyId),
   ])
-  const calculationOptions: ModelCalculationOptions = { model130, model202 }
+  const calculationOptions: ModelCalculationOptions = { model130, model202, model347 }
 
   const declarationMap = buildDeclarationMap(declarations)
 
@@ -427,18 +448,25 @@ export async function buildFiscalModelDetail(
   const model = FISCAL_MODEL_DEFINITIONS.find((item) => item.code === modelCode)
   if (!model) return null
 
-  const [allLines, importedResults, thirdParties, model130, model202] = await Promise.all([
+  const [allLines, importedResults, thirdParties, model130, model202, model347] = await Promise.all([
     fetchYearLines(companyId, year),
     fetchImportedFiscalResults(companyId, year),
     prisma.thirdParty.findMany({
       where: { companyId },
-      select: { accountCode: true, cif: true, name: true },
+      select: { accountCode: true, cif: true, name: true, postalCode: true },
     }),
     modelCode === "130" ? loadModel130Options(companyId, year) : Promise.resolve(undefined),
     modelCode === "202" ? loadModel202Options(companyId) : Promise.resolve(undefined),
+    modelCode === "347" ? loadModel347Options(companyId) : Promise.resolve(undefined),
   ])
   const calculationOptions: ModelCalculationOptions | undefined =
-    model130 || model202 ? { model130, model202 } : undefined
+    model130 || model202 || model347
+      ? {
+          model130,
+          model202,
+          model347: model347 ? { ...model347, parties: thirdParties } : undefined,
+        }
+      : undefined
   let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions, month)
 
   // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
@@ -465,7 +493,7 @@ export async function buildFiscalModelDetail(
     }
   }
 
-  const importedAmount = month
+  const importedAmount = month || modelCode === "347"
     ? undefined
     : importedAmountForPeriod(importedResults, modelCode, year, quarter)
   if (importedAmount !== undefined) {

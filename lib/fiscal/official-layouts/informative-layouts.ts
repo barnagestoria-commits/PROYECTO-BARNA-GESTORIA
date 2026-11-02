@@ -23,10 +23,17 @@ function countDeclarados(detail: FiscalModelDetailResponse): number {
 }
 
 export function buildOfficialModel347Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const total = hasLiquidation(detail)
-    ? detail.amount
-    : sectionTotal(detail, "operaciones-terceros") || sectionTotal(detail, "liquidacion") || sumContributing(detail) || detail.amount
-  const declarados = countDeclarados(detail)
+  const declared = detail.breakdown.flatMap((section) => section.lines).filter((line) => line.model347)
+  const blocked = declared.filter((line) => line.model347?.blockedReason).length
+  const total = declared.length
+    ? round2(declared.reduce((sum, line) => sum + line.signedAmount, 0))
+    : hasLiquidation(detail)
+      ? detail.amount
+      : sectionTotal(detail, "operaciones-terceros") || sectionTotal(detail, "liquidacion") || sumContributing(detail) || detail.amount
+  const declarados = declared.length ? declared.length : countDeclarados(detail)
+  const declaredNote = blocked
+    ? `${blocked} declarado${blocked === 1 ? "" : "s"} sin NIF, nombre o provincia. El fichero no se descarga hasta completarlos.`
+    : "Sale de las facturas marcadas con el impreso 347. Entra quien supera 3.005,06 euros en el año, IVA incluido."
 
   return [
     {
@@ -41,8 +48,8 @@ export function buildOfficialModel347Sections(detail: FiscalModelDetailResponse)
       id: "operaciones-no-metalico",
       title: "B. Operaciones no consideradas realizadas en metálico",
       casillas: [
-        casillaAmount("347-03", "03", "Importe total anual de las operaciones", total, "operaciones-terceros"),
-        casillaAmount("347-04", "04", "Número total de declarados", declarados, "operaciones-terceros"),
+        casillaAmount("347-03", "03", "Importe total anual de las operaciones", total, "operaciones-terceros", declaredNote),
+        casillaAmount("347-04", "04", "Número total de declarados", declarados, "operaciones-terceros", declaredNote),
       ],
     },
     {

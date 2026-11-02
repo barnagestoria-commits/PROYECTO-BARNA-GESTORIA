@@ -136,6 +136,7 @@ export function enrichBreakdownWithPartyIdentity<
   return breakdown.map((section) => ({
     ...section,
     lines: section.lines.map((line) => {
+      if (line.model347) return line
       const identity = resolvePartyIdentity({
         cuenta: line.cuenta,
         concepto: line.concepto,

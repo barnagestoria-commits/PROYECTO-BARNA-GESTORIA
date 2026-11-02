@@ -56,6 +56,15 @@ export async function GET(request: Request, { params }: RouteContext) {
     if (blocked) {
       return NextResponse.json({ success: false, error: blocked }, { status: 422 })
     }
+    if (model === "347" && (company.siiMode === "OBLIGATORIO" || company.siiMode === "VOLUNTARIO")) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Esta empresa lleva los libros del IVA por el SII. El modelo 347 no se presenta.",
+        },
+        { status: 422 },
+      )
+    }
 
     if (!shouldOfferAeatTxt(detail)) {
       return NextResponse.json(
@@ -83,11 +92,13 @@ export async function GET(request: Request, { params }: RouteContext) {
         { status: 500 },
       )
     }
-    if (detail.modelCode === "303" && !bundle.validation.valid) {
+    if ((detail.modelCode === "303" || detail.modelCode === "347") && !bundle.validation.valid) {
       return NextResponse.json(
         {
           success: false,
-          error: "El fichero DR303 contiene errores de validación y no puede descargarse.",
+          error:
+            bundle.validation.issues.find((issue) => issue.severity === "error")?.message
+            ?? "El fichero contiene errores de validación y no puede descargarse.",
           issues: bundle.validation.issues,
         },
         { status: 422 },

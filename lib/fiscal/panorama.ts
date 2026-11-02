@@ -23,6 +23,12 @@ import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
 import { buildModel349BreakdownLines } from "@/lib/fiscal/model-349-base-imponible"
 import { settleModel202, type Model202Options } from "@/lib/fiscal/model-202"
 import {
+  buildModel347Declarados,
+  model347BreakdownLines,
+  type Model347Party,
+  type Model347SourceEntry,
+} from "@/lib/fiscal/model-347/aggregate"
+import {
   resolvePriorYearNetIncome,
   settleModel130Quarter,
   type Model130Carry,
@@ -31,9 +37,16 @@ import {
 
 export type { Model130Options }
 
+export interface Model347Options {
+  sii?: boolean
+  cashBasisSubject?: boolean
+  parties?: Model347Party[]
+}
+
 export interface ModelCalculationOptions {
   model130?: Model130Options
   model202?: Model202Options
+  model347?: Model347Options
 }
 
 export interface FiscalModelDefinition {
@@ -142,6 +155,8 @@ export interface RawEntryLine {
     id: string
     fecha: Date
     concepto?: string | null
+    invoiceDataJson?: string | null
+    issueDate?: Date | null
   }
 }
 
@@ -816,46 +831,58 @@ export function calculateModelAmount(
   }
 
   if (modelCode === "347") {
-    const liquidation = extractGenericModelLiquidationDetail(lines, year, quarter, "347")
-    if (liquidation) {
-      const breakdownLines = expandLiquidationEntry(lines, liquidation.entryId, liquidation.contributingLineId)
-      for (const line of collectEntryLines(lines, liquidation.entryId)) entryIds.add(line.entry.id)
+    if (options?.model347?.sii) {
       return {
-        amount: liquidation.amount,
-        lineCount: breakdownLines.filter((line) => line.category === "contributing").length,
+        amount: 0,
+        lineCount: 0,
         entryIds,
         breakdown: [
           {
-            key: "liquidacion",
-            label: "Liquidación Modelo 347",
-            total: liquidation.amount,
-            lines: breakdownLines,
+            key: "sii-exento",
+            label: "Esta empresa lleva los libros del IVA por el SII. El modelo 347 no se presenta.",
+            total: 0,
+            lines: [],
           },
         ],
       }
     }
 
-    const matched = periodLines.filter((line) => {
-      const text = `${line.concepto} ${line.entry.concepto ?? ""}`
-      return /Modelo\s+347|347.*tercer|OPERAC.*TERCER/i.test(text)
+    const byEntry = new Map<string, Model347SourceEntry>()
+    for (const line of lines) {
+      if (line.entry.fecha.getUTCFullYear() !== year) continue
+      const current = byEntry.get(line.entry.id) ?? {
+        id: line.entry.id,
+        fecha: line.entry.fecha.toISOString().slice(0, 10),
+        issueDate: line.entry.issueDate?.toISOString().slice(0, 10) ?? null,
+        commandCode: line.entry.concepto,
+        invoiceDataJson: line.entry.invoiceDataJson,
+        lines: [],
+      }
+      current.lines.push({
+        cuenta: line.cuenta,
+        concepto: line.concepto,
+        debe: decimalToNumber(line.debe),
+        haber: decimalToNumber(line.haber),
+      })
+      byEntry.set(line.entry.id, current)
+    }
+    const declarados = buildModel347Declarados({
+      entries: [...byEntry.values()],
+      parties: options?.model347?.parties ?? [],
+      year,
+      cashBasisSubject: options?.model347?.cashBasisSubject,
     })
-    const breakdownLines = expandMatchedLinesToEntries(lines, matched, (line) =>
-      round2(Math.max(decimalToNumber(line.debe), decimalToNumber(line.haber))),
-    )
-    for (const line of matched) entryIds.add(line.entry.id)
-    const total = round2(
-      breakdownLines
-        .filter((line) => line.category === "contributing")
-        .reduce((sum, line) => sum + line.signedAmount, 0),
-    )
+    const breakdownLines = model347BreakdownLines(declarados, year)
+    for (const item of declarados) for (const id of item.entryIds) entryIds.add(id)
+    const total = round2(declarados.reduce((sum, item) => sum + item.annual, 0))
     return {
       amount: total,
-      lineCount: matched.length,
+      lineCount: declarados.length,
       entryIds,
       breakdown: [
         {
           key: "operaciones-terceros",
-          label: "Operaciones declarables — terceros",
+          label: "Facturas con impreso 347 que superan 3.005,06 €",
           total,
           lines: breakdownLines,
         },

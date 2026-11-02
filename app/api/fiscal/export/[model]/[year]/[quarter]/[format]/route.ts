@@ -16,6 +16,7 @@ import {
 } from "@/lib/fiscal/export-fiscal-model"
 import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-service"
 import { quarterly303BlockedForSii, resolveFiscalRoutePeriod } from "@/lib/fiscal/parse-route-period"
+import { validateAeatSubmission } from "@/lib/fiscal/aeat/validate-submission"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
 import { persistModel303EngineResult } from "@/lib/fiscal/model-303/engine-service"
 import {
@@ -78,6 +79,29 @@ export async function GET(request: Request, { params }: RouteContext) {
       const blocked = quarterly303BlockedForSii(model, parsedPeriod.period, company.siiMode)
       if (blocked) {
         return NextResponse.json({ success: false, error: blocked }, { status: 422 })
+      }
+      if (model === "347") {
+        if (company.siiMode === "OBLIGATORIO" || company.siiMode === "VOLUNTARIO") {
+          return NextResponse.json(
+            {
+              success: false,
+              error: "Esta empresa lleva los libros del IVA por el SII. El modelo 347 no se presenta.",
+            },
+            { status: 422 },
+          )
+        }
+        const validation = validateAeatSubmission(detail, company.name, company.cif)
+        if (!validation.valid) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: validation.issues.find((issue) => issue.severity === "error")?.message
+                ?? "El fichero del modelo 347 no se puede descargar.",
+              issues: validation.issues,
+            },
+            { status: 422 },
+          )
+        }
       }
     }
 

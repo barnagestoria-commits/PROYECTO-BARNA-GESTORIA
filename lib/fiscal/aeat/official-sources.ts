@@ -112,8 +112,10 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     label: "Operaciones con terceros — anual",
     submissionFormat: "boe-500",
     boeFileExtension: ".347",
-    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
-    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
+    recordDesignPath:
+      "https://sede.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/DR_300_399/archivos/347.pdf",
+    presentationPath:
+      "https://sede.agenciatributaria.gob.es/Sede/procedimientoini/GI27.shtml",
   },
   "349": {
     modelCode: "349",

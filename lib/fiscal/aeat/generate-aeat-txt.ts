@@ -23,6 +23,7 @@ import {
   generateAeatTxt303ViaTaxEngine,
   type Model303FileOptions,
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
+import { buildModel347Filename, generateModel347AeatTxt } from "@/lib/fiscal/model-347/generate-file"
 
 function periodLabelForFile(quarter: FiscalModelDetailResponse["quarter"]): string {
   if (quarter === "annual") return "0A"
@@ -47,6 +48,10 @@ export function buildAeatTxtFilename(
 
   if (detail.modelCode === "202") {
     return buildModel202Filename(detail, companyCif)
+  }
+
+  if (detail.modelCode === "347") {
+    return buildModel347Filename(detail.year, companyCif)
   }
 
   const nif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 9).padEnd(9, " ").trim() || "SINNIF"
@@ -74,6 +79,10 @@ export function generateAeatTxt(
 
   if (detail.modelCode === "202") {
     return generateModel202AeatTxt(detail, companyName, companyCif)
+  }
+
+  if (detail.modelCode === "347") {
+    return generateModel347AeatTxt(detail, companyName, companyCif)
   }
 
   return generateLegacyAeatTxt(detail, companyName, companyCif)

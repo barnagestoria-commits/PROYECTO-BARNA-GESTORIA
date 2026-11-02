@@ -84,6 +84,17 @@ export interface FiscalModelBreakdownLine {
   nombre?: string
   /** Línea IVA intracomunitaria usada para clave y NIF-IVA cuando la contributing es la base imponible. */
   model349SourceLineId?: string
+  /** Declarado del modelo 347. El fichero oficial se construye desde aquí. */
+  model347?: {
+    clave: "A" | "B"
+    province: string
+    country: string
+    quarters: [number, number, number, number]
+    isp: boolean
+    cashBasis: boolean
+    euVat: string
+    blockedReason: string | null
+  }
 }
 
 export interface FiscalModelDetailResponse {
