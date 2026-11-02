@@ -2,8 +2,11 @@ import { decimalToNumber } from "@/lib/prisma/decimal"
 import { parseInvoiceDetails } from "@/lib/accounting/entry-payload"
 import { collectEntryLines, isIntracomunitariaLine } from "@/lib/fiscal/fiscal-line-detection"
 import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
+import { detectModel349Clave, type Model349Clave } from "@/lib/fiscal/model-349-claves"
+import { parseDeclaredBase, parseModel349Period, parseRectifiedYear } from "@/lib/fiscal/model-349/period"
 import type { RawEntryLine } from "@/lib/fiscal/panorama"
 import type { FiscalModelBreakdownLine } from "@/lib/types/fiscal-panorama"
+import type { InvoiceEntryDetails } from "@/lib/types/invoice-entry-details"
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100
@@ -161,11 +164,68 @@ function invoice349Identity(line: RawEntryLine): { nif?: string; nombre?: string
   }
 }
 
+export interface Model349FilingContext {
+  year: number
+  /** 1T-4T o 01-12 del periodo que se está presentando. */
+  period: string
+}
+
+interface Model349Contribution {
+  lineId: string
+  entryId: string
+  fecha: Date
+  amount: number
+  ivaLineId: string
+  usesIvaLineAsBase: boolean
+  vatId: string | null
+  clave: Model349Clave
+  isRectificativa: boolean
+  rectifiedYear: number | null
+  rectifiedPeriod: string | null
+  declaredBase: number | null
+  substituteVat: string | null
+  substituteName: string | null
+}
+
+function invoiceDetails(line: RawEntryLine): InvoiceEntryDetails | null {
+  return parseInvoiceDetails(line.entry.invoiceDataJson)
+}
+
+function movementAmount(line: RawEntryLine): number {
+  return round2(Math.max(decimalToNumber(line.debe), decimalToNumber(line.haber)))
+}
+
+function entryInModel349Period(fecha: Date, year: number, period: string): boolean {
+  if (fecha.getUTCFullYear() !== year) return false
+  if (period.endsWith("T")) {
+    const quarter = Number(period[0])
+    return Math.floor(fecha.getUTCMonth() / 3) + 1 === quarter
+  }
+  return fecha.getUTCMonth() + 1 === Number(period)
+}
+
+function filingPeriodStart(year: number, period: string): Date {
+  if (period.endsWith("T")) {
+    return new Date(Date.UTC(year, (Number(period[0]) - 1) * 3, 1))
+  }
+  return new Date(Date.UTC(year, Number(period) - 1, 1))
+}
+
+function substituteFromDetails(details: InvoiceEntryDetails | null): { vat: string | null; name: string | null } {
+  if (!details) return { vat: null, name: null }
+  const extracted = extractPrimaryEuVatId(details.substituteEuVat ?? "")
+  return {
+    vat: extracted ? formatEuVatIdForAeat(extracted) : null,
+    name: details.substituteName?.trim() || null,
+  }
+}
+
 function mapRawLine(
   line: RawEntryLine,
   signedAmount: number,
   category: string,
   model349SourceLineId?: string,
+  model349?: FiscalModelBreakdownLine["model349"],
 ): FiscalModelBreakdownLine {
   const identity = invoice349Identity(line)
   const entryConcept = [line.entry.concepto, identity.hint].filter(Boolean).join(" ") || undefined
@@ -183,6 +243,7 @@ function mapRawLine(
     nif: identity.nif,
     nombre: identity.nombre,
     model349SourceLineId,
+    model349,
   }
 }
 
@@ -222,60 +283,185 @@ export function collectModel349SourceLines(periodLines: RawEntryLine[]): RawEntr
   return [...matched, ...extra]
 }
 
+function oneSourcePerEntry(sourceLines: RawEntryLine[]): RawEntryLine[] {
+  const byEntry = new Map<string, RawEntryLine[]>()
+  for (const line of sourceLines) {
+    const bucket = byEntry.get(line.entry.id) ?? []
+    bucket.push(line)
+    byEntry.set(line.entry.id, bucket)
+  }
+  return [...byEntry.values()].map((sources) => {
+    return (
+      sources.find(
+        (line) =>
+          /^IVA\s+[SR]\./i.test(line.concepto.trim()) ||
+          normalizeCuenta(line.cuenta).startsWith("472") ||
+          normalizeCuenta(line.cuenta).startsWith("477"),
+      ) ?? sources[0]
+    )
+  })
+}
+
+function listModel349Contributions(
+  sourceLines: RawEntryLine[],
+  allLines: RawEntryLine[],
+): Model349Contribution[] {
+  const grouped = new Map<string, Model349Contribution>()
+
+  for (const ivaLine of oneSourcePerEntry(sourceLines)) {
+    const entryLines = collectEntryLines(allLines, ivaLine.entry.id)
+    const base = resolveModel349BaseImponible(ivaLine, entryLines)
+    const details = invoiceDetails(ivaLine)
+    const targetLine = entryLines.find((line) => line.id === (base?.baseLineId ?? ivaLine.id)) ?? ivaLine
+    let magnitude = base?.amount ?? movementAmount(ivaLine)
+    if (details?.isRectificativa && magnitude === 0) magnitude = movementAmount(targetLine)
+    const amount = details?.isRectificativa ? -Math.abs(magnitude) : magnitude
+    if (amount === 0) continue
+
+    const identity = invoice349Identity(ivaLine)
+    const text = [ivaLine.entry.concepto, ivaLine.concepto, ...entryLines.map((line) => line.concepto)]
+      .filter(Boolean)
+      .join(" ")
+    const vatId = identity.nif ?? (extractPrimaryEuVatId(text) ? formatEuVatIdForAeat(extractPrimaryEuVatId(text)!) : null)
+    const clave = detectModel349Clave({
+      concepto: ivaLine.concepto,
+      entryConcept: ivaLine.entry.concepto,
+      cuenta: ivaLine.cuenta,
+      debe: decimalToNumber(ivaLine.debe),
+      haber: decimalToNumber(ivaLine.haber),
+    })
+    const substitute = substituteFromDetails(details)
+    const targetLineId = base?.baseLineId ?? ivaLine.id
+    const existing = grouped.get(targetLineId)
+    const next: Model349Contribution = {
+      lineId: targetLineId,
+      entryId: ivaLine.entry.id,
+      fecha: ivaLine.entry.fecha,
+      amount: round2((existing?.amount ?? 0) + amount),
+      ivaLineId: base?.ivaLineId ?? ivaLine.id,
+      usesIvaLineAsBase: targetLineId === ivaLine.id,
+      vatId,
+      clave,
+      isRectificativa: Boolean(details?.isRectificativa),
+      rectifiedYear: parseRectifiedYear(details?.rectifiedYear),
+      rectifiedPeriod: parseModel349Period(details?.rectifiedPeriod),
+      declaredBase: parseDeclaredBase(details?.rectifiedDeclaredBase),
+      substituteVat: substitute.vat,
+      substituteName: substitute.name,
+    }
+    grouped.set(targetLineId, next)
+  }
+
+  return [...grouped.values()]
+}
+
+function lastDeclaredBase(
+  history: RawEntryLine[],
+  targetYear: number,
+  targetPeriod: string,
+  vatId: string,
+  clave: Model349Clave,
+  filingStart: Date,
+  userBase: number | null,
+): { base: number; known: boolean } {
+  if (userBase != null) return { base: userBase, known: true }
+
+  const contributions = listModel349Contributions(collectModel349SourceLines(history), history).filter(
+    (item) => item.vatId === vatId && item.clave === clave,
+  )
+  const inTarget = contributions.filter(
+    (item) =>
+      entryInModel349Period(item.fecha, targetYear, targetPeriod) &&
+      (!item.isRectificativa || (item.rectifiedYear === targetYear && item.rectifiedPeriod === targetPeriod)),
+  )
+  const earlier = contributions.filter(
+    (item) =>
+      item.isRectificativa &&
+      item.rectifiedYear === targetYear &&
+      item.rectifiedPeriod === targetPeriod &&
+      item.fecha < filingStart &&
+      !entryInModel349Period(item.fecha, targetYear, targetPeriod),
+  )
+  if (inTarget.length === 0 && earlier.length === 0) return { base: 0, known: false }
+  return {
+    base: round2([...inTarget, ...earlier].reduce((sum, item) => sum + item.amount, 0)),
+    known: true,
+  }
+}
+
+export function rectifiedYearsOutside(lines: RawEntryLine[], currentYear: number): number[] {
+  const years = new Set<number>()
+  for (const line of lines) {
+    const details = invoiceDetails(line)
+    const year = parseRectifiedYear(details?.rectifiedYear)
+    if (details?.isRectificativa && year && year !== currentYear) years.add(year)
+  }
+  return [...years]
+}
+
 export function buildModel349BreakdownLines(
   allLines: RawEntryLine[],
   matchedLines: RawEntryLine[],
+  filing?: Model349FilingContext,
 ): FiscalModelBreakdownLine[] {
   const matchedIds = new Set(matchedLines.map((line) => line.id))
   const entryIds = [...new Set(matchedLines.map((line) => line.entry.id))].sort()
-
-  const contributingByLineId = new Map<
-    string,
-    { amount: number; ivaLineId: string; usesIvaLineAsBase: boolean }
-  >()
-
-  for (const ivaLine of matchedLines) {
-    const entryLines = collectEntryLines(allLines, ivaLine.entry.id)
-    const base = resolveModel349BaseImponible(ivaLine, entryLines)
-    const fallbackAmount = round2(
-      Math.max(decimalToNumber(ivaLine.debe), decimalToNumber(ivaLine.haber)),
-    )
-
-    const targetLineId = base?.baseLineId ?? ivaLine.id
-    const amount = base?.amount ?? fallbackAmount
-    const ivaLineId = base?.ivaLineId ?? ivaLine.id
-    const usesIvaLineAsBase = targetLineId === ivaLine.id
-
-    const existing = contributingByLineId.get(targetLineId)
-    if (existing) {
-      contributingByLineId.set(targetLineId, {
-        amount: round2(existing.amount + amount),
-        ivaLineId: existing.ivaLineId,
-        usesIvaLineAsBase: existing.usesIvaLineAsBase && usesIvaLineAsBase,
-      })
-    } else {
-      contributingByLineId.set(targetLineId, { amount, ivaLineId, usesIvaLineAsBase })
-    }
-  }
+  const contributions = listModel349Contributions(matchedLines, allLines)
+  const filingStart = filing ? filingPeriodStart(filing.year, filing.period) : null
 
   return entryIds.flatMap((entryId) => {
     const entryLines = collectEntryLines(allLines, entryId)
     return entryLines.map((line) => {
-      const contribution = contributingByLineId.get(line.id)
-      if (contribution) {
-        return mapRawLine(
-          line,
-          contribution.amount,
-          "contributing",
-          contribution.usesIvaLineAsBase ? undefined : contribution.ivaLineId,
-        )
+      const contribution = contributions.find((item) => item.lineId === line.id)
+      if (!contribution) return mapRawLine(line, 0, matchedIds.has(line.id) ? "asiento" : "asiento")
+
+      const substitute = {
+        substituteVat: contribution.substituteVat ?? undefined,
+        substituteName: contribution.substituteName ?? undefined,
+      }
+      const samePeriod =
+        filing != null &&
+        contribution.isRectificativa &&
+        contribution.rectifiedYear === filing.year &&
+        contribution.rectifiedPeriod === filing.period
+
+      if (contribution.isRectificativa && !samePeriod) {
+        if (!contribution.rectifiedYear || !contribution.rectifiedPeriod) {
+          return mapRawLine(line, contribution.amount, "contributing", contribution.usesIvaLineAsBase ? undefined : contribution.ivaLineId, {
+            rectificationMissing: true,
+            ...substitute,
+          })
+        }
+        const declared =
+          contribution.vatId && filingStart
+            ? lastDeclaredBase(
+                allLines,
+                contribution.rectifiedYear,
+                contribution.rectifiedPeriod,
+                contribution.vatId,
+                contribution.clave,
+                filingStart,
+                contribution.declaredBase,
+              )
+            : { base: contribution.declaredBase ?? 0, known: contribution.declaredBase != null }
+        return mapRawLine(line, contribution.amount, "contributing", contribution.usesIvaLineAsBase ? undefined : contribution.ivaLineId, {
+          rectification: {
+            year: contribution.rectifiedYear,
+            period: contribution.rectifiedPeriod,
+            previousBase: declared.base,
+            previousBaseKnown: declared.known,
+          },
+          ...substitute,
+        })
       }
 
-      if (matchedIds.has(line.id)) {
-        return mapRawLine(line, 0, "asiento")
-      }
-
-      return mapRawLine(line, 0, "asiento")
+      return mapRawLine(
+        line,
+        contribution.amount,
+        "contributing",
+        contribution.usesIvaLineAsBase ? undefined : contribution.ivaLineId,
+        contribution.substituteVat || contribution.substituteName ? substitute : undefined,
+      )
     })
   })
 }

@@ -167,4 +167,144 @@ describe("fichero modelo 349", () => {
     expect(contributing?.nif).toBe("IE6388047V")
     expect(contributing?.nombre).toBe("Google Ireland")
   })
+
+  it("resta en este trimestre la rectificativa de una factura de este mismo trimestre", () => {
+    const result = calculateModelAmount("349", [
+      sale("e-original", "2026-01-15T12:00:00.000Z", 10000, false),
+      sale("e-abono", "2026-02-02T12:00:00.000Z", 2000, true, { year: 2026, period: "1T" }),
+    ].flat(), 2026, 1)
+    const detail = asDetail(result, 1)
+    const content = generateAeatTxt(detail, "EMPRESA TEST SL", VALID_NIF).toString("latin1")
+    const records = content.split("\r\n")
+
+    expect(result.amount).toBe(8000)
+    expect(records).toHaveLength(2)
+    expect(records[0].slice(137, 146)).toBe("000000001")
+    expect(records[0].slice(146, 161)).toBe("000000000800000")
+    expect(records[0].slice(161, 170)).toBe("000000000")
+    expect(records[1].slice(133, 146)).toBe("0000000800000")
+    expect(validateAeatSubmission(detail, "EMPRESA TEST SL", VALID_NIF).valid).toBe(true)
+  })
+
+  it("declara la rectificación de otro periodo con la base anterior y la base nueva", () => {
+    const result = calculateModelAmount("349", [
+      sale("e-original", "2026-02-10T12:00:00.000Z", 10000, false),
+      sale("e-abono", "2026-05-04T12:00:00.000Z", 2000, true, { year: 2026, period: "1T" }),
+    ].flat(), 2026, 2)
+    const detail = asDetail(result, 2)
+    const content = generateAeatTxt(detail, "EMPRESA TEST SL", VALID_NIF).toString("latin1")
+    const records = content.split("\r\n")
+
+    expect(result.amount).toBe(0)
+    expect(records).toHaveLength(2)
+    expect(records[0].slice(135, 137)).toBe("2T")
+    expect(records[0].slice(137, 146)).toBe("000000000")
+    expect(records[0].slice(161, 170)).toBe("000000001")
+    expect(records[0].slice(170, 185)).toBe("000000000800000")
+    expect(records[1][132]).toBe("E")
+    expect(records[1].slice(133, 146).trim()).toBe("")
+    expect(records[1].slice(146, 150)).toBe("2026")
+    expect(records[1].slice(150, 152)).toBe("1T")
+    expect(records[1].slice(152, 165)).toBe("0000000800000")
+    expect(records[1].slice(165, 178)).toBe("0000001000000")
+    expect(validateAeatSubmission(detail, "EMPRESA TEST SL", VALID_NIF).valid).toBe(true)
+  })
+
+  it("no descarga la rectificativa si no dice a qué periodo pertenece la factura errónea", () => {
+    const result = calculateModelAmount(
+      "349",
+      sale("e-abono", "2026-02-02T12:00:00.000Z", 2000, true, null),
+      2026,
+      1,
+    )
+    const validation = validateAeatSubmission(asDetail(result, 1), "EMPRESA TEST SL", VALID_NIF)
+    expect(validation.valid).toBe(false)
+    expect(validation.issues.some((issue) => issue.code === "RECTIFIED_PERIOD")).toBe(true)
+  })
+
+  it("usa la base escrita en la factura cuando el periodo anterior no está en la contabilidad", () => {
+    const result = calculateModelAmount(
+      "349",
+      sale("e-abono", "2026-04-04T12:00:00.000Z", 1000, true, { year: 2024, period: "4T", declaredBase: 5000 }),
+      2026,
+      2,
+    )
+    const content = generateAeatTxt(asDetail(result, 2), "EMPRESA TEST SL", VALID_NIF).toString("latin1")
+    const record = content.split("\r\n")[1]
+    expect(record.slice(146, 152)).toBe("20244T")
+    expect(record.slice(152, 165)).toBe("0000000400000")
+    expect(record.slice(165, 178)).toBe("0000000500000")
+  })
+
+  it("no deja presentar el trimestre si febrero supera 50.000 € en entregas", () => {
+    const result = calculateModelAmount(
+      "349",
+      sale("e-feb", "2026-02-18T12:00:00.000Z", 60000, false),
+      2026,
+      1,
+    )
+    const validation = validateAeatSubmission(asDetail(result, 1), "EMPRESA TEST SL", VALID_NIF)
+    expect(validation.valid).toBe(false)
+    expect(validation.issues.some((issue) => issue.code === "PERIODICITY")).toBe(true)
+  })
 })
+
+function sale(
+  entryId: string,
+  fecha: string,
+  base: number,
+  rectificativa: boolean,
+  rectified?: { year: number; period: string; declaredBase?: number } | null,
+): RawEntryLine[] {
+  const entry = {
+    id: entryId,
+    fecha: new Date(fecha),
+    concepto: "17",
+    invoiceDataJson: JSON.stringify({
+      nif: "PT123456789",
+      thirdPartyName: "Cliente FR",
+      isRectificativa: rectificativa,
+      rectifiedYear: rectified?.year ?? null,
+      rectifiedPeriod: rectified?.period ?? null,
+      rectifiedDeclaredBase: rectified?.declaredBase ?? null,
+      vatLines: [{ taxForm: "349", operation: "1", base }],
+    }),
+  }
+  return [
+    {
+      id: `${entryId}-base`,
+      entryId,
+      cuenta: "700000000000",
+      concepto: "Venta intracomunitaria",
+      debe: 0,
+      haber: base,
+      entry,
+    },
+    {
+      id: `${entryId}-iva`,
+      entryId,
+      cuenta: "477000000000",
+      concepto: "IVA R./CLIENTE FR PT123456789",
+      debe: 0,
+      haber: 0,
+      entry,
+    },
+  ]
+}
+
+function asDetail(
+  result: ReturnType<typeof calculateModelAmount>,
+  quarter: 1 | 2 | 3 | 4,
+): FiscalModelDetailResponse {
+  return {
+    modelCode: "349",
+    modelLabel: "Modelo 349",
+    year: 2026,
+    quarter,
+    periodLabel: `${quarter}T 2026`,
+    amount: result.amount,
+    status: "pendiente",
+    statusLabel: "Pendiente",
+    breakdown: result.breakdown,
+  }
+}

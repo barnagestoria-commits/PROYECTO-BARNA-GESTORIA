@@ -35,7 +35,9 @@ function casilla(
 
 export function buildOfficialModel349Sections(detail: FiscalModelDetailResponse): DraftSection[] {
   const allLines = detail.breakdown.flatMap((section) => section.lines)
-  const contributingLines = allLines.filter((line) => line.category === "contributing")
+  const contributingLines = allLines.filter(
+    (line) => line.category === "contributing" && !line.model349?.rectification && !line.model349?.rectificationMissing,
+  )
   const lineTotal = Math.round(contributingLines.reduce((sum, line) => sum + line.signedAmount, 0) * 100) / 100
   const total = lineTotal !== 0 ? lineTotal : detail.amount
 
@@ -96,6 +98,37 @@ export function buildOfficialModel349Sections(detail: FiscalModelDetailResponse)
       id: "claves-operacion",
       title: "Desglose por clave de operación",
       casillas: claveCasillas,
+    })
+  }
+
+  const rectificationLines = allLines.filter((line) => line.model349?.rectification?.previousBaseKnown)
+  if (rectificationLines.length > 0) {
+    const rectifiedTotal = Math.round(
+      rectificationLines.reduce((sum, line) => {
+        const previous = line.model349?.rectification?.previousBase ?? 0
+        return sum + previous + line.signedAmount
+      }, 0) * 100,
+    ) / 100
+    sections.push({
+      id: "rectificaciones",
+      title: "Rectificaciones de periodos anteriores",
+      casillas: [
+        casilla(
+          "349-04",
+          "04",
+          "Operadores con rectificaciones",
+          rectificationLines.length,
+          "rectificaciones",
+        ),
+        casilla(
+          "349-05",
+          "05",
+          "Bases rectificadas",
+          rectifiedTotal,
+          "rectificaciones",
+          "Suma de las bases ya corregidas de periodos anteriores",
+        ),
+      ],
     })
   }
 

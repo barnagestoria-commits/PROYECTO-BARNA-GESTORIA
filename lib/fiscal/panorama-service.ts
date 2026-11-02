@@ -30,6 +30,7 @@ import { calculateTaxSummary, periodKeyToQuarter } from "@/lib/fiscal/tax-summar
 import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
 import type { A3ImportedFiscalResult } from "@/lib/imports/a3/types"
 import { enrichBreakdownWithPartyIdentity } from "@/lib/fiscal/party-identification"
+import { rectifiedYearsOutside } from "@/lib/fiscal/model-349-base-imponible"
 
 function declarationKey(year: number, quarter: number, modelCode: FiscalModelCode): string {
   return `${year}-${quarter}-${modelCode}`
@@ -467,7 +468,15 @@ export async function buildFiscalModelDetail(
           model347: model347 ? { ...model347, parties: thirdParties } : undefined,
         }
       : undefined
-  let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions, month)
+  let linesForModel = allLines
+  if (modelCode === "349") {
+    const extraYears = rectifiedYearsOutside(allLines, year)
+    if (extraYears.length > 0) {
+      const prior = await Promise.all(extraYears.map((priorYear) => fetchYearLines(companyId, priorYear)))
+      linesForModel = [...allLines, ...prior.flat()]
+    }
+  }
+  let result = calculateModelAmount(modelCode, linesForModel, year, quarter, calculationOptions, month)
 
   // El asiento de liquidación cierra la cuenta, pero no trae perceptores ni bases.
   // El 303 necesita el desglose de IVA y el 111 el de trabajo frente a profesionales.
@@ -481,7 +490,7 @@ export async function buildFiscalModelDetail(
     )
     const sourceResult = calculateModelAmount(
       modelCode,
-      allLines.filter((line) => !liquidationEntryIds.has(line.entry.id)),
+      linesForModel.filter((line) => !liquidationEntryIds.has(line.entry.id)),
       year,
       quarter,
       undefined,

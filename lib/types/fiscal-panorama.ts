@@ -84,6 +84,18 @@ export interface FiscalModelBreakdownLine {
   nombre?: string
   /** Línea IVA intracomunitaria usada para clave y NIF-IVA cuando la contributing es la base imponible. */
   model349SourceLineId?: string
+  /** Rectificación del 349, o datos de la clave C. */
+  model349?: {
+    rectificationMissing?: boolean
+    rectification?: {
+      year: number
+      period: string
+      previousBase: number
+      previousBaseKnown: boolean
+    }
+    substituteVat?: string
+    substituteName?: string
+  }
   /** Declarado del modelo 347. El fichero oficial se construye desde aquí. */
   model347?: {
     clave: "A" | "B"

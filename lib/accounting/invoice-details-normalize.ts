@@ -1,4 +1,5 @@
 import { findVatRateTypeByPercent } from "@/lib/accounting/vat-catalog"
+import { parseDeclaredBase, parseModel349Period, parseRectifiedYear } from "@/lib/fiscal/model-349/period"
 import type { InvoiceOcrResult, IvaDesgloseLine } from "@/lib/types/invoice"
 import {
   createDefaultInvoiceDetails,
@@ -59,6 +60,11 @@ export function invoiceDetailsFromOcr(invoice: Partial<InvoiceOcrResult>): Invoi
     thirdPartyName: invoice.proveedor ?? "",
     nif: invoice.cif ?? "",
     isRectificativa: false,
+    rectifiedYear: null,
+    rectifiedPeriod: null,
+    rectifiedDeclaredBase: null,
+    substituteEuVat: null,
+    substituteName: null,
     vatLines: vatLines.length > 0 ? vatLines : [createEmptyVatLine()],
     applyIrpf: false,
     irpfPercent: 0,
@@ -68,6 +74,16 @@ export function invoiceDetailsFromOcr(invoice: Partial<InvoiceOcrResult>): Invoi
 
 function looksLikeOcrInvoice(record: Record<string, unknown>): boolean {
   return Array.isArray(record.iva_desglose) || typeof record.proveedor === "string"
+}
+
+function rectificationFields(record: Record<string, unknown>) {
+  return {
+    rectifiedYear: parseRectifiedYear(record.rectifiedYear),
+    rectifiedPeriod: parseModel349Period(record.rectifiedPeriod),
+    rectifiedDeclaredBase: parseDeclaredBase(record.rectifiedDeclaredBase),
+    substituteEuVat: String(record.substituteEuVat ?? "").trim() || null,
+    substituteName: String(record.substituteName ?? "").trim() || null,
+  }
 }
 
 function looksLikeInvoiceDetails(record: Record<string, unknown>): boolean {
@@ -101,6 +117,7 @@ export function normalizeInvoiceDetails(value: unknown): InvoiceEntryDetails | n
       thirdPartyName: String(record.thirdPartyName ?? record.proveedor ?? fallback.thirdPartyName),
       nif: String(record.nif ?? record.cif ?? fallback.nif),
       isRectificativa: Boolean(record.isRectificativa),
+      ...rectificationFields(record),
       vatLines,
       applyIrpf: Boolean(record.applyIrpf),
       irpfPercent: Number(record.irpfPercent) || 0,
@@ -122,6 +139,7 @@ export function normalizeInvoiceDetails(value: unknown): InvoiceEntryDetails | n
       thirdPartyName: String(record.thirdPartyName ?? ""),
       nif: String(record.nif ?? record.cif ?? ""),
       isRectificativa: Boolean(record.isRectificativa),
+      ...rectificationFields(record),
       applyIrpf: Boolean(record.applyIrpf),
       irpfPercent: Number(record.irpfPercent) || 0,
       irpfAccount: String(record.irpfAccount ?? ""),

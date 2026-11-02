@@ -23,6 +23,7 @@ import {
 } from "@/lib/accounting/vat-catalog"
 import { IRPF_ACCOUNT_OPTIONS } from "@/lib/accounting/account-treatment-types"
 import { VatLookupDialog } from "@/components/accounting/vat-lookup-dialog"
+import { MODEL_349_PERIOD_OPTIONS } from "@/lib/fiscal/model-349/period"
 
 interface InvoiceEntryPanelProps {
   invoiceMode: "emitida" | "recibida"
@@ -69,6 +70,9 @@ export function InvoiceEntryPanel({
       : 0
   const netTotal = Math.round((totals.total - irpfQuota) * 100) / 100
   const isReceived = invoiceMode === "recibida"
+  const declares349 = vatLines.some(
+    (line) => line.taxForm === "349" || line.operation === "3" || line.operation === "7",
+  )
   const [operationDialogOpen, setOperationDialogOpen] = useState(false)
   const [vatTypeDialogOpen, setVatTypeDialogOpen] = useState(false)
   const [taxFormDialogOpen, setTaxFormDialogOpen] = useState(false)
@@ -224,10 +228,104 @@ export function InvoiceEntryPanel({
             <input
               type="checkbox"
               checked={details.isRectificativa}
-              onChange={(event) => onChange({ ...details, isRectificativa: event.target.checked })}
+              onChange={(event) => {
+                const checked = event.target.checked
+                const yearFromDate = Number((details.operationDate || details.issueDate || "").slice(0, 4))
+                onChange({
+                  ...details,
+                  isRectificativa: checked,
+                  rectifiedYear: checked
+                    ? details.rectifiedYear ?? (yearFromDate || new Date().getUTCFullYear())
+                    : details.rectifiedYear,
+                })
+              }}
             />
             Rectificativa
           </label>
+          {details.isRectificativa && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="rectified-year">Ejercicio de la factura errónea</Label>
+                <Input
+                  id="rectified-year"
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  value={details.rectifiedYear ?? ""}
+                  onChange={(event) =>
+                    onChange({
+                      ...details,
+                      rectifiedYear: Number.parseInt(event.target.value, 10) || null,
+                    })
+                  }
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="rectified-period">Periodo de la factura errónea</Label>
+                <select
+                  id="rectified-period"
+                  value={details.rectifiedPeriod ?? ""}
+                  onChange={(event) => onChange({ ...details, rectifiedPeriod: event.target.value || null })}
+                  className="flex h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                >
+                  <option value="">Selecciona el periodo</option>
+                  {MODEL_349_PERIOD_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label htmlFor="rectified-base">Base declarada en ese periodo</Label>
+                <Input
+                  id="rectified-base"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={details.rectifiedDeclaredBase ?? ""}
+                  onChange={(event) => {
+                    const raw = event.target.value.trim()
+                    onChange({
+                      ...details,
+                      rectifiedDeclaredBase: raw === "" ? null : Number.parseFloat(raw),
+                    })
+                  }}
+                  className="text-right font-mono"
+                  placeholder="Se calcula si la factura está contabilizada"
+                />
+                <p className="text-xs text-graphite-600">
+                  Si el periodo es el mismo que se está presentando, la base se resta en este 349. Si es otro
+                  periodo, el fichero lleva la rectificación y, si aquel ejercicio no está en la contabilidad,
+                  escribe aquí la base que se presentó.
+                </p>
+              </div>
+            </>
+          )}
+          {declares349 && (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="substitute-vat">NIF-IVA sustituido (clave C)</Label>
+                <Input
+                  id="substitute-vat"
+                  value={details.substituteEuVat ?? ""}
+                  onChange={(event) =>
+                    onChange({ ...details, substituteEuVat: event.target.value.toUpperCase() })
+                  }
+                  className="font-mono uppercase"
+                  placeholder="Solo ventas en consigna"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="substitute-name">Nombre del sustituido</Label>
+                <Input
+                  id="substitute-name"
+                  value={details.substituteName ?? ""}
+                  onChange={(event) => onChange({ ...details, substituteName: event.target.value })}
+                />
+              </div>
+            </>
+          )}
           <label className="flex items-center gap-2 self-end rounded-lg border border-sand-200 bg-white px-3 py-2 text-sm">
             <input
               type="checkbox"

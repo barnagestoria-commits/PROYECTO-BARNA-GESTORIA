@@ -15,6 +15,15 @@ export interface InvoiceEntryDetails {
   thirdPartyName: string
   nif: string
   isRectificativa: boolean
+  /** Ejercicio de la factura errónea, cuando esta factura la rectifica. */
+  rectifiedYear?: number | null
+  /** Periodo 349 de esa factura: 1T-4T o 01-12. */
+  rectifiedPeriod?: string | null
+  /** Base que ya se declaró en ese periodo. Vacío si está en la contabilidad y se calcula sola. */
+  rectifiedDeclaredBase?: number | null
+  /** NIF-IVA del operador sustituido. Solo lo usa la clave C del 349. */
+  substituteEuVat?: string | null
+  substituteName?: string | null
   vatLines: InvoiceVatLine[]
   applyIrpf: boolean
   irpfPercent: number
@@ -41,6 +50,11 @@ export function createDefaultInvoiceDetails(fecha: string): InvoiceEntryDetails 
     thirdPartyName: "",
     nif: "",
     isRectificativa: false,
+    rectifiedYear: null,
+    rectifiedPeriod: null,
+    rectifiedDeclaredBase: null,
+    substituteEuVat: null,
+    substituteName: null,
     vatLines: [createEmptyVatLine()],
     applyIrpf: false,
     irpfPercent: 0,

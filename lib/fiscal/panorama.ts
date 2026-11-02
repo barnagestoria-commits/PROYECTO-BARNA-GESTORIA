@@ -912,11 +912,15 @@ export function calculateModelAmount(
     }
 
     const matched = collectModel349SourceLines(periodLines)
-    const breakdownLines = buildModel349BreakdownLines(lines, matched)
+    const filing =
+      quarter === "annual"
+        ? undefined
+        : { year, period: month ? String(month).padStart(2, "0") : `${quarter}T` }
+    const breakdownLines = buildModel349BreakdownLines(lines, matched, filing)
     for (const line of matched) entryIds.add(line.entry.id)
     const total = round2(
       breakdownLines
-        .filter((line) => line.category === "contributing")
+        .filter((line) => line.category === "contributing" && !line.model349?.rectification)
         .reduce((sum, line) => sum + line.signedAmount, 0),
     )
     return {
