@@ -103,7 +103,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           )
         }
       }
-      if (model === "111" || model === "115") {
+      if (model === "111" || model === "115" || model === "349") {
         const validation = validateAeatSubmission(detail, company.name, company.cif)
         if (!validation.valid) {
           return NextResponse.json(

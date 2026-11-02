@@ -1,5 +1,7 @@
 import { decimalToNumber } from "@/lib/prisma/decimal"
-import { collectEntryLines } from "@/lib/fiscal/fiscal-line-detection"
+import { parseInvoiceDetails } from "@/lib/accounting/entry-payload"
+import { collectEntryLines, isIntracomunitariaLine } from "@/lib/fiscal/fiscal-line-detection"
+import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
 import type { RawEntryLine } from "@/lib/fiscal/panorama"
 import type { FiscalModelBreakdownLine } from "@/lib/types/fiscal-panorama"
 
@@ -84,6 +86,20 @@ export function resolveModel349BaseImponible(
   ivaLine: RawEntryLine,
   entryLines: RawEntryLine[],
 ): Model349BaseImponibleResult | null {
+  const ownDigits = normalizeCuenta(ivaLine.cuenta)
+  const ownIsBase =
+    ownDigits.startsWith("60") ||
+    ownDigits.startsWith("61") ||
+    ownDigits.startsWith("62") ||
+    ownDigits.startsWith("70") ||
+    ownDigits.startsWith("71")
+  if (ownIsBase && !isPurchaseSideIvaLine(ivaLine) && !isSalesSideIvaLine(ivaLine)) {
+    const amount = ownDigits.startsWith("7") ? netHaber(ivaLine) : netDebe(ivaLine)
+    if (amount > 0) {
+      return { amount, baseLineId: ivaLine.id, ivaLineId: ivaLine.id }
+    }
+  }
+
   const purchase = isPurchaseSideIvaLine(ivaLine)
   const sales = isSalesSideIvaLine(ivaLine)
   const side: "purchase" | "sales" = purchase ? "purchase" : sales ? "sales" : "purchase"
@@ -125,16 +141,38 @@ export function resolveModel349BaseImponible(
   }
 }
 
+function invoice349Identity(line: RawEntryLine): { nif?: string; nombre?: string; hint?: string } {
+  const details = parseInvoiceDetails(line.entry.invoiceDataJson)
+  if (!details) return {}
+  const vatLine = details.vatLines.find(
+    (item) => item.taxForm === "349" || item.operation === "3" || item.operation === "7",
+  )
+  const nif = extractPrimaryEuVatId(details.nif)
+  const hint =
+    vatLine?.operation === "7"
+      ? "servicios intracomunitarios"
+      : vatLine?.operation === "3"
+        ? "adquisicion intracomunitaria"
+        : undefined
+  return {
+    nif: nif ? formatEuVatIdForAeat(nif) : undefined,
+    nombre: details.thirdPartyName?.trim() || undefined,
+    hint,
+  }
+}
+
 function mapRawLine(
   line: RawEntryLine,
   signedAmount: number,
   category: string,
   model349SourceLineId?: string,
 ): FiscalModelBreakdownLine {
+  const identity = invoice349Identity(line)
+  const entryConcept = [line.entry.concepto, identity.hint].filter(Boolean).join(" ") || undefined
   return {
     entryId: line.entry.id,
     entryDate: line.entry.fecha.toISOString().split("T")[0],
-    entryConcept: line.entry.concepto ?? undefined,
+    entryConcept,
     lineId: line.id,
     cuenta: line.cuenta,
     concepto: line.concepto,
@@ -142,8 +180,46 @@ function mapRawLine(
     haber: decimalToNumber(line.haber),
     signedAmount,
     category,
+    nif: identity.nif,
+    nombre: identity.nombre,
     model349SourceLineId,
   }
+}
+
+function invoiceDeclares349(line: RawEntryLine): boolean {
+  const details = parseInvoiceDetails(line.entry.invoiceDataJson)
+  return Boolean(
+    details?.vatLines.some((item) => item.taxForm === "349" || item.operation === "3" || item.operation === "7"),
+  )
+}
+
+/** Líneas de facturas con impreso 349 que el concepto del asiento todavía no marca. */
+export function collectModel349SourceLines(periodLines: RawEntryLine[]): RawEntryLine[] {
+  const matched = periodLines.filter(isIntracomunitariaLine)
+  const covered = new Set(matched.map((line) => line.entry.id))
+  const byEntry = new Map<string, RawEntryLine[]>()
+  for (const line of periodLines) {
+    if (covered.has(line.entry.id)) continue
+    const bucket = byEntry.get(line.entry.id) ?? []
+    bucket.push(line)
+    byEntry.set(line.entry.id, bucket)
+  }
+
+  const extra: RawEntryLine[] = []
+  for (const entryLines of byEntry.values()) {
+    if (!invoiceDeclares349(entryLines[0])) continue
+    const iva = entryLines.find(
+      (line) =>
+        /^IVA\s+[SR]\./i.test(line.concepto.trim()) ||
+        normalizeCuenta(line.cuenta).startsWith("472") ||
+        normalizeCuenta(line.cuenta).startsWith("477"),
+    )
+    const base = entryLines.find((line) => /^[67]/.test(normalizeCuenta(line.cuenta)))
+    const chosen = iva ?? base
+    if (chosen) extra.push(chosen)
+  }
+
+  return [...matched, ...extra]
 }
 
 export function buildModel349BreakdownLines(

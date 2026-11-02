@@ -93,7 +93,11 @@ export async function GET(request: Request, { params }: RouteContext) {
       )
     }
     if (
-      (detail.modelCode === "303" || detail.modelCode === "347" || detail.modelCode === "111" || detail.modelCode === "115") &&
+      (detail.modelCode === "303" ||
+        detail.modelCode === "347" ||
+        detail.modelCode === "111" ||
+        detail.modelCode === "115" ||
+        detail.modelCode === "349") &&
       !bundle.validation.valid
     ) {
       return NextResponse.json(

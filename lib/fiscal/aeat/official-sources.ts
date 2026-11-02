@@ -124,7 +124,8 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
     label: "Recapitulativa intracomunitaria — trimestral",
     submissionFormat: "boe-500",
     boeFileExtension: ".349",
-    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
+    recordDesignPath:
+      "https://sede.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/DR_300_399/archivos_20/DR_Anexo_349.pdf",
     presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
   },
   "390": {

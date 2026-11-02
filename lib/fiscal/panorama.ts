@@ -13,14 +13,13 @@ import {
   extractModel111LiquidationDetail,
   extractModel303LiquidationDetail,
   groupLinesByEntry,
-  isIntracomunitariaLine,
   isModel111RetentionLine,
   isModel115RentalRetentionLine,
   isModel123DividendRetentionLine,
   liquidationSignedAmount,
 } from "@/lib/fiscal/fiscal-line-detection"
 import { calculateIvaBridgeSummary } from "@/lib/fiscal/iva-bridge-summary"
-import { buildModel349BreakdownLines } from "@/lib/fiscal/model-349-base-imponible"
+import { buildModel349BreakdownLines, collectModel349SourceLines } from "@/lib/fiscal/model-349-base-imponible"
 import { settleModel202, type Model202Options } from "@/lib/fiscal/model-202"
 import {
   buildModel347Declarados,
@@ -912,7 +911,7 @@ export function calculateModelAmount(
       }
     }
 
-    const matched = periodLines.filter(isIntracomunitariaLine)
+    const matched = collectModel349SourceLines(periodLines)
     const breakdownLines = buildModel349BreakdownLines(lines, matched)
     for (const line of matched) entryIds.add(line.entry.id)
     const total = round2(

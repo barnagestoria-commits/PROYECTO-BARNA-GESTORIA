@@ -472,7 +472,7 @@ export async function buildFiscalModelDetail(
   // El asiento de liquidación cierra la cuenta, pero no trae perceptores ni bases.
   // El 303 necesita el desglose de IVA y el 111 el de trabajo frente a profesionales.
   if (
-    (modelCode === "303" || modelCode === "111") &&
+    (modelCode === "303" || modelCode === "111" || modelCode === "349") &&
     quarter !== "annual" &&
     result.breakdown.some((section) => section.key === "liquidacion")
   ) {

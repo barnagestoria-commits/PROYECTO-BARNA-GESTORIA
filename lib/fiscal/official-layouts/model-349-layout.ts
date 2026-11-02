@@ -12,7 +12,7 @@ import {
   findModel349IvaContextLine,
 } from "@/lib/fiscal/model-349-base-imponible"
 import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
-import { casillaAmount, hasLiquidation } from "@/lib/fiscal/official-layouts/shared"
+import { casillaAmount } from "@/lib/fiscal/official-layouts/shared"
 
 function casilla(
   id: string,
@@ -36,7 +36,8 @@ function casilla(
 export function buildOfficialModel349Sections(detail: FiscalModelDetailResponse): DraftSection[] {
   const allLines = detail.breakdown.flatMap((section) => section.lines)
   const contributingLines = allLines.filter((line) => line.category === "contributing")
-  const total = hasLiquidation(detail) ? detail.amount : detail.amount
+  const lineTotal = Math.round(contributingLines.reduce((sum, line) => sum + line.signedAmount, 0) * 100) / 100
+  const total = lineTotal !== 0 ? lineTotal : detail.amount
 
   const operadores = new Set(
     contributingLines.map((line) => {

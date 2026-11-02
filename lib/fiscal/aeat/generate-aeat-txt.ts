@@ -29,6 +29,11 @@ import {
   type Model303FileOptions,
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import { buildModel347Filename, generateModel347AeatTxt } from "@/lib/fiscal/model-347/generate-file"
+import {
+  buildModel349Filename,
+  generateModel349AeatTxt,
+  model349FilePeriod,
+} from "@/lib/fiscal/model-349/generate-file"
 
 function periodLabelForFile(quarter: FiscalModelDetailResponse["quarter"]): string {
   if (quarter === "annual") return "0A"
@@ -61,6 +66,10 @@ export function buildAeatTxtFilename(
 
   if (detail.modelCode === "347") {
     return buildModel347Filename(detail.year, companyCif)
+  }
+
+  if (detail.modelCode === "349") {
+    return buildModel349Filename(detail, companyCif)
   }
 
   const nif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase().slice(0, 9).padEnd(9, " ").trim() || "SINNIF"
@@ -98,6 +107,10 @@ export function generateAeatTxt(
     return generateModel347AeatTxt(detail, companyName, companyCif)
   }
 
+  if (detail.modelCode === "349") {
+    return generateModel349AeatTxt(detail, companyName, companyCif)
+  }
+
   return generateLegacyAeatTxt(detail, companyName, companyCif)
 }
 
@@ -114,6 +127,10 @@ export function shouldOfferAeatTxt(
 
   if (detail.modelCode === "115") {
     return model115FilePeriod(detail.quarter) !== null
+  }
+
+  if (detail.modelCode === "349") {
+    return model349FilePeriod(detail.quarter) !== null
   }
 
   if (detail.modelCode === "303") {

@@ -95,7 +95,6 @@ export function supportsLegacyAeatTxt(model: FiscalModelId): boolean {
     model === "180" ||
     model === "190" ||
     model === "347" ||
-    model === "349" ||
     model === "390"
   )
 }

@@ -28,6 +28,7 @@ import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 import { buildModel303ValidationOnly } from "@gestoria/tax-engine"
 import { LEGACY_AEAT_RECORD_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-legacy"
 import { MODEL_347_RECORD_LENGTH, model347FileIssues } from "@/lib/fiscal/model-347/generate-file"
+import { MODEL_349_RECORD_LENGTH, model349FileIssues } from "@/lib/fiscal/model-349/generate-file"
 
 export interface AeatSubmissionValidationIssue {
   code: string
@@ -262,6 +263,46 @@ export function validateAeatSubmission(
       valid: !hasErrors,
       modelCode: detail.modelCode,
       recordCount: 1,
+      casillaCount: casillas.length,
+      filename: buildAeatTxtFilename(detail, companyCif),
+      issues,
+    }
+  }
+
+  if (detail.modelCode === "349") {
+    const lines = content.split(/\r?\n/).filter(Boolean)
+    issues.push(
+      ...model349FileIssues(detail, companyName, companyCif).map((issue) => ({
+        ...issue,
+        severity: "error" as const,
+      })),
+    )
+    if (lines.some((line) => line.length !== MODEL_349_RECORD_LENGTH)) {
+      issues.push({
+        code: "RECORD_LENGTH",
+        message: `Cada registro del modelo 349 debe ocupar ${MODEL_349_RECORD_LENGTH} posiciones.`,
+        severity: "error",
+      })
+    }
+    if (lines[0] && !lines[0].startsWith("1349")) {
+      issues.push({
+        code: "DECLARANT_RECORD",
+        message: "El primer registro debe ser el declarante del modelo 349.",
+        severity: "error",
+      })
+    }
+    if (lines.some((line, index) => index > 0 && !line.startsWith("2349"))) {
+      issues.push({
+        code: "OPERATOR_RECORD",
+        message: "Los registros de detalle deben ser operadores del modelo 349.",
+        severity: "error",
+      })
+    }
+    const hasErrors = issues.some((issue) => issue.severity === "error")
+    return {
+      valid: !hasErrors,
+      modelCode: detail.modelCode,
+      recordCount: lines.length,
       casillaCount: casillas.length,
       filename: buildAeatTxtFilename(detail, companyCif),
       issues,
