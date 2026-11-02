@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import type { CompanySiiMode } from "@/lib/company/sii"
 
 export interface CompanyTaxIdentity {
   name: string
@@ -6,6 +7,9 @@ export interface CompanyTaxIdentity {
   taxDirectDebitIban: string | null
   salesCollectionIban: string | null
   salesCollectionBank: string | null
+  siiMode: CompanySiiMode
+  cashBasisSubject: boolean
+  cashBasisRecipient: boolean
 }
 
 function normalizeTaxId(value: string | null | undefined): string | null {
@@ -23,6 +27,9 @@ export async function resolveCompanyTaxIdentity(companyId: string): Promise<Comp
       taxDirectDebitIban: true,
       salesCollectionIban: true,
       salesCollectionBank: true,
+      siiMode: true,
+      cashBasisSubject: true,
+      cashBasisRecipient: true,
       digitalCertificate: {
         select: {
           taxId: true,
@@ -46,5 +53,8 @@ export async function resolveCompanyTaxIdentity(companyId: string): Promise<Comp
     taxDirectDebitIban: company.taxDirectDebitIban,
     salesCollectionIban: company.salesCollectionIban,
     salesCollectionBank: company.salesCollectionBank,
+    siiMode: company.siiMode,
+    cashBasisSubject: company.cashBasisSubject,
+    cashBasisRecipient: company.cashBasisRecipient,
   }
 }

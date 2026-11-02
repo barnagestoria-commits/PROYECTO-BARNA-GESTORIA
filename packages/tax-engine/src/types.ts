@@ -16,6 +16,8 @@ export interface Model303FilingOptions {
     type: "PRE" | "POST"
   }
   voluntarySii?: boolean
+  /** Censo de la empresa: inscrita en el SII. No se escribe en el fichero. */
+  siiSubject?: boolean
   /** Obligatorio para 4T: exoneración del modelo 390. */
   annualSummaryExempt?: boolean
   /** Obligatorio para 4T: volumen anual de operaciones distinto de cero. */

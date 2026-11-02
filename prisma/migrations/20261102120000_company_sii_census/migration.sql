@@ -1,0 +1,6 @@
+CREATE TYPE "CompanySiiMode" AS ENUM ('NONE', 'OBLIGATORIO', 'VOLUNTARIO');
+
+ALTER TABLE "Company"
+ADD COLUMN "siiMode" "CompanySiiMode" NOT NULL DEFAULT 'NONE',
+ADD COLUMN "cashBasisSubject" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "cashBasisRecipient" BOOLEAN NOT NULL DEFAULT false;

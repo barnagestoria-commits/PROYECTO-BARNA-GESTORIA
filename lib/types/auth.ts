@@ -1,3 +1,7 @@
+import type { CompanySiiMode } from "@/lib/company/sii"
+
+export type { CompanySiiMode }
+
 export type AccountType = "GESTORIA" | "CLIENTE_FINAL" | "EMPRESA"
 
 export type UserRole = "ADMIN_GESTOR" | "GESTOR" | "CLIENTE"
@@ -17,6 +21,9 @@ export interface CompanySummary {
   salesCollectionBank?: string | null
   /** CNAE-2025 de la actividad principal, cuatro cifras. */
   cnae?: string | null
+  siiMode?: CompanySiiMode
+  cashBasisSubject?: boolean
+  cashBasisRecipient?: boolean
 }
 
 export interface AuthUser {
@@ -43,6 +50,9 @@ export interface UpdateUserProfileRequest {
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
   cnae?: string | null
+  siiMode?: CompanySiiMode
+  cashBasisSubject?: boolean
+  cashBasisRecipient?: boolean
 }
 
 export interface AuthSession {

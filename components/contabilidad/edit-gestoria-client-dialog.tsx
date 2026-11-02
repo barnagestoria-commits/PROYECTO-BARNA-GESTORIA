@@ -26,6 +26,8 @@ import {
   syncPresentationWithAccountingPlan,
 } from "@/lib/contabilidad/gestoria-presentation-config"
 import { cn } from "@/lib/utils"
+import { VatCensusFields } from "@/components/company/vat-census-fields"
+import { resolveCompanySiiMode, type CompanySiiMode, type CompanyVatCensus } from "@/lib/company/sii"
 
 interface EditGestoriaClientDialogProps {
   open: boolean
@@ -88,6 +90,9 @@ export function EditGestoriaClientDialog({
   const [name, setName] = useState("")
   const [cif, setCif] = useState("")
   const [cnae, setCnae] = useState("")
+  const [siiMode, setSiiMode] = useState<CompanySiiMode>("NONE")
+  const [cashBasisSubject, setCashBasisSubject] = useState(false)
+  const [cashBasisRecipient, setCashBasisRecipient] = useState(false)
   const [profile, setProfile] = useState<GestoriaClientProfileDto>(
     createEmptyGestoriaProfile("01564"),
   )
@@ -103,10 +108,17 @@ export function EditGestoriaClientDialog({
       `/api/companies/${companyId}`,
     )
       .then((data) => {
+        const mode = resolveCompanySiiMode(data.client.siiMode, data.client.profile.impresos.siiEnabled)
         setName(data.client.name)
         setCif(data.client.cif ?? "")
         setCnae(data.client.cnae ?? "")
-        setProfile(data.client.profile)
+        setSiiMode(mode)
+        setCashBasisSubject(Boolean(data.client.cashBasisSubject))
+        setCashBasisRecipient(Boolean(data.client.cashBasisRecipient))
+        setProfile({
+          ...data.client.profile,
+          impresos: { ...data.client.profile.impresos, siiEnabled: mode !== "NONE" },
+        })
       })
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
@@ -124,9 +136,13 @@ export function EditGestoriaClientDialog({
     if (!companyId) return
     void apiFetch<{ success: true; client: GestoriaClientDetailDto }>(`/api/companies/${companyId}`)
       .then((data) => {
+        const mode = resolveCompanySiiMode(data.client.siiMode, data.client.profile.impresos.siiEnabled)
         setName(data.client.name)
         setCif(data.client.cif ?? "")
         setCnae(data.client.cnae ?? "")
+        setSiiMode(mode)
+        setCashBasisSubject(Boolean(data.client.cashBasisSubject))
+        setCashBasisRecipient(Boolean(data.client.cashBasisRecipient))
       })
       .catch(() => undefined)
   }, [companyId])
@@ -187,13 +203,31 @@ export function EditGestoriaClientDialog({
     }))
   }
 
+  const applyCensus = (next: CompanyVatCensus) => {
+    setSiiMode(next.siiMode)
+    setCashBasisSubject(next.cashBasisSubject)
+    setCashBasisRecipient(next.cashBasisRecipient)
+    setProfile((current) => ({
+      ...current,
+      impresos: { ...current.impresos, siiEnabled: next.siiMode !== "NONE" },
+    }))
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     try {
       await apiFetch(`/api/companies/${companyId}`, {
         method: "PATCH",
-        body: JSON.stringify({ name, cif, cnae, profile }),
+        body: JSON.stringify({
+          name,
+          cif,
+          cnae,
+          profile,
+          siiMode,
+          cashBasisSubject,
+          cashBasisRecipient,
+        }),
       })
       onSaved()
       onClose()
@@ -278,6 +312,12 @@ export function EditGestoriaClientDialog({
                       Dato mercantil obligatorio. Hacienda lo pide en el modelo 202.
                     </p>
                   </Field>
+                  <div className="md:col-span-2">
+                    <VatCensusFields
+                      value={{ siiMode, cashBasisSubject, cashBasisRecipient }}
+                      onChange={applyCensus}
+                    />
+                  </div>
                   <Field label="Nombre / Razón social" className="md:col-span-2">
                     <Input value={name} onChange={(e) => setName(e.target.value)} />
                   </Field>
@@ -538,13 +578,19 @@ export function EditGestoriaClientDialog({
                   />
                   <CheckboxField
                     label="Suministro Inmediato de Información (SII)"
-                    checked={Boolean(profile.impresos.siiEnabled)}
+                    checked={siiMode !== "NONE"}
                     onChange={(checked) =>
-                      updateProfile({
-                        impresos: { ...profile.impresos, siiEnabled: checked },
+                      applyCensus({
+                        siiMode: checked ? (siiMode === "NONE" ? "VOLUNTARIO" : siiMode) : "NONE",
+                        cashBasisSubject,
+                        cashBasisRecipient,
                       })
                     }
                   />
+                  <p className="text-xs text-graphite-500 md:col-span-2">
+                    Obligatorio o voluntario se elige en Datos generales. Esa respuesta es la que
+                    escribe el modelo 303.
+                  </p>
                 </div>
               </TabsContent>
 

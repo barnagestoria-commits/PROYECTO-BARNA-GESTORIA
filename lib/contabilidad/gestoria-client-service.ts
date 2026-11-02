@@ -20,6 +20,7 @@ import {
   profileRecordToDto,
 } from "@/lib/contabilidad/gestoria-client-profile-serializers"
 import { parseCnae } from "@/lib/company/cnae"
+import { parseCensusBoolean, parseSiiMode, resolveCompanySiiMode } from "@/lib/company/sii"
 import type { CompanySummary, UserRole } from "@/lib/types/auth"
 
 export type GestoriaClientEntityType = "juridica" | "fisica"
@@ -36,6 +37,9 @@ export interface UpdateGestoriaClientInput {
   name: string
   cif?: string
   cnae?: string | null
+  siiMode?: GestoriaClientDetailDto["siiMode"]
+  cashBasisSubject?: boolean
+  cashBasisRecipient?: boolean
   profile: GestoriaClientProfileDto
 }
 
@@ -213,12 +217,17 @@ export async function getGestoriaClientDetail(
       },
     }))
 
+  const profile = profileRecordToDto(profileRecord, fiscalSettings)
+
   return {
     id: company.id,
     name: company.name,
     cif: company.cif,
     cnae: company.cnae,
-    profile: profileRecordToDto(profileRecord, fiscalSettings),
+    siiMode: resolveCompanySiiMode(company.siiMode, profile.impresos.siiEnabled),
+    cashBasisSubject: company.cashBasisSubject,
+    cashBasisRecipient: company.cashBasisRecipient,
+    profile,
     fiscalSettings,
   }
 }
@@ -238,7 +247,20 @@ export async function updateGestoriaClientCompany(
 
   const cif = normalizeCif(input.cif)
   const cnae = parseCnae(input.cnae)
-  const profileData = profileDtoToRecordData(input.profile)
+  const siiMode = parseSiiMode(input.siiMode)
+  const cashBasisSubject = parseCensusBoolean(input.cashBasisSubject)
+  const cashBasisRecipient = parseCensusBoolean(input.cashBasisRecipient)
+  const profile: GestoriaClientProfileDto =
+    siiMode === undefined
+      ? input.profile
+      : {
+          ...input.profile,
+          impresos: {
+            ...input.profile.impresos,
+            siiEnabled: siiMode !== "NONE",
+          },
+        }
+  const profileData = profileDtoToRecordData(profile)
 
   await prisma.$transaction(async (tx) => {
     await tx.company.update({
@@ -247,6 +269,9 @@ export async function updateGestoriaClientCompany(
         name,
         cif,
         ...(cnae !== undefined ? { cnae } : {}),
+        ...(siiMode !== undefined ? { siiMode } : {}),
+        ...(cashBasisSubject !== undefined ? { cashBasisSubject } : {}),
+        ...(cashBasisRecipient !== undefined ? { cashBasisRecipient } : {}),
       },
     })
 
@@ -255,7 +280,7 @@ export async function updateGestoriaClientCompany(
     })
 
     const fiscalPayload = fiscalSettingsFromProfileImpresos(
-      input.profile,
+      profile,
       currentFiscal ? mapRecordToDto(currentFiscal) : DEFAULT_SETTINGS_BY_PROFILE.PYME,
     )
 

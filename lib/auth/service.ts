@@ -24,6 +24,7 @@ import {
 } from "@/lib/auth/session-cookie"
 import { parseOptionalBankName, parseOptionalIban } from "@/lib/banking/iban"
 import { parseCnae } from "@/lib/company/cnae"
+import { parseCensusBoolean, parseSiiMode } from "@/lib/company/sii"
 
 function createSessionToken(): string {
   return randomBytes(32).toString("hex")
@@ -42,6 +43,9 @@ function toCompanySummary(company: {
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
   cnae?: string | null
+  siiMode?: CompanySummary["siiMode"]
+  cashBasisSubject?: boolean
+  cashBasisRecipient?: boolean
 }): CompanySummary {
   return {
     id: company.id,
@@ -56,6 +60,9 @@ function toCompanySummary(company: {
     salesCollectionIban: company.salesCollectionIban ?? null,
     salesCollectionBank: company.salesCollectionBank ?? null,
     cnae: company.cnae ?? null,
+    siiMode: company.siiMode ?? "NONE",
+    cashBasisSubject: company.cashBasisSubject ?? false,
+    cashBasisRecipient: company.cashBasisRecipient ?? false,
   }
 }
 
@@ -80,6 +87,9 @@ async function getCompaniesForUser(
         salesCollectionIban: true,
         salesCollectionBank: true,
         cnae: true,
+        siiMode: true,
+        cashBasisSubject: true,
+        cashBasisRecipient: true,
       },
     }),
     prisma.userCompanyAccess.findMany({
@@ -413,6 +423,9 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
   const salesCollectionIban = parseOptionalIban(input.salesCollectionIban)
   const salesCollectionBank = parseOptionalBankName(input.salesCollectionBank)
   const cnae = parseCnae(input.cnae)
+  const siiMode = parseSiiMode(input.siiMode)
+  const cashBasisSubject = parseCensusBoolean(input.cashBasisSubject)
+  const cashBasisRecipient = parseCensusBoolean(input.cashBasisRecipient)
 
   if (name !== undefined && !name) {
     throw new Error("El nombre es obligatorio.")
@@ -472,6 +485,9 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
           ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
           ...(cnae !== undefined ? { cnae } : {}),
+          ...(siiMode !== undefined ? { siiMode } : {}),
+          ...(cashBasisSubject !== undefined ? { cashBasisSubject } : {}),
+          ...(cashBasisRecipient !== undefined ? { cashBasisRecipient } : {}),
         },
       })
     } else if (
@@ -481,7 +497,10 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
         taxDirectDebitBank !== undefined ||
         salesCollectionIban !== undefined ||
         salesCollectionBank !== undefined ||
-        cnae !== undefined) &&
+        cnae !== undefined ||
+        siiMode !== undefined ||
+        cashBasisSubject !== undefined ||
+        cashBasisRecipient !== undefined) &&
       session.activeCompanyId
     ) {
       if (!session.companies.some((company) => company.id === session.activeCompanyId)) {
@@ -498,6 +517,9 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
           ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
           ...(cnae !== undefined ? { cnae } : {}),
+          ...(siiMode !== undefined ? { siiMode } : {}),
+          ...(cashBasisSubject !== undefined ? { cashBasisSubject } : {}),
+          ...(cashBasisRecipient !== undefined ? { cashBasisRecipient } : {}),
         },
       })
     }

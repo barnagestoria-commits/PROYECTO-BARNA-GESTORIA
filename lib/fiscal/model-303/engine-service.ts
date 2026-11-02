@@ -94,7 +94,7 @@ interface PersistModel303Options {
   companyName: string
   companyCif: string | null | undefined
   eventType: "DRAFT_VALIDATED" | "EXPORT_GENERATED"
-  taxDirectDebitIban?: string | null
+  fileOptions?: Model303FileOptions
 }
 
 export async function persistModel303EngineResult(options: PersistModel303Options): Promise<{
@@ -105,7 +105,7 @@ export async function persistModel303EngineResult(options: PersistModel303Option
     options.detail,
     options.companyName,
     options.companyCif,
-    { taxDirectDebitIban: options.taxDirectDebitIban },
+    options.fileOptions,
   )
   const { artifact, casillas, context, source } = result
   const status = artifact.validation.valid ? TaxReturnStatus.VALIDATED : TaxReturnStatus.DRAFT

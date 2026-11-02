@@ -13,6 +13,8 @@ import { GestoriaTeamPanel } from "@/components/settings/gestoria-team-panel"
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 import { formatIbanDisplay } from "@/lib/banking/iban"
 import { SPANISH_BANK_NAMES, SPANISH_BANKS_DATALIST_ID } from "@/lib/banking/spanish-banks"
+import { VatCensusFields } from "@/components/company/vat-census-fields"
+import type { CompanySiiMode } from "@/lib/company/sii"
 
 const SETTINGS_LINKS = [
   {
@@ -42,6 +44,9 @@ interface ProfileFormState {
   salesCollectionIban: string
   salesCollectionBank: string
   cnae: string
+  siiMode: CompanySiiMode
+  cashBasisSubject: boolean
+  cashBasisRecipient: boolean
 }
 
 function formatSpanishDate(iso: string | null | undefined): string {
@@ -70,6 +75,9 @@ export function AccountSettingsPage() {
     salesCollectionIban: "",
     salesCollectionBank: "",
     cnae: "",
+    siiMode: "NONE",
+    cashBasisSubject: false,
+    cashBasisRecipient: false,
   })
 
   const canEditAccountName =
@@ -92,6 +100,9 @@ export function AccountSettingsPage() {
       salesCollectionIban: formatIbanDisplay(activeCompany?.salesCollectionIban),
       salesCollectionBank: activeCompany?.salesCollectionBank ?? "",
       cnae: activeCompany?.cnae ?? "",
+      siiMode: activeCompany?.siiMode ?? "NONE",
+      cashBasisSubject: activeCompany?.cashBasisSubject ?? false,
+      cashBasisRecipient: activeCompany?.cashBasisRecipient ?? false,
     })
   }, [
     session,
@@ -103,6 +114,9 @@ export function AccountSettingsPage() {
     activeCompany?.salesCollectionIban,
     activeCompany?.salesCollectionBank,
     activeCompany?.cnae,
+    activeCompany?.siiMode,
+    activeCompany?.cashBasisSubject,
+    activeCompany?.cashBasisRecipient,
   ])
 
   if (!session) return null
@@ -121,6 +135,9 @@ export function AccountSettingsPage() {
       salesCollectionIban: formatIbanDisplay(activeCompany?.salesCollectionIban),
       salesCollectionBank: activeCompany?.salesCollectionBank ?? "",
       cnae: activeCompany?.cnae ?? "",
+      siiMode: activeCompany?.siiMode ?? "NONE",
+      cashBasisSubject: activeCompany?.cashBasisSubject ?? false,
+      cashBasisRecipient: activeCompany?.cashBasisRecipient ?? false,
     })
     setErrorMessage(null)
     setSuccessMessage(null)
@@ -149,6 +166,9 @@ export function AccountSettingsPage() {
                 salesCollectionIban: form.salesCollectionIban || null,
                 salesCollectionBank: form.salesCollectionBank || null,
                 cnae: form.cnae || null,
+                siiMode: form.siiMode,
+                cashBasisSubject: form.cashBasisSubject,
+                cashBasisRecipient: form.cashBasisRecipient,
               }
             : {}),
         }),
@@ -342,6 +362,22 @@ export function AccountSettingsPage() {
             se aplica la minoración de 100 € del art. 110.3.c del Reglamento del IRPF. Si es anterior,
             la minoración se calcula con el rendimiento del ejercicio previo que haya en los libros.
           </p>
+
+          {activeCompany ? (
+            <VatCensusFields
+              value={{
+                siiMode: isEditing ? form.siiMode : (activeCompany.siiMode ?? "NONE"),
+                cashBasisSubject: isEditing
+                  ? form.cashBasisSubject
+                  : Boolean(activeCompany.cashBasisSubject),
+                cashBasisRecipient: isEditing
+                  ? form.cashBasisRecipient
+                  : Boolean(activeCompany.cashBasisRecipient),
+              }}
+              disabled={!isEditing}
+              onChange={(next) => setForm((current) => ({ ...current, ...next }))}
+            />
+          ) : null}
 
           <div className="space-y-3 border-t border-sand-200 pt-4">
             <div className="flex items-center gap-2">

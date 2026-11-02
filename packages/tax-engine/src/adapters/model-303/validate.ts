@@ -225,17 +225,23 @@ export function validateModel303Export(content: string, context: TaxReturnContex
       options.exclusivelyForal ||
       options.registeredMonthlyRefund ||
       options.jointReturn ||
-      options.cashBasisSubject ||
-      options.cashBasisRecipient ||
       options.specialProrataOption ||
       options.specialProrataRevocation ||
-      options.bankruptcy ||
-      options.voluntarySii
+      options.bankruptcy
     ) {
       issues.push({
         code: "UNSUPPORTED_303_SCENARIO",
         message: "Este adaptador solo está certificado para régimen general trimestral sin supuestos especiales.",
         severity: "error",
+      })
+    }
+
+    if ((options.voluntarySii || options.siiSubject) && /^[1-4]T$/.test(period)) {
+      issues.push({
+        code: "SII_QUARTERLY_PERIOD",
+        message:
+          "La empresa está en el SII y el fichero es trimestral. Hacienda pide el modelo 303 en periodos mensuales, del 01 al 12.",
+        severity: "warning",
       })
     }
 

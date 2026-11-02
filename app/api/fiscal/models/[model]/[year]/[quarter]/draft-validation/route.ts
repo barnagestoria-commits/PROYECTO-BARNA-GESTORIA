@@ -4,6 +4,7 @@ import { buildOfficialAeatDraftBundle } from "@/lib/fiscal/aeat/build-official-s
 import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-service"
 import { parseDetailQuarter } from "@/lib/fiscal/panorama"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
+import { withCompanyVatCensus } from "@/lib/fiscal/model-303/resolve-export-options-from-request"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 
 export const runtime = "nodejs"
@@ -44,7 +45,12 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Empresa no encontrada." }, { status: 404 })
     }
 
-    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {})
+    const bundle = await buildOfficialAeatDraftBundle(
+      detail,
+      company.name,
+      company.cif,
+      detail.modelCode === "303" ? withCompanyVatCensus({}, company) : {},
+    )
 
     return NextResponse.json({
       success: true,

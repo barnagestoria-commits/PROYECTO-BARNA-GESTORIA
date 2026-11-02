@@ -8,6 +8,7 @@ import {
   type TaxReturnContext,
 } from "@gestoria/tax-engine"
 import { buildModel303CasillaValues } from "@/lib/fiscal/model-303/official-layout"
+import type { CompanySiiMode } from "@/lib/company/sii"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
 function quarterToPeriod(quarter: FiscalModelDetailResponse["quarter"]): string {
@@ -17,6 +18,10 @@ function quarterToPeriod(quarter: FiscalModelDetailResponse["quarter"]): string 
 
 export interface Model303FileOptions {
   taxDirectDebitIban?: string | null
+  cashBasisSubject?: boolean
+  cashBasisRecipient?: boolean
+  voluntarySii?: boolean
+  siiMode?: CompanySiiMode
 }
 
 export function buildTaxEngine303Context(
@@ -41,11 +46,13 @@ export function buildTaxEngine303Context(
       exclusivelyForal: false,
       registeredMonthlyRefund: false,
       jointReturn: false,
-      cashBasisSubject: false,
-      cashBasisRecipient: false,
+      cashBasisSubject: options?.cashBasisSubject ?? false,
+      cashBasisRecipient: options?.cashBasisRecipient ?? false,
       specialProrataOption: false,
       specialProrataRevocation: false,
-      voluntarySii: false,
+      voluntarySii: options?.voluntarySii ?? false,
+      siiSubject:
+        options?.siiMode === "OBLIGATORIO" || options?.siiMode === "VOLUNTARIO",
     },
     software: developerNif
       ? {

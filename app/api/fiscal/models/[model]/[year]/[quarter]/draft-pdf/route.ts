@@ -8,6 +8,7 @@ import {
 import { buildFiscalModelDetail, isValidModelCode } from "@/lib/fiscal/panorama-service"
 import { parseDetailQuarter } from "@/lib/fiscal/panorama"
 import { resolveCompanyTaxIdentity } from "@/lib/company/resolve-tax-identity"
+import { withCompanyVatCensus } from "@/lib/fiscal/model-303/resolve-export-options-from-request"
 import { DRAFT_SUPPORTED_MODELS } from "@/lib/fiscal/model-draft/types"
 
 export const runtime = "nodejs"
@@ -55,9 +56,14 @@ export async function GET(request: Request, { params }: RouteContext) {
       return NextResponse.json({ success: false, error: "Empresa no encontrada." }, { status: 404 })
     }
 
-    const bundle = await buildOfficialAeatDraftBundle(detail, company.name, company.cif, {
-      taxDirectDebitIban: company.taxDirectDebitIban,
-    })
+    const bundle = await buildOfficialAeatDraftBundle(
+      detail,
+      company.name,
+      company.cif,
+      detail.modelCode === "303"
+        ? withCompanyVatCensus({ taxDirectDebitIban: company.taxDirectDebitIban }, company)
+        : { taxDirectDebitIban: company.taxDirectDebitIban },
+    )
     if (!bundle.draftPdf) {
       return NextResponse.json(
         { success: false, error: "No se pudo generar el borrador PDF oficial." },
