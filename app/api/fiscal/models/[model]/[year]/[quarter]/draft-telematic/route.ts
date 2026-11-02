@@ -92,7 +92,10 @@ export async function GET(request: Request, { params }: RouteContext) {
         { status: 500 },
       )
     }
-    if ((detail.modelCode === "303" || detail.modelCode === "347" || detail.modelCode === "111") && !bundle.validation.valid) {
+    if (
+      (detail.modelCode === "303" || detail.modelCode === "347" || detail.modelCode === "111" || detail.modelCode === "115") &&
+      !bundle.validation.valid
+    ) {
       return NextResponse.json(
         {
           success: false,

@@ -3,11 +3,13 @@ import {
   generateAeatTxt,
   shouldOfferAeatTxt,
   usesDr111Envelope,
+  usesDr115Envelope,
   usesDr130Envelope,
   usesDr202Envelope,
   usesDr303Envelope,
 } from "@/lib/fiscal/aeat/generate-aeat-txt"
 import { model111ContentIssues, model111FilePeriod } from "@/lib/fiscal/aeat/generate-aeat-txt-111"
+import { model115ContentIssues, model115FilePeriod } from "@/lib/fiscal/aeat/generate-aeat-txt-115"
 import { MODEL_130_PAGE_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
 import {
   MODEL_202_PAGE1_LENGTH,
@@ -172,6 +174,33 @@ export function validateAeatSubmission(
       issues.push({
         code: "DR111_PERIOD",
         message: "El modelo 111 se presenta por trimestre. El resumen anual es el modelo 190.",
+        severity: "error",
+      })
+    }
+    const hasErrors = issues.some((issue) => issue.severity === "error")
+    return {
+      valid: !hasErrors,
+      modelCode: detail.modelCode,
+      recordCount: 1,
+      casillaCount: casillas.length,
+      filename: buildAeatTxtFilename(detail, companyCif),
+      issues,
+    }
+  }
+
+  if (usesDr115Envelope(detail.modelCode)) {
+    const period = model115FilePeriod(detail.quarter)
+    if (period) {
+      issues.push(
+        ...model115ContentIssues(content, detail.year, period).map((issue) => ({
+          ...issue,
+          severity: "error" as const,
+        })),
+      )
+    } else {
+      issues.push({
+        code: "DR115_PERIOD",
+        message: "El modelo 115 se presenta por trimestre. El resumen anual es el modelo 180.",
         severity: "error",
       })
     }

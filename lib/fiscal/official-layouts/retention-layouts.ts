@@ -256,22 +256,71 @@ export function buildOfficialModel111Sections(detail: FiscalModelDetailResponse)
   ]
 }
 
+function isModel115Settlement(line: FiscalModelBreakdownLine): boolean {
+  return /Modelo\s+115/i.test(`${line.concepto} ${line.entryConcept ?? ""}`)
+}
+
+function model115Figures(detail: FiscalModelDetailResponse): { perceptores: number; base: number; retenciones: number } {
+  const all = detail.breakdown.flatMap((section) => section.lines)
+  const contributing = all.filter(
+    (line) => line.category === "contributing" && line.signedAmount > 0 && !isModel115Settlement(line),
+  )
+
+  if (!hasLiquidation(detail) && contributing.length > 0) {
+    const byEntry = new Map<string, FiscalModelBreakdownLine[]>()
+    for (const line of contributing) {
+      const group = byEntry.get(line.entryId) ?? []
+      group.push(line)
+      byEntry.set(line.entryId, group)
+    }
+    let base = 0
+    let retenciones = 0
+    const perceptores = new Set<string>()
+    for (const [entryId, lines] of byEntry) {
+      const retention = round2(lines.reduce((sum, line) => sum + line.signedAmount, 0))
+      if (retention <= 0) continue
+      const siblings = all.filter((line) => line.entryId === entryId)
+      const found = perceptionBase(siblings, ["621"])
+      base = round2(base + (found >= retention ? found : deriveBaseFromRetention(retention, 0.19)))
+      retenciones = round2(retenciones + retention)
+      perceptores.add((lines.find((line) => line.nif?.trim())?.nif ?? entryId).trim().toUpperCase())
+    }
+    return {
+      perceptores: retenciones > 0 ? Math.max(perceptores.size, 1) : 0,
+      base,
+      retenciones,
+    }
+  }
+
+  const retenciones = round2(
+    Math.max(
+      hasLiquidation(detail) ? detail.amount : sectionTotal(detail, "retenciones") || sumContributing(detail) || detail.amount,
+      0,
+    ),
+  )
+  const found = perceptionBase(all, ["621"])
+  return {
+    perceptores: retenciones > 0 ? Math.max(countPerceptores(detail), 1) : 0,
+    base: found >= retenciones && retenciones > 0 ? found : deriveBaseFromRetention(retenciones, 0.19),
+    retenciones,
+  }
+}
+
 export function buildOfficialModel115Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const totalRetenciones = hasLiquidation(detail)
-    ? detail.amount
-    : sectionTotal(detail, "retenciones") || sumContributing(detail) || detail.amount
-  const perceptores = countPerceptores(detail)
-  const base = deriveBaseFromRetention(totalRetenciones, 0.19)
+  const figures = model115Figures(detail)
+  const anteriores = 0
+  const resultado = Math.max(0, round2(figures.retenciones - anteriores))
 
   return [
     {
       id: "arrendamientos",
       title: "Retenciones e ingresos a cuenta — Arrendamiento de inmuebles urbanos",
       casillas: [
-        casillaAmount("115-01", "01", "Número de perceptores", perceptores, "retenciones"),
-        casillaAmount("115-02", "02", "Base de las retenciones e ingresos a cuenta", base, "retenciones"),
-        casillaAmount("115-03", "03", "Retenciones e ingresos a cuenta practicados", totalRetenciones, "retenciones"),
-        casillaAmount("115-04", "04", "Total a ingresar", totalRetenciones, "retenciones", "Resultado del periodo"),
+        casillaAmount("115-01", "01", "Número de perceptores", figures.perceptores, "retenciones"),
+        casillaAmount("115-02", "02", "Base de las retenciones e ingresos a cuenta", figures.base, "retenciones"),
+        casillaAmount("115-03", "03", "Retenciones e ingresos a cuenta", figures.retenciones, "retenciones"),
+        casillaAmount("115-04", "04", "Resultado a ingresar de anteriores declaraciones", anteriores, "retenciones"),
+        casillaAmount("115-05", "05", "Resultado a ingresar", resultado, "retenciones", "Resultado del periodo"),
       ],
     },
   ]

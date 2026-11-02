@@ -10,6 +10,11 @@ import {
   model111FilePeriod,
 } from "@/lib/fiscal/aeat/generate-aeat-txt-111"
 import {
+  buildModel115Filename,
+  generateModel115AeatTxt,
+  model115FilePeriod,
+} from "@/lib/fiscal/aeat/generate-aeat-txt-115"
+import {
   buildModel130Filename,
   generateModel130AeatTxt,
 } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
@@ -40,6 +45,10 @@ export function buildAeatTxtFilename(
 
   if (detail.modelCode === "111") {
     return buildModel111Filename(detail, companyCif)
+  }
+
+  if (detail.modelCode === "115") {
+    return buildModel115Filename(detail, companyCif)
   }
 
   if (detail.modelCode === "130") {
@@ -73,6 +82,10 @@ export function generateAeatTxt(
     return generateModel111AeatTxt(detail, companyName, companyCif)
   }
 
+  if (detail.modelCode === "115") {
+    return generateModel115AeatTxt(detail, companyName, companyCif)
+  }
+
   if (detail.modelCode === "130") {
     return generateModel130AeatTxt(detail, companyName, companyCif)
   }
@@ -99,6 +112,10 @@ export function shouldOfferAeatTxt(
     return model111FilePeriod(detail.quarter) !== null
   }
 
+  if (detail.modelCode === "115") {
+    return model115FilePeriod(detail.quarter) !== null
+  }
+
   if (detail.modelCode === "303") {
     return detail.quarter !== "annual"
   }
@@ -121,6 +138,10 @@ export function usesDr303Envelope(modelCode: FiscalModelId): boolean {
 
 export function usesDr111Envelope(modelCode: FiscalModelId): boolean {
   return modelCode === "111"
+}
+
+export function usesDr115Envelope(modelCode: FiscalModelId): boolean {
+  return modelCode === "115"
 }
 
 export function usesDr130Envelope(modelCode: FiscalModelId): boolean {

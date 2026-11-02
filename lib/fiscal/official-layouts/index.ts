@@ -78,7 +78,12 @@ export function resolveDraftResultAmount(detail: FiscalModelDetailResponse): num
         .find((cell) => cell.code === "30")
       return casilla30?.amount ?? detail.amount
     }
-    case "115":
+    case "115": {
+      const casilla05 = buildOfficialModel115Sections(detail)
+        .flatMap((section) => section.casillas)
+        .find((cell) => cell.code === "05")
+      return casilla05?.amount ?? detail.amount
+    }
     case "123":
     case "130":
       return detail.amount
@@ -101,7 +106,7 @@ export function getResultCasillaLabel(modelCode: FiscalModelId): string {
     case "111":
       return "Total a ingresar [30]"
     case "115":
-      return "Total a ingresar [04]"
+      return "Total a ingresar [05]"
     case "130":
       return "Total a ingresar [19]"
     case "202":
@@ -148,7 +153,8 @@ export const OFFICIAL_CASILLA_LABELS: Record<string, Record<string, string>> = {
     "01": "NUM PERCEPTORES ARRENDAMIENTOS",
     "02": "BASE RETENCIONES ARRENDAMIENTOS",
     "03": "RETENCIONES PRACTICADAS",
-    "04": "TOTAL A INGRESAR",
+    "04": "RESULTADO ANTERIORES DECLARACIONES",
+    "05": "TOTAL A INGRESAR",
   },
   "130": {
     "07": "PAGO FRACCIONADO",

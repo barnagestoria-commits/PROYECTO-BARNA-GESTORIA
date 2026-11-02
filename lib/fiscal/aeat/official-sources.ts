@@ -24,7 +24,7 @@ export interface AeatModelOfficialSource {
   modelCode: FiscalModelId
   label: string
   /** Formato BOE de presentación por fichero. */
-  submissionFormat: "dr303-envelope" | "dr111-envelope" | "dr202-envelope" | "boe-500" | "xml-ws"
+  submissionFormat: "dr303-envelope" | "dr111-envelope" | "dr115-envelope" | "dr202-envelope" | "boe-500" | "xml-ws"
   /** Extensión del fichero de importación en la sede (p. ej. .303, .111). */
   boeFileExtension: string
   recordDesignPath?: string
@@ -59,10 +59,12 @@ export const AEAT_MODEL_OFFICIAL_SOURCES: Partial<Record<FiscalModelId, AeatMode
   "115": {
     modelCode: "115",
     label: "Retenciones arrendamientos — trimestral",
-    submissionFormat: "boe-500",
+    submissionFormat: "dr115-envelope",
     boeFileExtension: ".115",
-    recordDesignPath: AEAT_OFFICIAL_PORTALS.recordDesignsIndex,
-    presentationPath: AEAT_OFFICIAL_PORTALS.declarationsByModel,
+    recordDesignPath:
+      "https://sede.agenciatributaria.gob.es/static_files/Sede/Disenyo_registro/DR_100_199/archivos/DR115e15v13.xls",
+    presentationPath:
+      "https://sede.agenciatributaria.gob.es/Sede/ayuda/consultas-informaticas/presentacion-declaraciones-ayuda-tecnica/modelo-115.html",
   },
   "123": {
     modelCode: "123",
