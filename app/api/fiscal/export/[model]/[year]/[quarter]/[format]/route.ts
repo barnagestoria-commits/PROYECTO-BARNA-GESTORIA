@@ -103,6 +103,20 @@ export async function GET(request: Request, { params }: RouteContext) {
           )
         }
       }
+      if (model === "111") {
+        const validation = validateAeatSubmission(detail, company.name, company.cif)
+        if (!validation.valid) {
+          return NextResponse.json(
+            {
+              success: false,
+              error: validation.issues.find((issue) => issue.severity === "error")?.message
+                ?? "El fichero del modelo 111 no se puede descargar.",
+              issues: validation.issues,
+            },
+            { status: 422 },
+          )
+        }
+      }
     }
 
     if (format === "txt" && !shouldOfferAeatTxt(detail)) {

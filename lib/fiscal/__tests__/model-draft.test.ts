@@ -82,6 +82,79 @@ describe("buildFiscalModelDraft", () => {
     expect(draft.sections.some((section) => section.casillas.some((cell) => cell.code === "09" && cell.amount === 0))).toBe(
       true,
     )
+    expect(draft.resultAmount).toBe(1500)
+  })
+
+  it("separa nómina y honorarios en las casillas 03 y 09 del modelo 111", () => {
+    const detail: FiscalModelDetailResponse = {
+      ...baseDetail,
+      modelCode: "111",
+      modelLabel: "Modelo 111",
+      amount: 350,
+      breakdown: [
+        {
+          key: "retenciones",
+          label: "Retenciones practicadas",
+          total: 350,
+          lines: [
+            {
+              entryId: "nomina",
+              entryDate: "2026-01-31",
+              lineId: "sueldo",
+              cuenta: "640000000000",
+              concepto: "Nomina",
+              debe: 1000,
+              haber: 0,
+              signedAmount: 0,
+              category: "asiento",
+            },
+            {
+              entryId: "nomina",
+              entryDate: "2026-01-31",
+              lineId: "irpf-nomina",
+              cuenta: "475100000000",
+              concepto: "Reten./NOMINA",
+              debe: 0,
+              haber: 200,
+              signedAmount: 200,
+              category: "contributing",
+            },
+            {
+              entryId: "factura",
+              entryDate: "2026-02-10",
+              lineId: "gasto",
+              cuenta: "623000000000",
+              concepto: "Honorarios",
+              debe: 1000,
+              haber: 0,
+              signedAmount: 0,
+              category: "asiento",
+            },
+            {
+              entryId: "factura",
+              entryDate: "2026-02-10",
+              lineId: "irpf-factura",
+              cuenta: "475100000000",
+              concepto: "Reten./BARBA YESTE",
+              debe: 0,
+              haber: 150,
+              signedAmount: 150,
+              category: "contributing",
+            },
+          ],
+        },
+      ],
+    }
+    const draft = buildFiscalModelDraft(detail, "EMPRESA TEST SL", "B12345674")
+    const amount = (code: string) =>
+      draft.sections.flatMap((section) => section.casillas).find((cell) => cell.code === code)?.amount
+    expect(amount("03")).toBe(200)
+    expect(amount("02")).toBe(1000)
+    expect(amount("09")).toBe(150)
+    expect(amount("08")).toBe(1000)
+    expect(amount("28")).toBe(350)
+    expect(amount("30")).toBe(350)
+    expect(draft.resultAmount).toBe(350)
   })
 
   it("builds official casillas for modelo 130 from the imported quarterly result", () => {

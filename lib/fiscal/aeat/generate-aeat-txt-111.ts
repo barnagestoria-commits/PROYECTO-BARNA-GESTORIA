@@ -1,9 +1,10 @@
 /**
  * Fichero de presentación del modelo 111.
- * Diseño de registro DR111e16v18 (ejercicios 2016 y siguientes, página de 1.000 posiciones).
- * Envolvente <T1110…> y bloque <AUX>, igual que el resto de autoliquidaciones de la Sede.
+ * Diseño DR111e16v18 (Orden EHA/3127/2009, ejercicios 2019 y siguientes,
+ * hoja actualizada en 2026). Envolvente de 17, AUX de 311 y página de 1.000.
+ * La hoja 01 empieza en la posición 329 del fichero.
  */
-import { formatAeatNumAmount, normalizeNif } from "@gestoria/tax-engine"
+import { formatAeatNumAmount, isValidSpanishTaxId, normalizeNif } from "@gestoria/tax-engine"
 import { buildOfficialCasillaEntries } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
 
@@ -166,6 +167,168 @@ export function buildModel111Filename(
   const nif = normalizeNif(companyCif).trim() || "SINNIF"
   const period = model111FilePeriod(detail.quarter) ?? "0A"
   return `${nif}${detail.year}${period}.111`
+}
+
+export interface Model111FileIssue {
+  code: string
+  message: string
+}
+
+function readDigits(raw: string): number | null {
+  if (!/^\d+$/.test(raw)) return null
+  return Number(raw)
+}
+
+function readSignedCasilla(raw: string): number | null {
+  if (/^\d{17}$/.test(raw)) return Number(raw) / 100
+  if (/^[-N]\d{16}$/.test(raw)) {
+    const sign = raw[0] === "-" || raw[0] === "N" ? -1 : 1
+    return (sign * Number(raw.slice(1))) / 100
+  }
+  return null
+}
+
+/** Comprueba el fichero contra el diseño v1.8 antes de dejarlo descargar. */
+export function model111ContentIssues(content: string, year: number, period: string): Model111FileIssue[] {
+  const issues: Model111FileIssue[] = []
+  const opening = `<T1110${year}${period}0000>`
+  const closing = `</T1110${year}${period}0000>`
+  if (!content.startsWith(opening) || !content.endsWith(closing) || content.includes("\n") || content.includes("\r")) {
+    issues.push({
+      code: "DR111_ENVELOPE",
+      message: "El fichero del modelo 111 no tiene la envolvente <T1110…> del diseño DR111.",
+    })
+    return issues
+  }
+
+  const auxStart = opening.length
+  const aux = content.slice(auxStart, auxStart + AUX_BLOCK_LENGTH)
+  const pageStart = auxStart + AUX_BLOCK_LENGTH
+  const page = content.slice(pageStart, pageStart + MODEL_111_PAGE_LENGTH)
+  const expectedLength = opening.length + AUX_BLOCK_LENGTH + MODEL_111_PAGE_LENGTH + closing.length
+  if (
+    aux.length !== AUX_BLOCK_LENGTH ||
+    !aux.startsWith("<AUX>") ||
+    !aux.endsWith("</AUX>") ||
+    page.length !== MODEL_111_PAGE_LENGTH ||
+    !page.startsWith("<T11101000>") ||
+    !page.endsWith("</T11101000>") ||
+    content.length !== expectedLength ||
+    content.indexOf("<T11101000>") !== pageStart
+  ) {
+    issues.push({
+      code: "DR111_PAGE",
+      message: "La página del modelo 111 no ocupa 1.000 posiciones a partir de la 329. La Sede rechazaría el fichero.",
+    })
+    return issues
+  }
+
+  const tipo = page[12] ?? " "
+  if (!"INUG".includes(tipo)) {
+    issues.push({
+      code: "DR111_TIPO",
+      message: "El tipo de declaración debe ser I, N, U o G.",
+    })
+  }
+  if (page[11] !== " ") {
+    issues.push({
+      code: "DR111_COMPLEMENTARIA",
+      message: "El indicador de página complementaria tiene que ir en blanco.",
+    })
+  }
+
+  const nif = page.slice(13, 22)
+  if (!/^[A-Z0-9]{9}$/.test(nif) || !isValidSpanishTaxId(nif)) {
+    issues.push({
+      code: "DECLARANT_NIF",
+      message: "El NIF de la empresa no es válido. Hacienda rechazaría el fichero.",
+    })
+  }
+  const apellidos = page.slice(22, 82)
+  const nombre = page.slice(82, 102)
+  if (!apellidos.trim()) {
+    issues.push({
+      code: "DECLARANT_NAME",
+      message: "Falta la razón social de la empresa.",
+    })
+  } else if (!/^[A-Z0-9 ]+$/.test(apellidos) || !/^[A-Z0-9 ]*$/.test(nombre)) {
+    issues.push({
+      code: "DR111_NAME",
+      message: "La razón social contiene caracteres que la Sede no admite.",
+    })
+  }
+
+  const developerNif = aux.slice(83, 92).trim()
+  if (!isValidSpanishTaxId(developerNif)) {
+    issues.push({
+      code: "DR111_DEVELOPER_NIF",
+      message: "El NIF de la empresa desarrolladora del bloque AUX no es válido.",
+    })
+  }
+  if (!/^[A-Z0-9 ]{4}$/.test(aux.slice(75, 79))) {
+    issues.push({
+      code: "DR111_VERSION",
+      message: "La versión del programa en el bloque AUX tiene caracteres no admitidos.",
+    })
+  }
+
+  const amounts = new Map<string, number>()
+  for (const [casilla, position] of Object.entries(CASILLA_POSITION)) {
+    const length = COUNT_CASILLAS.has(casilla) ? 8 : 17
+    const raw = page.slice(position - 1, position - 1 + length)
+    const digits = readDigits(raw)
+    const amount =
+      casilla === "29" ? readSignedCasilla(raw) : digits === null ? null : digits / (COUNT_CASILLAS.has(casilla) ? 1 : 100)
+    if (amount === null) {
+      issues.push({
+        code: "DR111_CASILLA",
+        message: `La casilla ${casilla} tiene caracteres que la Sede marcaría como no válidos.`,
+      })
+    } else {
+      amounts.set(casilla, amount)
+    }
+  }
+
+  const suma = round2(RETENTION_CASILLAS.reduce((sum, code) => sum + (amounts.get(code) ?? 0), 0))
+  const casilla28 = amounts.get("28")
+  const casilla29 = amounts.get("29")
+  const casilla30 = amounts.get("30")
+  if (casilla28 !== undefined && Math.abs(casilla28 - suma) > 0.001) {
+    issues.push({
+      code: "DR111_SUMA",
+      message: "La casilla 28 no coincide con la suma de retenciones e ingresos a cuenta.",
+    })
+  }
+  if (casilla28 !== undefined && casilla29 !== undefined && casilla30 !== undefined) {
+    const expected = Math.max(0, round2(casilla28 - casilla29))
+    if (Math.abs(casilla30 - expected) > 0.001) {
+      issues.push({
+        code: "DR111_RESULTADO",
+        message: "La casilla 30 no coincide con el resultado a ingresar.",
+      })
+    }
+    if (tipo === "I" && casilla30 <= 0) {
+      issues.push({
+        code: "DR111_TIPO",
+        message: "Una declaración a ingresar no puede llevar resultado cero.",
+      })
+    }
+    if (tipo === "N" && casilla30 > 0) {
+      issues.push({
+        code: "DR111_TIPO",
+        message: "Una declaración negativa no puede llevar resultado a ingresar.",
+      })
+    }
+  }
+
+  if (!/^ *$/.test(page.slice(586, 975))) {
+    issues.push({
+      code: "DR111_RESERVED",
+      message: "Hay datos en la zona reservada de la página. La Sede rechazaría el fichero.",
+    })
+  }
+
+  return issues
 }
 
 export function generateModel111AeatTxt(

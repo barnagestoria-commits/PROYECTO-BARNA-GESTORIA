@@ -7,7 +7,7 @@ import {
   usesDr202Envelope,
   usesDr303Envelope,
 } from "@/lib/fiscal/aeat/generate-aeat-txt"
-import { MODEL_111_PAGE_LENGTH, model111FilePeriod } from "@/lib/fiscal/aeat/generate-aeat-txt-111"
+import { model111ContentIssues, model111FilePeriod } from "@/lib/fiscal/aeat/generate-aeat-txt-111"
 import { MODEL_130_PAGE_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-130"
 import {
   MODEL_202_PAGE1_LENGTH,
@@ -161,27 +161,17 @@ export function validateAeatSubmission(
 
   if (usesDr111Envelope(detail.modelCode)) {
     const period = model111FilePeriod(detail.quarter)
-    const opening = period ? `<T1110${detail.year}${period}0000>` : ""
-    const pageStart = content.indexOf("<T11101000>")
-    const page = pageStart >= 0 ? content.slice(pageStart, pageStart + MODEL_111_PAGE_LENGTH) : ""
-    if (!period || !content.startsWith(opening) || !content.includes("<AUX>") || !content.includes("</AUX>")) {
+    if (period) {
+      issues.push(
+        ...model111ContentIssues(content, detail.year, period).map((issue) => ({
+          ...issue,
+          severity: "error" as const,
+        })),
+      )
+    } else {
       issues.push({
-        code: "DR111_ENVELOPE",
-        message: "El fichero del modelo 111 no tiene la envolvente <T1110…> ni el bloque <AUX> del diseño DR111.",
-        severity: "error",
-      })
-    }
-    if (page.length !== MODEL_111_PAGE_LENGTH || !page.endsWith("</T11101000>")) {
-      issues.push({
-        code: "DR111_PAGE",
-        message: `La página 01 del modelo 111 debe ocupar ${MODEL_111_PAGE_LENGTH} posiciones.`,
-        severity: "error",
-      })
-    }
-    if (period && !content.endsWith(`</T1110${detail.year}${period}0000>`)) {
-      issues.push({
-        code: "DR111_CLOSING",
-        message: "Falta el cierre </T1110…> del fichero del modelo 111.",
+        code: "DR111_PERIOD",
+        message: "El modelo 111 se presenta por trimestre. El resumen anual es el modelo 190.",
         severity: "error",
       })
     }

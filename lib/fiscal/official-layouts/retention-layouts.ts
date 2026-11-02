@@ -23,6 +23,104 @@ function retentionFromLines(
   return { perceptores, retenciones, base: deriveBaseFromRetention(retenciones) }
 }
 
+interface Model111Bucket {
+  perceptores: Set<string>
+  base: number
+  retention: number
+}
+
+function emptyModel111Bucket(): Model111Bucket {
+  return { perceptores: new Set(), base: 0, retention: 0 }
+}
+
+function accountDigits(cuenta: string): string {
+  return cuenta.replace(/\D/g, "")
+}
+
+function entryText(lines: FiscalModelBreakdownLine[]): string {
+  return lines.map((line) => `${line.concepto} ${line.entryConcept ?? ""}`).join(" ")
+}
+
+/** 623/649 son actividades económicas. 640/641/642 son nómina (trabajo). */
+function model111Kind(lines: FiscalModelBreakdownLine[]): "activity" | "prize" | "work" {
+  const text = entryText(lines)
+  if (/PREMIO/i.test(text)) return "prize"
+  const accounts = lines.map((line) => accountDigits(line.cuenta))
+  if (accounts.some((account) => account.startsWith("623") || account.startsWith("649"))) return "activity"
+  if (accounts.some((account) => account.startsWith("640") || account.startsWith("641") || account.startsWith("642"))) {
+    return "work"
+  }
+  if (/HONORARIO|PROFESIONAL|ACTIVIDAD ECON/i.test(text)) return "activity"
+  return "work"
+}
+
+function perceptionBase(lines: FiscalModelBreakdownLine[], prefixes: string[]): number {
+  return round2(
+    lines
+      .filter((line) => prefixes.some((prefix) => accountDigits(line.cuenta).startsWith(prefix)))
+      .reduce((sum, line) => sum + Math.max(line.debe - line.haber, 0), 0),
+  )
+}
+
+function model111Buckets(detail: FiscalModelDetailResponse): {
+  work: [number, number, number]
+  activity: [number, number, number]
+  prize: [number, number, number]
+  total: number
+} {
+  const all = detail.breakdown.flatMap((section) => section.lines)
+  const contributing = all.filter((line) => line.category === "contributing" && line.signedAmount > 0)
+  const buckets = {
+    work: emptyModel111Bucket(),
+    activity: emptyModel111Bucket(),
+    prize: emptyModel111Bucket(),
+  }
+  const byEntry = new Map<string, FiscalModelBreakdownLine[]>()
+  for (const line of contributing) {
+    const group = byEntry.get(line.entryId) ?? []
+    group.push(line)
+    byEntry.set(line.entryId, group)
+  }
+
+  for (const [entryId, lines] of byEntry) {
+    const retention = round2(lines.reduce((sum, line) => sum + line.signedAmount, 0))
+    if (retention <= 0) continue
+    const siblings = all.filter((line) => line.entryId === entryId)
+    const kind = model111Kind(siblings)
+    const prefixes = kind === "activity" ? ["623", "649"] : kind === "work" ? ["640", "641", "642"] : []
+    const foundBase = perceptionBase(siblings, prefixes)
+    const rate = kind === "activity" ? 0.15 : 0.19
+    const base = foundBase >= retention ? foundBase : deriveBaseFromRetention(retention, rate)
+    const bucket = buckets[kind]
+    bucket.retention = round2(bucket.retention + retention)
+    bucket.base = round2(bucket.base + base)
+    bucket.perceptores.add((lines.find((line) => line.nif?.trim())?.nif ?? entryId).trim().toUpperCase())
+  }
+
+  const classified = round2(buckets.work.retention + buckets.activity.retention + buckets.prize.retention)
+  if (classified <= 0) {
+    const total = round2(Math.max(detail.amount, 0))
+    buckets.work.retention = total
+    buckets.work.base = deriveBaseFromRetention(total)
+    if (total > 0) buckets.work.perceptores.add("SIN-DETALLE")
+  }
+
+  const asGroup = (bucket: Model111Bucket): [number, number, number] => [
+    bucket.retention > 0 ? Math.max(bucket.perceptores.size, 1) : 0,
+    bucket.base,
+    bucket.retention,
+  ]
+  const work = asGroup(buckets.work)
+  const activity = asGroup(buckets.activity)
+  const prize = asGroup(buckets.prize)
+  return {
+    work,
+    activity,
+    prize,
+    total: round2(work[2] + activity[2] + prize[2]),
+  }
+}
+
 function isDividendLine(line: FiscalModelBreakdownLine): boolean {
   const text = `${line.concepto} ${line.entryConcept ?? ""}`
   return /RETENCI[ÓO]N\s+DIVID|RET\.?\s*DIVID|DIVIDENDOS/i.test(text)
@@ -71,11 +169,9 @@ const MODEL_111_INKIND_LABELS = [
 ] as [string, string, string]
 
 export function buildOfficialModel111Sections(detail: FiscalModelDetailResponse): DraftSection[] {
-  const work = retentionFromLines(detail, () => true)
-  const totalRetenciones = hasLiquidation(detail) ? detail.amount : sumContributing(detail) || detail.amount
-  const base = deriveBaseFromRetention(totalRetenciones)
-  const perceptores = totalRetenciones > 0 ? Math.max(countPerceptores(detail) || work.perceptores, 1) : 0
-  const workGroup: [number, number, number] = [perceptores, base, totalRetenciones]
+  const groups = model111Buckets(detail)
+  const totalRetenciones = groups.total
+  const workGroup = groups.work
 
   return [
     model111Group(
@@ -97,7 +193,7 @@ export function buildOfficialModel111Sections(detail: FiscalModelDetailResponse)
       "II. Rendimientos de actividades económicas — dinerarios",
       ["07", "08", "09"],
       MODEL_111_CASH_LABELS,
-      MODEL_111_EMPTY_GROUP,
+      groups.activity,
     ),
     model111Group(
       "actividades-especie",
@@ -111,7 +207,7 @@ export function buildOfficialModel111Sections(detail: FiscalModelDetailResponse)
       "III. Premios — dinerarios",
       ["13", "14", "15"],
       MODEL_111_CASH_LABELS,
-      MODEL_111_EMPTY_GROUP,
+      groups.prize,
     ),
     model111Group(
       "premios-especie",

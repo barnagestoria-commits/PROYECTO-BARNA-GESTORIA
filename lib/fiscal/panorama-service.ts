@@ -469,11 +469,10 @@ export async function buildFiscalModelDetail(
       : undefined
   let result = calculateModelAmount(modelCode, allLines, year, quarter, calculationOptions, month)
 
-  // El asiento de liquidación 303 sirve para cerrar 472/477, pero no contiene
-  // las bases ni el desglose de tipos necesario para renderizar el modelo.
-  // Para el borrador, recalculamos las casillas desde los asientos origen.
+  // El asiento de liquidación cierra la cuenta, pero no trae perceptores ni bases.
+  // El 303 necesita el desglose de IVA y el 111 el de trabajo frente a profesionales.
   if (
-    modelCode === "303" &&
+    (modelCode === "303" || modelCode === "111") &&
     quarter !== "annual" &&
     result.breakdown.some((section) => section.key === "liquidacion")
   ) {

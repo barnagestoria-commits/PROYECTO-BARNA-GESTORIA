@@ -72,7 +72,12 @@ export function resolveDraftResultAmount(detail: FiscalModelDetailResponse): num
       return buildModel303CasillaValues(detail).cuota71
     case "390":
       return buildModel390CasillaValues(detail).cuota71
-    case "111":
+    case "111": {
+      const casilla30 = buildOfficialModel111Sections(detail)
+        .flatMap((section) => section.casillas)
+        .find((cell) => cell.code === "30")
+      return casilla30?.amount ?? detail.amount
+    }
     case "115":
     case "123":
     case "130":
