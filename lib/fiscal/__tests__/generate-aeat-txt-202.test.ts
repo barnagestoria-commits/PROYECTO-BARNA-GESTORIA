@@ -167,6 +167,12 @@ describe("borrador y fichero del modelo 202", () => {
     expect(validateAeatSubmission(detail, "ITALIANS DO IT BETTER S.L.", "B67330225").valid).toBe(true)
   })
 
+  it("no da por válido el fichero si el NIF no cuadra", () => {
+    const validation = validateAeatSubmission(detail202(), "ITALIANS DO IT BETTER S.L.", "B12345678")
+    expect(validation.valid).toBe(false)
+    expect(validation.issues.some((issue) => issue.code === "DECLARANT_NIF")).toBe(true)
+  })
+
   it("no da por válido el fichero si falta el CNAE", () => {
     const detail = detail202()
     detail.breakdown = detail.breakdown.map((item) => (item.key === "cnae" ? { ...item, label: "" } : item))

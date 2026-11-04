@@ -25,7 +25,7 @@ import {
 } from "@/lib/fiscal/aeat/tax-engine-bridge"
 import { buildOfficialCasillaEntries } from "@/lib/fiscal/official-layouts"
 import type { FiscalModelDetailResponse } from "@/lib/types/fiscal-panorama"
-import { buildModel303ValidationOnly } from "@gestoria/tax-engine"
+import { buildModel303ValidationOnly, isValidSpanishTaxId } from "@gestoria/tax-engine"
 import { LEGACY_AEAT_RECORD_LENGTH } from "@/lib/fiscal/aeat/generate-aeat-txt-legacy"
 import { MODEL_347_RECORD_LENGTH, model347FileIssues } from "@/lib/fiscal/model-347/generate-file"
 import { MODEL_349_RECORD_LENGTH, model349FileIssues } from "@/lib/fiscal/model-349/generate-file"
@@ -255,6 +255,20 @@ export function validateAeatSubmission(
       issues.push({
         code: "DR202_CNAE",
         message: "Indica el CNAE de cuatro cifras de la actividad principal. Sin él, la Sede rechaza el fichero.",
+        severity: "error",
+      })
+    }
+    const declarantNif = (companyCif ?? "").replace(/[^A-Z0-9]/gi, "").toUpperCase()
+    if (!declarantNif) {
+      issues.push({
+        code: "DECLARANT_NIF",
+        message: "Falta el NIF de la empresa en la ficha.",
+        severity: "error",
+      })
+    } else if (!isValidSpanishTaxId(declarantNif)) {
+      issues.push({
+        code: "DECLARANT_NIF",
+        message: "El NIF de la empresa no es válido. Hacienda rechazaría el fichero.",
         severity: "error",
       })
     }

@@ -47,7 +47,14 @@ function cellBackgroundClass(status: FiscalPanoramaCell["status"]): string {
   }
 }
 
-function PanoramaCell({ cell }: { cell: FiscalPanoramaCell }) {
+function PanoramaCell({ cell, unavailable = false }: { cell: FiscalPanoramaCell; unavailable?: boolean }) {
+  if (unavailable) {
+    return (
+      <div className="flex min-w-[120px] flex-col items-end px-2 py-1 text-xs text-graphite-500">
+        No se presenta
+      </div>
+    )
+  }
   const content = (
     <div className="flex min-w-[120px] flex-col items-end gap-1">
       <span
@@ -145,14 +152,20 @@ export function FiscalPanoramaMatrix({ panorama, scope = "trimestral" }: FiscalP
                       <p className="text-xs text-gray-500">{row.description}</p>
                     </div>
                   </TableCell>
-                  {periodKeys.map((periodKey) => (
+                  {periodKeys.map((periodKey) => {
+                    const unavailable = row.modelCode === "202" && periodKey === "q2"
+                    return (
                     <TableCell
                       key={`${row.modelCode}-${periodKey}`}
-                      className={cn("align-top text-right", cellBackgroundClass(row.cells[periodKey].status))}
+                      className={cn(
+                        "align-top text-right",
+                        unavailable ? "bg-gray-50" : cellBackgroundClass(row.cells[periodKey].status),
+                      )}
                     >
-                      <PanoramaCell cell={row.cells[periodKey]} />
+                      <PanoramaCell cell={row.cells[periodKey]} unavailable={unavailable} />
                     </TableCell>
-                  ))}
+                    )
+                  })}
                 </TableRow>
               ))}
             </Fragment>

@@ -103,7 +103,7 @@ export async function GET(request: Request, { params }: RouteContext) {
           )
         }
       }
-      if (model === "111" || model === "115" || model === "349") {
+      if (model === "111" || model === "115" || model === "202" || model === "349") {
         const validation = validateAeatSubmission(detail, company.name, company.cif)
         if (!validation.valid) {
           return NextResponse.json(
@@ -124,7 +124,9 @@ export async function GET(request: Request, { params }: RouteContext) {
         {
           success: false,
           error:
-            "El archivo .txt de Hacienda solo está disponible para modelos trimestrales (111, 115, 130, 303) o el 180 anual.",
+            model === "202"
+              ? "El modelo 202 se presenta en abril (1P), octubre (2P) y diciembre (3P). El segundo trimestre no lleva fichero."
+              : "El archivo .txt de Hacienda solo está disponible para modelos trimestrales (111, 115, 130, 303) o el 180 anual.",
         },
         { status: 400 },
       )
