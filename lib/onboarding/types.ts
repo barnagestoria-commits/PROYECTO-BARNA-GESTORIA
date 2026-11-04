@@ -1,7 +1,10 @@
 import type { AccountType } from "@/lib/types/auth"
 
 export type OnboardingStepId =
+  | "profile"
   | "certificate"
+  | "census"
+  | "profile-rest"
   | "accounts"
   | "quick-entry"
   | "analytic"
@@ -80,13 +83,40 @@ export function getTourStepsForProfile(profile: OnboardingRoleProfile): Onboardi
 
   const baseSteps: OnboardingTourStepDefinition[] = [
     {
+      id: "profile",
+      route: "/configuracion",
+      target: '[data-tour="onboarding-profile"]',
+      title: "La ficha empieza en el perfil",
+      content:
+        "📋 **Aquí nace la ficha fiscal.** El nombre, el NIF y el CNAE de esta pantalla son los que luego usan los modelos. El orden es: certificado digital, modelo 036 y el resto de datos del perfil.",
+      placement: "bottom",
+    },
+    {
       id: "certificate",
       route: "/configuracion/certificado",
       target: '[data-tour="onboarding-certificate"]',
-      title: "Configuración fiscal y certificado digital",
+      title: "Certificado digital",
       content:
-        "🔐 **Primer paso clave:** Sube aquí tu certificado digital (.p12/.pfx) para habilitar la firma inalterable y la comunicación automática con Verifactu/AEAT.",
+        "🔐 **Primer documento:** Sube el certificado .p12 o .pfx y su contraseña. Con él se firma y se presenta ante la AEAT. El archivo no se guarda: solo el NIF y el titular.",
       placement: "bottom",
+    },
+    {
+      id: "census",
+      route: "/configuracion",
+      target: '[data-tour="onboarding-census"]',
+      title: "Modelo 036 o certificado censal",
+      content:
+        "📄 **Segundo documento:** Sube el PDF del modelo 036, del 037 o del certificado de situación censal. Se contrasta con el NIF, el CNAE y el tipo de sociedad de la ficha.",
+      placement: "top",
+    },
+    {
+      id: "profile-rest",
+      route: "/configuracion",
+      target: '[data-tour="onboarding-profile-rest"]',
+      title: "Completa el resto de la ficha",
+      content:
+        "✅ **Cierra el perfil:** Fecha de alta, SII, criterio de caja y la cuenta donde Hacienda puede cargar los impuestos. Pulsa el lápiz, rellena y guarda.",
+      placement: "top",
     },
     accountsStep,
     {

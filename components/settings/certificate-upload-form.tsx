@@ -108,7 +108,7 @@ export function CertificateUploadForm({
           <p className="text-sm font-medium text-pine-900">
             {isDragActive ? "Suelta el certificado aquí" : "Arrastra tu certificado .p12 / .pfx"}
           </p>
-          <p className="mt-1 text-xs text-graphite-500">o haz clic para seleccionar archivo</p>
+          <p className="mt-1 text-xs text-graphite-500">o pulsa para elegir el archivo</p>
           {file && (
             <p className="mt-3 inline-flex max-w-full items-center gap-2 rounded-full bg-white px-3 py-1 text-xs font-medium text-emerald-800 shadow-sm">
               <FileKey2 className="h-3.5 w-3.5 shrink-0" />

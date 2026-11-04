@@ -27,9 +27,14 @@ export async function GET(request: Request) {
     }
 
     const roleProfile = accountTypeToRoleProfile(session.user.accountType)
-    const recommendedStepIds: string[] = []
-    // El certificado se valida en cliente (localStorage demo); el paso se recomienda por defecto
-    recommendedStepIds.push("certificate")
+    const recommendedStepIds: string[] = ["profile", "certificate"]
+    if (session.activeCompanyId) {
+      const company = await prisma.company.findUnique({
+        where: { id: session.activeCompanyId },
+        select: { censusDocumentName: true },
+      })
+      if (!company?.censusDocumentName) recommendedStepIds.push("census")
+    }
     if (!hasFirstAccount) {
       recommendedStepIds.push("accounts")
     }

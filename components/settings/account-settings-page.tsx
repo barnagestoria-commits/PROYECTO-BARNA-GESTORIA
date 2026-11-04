@@ -218,7 +218,7 @@ export function AccountSettingsPage() {
         </p>
       </div>
 
-      <Card className="border-sand-200 shadow-sm">
+      <Card className="border-sand-200 shadow-sm" data-tour="onboarding-profile">
         <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
@@ -423,6 +423,7 @@ export function AccountSettingsPage() {
             />
           ) : null}
 
+          <div className="space-y-4" data-tour="onboarding-profile-rest">
           {activeCompany ? (
             <VatCensusFields
               value={{
@@ -485,6 +486,7 @@ export function AccountSettingsPage() {
                 ))}
               </datalist>
             ) : null}
+          </div>
           </div>
         </CardContent>
       </Card>

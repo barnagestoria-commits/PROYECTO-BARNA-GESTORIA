@@ -87,7 +87,7 @@ export function CorporateCensusFields({
   const hasChanges = Boolean(suggestion && Object.keys(suggestion).length > 0)
 
   return (
-    <div className="space-y-3 rounded-xl border border-sand-200 bg-white p-3">
+    <div className="space-y-3 rounded-xl border border-sand-200 bg-white p-3" data-tour="onboarding-census">
       <div>
         <p className="text-sm font-medium text-pine-900">Censo para el impuesto sobre sociedades</p>
         <p className="mt-1 text-xs leading-relaxed text-graphite-500">

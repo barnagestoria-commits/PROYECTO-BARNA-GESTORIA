@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react"
@@ -14,6 +15,7 @@ import dynamic from "next/dynamic"
 import type { Step, EventData } from "react-joyride"
 import { ACTIONS, EVENTS, STATUS } from "react-joyride"
 import { useAuth } from "@/components/auth-provider"
+import { MobileOnboardingWizard } from "@/components/onboarding/mobile-onboarding-wizard"
 import { OnboardingTooltip } from "@/components/onboarding/onboarding-tooltip"
 import { apiFetch } from "@/lib/api-client"
 import { loadStoredCertificate } from "@/lib/settings/certificate-storage"
@@ -101,10 +103,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const roleLabel = roleProfileLabel(roleProfile)
   const stepDefinitions = useMemo(() => getTourStepsForProfile(roleProfile), [roleProfile])
   const [narrowViewport, setNarrowViewport] = useState(false)
-  const joyrideSteps = useMemo(
-    () => toJoyrideSteps(stepDefinitions, narrowViewport),
-    [narrowViewport, stepDefinitions],
-  )
+  const narrowRef = useRef(false)
+  const joyrideSteps = useMemo(() => toJoyrideSteps(stepDefinitions, false), [stepDefinitions])
 
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
@@ -165,6 +165,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       setIsPaused(false)
       resumeOnboardingLocal()
       await refreshRecommendations()
+      if (narrowRef.current) {
+        setPendingRoute(null)
+        setStepIndex(fromIndex)
+        setRun(true)
+        return
+      }
       await navigateToStep(fromIndex)
     },
     [navigateToStep, refreshRecommendations],
@@ -183,6 +189,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const resumeTour = useCallback(() => {
     setIsPaused(false)
     resumeOnboardingLocal()
+    if (narrowRef.current) {
+      setRun(true)
+      return
+    }
     void navigateToStep(stepIndex)
   }, [navigateToStep, stepIndex])
 
@@ -198,8 +208,11 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   }, [beginTour])
 
   useEffect(() => {
-    const media = window.matchMedia("(max-width: 639px)")
-    const apply = () => setNarrowViewport(media.matches)
+    const media = window.matchMedia("(max-width: 767px)")
+    const apply = () => {
+      narrowRef.current = media.matches
+      setNarrowViewport(media.matches)
+    }
     apply()
     media.addEventListener("change", apply)
     return () => media.removeEventListener("change", apply)
@@ -251,6 +264,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
     function handleResume() {
       setIsPaused(false)
+      if (narrowRef.current) {
+        setRun(true)
+        return
+      }
       void navigateToStep(stepIndex)
     }
 
@@ -303,7 +320,31 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   return (
     <OnboardingContext.Provider value={contextValue}>
       {children}
-      {session && joyrideSteps.length > 0 && (
+      {session && narrowViewport ? (
+        <MobileOnboardingWizard
+          open={run && !isPaused}
+          step={stepDefinitions[stepIndex]}
+          index={stepIndex}
+          total={stepDefinitions.length}
+          onBack={() => setStepIndex((current) => Math.max(0, current - 1))}
+          onNext={() => {
+            if (stepIndex + 1 >= stepDefinitions.length) {
+              void syncOnboardingCompleted()
+              setRun(false)
+              setStepIndex(0)
+              return
+            }
+            setStepIndex((current) => current + 1)
+          }}
+          onPause={pauseTour}
+          onSkip={() => {
+            void syncOnboardingCompleted()
+            setRun(false)
+            setStepIndex(0)
+          }}
+        />
+      ) : null}
+      {session && !narrowViewport && joyrideSteps.length > 0 && (
         <Joyride
           steps={joyrideSteps}
           run={run}
