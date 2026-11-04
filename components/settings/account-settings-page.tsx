@@ -13,7 +13,10 @@ import { GestoriaTeamPanel } from "@/components/settings/gestoria-team-panel"
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 import { formatIbanDisplay } from "@/lib/banking/iban"
 import { SPANISH_BANK_NAMES, SPANISH_BANKS_DATALIST_ID } from "@/lib/banking/spanish-banks"
+import { CorporateCensusFields } from "@/components/company/corporate-census-fields"
 import { VatCensusFields } from "@/components/company/vat-census-fields"
+import type { CensusReading } from "@/lib/company/census-document"
+import type { CorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import type { CompanySiiMode } from "@/lib/company/sii"
 
 const SETTINGS_LINKS = [
@@ -44,6 +47,9 @@ interface ProfileFormState {
   salesCollectionIban: string
   salesCollectionBank: string
   cnae: string
+  corporateTaxCharacter: CorporateTaxCharacter
+  censusDocument: { fileName: string; reading: CensusReading } | null
+  censusDirty: boolean
   siiMode: CompanySiiMode
   cashBasisSubject: boolean
   cashBasisRecipient: boolean
@@ -75,6 +81,9 @@ export function AccountSettingsPage() {
     salesCollectionIban: "",
     salesCollectionBank: "",
     cnae: "",
+    corporateTaxCharacter: "SOCIEDAD",
+    censusDocument: null,
+    censusDirty: false,
     siiMode: "NONE",
     cashBasisSubject: false,
     cashBasisRecipient: false,
@@ -100,6 +109,9 @@ export function AccountSettingsPage() {
       salesCollectionIban: formatIbanDisplay(activeCompany?.salesCollectionIban),
       salesCollectionBank: activeCompany?.salesCollectionBank ?? "",
       cnae: activeCompany?.cnae ?? "",
+      corporateTaxCharacter: activeCompany?.corporateTaxCharacter ?? "SOCIEDAD",
+      censusDocument: null,
+      censusDirty: false,
       siiMode: activeCompany?.siiMode ?? "NONE",
       cashBasisSubject: activeCompany?.cashBasisSubject ?? false,
       cashBasisRecipient: activeCompany?.cashBasisRecipient ?? false,
@@ -114,6 +126,7 @@ export function AccountSettingsPage() {
     activeCompany?.salesCollectionIban,
     activeCompany?.salesCollectionBank,
     activeCompany?.cnae,
+    activeCompany?.corporateTaxCharacter,
     activeCompany?.siiMode,
     activeCompany?.cashBasisSubject,
     activeCompany?.cashBasisRecipient,
@@ -135,6 +148,9 @@ export function AccountSettingsPage() {
       salesCollectionIban: formatIbanDisplay(activeCompany?.salesCollectionIban),
       salesCollectionBank: activeCompany?.salesCollectionBank ?? "",
       cnae: activeCompany?.cnae ?? "",
+      corporateTaxCharacter: activeCompany?.corporateTaxCharacter ?? "SOCIEDAD",
+      censusDocument: null,
+      censusDirty: false,
       siiMode: activeCompany?.siiMode ?? "NONE",
       cashBasisSubject: activeCompany?.cashBasisSubject ?? false,
       cashBasisRecipient: activeCompany?.cashBasisRecipient ?? false,
@@ -166,6 +182,10 @@ export function AccountSettingsPage() {
                 salesCollectionIban: form.salesCollectionIban || null,
                 salesCollectionBank: form.salesCollectionBank || null,
                 cnae: form.cnae || null,
+                corporateTaxCharacter: form.corporateTaxCharacter,
+                ...(form.censusDirty && form.censusDocument
+                  ? { censusDocument: form.censusDocument }
+                  : {}),
                 siiMode: form.siiMode,
                 cashBasisSubject: form.cashBasisSubject,
                 cashBasisRecipient: form.cashBasisRecipient,
@@ -362,6 +382,46 @@ export function AccountSettingsPage() {
             se aplica la minoración de 100 € del art. 110.3.c del Reglamento del IRPF. Si es anterior,
             la minoración se calcula con el rendimiento del ejercicio previo que haya en los libros.
           </p>
+
+          {activeCompany ? (
+            <CorporateCensusFields
+              companyId={activeCompany.id}
+              profile={{
+                cif: isEditing ? form.activeCompanyCif : activeCompany.cif ?? null,
+                cnae: isEditing ? form.cnae : activeCompany.cnae ?? null,
+                corporateTaxCharacter: isEditing
+                  ? form.corporateTaxCharacter
+                  : (activeCompany.corporateTaxCharacter ?? "SOCIEDAD"),
+                siiMode: isEditing ? form.siiMode : (activeCompany.siiMode ?? "NONE"),
+                cashBasisSubject: isEditing
+                  ? form.cashBasisSubject
+                  : Boolean(activeCompany.cashBasisSubject),
+              }}
+              storedFileName={activeCompany.censusDocumentName}
+              storedExtractedAt={activeCompany.censusExtractedAt}
+              storedExtractedJson={activeCompany.censusExtractedJson}
+              disabled={!isEditing}
+              onCharacterChange={(corporateTaxCharacter) =>
+                setForm((current) => ({ ...current, corporateTaxCharacter }))
+              }
+              onApply={({ suggestion, document }) =>
+                setForm((current) => ({
+                  ...current,
+                  ...(suggestion.cif ? { activeCompanyCif: suggestion.cif } : {}),
+                  ...(suggestion.cnae ? { cnae: suggestion.cnae } : {}),
+                  ...(suggestion.corporateTaxCharacter
+                    ? { corporateTaxCharacter: suggestion.corporateTaxCharacter }
+                    : {}),
+                  ...(suggestion.siiMode ? { siiMode: suggestion.siiMode } : {}),
+                  ...(suggestion.cashBasisSubject !== undefined
+                    ? { cashBasisSubject: suggestion.cashBasisSubject }
+                    : {}),
+                  censusDocument: document,
+                  censusDirty: true,
+                }))
+              }
+            />
+          ) : null}
 
           {activeCompany ? (
             <VatCensusFields

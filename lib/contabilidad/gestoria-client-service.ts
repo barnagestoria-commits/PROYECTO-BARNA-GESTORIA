@@ -19,7 +19,9 @@ import {
   profileDtoToRecordData,
   profileRecordToDto,
 } from "@/lib/contabilidad/gestoria-client-profile-serializers"
+import { parseCensusDocumentInput, type CensusReading } from "@/lib/company/census-document"
 import { parseCnae } from "@/lib/company/cnae"
+import { parseCorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import { parseCensusBoolean, parseSiiMode, resolveCompanySiiMode } from "@/lib/company/sii"
 import type { CompanySummary, UserRole } from "@/lib/types/auth"
 
@@ -37,6 +39,8 @@ export interface UpdateGestoriaClientInput {
   name: string
   cif?: string
   cnae?: string | null
+  corporateTaxCharacter?: GestoriaClientDetailDto["corporateTaxCharacter"]
+  censusDocument?: { fileName: string; reading: CensusReading } | null
   siiMode?: GestoriaClientDetailDto["siiMode"]
   cashBasisSubject?: boolean
   cashBasisRecipient?: boolean
@@ -224,6 +228,11 @@ export async function getGestoriaClientDetail(
     name: company.name,
     cif: company.cif,
     cnae: company.cnae,
+    corporateTaxCharacter: company.corporateTaxCharacter,
+    censusDocumentName: company.censusDocumentName,
+    censusDocumentKind: company.censusDocumentKind,
+    censusExtractedAt: company.censusExtractedAt?.toISOString() ?? null,
+    censusExtractedJson: company.censusExtractedJson,
     siiMode: resolveCompanySiiMode(company.siiMode, profile.impresos.siiEnabled),
     cashBasisSubject: company.cashBasisSubject,
     cashBasisRecipient: company.cashBasisRecipient,
@@ -247,6 +256,8 @@ export async function updateGestoriaClientCompany(
 
   const cif = normalizeCif(input.cif)
   const cnae = parseCnae(input.cnae)
+  const corporateTaxCharacter = parseCorporateTaxCharacter(input.corporateTaxCharacter)
+  const censusDocument = parseCensusDocumentInput(input.censusDocument)
   const siiMode = parseSiiMode(input.siiMode)
   const cashBasisSubject = parseCensusBoolean(input.cashBasisSubject)
   const cashBasisRecipient = parseCensusBoolean(input.cashBasisRecipient)
@@ -269,6 +280,22 @@ export async function updateGestoriaClientCompany(
         name,
         cif,
         ...(cnae !== undefined ? { cnae } : {}),
+        ...(corporateTaxCharacter !== undefined ? { corporateTaxCharacter } : {}),
+        ...(censusDocument === undefined
+          ? {}
+          : censusDocument === null
+            ? {
+                censusDocumentName: null,
+                censusDocumentKind: null,
+                censusExtractedAt: null,
+                censusExtractedJson: null,
+              }
+            : {
+                censusDocumentName: censusDocument.fileName,
+                censusDocumentKind: censusDocument.reading.kind,
+                censusExtractedAt: new Date(),
+                censusExtractedJson: JSON.stringify(censusDocument.reading),
+              }),
         ...(siiMode !== undefined ? { siiMode } : {}),
         ...(cashBasisSubject !== undefined ? { cashBasisSubject } : {}),
         ...(cashBasisRecipient !== undefined ? { cashBasisRecipient } : {}),

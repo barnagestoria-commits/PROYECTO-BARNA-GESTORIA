@@ -43,6 +43,16 @@ enum CompanySiiMode {
   VOLUNTARIO
 }
 
+/// Carácter de la entidad en el impuesto sobre sociedades. Decide las páginas del modelo 200.
+enum CorporateTaxCharacter {
+  SOCIEDAD
+  ENTIDAD_CREDITO
+  ASEGURADORA
+  INVERSION_COLECTIVA
+  GARANTIA_RECIPROCA
+  NO_SUJETA
+}
+
 enum FixedAssetAdjustmentKind {
   NINGUNO
   LIBRE_ACELERADA
@@ -168,6 +178,13 @@ model Company {
   salesCollectionBank String?
   /// CNAE-2025 de la actividad principal. Cuatro cifras. Lo exige el modelo 202.
   cnae       String?             @db.VarChar(4)
+  /// Carácter que decide qué páginas lleva el modelo 200.
+  corporateTaxCharacter CorporateTaxCharacter @default(SOCIEDAD)
+  /// Último 036, 037 o certificado de situación censal contrastado con la ficha.
+  censusDocumentName   String?
+  censusDocumentKind   String?   @db.VarChar(32)
+  censusExtractedAt    DateTime?
+  censusExtractedJson  String?
   /// Inscripción en el SII. El voluntario se escribe en la casilla de llevanza electrónica del 303.
   siiMode    CompanySiiMode      @default(NONE)
   /// Acogida al régimen especial del criterio de caja (RECC). Casilla del modelo 303.

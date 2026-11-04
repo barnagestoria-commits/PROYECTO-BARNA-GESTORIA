@@ -23,7 +23,9 @@ import {
   SESSION_COOKIE,
 } from "@/lib/auth/session-cookie"
 import { parseOptionalBankName, parseOptionalIban } from "@/lib/banking/iban"
+import { parseCensusDocumentInput } from "@/lib/company/census-document"
 import { parseCnae } from "@/lib/company/cnae"
+import { parseCorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import { parseCensusBoolean, parseSiiMode } from "@/lib/company/sii"
 
 function createSessionToken(): string {
@@ -43,6 +45,11 @@ function toCompanySummary(company: {
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
   cnae?: string | null
+  corporateTaxCharacter?: CompanySummary["corporateTaxCharacter"]
+  censusDocumentName?: string | null
+  censusDocumentKind?: string | null
+  censusExtractedAt?: Date | null
+  censusExtractedJson?: string | null
   siiMode?: CompanySummary["siiMode"]
   cashBasisSubject?: boolean
   cashBasisRecipient?: boolean
@@ -60,6 +67,13 @@ function toCompanySummary(company: {
     salesCollectionIban: company.salesCollectionIban ?? null,
     salesCollectionBank: company.salesCollectionBank ?? null,
     cnae: company.cnae ?? null,
+    corporateTaxCharacter: company.corporateTaxCharacter ?? "SOCIEDAD",
+    censusDocumentName: company.censusDocumentName ?? null,
+    censusDocumentKind: company.censusDocumentKind ?? null,
+    censusExtractedAt: company.censusExtractedAt
+      ? company.censusExtractedAt.toISOString()
+      : null,
+    censusExtractedJson: company.censusExtractedJson ?? null,
     siiMode: company.siiMode ?? "NONE",
     cashBasisSubject: company.cashBasisSubject ?? false,
     cashBasisRecipient: company.cashBasisRecipient ?? false,
@@ -87,6 +101,11 @@ async function getCompaniesForUser(
         salesCollectionIban: true,
         salesCollectionBank: true,
         cnae: true,
+        corporateTaxCharacter: true,
+        censusDocumentName: true,
+        censusDocumentKind: true,
+        censusExtractedAt: true,
+        censusExtractedJson: true,
         siiMode: true,
         cashBasisSubject: true,
         cashBasisRecipient: true,
@@ -389,6 +408,31 @@ function parseActivityStartDate(value: string | null | undefined): Date | null |
   return parsed
 }
 
+function censusColumns(
+  censusDocument: ReturnType<typeof parseCensusDocumentInput>,
+): {
+  censusDocumentName?: string | null
+  censusDocumentKind?: string | null
+  censusExtractedAt?: Date | null
+  censusExtractedJson?: string | null
+} {
+  if (censusDocument === undefined) return {}
+  if (censusDocument === null) {
+    return {
+      censusDocumentName: null,
+      censusDocumentKind: null,
+      censusExtractedAt: null,
+      censusExtractedJson: null,
+    }
+  }
+  return {
+    censusDocumentName: censusDocument.fileName,
+    censusDocumentKind: censusDocument.reading.kind,
+    censusExtractedAt: new Date(),
+    censusExtractedJson: JSON.stringify(censusDocument.reading),
+  }
+}
+
 function canEditAccountName(session: AuthSession): boolean {
   return (
     session.user.role === "ADMIN_GESTOR" ||
@@ -423,6 +467,8 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
   const salesCollectionIban = parseOptionalIban(input.salesCollectionIban)
   const salesCollectionBank = parseOptionalBankName(input.salesCollectionBank)
   const cnae = parseCnae(input.cnae)
+  const corporateTaxCharacter = parseCorporateTaxCharacter(input.corporateTaxCharacter)
+  const censusDocument = parseCensusDocumentInput(input.censusDocument)
   const siiMode = parseSiiMode(input.siiMode)
   const cashBasisSubject = parseCensusBoolean(input.cashBasisSubject)
   const cashBasisRecipient = parseCensusBoolean(input.cashBasisRecipient)
@@ -485,6 +531,8 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
           ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
           ...(cnae !== undefined ? { cnae } : {}),
+          ...(corporateTaxCharacter !== undefined ? { corporateTaxCharacter } : {}),
+          ...censusColumns(censusDocument),
           ...(siiMode !== undefined ? { siiMode } : {}),
           ...(cashBasisSubject !== undefined ? { cashBasisSubject } : {}),
           ...(cashBasisRecipient !== undefined ? { cashBasisRecipient } : {}),
@@ -498,6 +546,8 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
         salesCollectionIban !== undefined ||
         salesCollectionBank !== undefined ||
         cnae !== undefined ||
+        corporateTaxCharacter !== undefined ||
+        censusDocument !== undefined ||
         siiMode !== undefined ||
         cashBasisSubject !== undefined ||
         cashBasisRecipient !== undefined) &&
@@ -517,6 +567,8 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
           ...(salesCollectionIban !== undefined ? { salesCollectionIban } : {}),
           ...(salesCollectionBank !== undefined ? { salesCollectionBank } : {}),
           ...(cnae !== undefined ? { cnae } : {}),
+          ...(corporateTaxCharacter !== undefined ? { corporateTaxCharacter } : {}),
+          ...censusColumns(censusDocument),
           ...(siiMode !== undefined ? { siiMode } : {}),
           ...(cashBasisSubject !== undefined ? { cashBasisSubject } : {}),
           ...(cashBasisRecipient !== undefined ? { cashBasisRecipient } : {}),

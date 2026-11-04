@@ -26,7 +26,10 @@ import {
   syncPresentationWithAccountingPlan,
 } from "@/lib/contabilidad/gestoria-presentation-config"
 import { cn } from "@/lib/utils"
+import { CorporateCensusFields } from "@/components/company/corporate-census-fields"
 import { VatCensusFields } from "@/components/company/vat-census-fields"
+import type { CensusReading } from "@/lib/company/census-document"
+import type { CorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import { resolveCompanySiiMode, type CompanySiiMode, type CompanyVatCensus } from "@/lib/company/sii"
 
 interface EditGestoriaClientDialogProps {
@@ -90,6 +93,17 @@ export function EditGestoriaClientDialog({
   const [name, setName] = useState("")
   const [cif, setCif] = useState("")
   const [cnae, setCnae] = useState("")
+  const [corporateTaxCharacter, setCorporateTaxCharacter] = useState<CorporateTaxCharacter>("SOCIEDAD")
+  const [censusDocument, setCensusDocument] = useState<{
+    fileName: string
+    reading: CensusReading
+  } | null>(null)
+  const [censusDirty, setCensusDirty] = useState(false)
+  const [storedCensus, setStoredCensus] = useState<{
+    fileName: string | null
+    extractedAt: string | null
+    extractedJson: string | null
+  }>({ fileName: null, extractedAt: null, extractedJson: null })
   const [siiMode, setSiiMode] = useState<CompanySiiMode>("NONE")
   const [cashBasisSubject, setCashBasisSubject] = useState(false)
   const [cashBasisRecipient, setCashBasisRecipient] = useState(false)
@@ -112,6 +126,14 @@ export function EditGestoriaClientDialog({
         setName(data.client.name)
         setCif(data.client.cif ?? "")
         setCnae(data.client.cnae ?? "")
+        setCorporateTaxCharacter(data.client.corporateTaxCharacter ?? "SOCIEDAD")
+        setCensusDocument(null)
+        setCensusDirty(false)
+        setStoredCensus({
+          fileName: data.client.censusDocumentName,
+          extractedAt: data.client.censusExtractedAt,
+          extractedJson: data.client.censusExtractedJson,
+        })
         setSiiMode(mode)
         setCashBasisSubject(Boolean(data.client.cashBasisSubject))
         setCashBasisRecipient(Boolean(data.client.cashBasisRecipient))
@@ -140,6 +162,12 @@ export function EditGestoriaClientDialog({
         setName(data.client.name)
         setCif(data.client.cif ?? "")
         setCnae(data.client.cnae ?? "")
+        setCorporateTaxCharacter(data.client.corporateTaxCharacter ?? "SOCIEDAD")
+        setStoredCensus({
+          fileName: data.client.censusDocumentName,
+          extractedAt: data.client.censusExtractedAt,
+          extractedJson: data.client.censusExtractedJson,
+        })
         setSiiMode(mode)
         setCashBasisSubject(Boolean(data.client.cashBasisSubject))
         setCashBasisRecipient(Boolean(data.client.cashBasisRecipient))
@@ -223,6 +251,8 @@ export function EditGestoriaClientDialog({
           name,
           cif,
           cnae,
+          corporateTaxCharacter,
+          ...(censusDirty && censusDocument ? { censusDocument } : {}),
           profile,
           siiMode,
           cashBasisSubject,
@@ -309,9 +339,45 @@ export function EditGestoriaClientDialog({
                       onChange={(e) => setCnae(e.target.value.replace(/\D/g, "").slice(0, 4))}
                     />
                     <p className="text-xs text-graphite-500">
-                      Dato mercantil obligatorio. Hacienda lo pide en el modelo 202.
+                      Dato mercantil obligatorio. Hacienda lo pide en el modelo 202 y en el 200.
                     </p>
                   </Field>
+                  {companyId ? (
+                    <div className="md:col-span-2">
+                      <CorporateCensusFields
+                        companyId={companyId}
+                        profile={{
+                          cif,
+                          cnae,
+                          corporateTaxCharacter,
+                          siiMode,
+                          cashBasisSubject,
+                        }}
+                        storedFileName={storedCensus.fileName}
+                        storedExtractedAt={storedCensus.extractedAt}
+                        storedExtractedJson={storedCensus.extractedJson}
+                        onCharacterChange={setCorporateTaxCharacter}
+                        onApply={({ suggestion, document }) => {
+                          if (suggestion.cif) setCif(suggestion.cif)
+                          if (suggestion.cnae) setCnae(suggestion.cnae)
+                          if (suggestion.corporateTaxCharacter) {
+                            setCorporateTaxCharacter(suggestion.corporateTaxCharacter)
+                          }
+                          if (suggestion.siiMode) {
+                            applyCensus({
+                              siiMode: suggestion.siiMode,
+                              cashBasisSubject: suggestion.cashBasisSubject ?? cashBasisSubject,
+                              cashBasisRecipient,
+                            })
+                          } else if (suggestion.cashBasisSubject !== undefined) {
+                            setCashBasisSubject(suggestion.cashBasisSubject)
+                          }
+                          setCensusDocument(document)
+                          setCensusDirty(true)
+                        }}
+                      />
+                    </div>
+                  ) : null}
                   <div className="md:col-span-2">
                     <VatCensusFields
                       value={{ siiMode, cashBasisSubject, cashBasisRecipient }}

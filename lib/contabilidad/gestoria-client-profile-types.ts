@@ -7,6 +7,7 @@ import type { RegistroMercantilData } from "@/lib/invoices/types"
 import { createDefaultPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { GestoriaPresentationConfig } from "@/lib/contabilidad/gestoria-presentation-config"
 import type { GestoriaClientEntityType } from "@/lib/contabilidad/gestoria-client-service"
+import type { CorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import type { CompanySiiMode } from "@/lib/company/sii"
 
 export interface GestoriaBankAccount {
@@ -162,6 +163,11 @@ export interface GestoriaClientDetailDto {
   cif: string | null
   /** CNAE-2025 de la actividad principal, cuatro cifras. */
   cnae: string | null
+  corporateTaxCharacter: CorporateTaxCharacter
+  censusDocumentName: string | null
+  censusDocumentKind: string | null
+  censusExtractedAt: string | null
+  censusExtractedJson: string | null
   siiMode: CompanySiiMode
   cashBasisSubject: boolean
   cashBasisRecipient: boolean

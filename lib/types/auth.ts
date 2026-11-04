@@ -1,3 +1,5 @@
+import type { CensusReading } from "@/lib/company/census-document"
+import type { CorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import type { CompanySiiMode } from "@/lib/company/sii"
 
 export type { CompanySiiMode }
@@ -21,6 +23,11 @@ export interface CompanySummary {
   salesCollectionBank?: string | null
   /** CNAE-2025 de la actividad principal, cuatro cifras. */
   cnae?: string | null
+  corporateTaxCharacter?: CorporateTaxCharacter
+  censusDocumentName?: string | null
+  censusDocumentKind?: string | null
+  censusExtractedAt?: string | null
+  censusExtractedJson?: string | null
   siiMode?: CompanySiiMode
   cashBasisSubject?: boolean
   cashBasisRecipient?: boolean
@@ -50,6 +57,8 @@ export interface UpdateUserProfileRequest {
   salesCollectionIban?: string | null
   salesCollectionBank?: string | null
   cnae?: string | null
+  corporateTaxCharacter?: CorporateTaxCharacter
+  censusDocument?: { fileName: string; reading: CensusReading } | null
   siiMode?: CompanySiiMode
   cashBasisSubject?: boolean
   cashBasisRecipient?: boolean
