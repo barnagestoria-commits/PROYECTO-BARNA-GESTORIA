@@ -87,7 +87,7 @@ export function OnboardingTooltip({
             )}
             type="button"
           >
-            {continuous && !isLastStep ? "Siguiente" : "¡Empezar!"}
+            {continuous && !isLastStep ? "Siguiente" : "Terminar"}
           </button>
         </div>
       </div>

@@ -1,10 +1,13 @@
 /**
- * Un clic de Siguiente/Atrás debe mover exactamente un paso.
+ * Un clic de Siguiente/Atrás mueve exactamente un paso.
  * Joyride v3 en modo controlado dispara STEP_AFTER y, si el destino
  * aún no está en el DOM, TARGET_NOT_FOUND. Si ambos avanzan el índice,
- * el tour se salta dos pasos.
+ * el tour muestra dos globos o se salta pasos.
+ * El último Siguiente cierra el tour; no vuelve al paso 1.
  */
 const ADVANCE_ACTIONS = new Set(["next", "prev"])
+
+export type TourAdvanceResult = number | "complete" | null
 
 export function resolveTourAdvance(input: {
   eventType: string
@@ -12,13 +15,18 @@ export function resolveTourAdvance(input: {
   currentIndex: number
   total: number
   moving: boolean
-}): number | null {
+}): TourAdvanceResult {
   if (input.moving) return null
-  if (input.eventType !== "step:after") return null
+  if (input.eventType !== "step:after" && input.eventType !== "tour:end") return null
+  if (input.eventType === "tour:end") return "complete"
   if (!ADVANCE_ACTIONS.has(input.action)) return null
 
-  const nextIndex = input.currentIndex + (input.action === "prev" ? -1 : 1)
-  if (nextIndex < 0 || nextIndex >= input.total) return null
-  if (nextIndex === input.currentIndex) return null
+  if (input.action === "prev") {
+    const previousIndex = input.currentIndex - 1
+    return previousIndex < 0 ? null : previousIndex
+  }
+
+  const nextIndex = input.currentIndex + 1
+  if (nextIndex >= input.total) return "complete"
   return nextIndex
 }

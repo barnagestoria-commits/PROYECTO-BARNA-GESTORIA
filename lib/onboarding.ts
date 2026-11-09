@@ -51,6 +51,11 @@ export function resumeOnboardingLocal() {
   window.dispatchEvent(new CustomEvent(ONBOARDING_RESUME_EVENT))
 }
 
+export function clearOnboardingPausedLocal() {
+  if (typeof window === "undefined") return
+  localStorage.removeItem(ONBOARDING_PAUSED_KEY)
+}
+
 export function startOnboardingTour() {
   if (typeof window === "undefined") return
   localStorage.removeItem(ONBOARDING_STORAGE_KEY)

@@ -3,7 +3,6 @@
 import type { ReactNode } from "react"
 import { Loader2 } from "lucide-react"
 import { SidebarLayout } from "@/components/layout/sidebar-layout"
-import { OnboardingProvider } from "@/components/onboarding/onboarding-provider"
 import { useRequireAuth } from "@/components/auth-provider"
 
 interface DashboardShellProps {
@@ -26,16 +25,14 @@ export function DashboardShell({ children }: DashboardShellProps) {
   }
 
   return (
-    <OnboardingProvider>
-      <SidebarLayout
-        userName={session.user.name}
-        roleLabel={roleLabel}
-        companyName={activeCompany?.name}
-        panelTitle={panelTitle}
-        onLogout={() => logout()}
-      >
-        {children}
-      </SidebarLayout>
-    </OnboardingProvider>
+    <SidebarLayout
+      userName={session.user.name}
+      roleLabel={roleLabel}
+      companyName={activeCompany?.name}
+      panelTitle={panelTitle}
+      onLogout={() => logout()}
+    >
+      {children}
+    </SidebarLayout>
   )
 }

@@ -12,7 +12,7 @@ import {
 } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
-import type { Step, EventData } from "react-joyride"
+import type { EventData, Step, TooltipRenderProps } from "react-joyride"
 import { STATUS } from "react-joyride"
 import { useAuth } from "@/components/auth-provider"
 import { MobileOnboardingWizard } from "@/components/onboarding/mobile-onboarding-wizard"
@@ -22,6 +22,14 @@ import { loadStoredCertificate } from "@/lib/settings/certificate-storage"
 import { resolveTourAdvance } from "@/lib/onboarding/tour-advance"
 import { tourRouteMatches } from "@/lib/onboarding/tour-route"
 import {
+  clearPersistedTourStepIndex,
+  consumeTourAutoStart,
+  persistTourStepIndex,
+  pruneJoyridePortals,
+  readPersistedTourStepIndex,
+  resetTourAutoStartOnLogout,
+} from "@/lib/onboarding/tour-session"
+import {
   accountTypeToRoleProfile,
   getTourStepsForProfile,
   roleProfileLabel,
@@ -29,6 +37,7 @@ import {
   type OnboardingTourStepDefinition,
 } from "@/lib/onboarding/types"
 import {
+  clearOnboardingPausedLocal,
   isOnboardingCompletedLocal,
   isOnboardingPausedLocal,
   ONBOARDING_PAUSE_EVENT,
@@ -111,14 +120,25 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [run, setRun] = useState(false)
   const [stepIndex, setStepIndex] = useState(0)
   const [isPaused, setIsPaused] = useState(false)
+  const [finished, setFinished] = useState(false)
   const [recommendedStepIds, setRecommendedStepIds] = useState<OnboardingStepId[]>([])
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
   const pathnameRef = useRef(pathname)
   const stepIndexRef = useRef(0)
   const movingRef = useRef(false)
-  const autoStartedRef = useRef(false)
+  const finishedRef = useRef(false)
+  const extrasRef = useRef({
+    recommendedStepIds,
+    stepId: stepDefinitions[0]?.id as OnboardingStepId | undefined,
+    roleLabel,
+  })
   pathnameRef.current = pathname
   stepIndexRef.current = stepIndex
+  extrasRef.current = {
+    recommendedStepIds,
+    stepId: stepDefinitions[stepIndex]?.id,
+    roleLabel,
+  }
 
   const refreshRecommendations = useCallback(async () => {
     if (!session) return
@@ -145,39 +165,72 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }
   }, [session])
 
+  const completeTour = useCallback(() => {
+    finishedRef.current = true
+    movingRef.current = false
+    clearPersistedTourStepIndex()
+    setFinished(true)
+    setRun(false)
+    setStepIndex(0)
+    setPendingRoute(null)
+    void syncOnboardingCompleted()
+    window.requestAnimationFrame(() => pruneJoyridePortals())
+  }, [])
+
   const navigateToStep = useCallback(
     async (index: number) => {
-      const definition = stepDefinitions[index]
-      if (!definition) {
+      if (finishedRef.current) {
         movingRef.current = false
+        setRun(false)
         return false
       }
 
+      const definition = stepDefinitions[index]
+      if (!definition) {
+        completeTour()
+        return false
+      }
+
+      persistTourStepIndex(index)
+      setStepIndex(index)
+      setRun(false)
+
       if (!routeMatches(pathnameRef.current, definition.route)) {
-        setRun(false)
         setPendingRoute(definition.route)
-        setStepIndex(index)
         router.push(definition.route)
         return false
       }
 
       await waitForSelector(definition.target)
+      if (finishedRef.current) {
+        movingRef.current = false
+        return false
+      }
       setPendingRoute(null)
-      setStepIndex(index)
-      setRun(true)
       movingRef.current = false
+      setRun(true)
       return true
     },
-    [router, stepDefinitions],
+    [completeTour, router, stepDefinitions],
   )
 
   const beginTour = useCallback(
-    async (fromIndex = 0) => {
+    async (fromIndex = 0, options?: { force?: boolean }) => {
+      if (!options?.force && isOnboardingCompletedLocal()) {
+        finishedRef.current = true
+        setFinished(true)
+        setRun(false)
+        return
+      }
+
+      finishedRef.current = false
       movingRef.current = false
+      setFinished(false)
       setIsPaused(false)
-      resumeOnboardingLocal()
-      await refreshRecommendations()
+      clearOnboardingPausedLocal()
+      void refreshRecommendations()
       if (narrowRef.current) {
+        persistTourStepIndex(fromIndex)
         setPendingRoute(null)
         setStepIndex(fromIndex)
         setRun(true)
@@ -189,26 +242,33 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   )
 
   const startTour = useCallback(() => {
-    void beginTour(0)
+    finishedRef.current = false
+    setFinished(false)
+    const saved = readPersistedTourStepIndex()
+    void beginTour(saved ?? 0, { force: true })
   }, [beginTour])
 
   const pauseTour = useCallback(() => {
     setRun(false)
+    movingRef.current = false
     setIsPaused(true)
     pauseOnboardingLocal()
   }, [])
 
   const resumeTour = useCallback(() => {
+    if (finishedRef.current || isOnboardingCompletedLocal()) return
     setIsPaused(false)
     resumeOnboardingLocal()
     if (narrowRef.current) {
       setRun(true)
       return
     }
-    void navigateToStep(stepIndex)
-  }, [navigateToStep, stepIndex])
+    void navigateToStep(stepIndexRef.current)
+  }, [navigateToStep])
 
   const restartTour = useCallback(() => {
+    finishedRef.current = false
+    setFinished(false)
     void fetch("/api/onboarding", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -216,7 +276,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     }).catch(() => undefined)
     localStorage.removeItem("barna-gestoria-onboarding-v2")
     localStorage.removeItem("barna-gestoria-onboarding-paused")
-    void beginTour(0)
+    clearPersistedTourStepIndex()
+    void beginTour(0, { force: true })
   }, [beginTour])
 
   useEffect(() => {
@@ -240,34 +301,44 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     if (!routeMatches(pathname, pendingRoute)) return
 
     const resume = async () => {
+      if (finishedRef.current) return
       const definition = stepDefinitions[stepIndex]
       if (!definition) {
-        movingRef.current = false
+        completeTour()
         return
       }
       await waitForSelector(definition.target)
+      if (finishedRef.current) {
+        movingRef.current = false
+        return
+      }
       setPendingRoute(null)
-      setRun(true)
       movingRef.current = false
+      setRun(true)
     }
 
     void resume()
-  }, [pathname, pendingRoute, session, stepDefinitions, stepIndex])
+  }, [completeTour, pathname, pendingRoute, session, stepDefinitions, stepIndex])
 
   useEffect(() => {
     if (!session) {
-      autoStartedRef.current = false
+      resetTourAutoStartOnLogout()
+      finishedRef.current = false
       return
     }
-    if (autoStartedRef.current) return
+    if (finishedRef.current || isOnboardingCompletedLocal() || isOnboardingPausedLocal()) {
+      const done = isOnboardingCompletedLocal() || finishedRef.current
+      finishedRef.current = done
+      setFinished(done)
+      setRun(false)
+      return
+    }
+    if (!consumeTourAutoStart()) return
 
-    const completed = isOnboardingCompletedLocal()
-    const paused = isOnboardingPausedLocal()
-    if (completed || paused) return
-
+    const saved = readPersistedTourStepIndex()
     const timer = window.setTimeout(() => {
-      autoStartedRef.current = true
-      void beginTour(0)
+      if (finishedRef.current || isOnboardingCompletedLocal() || isOnboardingPausedLocal()) return
+      void beginTour(saved ?? 0)
     }, 1200)
 
     return () => window.clearTimeout(timer)
@@ -275,19 +346,22 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function handleStart() {
-      void beginTour(0)
+      finishedRef.current = false
+      setFinished(false)
+      void beginTour(readPersistedTourStepIndex() ?? 0, { force: true })
     }
     function handlePause() {
       setRun(false)
       setIsPaused(true)
     }
     function handleResume() {
+      if (finishedRef.current || isOnboardingCompletedLocal()) return
       setIsPaused(false)
       if (narrowRef.current) {
         setRun(true)
         return
       }
-      void navigateToStep(stepIndex)
+      void navigateToStep(stepIndexRef.current)
     }
 
     window.addEventListener(ONBOARDING_START_EVENT, handleStart)
@@ -298,41 +372,54 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       window.removeEventListener(ONBOARDING_PAUSE_EVENT, handlePause)
       window.removeEventListener(ONBOARDING_RESUME_EVENT, handleResume)
     }
-  }, [beginTour, navigateToStep, stepIndex])
+  }, [beginTour, navigateToStep])
 
   const handleJoyrideCallback = useCallback(
     (data: EventData) => {
       const { action, status, type } = data
 
       if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
-        movingRef.current = false
-        void syncOnboardingCompleted()
-        setRun(false)
-        setStepIndex(0)
-        setPendingRoute(null)
+        completeTour()
         return
       }
 
-      const nextIndex = resolveTourAdvance({
+      const result = resolveTourAdvance({
         eventType: type,
         action,
         currentIndex: stepIndexRef.current,
         total: stepDefinitions.length,
         moving: movingRef.current,
       })
-      if (nextIndex === null) return
+      if (result === null) return
+      if (result === "complete") {
+        completeTour()
+        return
+      }
 
       movingRef.current = true
-      void navigateToStep(nextIndex)
+      setRun(false)
+      void navigateToStep(result)
     },
-    [navigateToStep, stepDefinitions.length],
+    [completeTour, navigateToStep, stepDefinitions.length],
   )
 
-  const currentStepId = stepDefinitions[stepIndex]?.id
+  const tooltipComponent = useCallback((props: TooltipRenderProps) => {
+    const extras = extrasRef.current
+    return (
+      <OnboardingTooltip
+        {...props}
+        recommendedStepIds={extras.recommendedStepIds}
+        stepId={extras.stepId}
+        roleLabel={extras.roleLabel}
+      />
+    )
+  }, [])
+
+  const joyrideActive = run && !isPaused && !finished
 
   const contextValue = useMemo<OnboardingContextValue>(
     () => ({
-      isRunning: run,
+      isRunning: run && !finished,
       isPaused,
       startTour,
       pauseTour,
@@ -340,7 +427,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       restartTour,
       recommendedStepIds,
     }),
-    [isPaused, pauseTour, recommendedStepIds, restartTour, resumeTour, run, startTour],
+    [finished, isPaused, pauseTour, recommendedStepIds, restartTour, resumeTour, run, startTour],
   )
 
   return (
@@ -348,48 +435,41 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       {children}
       {session && narrowViewport ? (
         <MobileOnboardingWizard
-          open={run && !isPaused}
+          open={run && !isPaused && !finished}
           step={stepDefinitions[stepIndex]}
           index={stepIndex}
           total={stepDefinitions.length}
-          onBack={() => setStepIndex((current) => Math.max(0, current - 1))}
+          onBack={() => {
+            const previous = Math.max(0, stepIndex - 1)
+            persistTourStepIndex(previous)
+            setStepIndex(previous)
+          }}
           onNext={() => {
             if (stepIndex + 1 >= stepDefinitions.length) {
-              void syncOnboardingCompleted()
-              setRun(false)
-              setStepIndex(0)
+              completeTour()
               return
             }
-            setStepIndex((current) => current + 1)
+            const next = stepIndex + 1
+            persistTourStepIndex(next)
+            setStepIndex(next)
           }}
           onPause={pauseTour}
-          onSkip={() => {
-            void syncOnboardingCompleted()
-            setRun(false)
-            setStepIndex(0)
-          }}
+          onSkip={completeTour}
         />
       ) : null}
       {session && !narrowViewport && joyrideSteps.length > 0 && (
         <Joyride
           steps={joyrideSteps}
-          run={run}
+          run={joyrideActive}
           stepIndex={stepIndex}
           continuous
           scrollToFirstStep
           onEvent={handleJoyrideCallback}
-          tooltipComponent={(props) => (
-            <OnboardingTooltip
-              {...props}
-              recommendedStepIds={recommendedStepIds}
-              stepId={currentStepId}
-              roleLabel={roleLabel}
-            />
-          )}
+          tooltipComponent={tooltipComponent}
           locale={{
             back: "Atrás",
             close: "Cerrar",
-            last: "¡Empezar!",
+            last: "Terminar",
             next: "Siguiente",
             skip: "Saltar tour",
           }}

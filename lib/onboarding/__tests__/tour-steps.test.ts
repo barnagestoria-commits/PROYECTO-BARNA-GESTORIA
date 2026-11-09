@@ -40,6 +40,27 @@ describe("guía de alta", () => {
     ).toBe(0)
   })
 
+  it("el último Siguiente cierra el tour y no vuelve al paso 1", () => {
+    expect(
+      resolveTourAdvance({
+        eventType: "step:after",
+        action: "next",
+        currentIndex: 7,
+        total: 8,
+        moving: false,
+      }),
+    ).toBe("complete")
+    expect(
+      resolveTourAdvance({
+        eventType: "tour:end",
+        action: "next",
+        currentIndex: 7,
+        total: 8,
+        moving: false,
+      }),
+    ).toBe("complete")
+  })
+
   it("en la gestoría sigue por la cartera y no pide Verifactu", () => {
     const steps = getTourStepsForProfile("gestoria")
     expect(steps.map((step) => step.id)).not.toContain("verifactu")

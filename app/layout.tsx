@@ -6,6 +6,7 @@ import { env } from "@/lib/config/env"
 import { AppWrapper } from "@/components/app-wrapper"
 import { ChatProvider } from "@/components/chat-provider"
 import { AuthProvider } from "@/components/auth-provider"
+import { OnboardingProvider } from "@/components/onboarding/onboarding-provider"
 import { NextAuthProvider } from "@/components/next-auth-provider"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -34,7 +35,9 @@ export default function RootLayout({
         <AppWrapper>
           <NextAuthProvider>
             <AuthProvider>
-              <ChatProvider>{children}</ChatProvider>
+              <OnboardingProvider>
+                <ChatProvider>{children}</ChatProvider>
+              </OnboardingProvider>
             </AuthProvider>
           </NextAuthProvider>
         </AppWrapper>
