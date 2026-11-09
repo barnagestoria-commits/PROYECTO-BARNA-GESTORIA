@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { resolveTourAdvance } from "@/lib/onboarding/tour-advance"
 import { tourRouteMatches } from "@/lib/onboarding/tour-route"
 import { getTourStepsForProfile } from "@/lib/onboarding/types"
 
@@ -22,6 +23,21 @@ describe("guía de alta", () => {
     expect(tourRouteMatches("/dashboard/contabilidad/clientes-gestoria", "/dashboard/contabilidad")).toBe(
       false,
     )
+  })
+
+  it("Siguiente avanza un solo paso y no se duplica con TARGET_NOT_FOUND", () => {
+    const base = { currentIndex: 0, total: 8, moving: false }
+    expect(resolveTourAdvance({ ...base, eventType: "step:after", action: "next" })).toBe(1)
+    expect(resolveTourAdvance({ ...base, eventType: "error:target_not_found", action: "next" })).toBe(
+      null,
+    )
+    expect(resolveTourAdvance({ ...base, eventType: "step:after", action: "next", moving: true })).toBe(
+      null,
+    )
+    expect(resolveTourAdvance({ ...base, eventType: "step:after", action: "stop" })).toBe(null)
+    expect(
+      resolveTourAdvance({ ...base, currentIndex: 1, eventType: "step:after", action: "prev" }),
+    ).toBe(0)
   })
 
   it("en la gestoría sigue por la cartera y no pide Verifactu", () => {

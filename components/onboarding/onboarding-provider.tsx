@@ -13,12 +13,13 @@ import {
 import { usePathname, useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import type { Step, EventData } from "react-joyride"
-import { ACTIONS, EVENTS, STATUS } from "react-joyride"
+import { STATUS } from "react-joyride"
 import { useAuth } from "@/components/auth-provider"
 import { MobileOnboardingWizard } from "@/components/onboarding/mobile-onboarding-wizard"
 import { OnboardingTooltip } from "@/components/onboarding/onboarding-tooltip"
 import { apiFetch } from "@/lib/api-client"
 import { loadStoredCertificate } from "@/lib/settings/certificate-storage"
+import { resolveTourAdvance } from "@/lib/onboarding/tour-advance"
 import { tourRouteMatches } from "@/lib/onboarding/tour-route"
 import {
   accountTypeToRoleProfile,
@@ -89,8 +90,8 @@ function toJoyrideSteps(definitions: OnboardingTourStepDefinition[], narrow: boo
     content: step.content,
     placement: narrow ? "center" : (step.placement ?? "bottom"),
     skipBeacon: true,
-    disableScrolling: narrow,
-    disableOverlay: narrow,
+    skipScroll: narrow,
+    hideOverlay: narrow,
     data: { stepId: step.id, route: step.route },
   }))
 }
@@ -112,6 +113,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [isPaused, setIsPaused] = useState(false)
   const [recommendedStepIds, setRecommendedStepIds] = useState<OnboardingStepId[]>([])
   const [pendingRoute, setPendingRoute] = useState<string | null>(null)
+  const pathnameRef = useRef(pathname)
+  const stepIndexRef = useRef(0)
+  const movingRef = useRef(false)
+  const autoStartedRef = useRef(false)
+  pathnameRef.current = pathname
+  stepIndexRef.current = stepIndex
 
   const refreshRecommendations = useCallback(async () => {
     if (!session) return
@@ -141,9 +148,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const navigateToStep = useCallback(
     async (index: number) => {
       const definition = stepDefinitions[index]
-      if (!definition) return false
+      if (!definition) {
+        movingRef.current = false
+        return false
+      }
 
-      if (!routeMatches(pathname, definition.route)) {
+      if (!routeMatches(pathnameRef.current, definition.route)) {
         setRun(false)
         setPendingRoute(definition.route)
         setStepIndex(index)
@@ -155,13 +165,15 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       setPendingRoute(null)
       setStepIndex(index)
       setRun(true)
+      movingRef.current = false
       return true
     },
-    [pathname, router, stepDefinitions],
+    [router, stepDefinitions],
   )
 
   const beginTour = useCallback(
     async (fromIndex = 0) => {
+      movingRef.current = false
       setIsPaused(false)
       resumeOnboardingLocal()
       await refreshRecommendations()
@@ -229,23 +241,32 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
     const resume = async () => {
       const definition = stepDefinitions[stepIndex]
-      if (!definition) return
+      if (!definition) {
+        movingRef.current = false
+        return
+      }
       await waitForSelector(definition.target)
       setPendingRoute(null)
       setRun(true)
+      movingRef.current = false
     }
 
     void resume()
   }, [pathname, pendingRoute, session, stepDefinitions, stepIndex])
 
   useEffect(() => {
-    if (!session) return
+    if (!session) {
+      autoStartedRef.current = false
+      return
+    }
+    if (autoStartedRef.current) return
 
     const completed = isOnboardingCompletedLocal()
     const paused = isOnboardingPausedLocal()
     if (completed || paused) return
 
     const timer = window.setTimeout(() => {
+      autoStartedRef.current = true
       void beginTour(0)
     }, 1200)
 
@@ -281,9 +302,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
 
   const handleJoyrideCallback = useCallback(
     (data: EventData) => {
-      const { action, index, status, type } = data
+      const { action, status, type } = data
 
       if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+        movingRef.current = false
         void syncOnboardingCompleted()
         setRun(false)
         setStepIndex(0)
@@ -291,15 +313,17 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      if (type === EVENTS.STEP_AFTER) {
-        const nextIndex = index + (action === ACTIONS.PREV ? -1 : 1)
-        if (nextIndex < 0 || nextIndex >= stepDefinitions.length) return
-        void navigateToStep(nextIndex)
-      }
+      const nextIndex = resolveTourAdvance({
+        eventType: type,
+        action,
+        currentIndex: stepIndexRef.current,
+        total: stepDefinitions.length,
+        moving: movingRef.current,
+      })
+      if (nextIndex === null) return
 
-      if (type === EVENTS.TARGET_NOT_FOUND) {
-        void navigateToStep(index)
-      }
+      movingRef.current = true
+      void navigateToStep(nextIndex)
     },
     [navigateToStep, stepDefinitions.length],
   )
@@ -375,6 +399,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
             arrowColor: "#ffffff",
             zIndex: 10000,
             overlayColor: "rgba(15, 61, 46, 0.45)",
+            overlayClickAction: false,
           }}
         />
       )}

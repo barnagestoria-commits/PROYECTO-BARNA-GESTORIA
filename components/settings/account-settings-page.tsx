@@ -218,8 +218,9 @@ export function AccountSettingsPage() {
         </p>
       </div>
 
-      <Card className="border-sand-200 shadow-sm" data-tour="onboarding-profile">
-        <CardHeader>
+      <Card className="border-sand-200 shadow-sm">
+        <div data-tour="onboarding-profile">
+          <CardHeader>
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 items-start gap-3">
               <UserCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" />
@@ -270,6 +271,7 @@ export function AccountSettingsPage() {
             ) : null}
           </div>
         </CardHeader>
+        </div>
         <CardContent className="space-y-4">
           {(successMessage || errorMessage) && (
             <div
