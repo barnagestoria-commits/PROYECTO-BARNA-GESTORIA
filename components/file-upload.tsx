@@ -33,6 +33,8 @@ interface FileUploadProps {
   onAccountingImport?: (result: AccountingImportResult) => void
   onImportError?: (message: string) => void
   disabled?: boolean
+  /** Bloquea cámara, PDF e imagen (prueba OCR agotada) pero deja importar Excel. */
+  ocrLocked?: boolean
   cameraTourId?: string
   initialDocumentType?: UploadDocumentType
   /** Si se indica, oculta el selector de tipo y fija el flujo a un solo documento */
@@ -100,6 +102,7 @@ export function FileUpload({
   onAccountingImport,
   onImportError,
   disabled = false,
+  ocrLocked = false,
   cameraTourId,
   initialDocumentType = "factura-recibida",
   fixedDocumentType,
@@ -121,20 +124,23 @@ export function FileUpload({
 
   const activeConfig = DOCUMENT_TYPES.find((type) => type.id === selectedType) ?? DOCUMENT_TYPES[0]
 
+  const mediaDisabled = disabled || ocrLocked
+
   const handleMediaFiles = useCallback(
     (fileList: FileList | null) => {
-      if (!fileList || fileList.length === 0 || disabled) return
+      if (!fileList || fileList.length === 0 || mediaDisabled) return
       onFilesSelected(Array.from(fileList), selectedType)
       if (mediaInputRef.current) mediaInputRef.current.value = ""
     },
-    [disabled, onFilesSelected, selectedType],
+    [mediaDisabled, onFilesSelected, selectedType],
   )
 
   const handleCameraCapture = useCallback(
     (file: File) => {
+      if (mediaDisabled) return
       onFilesSelected([file], selectedType)
     },
-    [onFilesSelected, selectedType],
+    [mediaDisabled, onFilesSelected, selectedType],
   )
 
   const handleSpreadsheetImport = useCallback(
@@ -165,6 +171,11 @@ export function FileUpload({
   const receiveDroppedFiles = useCallback(
     (files: File[]) => {
       if (disabled || files.length === 0) return
+      if (ocrLocked) {
+        const spreadsheet = files.find(isSpreadsheetFile)
+        if (spreadsheet) void handleSpreadsheetImport(spreadsheet)
+        return
+      }
 
       const media = files.filter(isOcrMediaFile)
       const spreadsheet = files.find(isSpreadsheetFile)
@@ -176,7 +187,7 @@ export function FileUpload({
         void handleSpreadsheetImport(spreadsheet)
       }
     },
-    [disabled, handleSpreadsheetImport, onFilesSelected, selectedType],
+    [disabled, ocrLocked, handleSpreadsheetImport, onFilesSelected, selectedType],
   )
 
   useEffect(() => {
@@ -310,7 +321,7 @@ export function FileUpload({
             <Button
               type="button"
               size="lg"
-              disabled={disabled}
+              disabled={mediaDisabled}
               data-tour={selectedType === "factura-recibida" ? cameraTourId : undefined}
               onClick={() => setCameraOpen(true)}
               className="h-auto w-full min-w-0 justify-start gap-3 sm:gap-4 rounded-xl bg-emerald-800 px-4 py-3 sm:px-5 sm:py-4 text-left hover:bg-emerald-700 whitespace-normal"
@@ -331,7 +342,7 @@ export function FileUpload({
             type="button"
             variant="outline"
             size="lg"
-            disabled={disabled}
+            disabled={mediaDisabled}
             onClick={() => mediaInputRef.current?.click()}
             className="h-auto w-full min-w-0 justify-start gap-3 sm:gap-4 rounded-xl border-2 px-4 py-3 sm:px-5 sm:py-4 text-left hover:bg-gray-50 whitespace-normal"
           >

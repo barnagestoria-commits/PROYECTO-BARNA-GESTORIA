@@ -37,6 +37,12 @@ export interface InvoiceOcrResult {
   paginaFin?: number
 }
 
+export interface InvoiceOcrUsage {
+  used: number
+  limit: number
+  remaining: number
+}
+
 export interface InvoiceOcrResponse {
   success: true
   data: InvoiceOcrResult
@@ -44,11 +50,14 @@ export interface InvoiceOcrResponse {
   fileName: string
   companyId: string
   processedAt: string
+  usage?: InvoiceOcrUsage
 }
 
 export interface InvoiceOcrErrorResponse {
   success: false
   error: string
+  code?: string
+  usage?: InvoiceOcrUsage
 }
 
 export const TIPOS_IVA: TipoIva[] = [21, 10, 4, 0]

@@ -141,6 +141,8 @@ model Account {
   name        String
   accountType AccountType
   maxSeats    Int         @default(8)
+  /// Facturas analizadas con OCR DeepSeek en la prueba gratuita (tope 8, todas las cuentas).
+  ocrInvoiceCount Int     @default(0)
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   users       User[]

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { extractInvoiceData } from "@/lib/ocr/extract-invoice"
-import { OcrConfigError, OcrExtractionError } from "@/lib/ocr/errors"
+import { OcrConfigError, OcrExtractionError, OcrQuotaError } from "@/lib/ocr/errors"
 import type { InvoiceOcrErrorResponse, InvoiceOcrResponse } from "@/lib/types/invoice"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { loadCompanyPurchaseContext } from "@/lib/accounting/company-purchase-context"
@@ -8,6 +8,12 @@ import {
   withIssuedClassification,
   withPurchaseClassification,
 } from "@/lib/accounting/invoice-supplier-classification"
+import { OCR_QUOTA_CODE } from "@/lib/ocr/ocr-quota"
+import {
+  assertOcrInvoiceQuota,
+  getOcrInvoiceUsage,
+  recordOcrInvoiceUsage,
+} from "@/lib/ocr/ocr-quota-service"
 
 export const runtime = "nodejs"
 export const maxDuration = 180
@@ -15,9 +21,35 @@ export const maxDuration = 180
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"]
 const MAX_FILE_SIZE = 10 * 1024 * 1024
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
-    const { companyId } = await requireActiveCompany(request)
+    const { session } = await requireActiveCompany(request)
+    const usage = await getOcrInvoiceUsage(session.user.accountId)
+    return NextResponse.json({ success: true, usage })
+  } catch (error) {
+    const authResponse = authErrorResponse(error)
+    if (authResponse.status !== 500) {
+      const body = await authResponse.json()
+      return NextResponse.json<InvoiceOcrErrorResponse>(
+        { success: false, error: body.error ?? "Error de autenticación." },
+        { status: authResponse.status },
+      )
+    }
+
+    console.error("[invoices/ocr:usage]", error)
+    return NextResponse.json<InvoiceOcrErrorResponse>(
+      { success: false, error: "No se pudo consultar la prueba de OCR." },
+      { status: 500 },
+    )
+  }
+}
+
+export async function POST(request: Request) {
+  let accountId: string | null = null
+  try {
+    const { companyId, session } = await requireActiveCompany(request)
+    accountId = session.user.accountId
+    await assertOcrInvoiceQuota(accountId)
 
     const formData = await request.formData()
     const file = formData.get("file")
@@ -80,6 +112,7 @@ export async function POST(request: Request) {
             entityType: purchaseContext.entityType,
           }),
     )
+    const usage = await recordOcrInvoiceUsage(accountId, classifiedInvoices.length)
 
     return NextResponse.json<InvoiceOcrResponse>({
       success: true,
@@ -88,8 +121,17 @@ export async function POST(request: Request) {
       fileName: file.name,
       companyId,
       processedAt: new Date().toISOString(),
+      usage,
     })
   } catch (error) {
+    if (error instanceof OcrQuotaError) {
+      const usage = accountId ? await getOcrInvoiceUsage(accountId).catch(() => undefined) : undefined
+      return NextResponse.json<InvoiceOcrErrorResponse>(
+        { success: false, error: error.message, code: OCR_QUOTA_CODE, usage },
+        { status: 402 },
+      )
+    }
+
     if (error instanceof OcrConfigError) {
       return NextResponse.json<InvoiceOcrErrorResponse>(
         { success: false, error: error.message },

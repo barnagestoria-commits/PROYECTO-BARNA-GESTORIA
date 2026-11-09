@@ -820,12 +820,13 @@ export function InvoiceValidationForm({
             type="button"
             variant="outline"
             size="sm"
-            className="hidden sm:inline-flex"
+            className="px-2"
             onClick={onCancel}
             disabled={isSubmitting}
           >
             <X className="h-4 w-4" />
-            Descartar lote
+            <span className="hidden sm:inline">Descartar lote</span>
+            <span className="sm:hidden">Descartar</span>
           </Button>
           {onSkip && remainingCount > 0 ? (
             <Button type="button" variant="outline" size="sm" onClick={onSkip} disabled={isSubmitting}>

@@ -11,9 +11,15 @@ import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
 import { OcrSettingsDialog } from "@/components/documents/ocr-settings-dialog"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
+import Link from "next/link"
 import { useRequireAuth } from "@/components/auth-provider"
-import type { InvoiceOcrResult } from "@/lib/types/invoice"
-import { apiFetch, apiFormFetch } from "@/lib/api-client"
+import type { InvoiceOcrResult, InvoiceOcrUsage } from "@/lib/types/invoice"
+import { ApiRequestError, apiFetch, apiFormFetch } from "@/lib/api-client"
+import {
+  OCR_QUOTA_CODE,
+  OCR_QUOTA_MESSAGE,
+  OCR_QUOTA_SUBSCRIBE_HREF,
+} from "@/lib/ocr/ocr-quota"
 import {
   DEFAULT_OCR_SETTINGS,
   parseOcrSettings,
@@ -85,6 +91,7 @@ function DocumentUploadWorkspaceContent({
   const [ocrSettings, setOcrSettings] = useState<OcrWorkspaceSettings>(DEFAULT_OCR_SETTINGS)
   const [ocrSettingsOpen, setOcrSettingsOpen] = useState(false)
   const [savingOcrSetting, setSavingOcrSetting] = useState(false)
+  const [ocrUsage, setOcrUsage] = useState<InvoiceOcrUsage | null>(null)
   const [counterpartPrompt, setCounterpartPrompt] =
     useState<CounterpartPreferencePrompt | null>(null)
   const [savingCounterpart, setSavingCounterpart] = useState(false)
@@ -117,6 +124,9 @@ function DocumentUploadWorkspaceContent({
           setOcrSettings(parseOcrSettings(data.settings.ocrSettingsJson, data.settings.ocrBlockDuplicates ?? true)),
         )
         .catch(() => setOcrSettings(DEFAULT_OCR_SETTINGS))
+      void apiFetch<{ success: true; usage: InvoiceOcrUsage }>("/api/invoices/ocr")
+        .then((data) => setOcrUsage(data.usage))
+        .catch(() => setOcrUsage(null))
     }
   }, [session?.activeCompanyId, loadDocuments])
 
@@ -152,8 +162,10 @@ function DocumentUploadWorkspaceContent({
       success: true
       data: InvoiceOcrResult
       invoices?: InvoiceOcrResult[]
+      usage?: InvoiceOcrUsage
     }>("/api/invoices/ocr", formData)
 
+    if (result.usage) setOcrUsage(result.usage)
     const invoices = result.invoices?.length ? result.invoices : [result.data]
     return invoices
   }
@@ -177,6 +189,11 @@ function DocumentUploadWorkspaceContent({
         invoiceCount: invoices.length,
       })
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === OCR_QUOTA_CODE) {
+        setOcrError(OCR_QUOTA_MESSAGE)
+        setOcrUsage((current) => current ? { ...current, remaining: 0, used: current.limit } : current)
+        return
+      }
       setOcrError(error instanceof Error ? error.message : "Error al procesar la factura.")
       if (remaining.length > 0) {
         await processNextInQueue(remaining)
@@ -195,6 +212,10 @@ function DocumentUploadWorkspaceContent({
     setTab("upload")
 
     if (type === "factura-recibida" || type === "factura-emitida") {
+      if (ocrUsage && ocrUsage.remaining <= 0) {
+        setOcrError(OCR_QUOTA_MESSAGE)
+        return
+      }
       setSessionDocumentIds([])
       await processNextInQueue(files)
       return
@@ -429,6 +450,10 @@ function DocumentUploadWorkspaceContent({
   }
 
   const noCompany = session.companies.length === 0
+  const isInvoiceOcr = documentType === "factura-recibida" || documentType === "factura-emitida"
+  const ocrQuotaExhausted = isInvoiceOcr && (ocrUsage?.remaining ?? 1) <= 0
+  const quotaError =
+    !pendingValidation && (ocrError === OCR_QUOTA_MESSAGE || ocrQuotaExhausted)
 
   if (noCompany) {
     return (
@@ -492,13 +517,22 @@ function DocumentUploadWorkspaceContent({
           </Card>
         )}
 
-        {ocrError && (
+        {quotaError ? (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm leading-relaxed text-amber-950">{OCR_QUOTA_MESSAGE}</p>
+              <Button asChild className="w-full shrink-0 bg-emerald-800 hover:bg-emerald-700 sm:w-auto">
+                <Link href={OCR_QUOTA_SUBSCRIBE_HREF}>Actualizar plan</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        ) : ocrError ? (
           <Card className="border-red-200 bg-red-50">
             <CardContent className="py-4">
               <p className="text-sm text-red-700">{ocrError}</p>
             </CardContent>
           </Card>
-        )}
+        ) : null}
 
         {pendingValidation && (
           <InvoiceValidationForm
@@ -544,10 +578,13 @@ function DocumentUploadWorkspaceContent({
                 <CardDescription className="break-words text-pretty leading-relaxed">
                   {description}
                 </CardDescription>
-                {(documentType === "factura-recibida" || documentType === "factura-emitida") ? (
+                {isInvoiceOcr ? (
                   <p className="pt-2 text-xs text-gray-500">
                     Hasta que pulses Confirmar no se crea ninguna cuenta ni asiento. Puedes descartar
                     el lote entero y volver a subir el mismo PDF.
+                    {ocrUsage && ocrUsage.remaining > 0
+                      ? ` Prueba gratuita: ${ocrUsage.remaining} de ${ocrUsage.limit} facturas.`
+                      : null}
                   </p>
                 ) : null}
               </div>
@@ -579,6 +616,7 @@ function DocumentUploadWorkspaceContent({
                 setOcrError(message)
               }}
               disabled={isProcessingOcr || !!pendingValidation}
+              ocrLocked={ocrQuotaExhausted}
               cameraTourId={cameraTourId}
             />
           </CardContent>

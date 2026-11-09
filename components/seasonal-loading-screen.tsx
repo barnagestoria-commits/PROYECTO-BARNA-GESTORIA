@@ -16,7 +16,12 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
   const [isVisible, setIsVisible] = useState(true)
   const [animationPhase, setAnimationPhase] = useState<"enter" | "pulse" | "exit">("enter")
   const [logoError, setLogoError] = useState(false)
+  const [hasMounted, setHasMounted] = useState(false)
   const theme = useSeasonalTheme()
+
+  useEffect(() => {
+    setHasMounted(true)
+  }, [])
 
   useEffect(() => {
     const timer1 = setTimeout(() => {
@@ -40,6 +45,15 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
   }, [duration, onLoadingComplete])
 
   if (!isVisible) return null
+
+  if (!hasMounted) {
+    return (
+      <div
+        className="fixed inset-0 z-50 bg-gradient-to-br from-emerald-50 via-white to-sand-50"
+        aria-hidden
+      />
+    )
+  }
 
   // Helper function to get secondary accent color
   const getSecondaryAccent = (accentClass: string) => {
@@ -186,7 +200,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
               animationPhase === "exit" && "opacity-40 translate-y-0",
             )}
           >
-            ✨ Edición {theme.name} ✨
+            {hasMounted ? `✨ Edición ${theme.name} ✨` : "✨ Programa de gestión ✨"}
           </p>
         </div>
 
@@ -222,29 +236,28 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
           ))}
         </div>
 
-        {/* Mensaje estacional especial con nuevos colores */}
-        {theme.season === "christmas" && (
+        {hasMounted && theme.season === "christmas" && (
           <div className="text-center space-y-1 animate-pulse">
             <p className="text-emerald-800 font-medium">🎄 ¡Felices Fiestas! 🎄</p>
             <p className="text-pine-800 text-sm">Que tengas un próspero Año Nuevo</p>
           </div>
         )}
-        {theme.season === "spring" && (
+        {hasMounted && theme.season === "spring" && (
           <div className="text-center animate-pulse">
             <p className="text-emerald-800 font-medium">🌱 ¡Bienvenida Primavera! 🌸</p>
           </div>
         )}
-        {theme.season === "summer" && (
+        {hasMounted && theme.season === "summer" && (
           <div className="text-center animate-pulse">
             <p className="text-gold-800 font-medium">☀️ ¡Disfruta del Verano! 🏖️</p>
           </div>
         )}
-        {theme.season === "autumn" && (
+        {hasMounted && theme.season === "autumn" && (
           <div className="text-center animate-pulse">
             <p className="text-gold-800 font-medium">🍂 ¡Hermoso Otoño! 🍁</p>
           </div>
         )}
-        {theme.season === "winter" && (
+        {hasMounted && theme.season === "winter" && (
           <div className="text-center animate-pulse">
             <p className="text-emerald-800 font-medium">❄️ ¡Cálido Invierno! ⛄</p>
           </div>
