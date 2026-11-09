@@ -421,7 +421,9 @@ export function AccountSettingsPage() {
                 }))
               }
             />
-          ) : null}
+          ) : (
+            <div data-tour="onboarding-census" className="sr-only" />
+          )}
 
           <div className="space-y-4" data-tour="onboarding-profile-rest">
           {activeCompany ? (

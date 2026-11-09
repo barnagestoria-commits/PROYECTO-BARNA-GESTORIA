@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { tourRouteMatches } from "@/lib/onboarding/tour-route"
 import { getTourStepsForProfile } from "@/lib/onboarding/types"
 
 describe("guía de alta", () => {
@@ -13,6 +14,14 @@ describe("guía de alta", () => {
     expect(steps[0]?.route).toBe("/configuracion")
     expect(steps[1]?.route).toBe("/configuracion/certificado")
     expect(steps[2]?.target).toContain("onboarding-census")
+  })
+
+  it("no confunde el certificado con la ficha de configuración", () => {
+    expect(tourRouteMatches("/configuracion/certificado", "/configuracion")).toBe(false)
+    expect(tourRouteMatches("/configuracion", "/configuracion")).toBe(true)
+    expect(tourRouteMatches("/dashboard/contabilidad/clientes-gestoria", "/dashboard/contabilidad")).toBe(
+      false,
+    )
   })
 
   it("en la gestoría sigue por la cartera y no pide Verifactu", () => {

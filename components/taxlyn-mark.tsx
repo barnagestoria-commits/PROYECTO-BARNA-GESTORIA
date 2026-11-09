@@ -6,7 +6,7 @@ export function TaxlynMark({ className }: { className?: string }) {
     <img
       src="/images/taxlyn-mark.png"
       alt={APP_NAME}
-      className={cn("shrink-0 object-contain", className)}
+      className={cn("shrink-0 rounded-full object-cover", className)}
     />
   )
 }

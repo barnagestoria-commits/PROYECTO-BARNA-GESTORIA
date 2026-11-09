@@ -19,6 +19,7 @@ import { MobileOnboardingWizard } from "@/components/onboarding/mobile-onboardin
 import { OnboardingTooltip } from "@/components/onboarding/onboarding-tooltip"
 import { apiFetch } from "@/lib/api-client"
 import { loadStoredCertificate } from "@/lib/settings/certificate-storage"
+import { tourRouteMatches } from "@/lib/onboarding/tour-route"
 import {
   accountTypeToRoleProfile,
   getTourStepsForProfile,
@@ -60,7 +61,7 @@ export function useOnboarding() {
 }
 
 function routeMatches(pathname: string, route: string): boolean {
-  return pathname === route || pathname.startsWith(`${route}/`)
+  return tourRouteMatches(pathname, route)
 }
 
 function waitForSelector(selector: string, timeoutMs = 4000): Promise<boolean> {
@@ -150,9 +151,8 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         return false
       }
 
-      const ready = await waitForSelector(definition.target)
-      if (!ready) return false
-
+      await waitForSelector(definition.target)
+      setPendingRoute(null)
       setStepIndex(index)
       setRun(true)
       return true
@@ -230,11 +230,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     const resume = async () => {
       const definition = stepDefinitions[stepIndex]
       if (!definition) return
-      const ready = await waitForSelector(definition.target)
-      if (ready) {
-        setPendingRoute(null)
-        setRun(true)
-      }
+      await waitForSelector(definition.target)
+      setPendingRoute(null)
+      setRun(true)
     }
 
     void resume()
@@ -297,6 +295,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
         const nextIndex = index + (action === ACTIONS.PREV ? -1 : 1)
         if (nextIndex < 0 || nextIndex >= stepDefinitions.length) return
         void navigateToStep(nextIndex)
+      }
+
+      if (type === EVENTS.TARGET_NOT_FOUND) {
+        void navigateToStep(index)
       }
     },
     [navigateToStep, stepDefinitions.length],

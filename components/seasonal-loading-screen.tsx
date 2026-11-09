@@ -68,7 +68,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
         <div className="relative">
           <div
             className={cn(
-              "transition-all duration-1000 ease-out",
+              "h-24 w-24 overflow-hidden rounded-full transition-all duration-1000 ease-out sm:h-40 sm:w-40",
               animationPhase === "enter" && "scale-0 rotate-180 opacity-0",
               animationPhase === "pulse" && "scale-100 rotate-0 opacity-100",
               animationPhase === "exit" && "scale-110 opacity-90",
@@ -81,12 +81,12 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
                 alt="Taxlyn"
                 width={160}
                 height={160}
-                className="h-24 w-24 object-contain drop-shadow-2xl sm:h-40 sm:w-40"
+                className="h-full w-full rounded-full object-cover"
                 onError={() => setLogoError(true)}
                 priority
               />
             ) : (
-              <div className="flex h-24 w-24 items-center justify-center sm:h-[160px] sm:w-[160px]">
+              <div className="flex h-full w-full items-center justify-center">
                 <LogoFallback size="lg" variant="icon" />
               </div>
             )}

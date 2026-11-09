@@ -55,11 +55,11 @@ export function LoadingScreen({ onLoadingComplete, duration = 2500 }: LoadingScr
             )}
           >
             <Image
-              src="/images/taxlyn-hero.png"
+              src="/images/taxlyn-loading.png"
               alt="Taxlyn"
               width={120}
               height={120}
-              className="object-contain drop-shadow-lg"
+              className="h-[120px] w-[120px] rounded-full object-cover"
               priority
             />
           </div>

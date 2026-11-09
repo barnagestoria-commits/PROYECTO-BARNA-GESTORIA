@@ -19,11 +19,11 @@ export function PageLoading({ message = "Cargando...", size = "md" }: PageLoadin
     <div className="flex flex-col items-center justify-center min-h-[200px] space-y-4">
       <div className="relative">
         <Image
-          src="/images/taxlyn-hero.png"
+          src="/images/taxlyn-loading.png"
           alt="Taxlyn"
           width={size === "sm" ? 48 : size === "md" ? 64 : 96}
           height={size === "sm" ? 48 : size === "md" ? 64 : 96}
-          className={cn("object-contain animate-pulse", sizeClasses[size])}
+          className={cn("rounded-full object-cover animate-pulse", sizeClasses[size])}
         />
 
         {/* Spinner alrededor del logo */}
