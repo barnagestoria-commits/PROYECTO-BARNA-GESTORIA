@@ -226,7 +226,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
     if (type === "phone") {
       window.open("tel:+34634090785", "_self")
     } else {
-      window.open("mailto:barnagestoria@gmail.com", "_self")
+      window.open("mailto:infotaxlyn@gmail.com", "_self")
     }
   }
 

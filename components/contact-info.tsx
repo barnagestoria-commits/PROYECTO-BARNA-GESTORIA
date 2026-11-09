@@ -12,7 +12,7 @@ interface ContactInfoProps {
 export function ContactInfo({ variant = "default", showIcons = true }: ContactInfoProps) {
   const contactData = {
     phone: "634090785",
-    email: "barnagestoria@gmail.com",
+    email: "infotaxlyn@gmail.com",
     address: "Barcelona, España",
   }
 

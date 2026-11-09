@@ -4,7 +4,7 @@ Listo para copiar y pegar. Tono: cercano, serio, sin emoji de cohete. Una idea p
 
 **WhatsApp:** +34 634 090 785
 **Web:** taxlyn.com
-**Mail:** barnagestoria@gmail.com
+**Mail:** infotaxlyn@gmail.com
 **Ciudad:** Barcelona
 
 Cada pieza visual está en esta carpeta y en el escritorio, en `TAXLYN-redes`.
