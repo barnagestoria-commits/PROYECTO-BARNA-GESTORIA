@@ -23,4 +23,16 @@ describe("sidebar nav catalog", () => {
       expect(labels).toContain("Impuestos")
     }
   })
+
+  it("does not expose laboral, payroll or unused gestoría stubs", () => {
+    for (const accountType of ["CLIENTE_FINAL", "EMPRESA", "GESTORIA"] as const) {
+      const labels = catalogLabels(accountType)
+      expect(labels).not.toContain("Laboral")
+      expect(labels).not.toContain("Nóminas")
+      expect(labels).not.toContain("RRHH")
+      expect(labels).not.toContain("Gestión Laboral")
+      expect(labels).not.toContain("Constitución de Empresas")
+      expect(labels).not.toContain("Presupuestos")
+    }
+  })
 })

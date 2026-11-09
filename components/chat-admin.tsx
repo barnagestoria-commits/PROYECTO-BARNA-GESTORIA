@@ -42,7 +42,7 @@ export function ChatAdmin() {
     {
       id: "2",
       userName: "Juan Pérez",
-      lastMessage: "Gracias por la información sobre nóminas",
+      lastMessage: "Gracias por la información sobre impuestos",
       timestamp: new Date(Date.now() - 15 * 60 * 1000),
       status: "active",
       unreadCount: 0,
@@ -50,7 +50,7 @@ export function ChatAdmin() {
     {
       id: "3",
       userName: "Ana López",
-      lastMessage: "¿Cuánto cuesta constituir una SL?",
+      lastMessage: "¿Cómo doy de alta una cuenta de empresa?",
       timestamp: new Date(Date.now() - 30 * 60 * 1000),
       status: "waiting",
       unreadCount: 1,
@@ -188,16 +188,16 @@ export function ChatAdmin() {
         <CardContent>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <h4 className="font-medium text-sm">Servicios</h4>
+              <h4 className="font-medium text-sm">El programa</h4>
               <div className="flex flex-wrap gap-2">
                 <Badge variant="outline" className="cursor-pointer hover:bg-emerald-50">
                   Información contabilidad
                 </Badge>
                 <Badge variant="outline" className="cursor-pointer hover:bg-emerald-50">
-                  Asesoría fiscal
+                  Impuestos
                 </Badge>
                 <Badge variant="outline" className="cursor-pointer hover:bg-emerald-50">
-                  Gestión laboral
+                  Alta de cuenta
                 </Badge>
               </div>
             </div>
@@ -211,7 +211,7 @@ export function ChatAdmin() {
                   Horarios
                 </Badge>
                 <Badge variant="outline" className="cursor-pointer hover:bg-emerald-50">
-                  Cita previa
+                  Demo del programa
                 </Badge>
               </div>
             </div>

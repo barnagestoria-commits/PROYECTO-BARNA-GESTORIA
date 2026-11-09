@@ -375,7 +375,11 @@ export function validateModel303Export(content: string, context: TaxReturnContex
     })
   }
 
-  if (content.includes("BARNA GESTORIA") || content.includes("GENERADO POR")) {
+  if (
+    content.includes("BARNA GESTORIA") ||
+    content.includes("TAXLYN") ||
+    content.includes("GENERADO POR")
+  ) {
     issues.push({
       code: "BRANDING_FORBIDDEN",
       message: "El fichero telemático no puede incluir marcas comerciales.",

@@ -13,7 +13,7 @@ import type { CompanySummary } from "@/lib/types/auth"
 
 const propia: CompanySummary = {
   id: "propia",
-  name: "Barna Gestoría",
+  name: "Taxlyn",
   cif: "B00000000",
   kind: "GESTORIA_PROPIA",
 }
@@ -89,7 +89,7 @@ describe("gestoria workspace access", () => {
   })
 
   it("labels the internal company in selectors and prefers a client as default", () => {
-    expect(gestoriaCompanyOptionLabel(propia)).toBe("Gestoría · Barna Gestoría")
+    expect(gestoriaCompanyOptionLabel(propia)).toBe("Gestoría · Taxlyn")
     expect(gestoriaCompanyOptionLabel(clientA)).toBe("Italians Do It Better")
     expect(resolveActiveCompanyId([propia, clientA])).toBe("client-a")
     expect(resolveActiveCompanyId([propia, clientA], "propia")).toBe("propia")

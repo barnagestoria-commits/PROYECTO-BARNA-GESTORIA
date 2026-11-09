@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is **Barna Gestoría**, a Next.js web application for a Spanish accounting/administrative services company (gestoría) based in Barcelona. The application provides services for business accounting, tax advisory, and payroll management for companies and freelancers.
+This is **Taxlyn**, a Next.js web application for a Spanish accounting and tax management program (software), not a gestoría and not payroll. It is used by companies, freelancers (autónomos), and accounting firms (despachos).
 
 ## Development Commands
 
@@ -62,17 +62,18 @@ The application uses a sophisticated color palette focused on business/eco-frien
 - **TypeScript**: Strict mode with build error ignoring (Next.js config)
 - **ESLint**: Available but ignored during builds for rapid development
 - **Images**: Unoptimized for deployment compatibility
-- **Metadata**: SEO-optimized for gestoría services in Barcelona
+- **Metadata**: SEO-optimized for Spanish accounting and tax software
 
 ## Business Context
 
-This is a professional services website for:
+Taxlyn is a **programa de gestión contable y fiscal** (Spanish software):
 - **Contabilidad** (Accounting)
-- **Asesoría Fiscal** (Tax Advisory)  
-- **Gestión Laboral** (Payroll/HR Management)
-- **Constitución de Empresas** (Business Formation)
+- **Fiscal** (Tax: IVA, models, IRPF, sociedades)
+- **Documentos** (Invoices, bank statements, company file)
 
-Target audience: Spanish-speaking businesses and freelancers (autónomos) in Barcelona.
+It is **not** a gestoría and **not** laboral/payroll. Despacho accounts are accounting firms *using* Taxlyn, not a claim that Taxlyn itself is a firm.
+
+Target audience: Spanish-speaking businesses, autónomos, and despachos.
 
 ## Development Notes
 

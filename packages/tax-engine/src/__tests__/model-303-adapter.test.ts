@@ -61,6 +61,7 @@ describe("exportModel303Dr303", () => {
     expect(content).toContain("B12345674")
     expect(content).not.toContain("\n")
     expect(content).not.toContain("BARNA GESTORIA")
+    expect(content).not.toContain("TAXLYN")
 
     const page01000Start = content.indexOf("<T30301000>")
     const page01000End = content.indexOf("</T30301000>") + "</T30301000>".length

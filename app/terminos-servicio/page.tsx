@@ -2,9 +2,9 @@ import type { Metadata } from "next"
 import { LegalPageLayout, LegalSection } from "@/components/legal-page-layout"
 
 export const metadata: Metadata = {
-  title: "Términos del servicio | Barna Gestoría",
+  title: "Términos del servicio | Taxlyn",
   description:
-    "Términos y condiciones de uso de la plataforma Barna Gestoría para clientes y gestorías.",
+    "Términos y condiciones de uso del programa Taxlyn para empresas, autónomos y despachos.",
 }
 
 export default function TerminosServicioPage() {
@@ -15,7 +15,7 @@ export default function TerminosServicioPage() {
     >
       <LegalSection
         title="1. Objeto del servicio"
-        placeholder="Describe la plataforma SaaS de gestión contable, fiscal y documental para empresas, autónomos y gestorías."
+        placeholder="Describe el programa de gestión contable, fiscal y documental para empresas, autónomos y despachos."
       />
 
       <LegalSection

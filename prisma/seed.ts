@@ -13,7 +13,7 @@ async function main() {
 
   const gestoriaAccount = await prisma.account.create({
     data: {
-      name: "Barna Gestoría",
+      name: "Taxlyn",
       accountType: "GESTORIA",
       users: {
         create: [
@@ -33,7 +33,7 @@ async function main() {
       },
       companies: {
         create: [
-          { name: "Barna Gestoría", kind: "GESTORIA_PROPIA" },
+          { name: "Taxlyn", kind: "GESTORIA_PROPIA" },
           { name: "Empresa ABC SL", cif: "B12345678", kind: "CLIENTE_CARTERA" },
           { name: "Comercio XYZ", cif: "B87654321", kind: "CLIENTE_CARTERA" },
           { name: "Servicios 123 SL", cif: "B11223344", kind: "CLIENTE_CARTERA" },

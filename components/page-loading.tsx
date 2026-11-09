@@ -19,8 +19,8 @@ export function PageLoading({ message = "Cargando...", size = "md" }: PageLoadin
     <div className="flex flex-col items-center justify-center min-h-[200px] space-y-4">
       <div className="relative">
         <Image
-          src="/images/barna-logo-updated.png"
-          alt="Barna Gestoría"
+          src="/images/taxlyn-hero.png"
+          alt="Taxlyn"
           width={size === "sm" ? 48 : size === "md" ? 64 : 96}
           height={size === "sm" ? 48 : size === "md" ? 64 : 96}
           className={cn("object-contain animate-pulse", sizeClasses[size])}

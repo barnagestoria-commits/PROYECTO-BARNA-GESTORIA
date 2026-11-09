@@ -73,7 +73,7 @@ function headerBlock(meta: ReportMeta, density: PdfDensity = "normal"): Content[
         {
           width: "*",
           stack: [
-            { text: "BARNA GESTORÍA", style: "brand", margin: [0, 0, 0, compact ? 1 : 2] },
+            { text: "TAXLYN", style: "brand", margin: [0, 0, 0, compact ? 1 : 2] },
             { text: meta.reportTitle, style: compact ? "titleCompact" : "title" },
           ],
         },

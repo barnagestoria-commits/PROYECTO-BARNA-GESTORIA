@@ -27,8 +27,8 @@ export function SeasonalPageLoading({ message = "Cargando...", size = "md" }: Se
     >
       <div className="relative">
         <Image
-          src="/images/barna-logo-updated.png"
-          alt="Barna Gestoría"
+          src="/images/taxlyn-hero.png"
+          alt="Taxlyn"
           width={size === "sm" ? 48 : size === "md" ? 64 : 96}
           height={size === "sm" ? 48 : size === "md" ? 64 : 96}
           className={cn("object-contain animate-pulse", sizeClasses[size])}

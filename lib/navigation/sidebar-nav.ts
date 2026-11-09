@@ -89,12 +89,6 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Registro y envío de facturas de venta",
           },
           {
-            label: "Presupuestos",
-            href: "/dashboard",
-            description: "Crear y convertir presupuestos",
-            badge: "Próx.",
-          },
-          {
             label: "Ingresos del periodo",
             href: "/dashboard/informes/pyg",
             description: "Consultar cuenta de resultados",

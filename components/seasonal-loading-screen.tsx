@@ -77,8 +77,8 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
           >
             {!logoError ? (
               <Image
-                src="/images/barna-logo-loading-clean.png"
-                alt="Barna Gestoría"
+                src="/images/taxlyn-loading.png"
+                alt="Taxlyn"
                 width={160}
                 height={160}
                 className="h-24 w-24 object-contain drop-shadow-2xl sm:h-40 sm:w-40"
@@ -166,7 +166,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
               animationPhase === "exit" && "opacity-80 translate-y-0",
             )}
           >
-            Barna Gestoría
+            Taxlyn
           </h1>
           <p
             className={cn(
@@ -176,7 +176,7 @@ export function SeasonalLoadingScreen({ onLoadingComplete, duration = 3000 }: Se
               animationPhase === "exit" && "opacity-60 translate-y-0",
             )}
           >
-            Contable, Fiscal y Laboral
+            Programa de gestión contable y fiscal
           </p>
           <p
             className={cn(

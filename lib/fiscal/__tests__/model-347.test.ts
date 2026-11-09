@@ -110,8 +110,8 @@ describe("modelo 347", () => {
       ],
     }
 
-    expect(model347FileIssues(detail, "Barna Gestoria SL", "B67330225")).toEqual([])
-    const content = generateModel347AeatTxt(detail, "Barna Gestoría SL", "B67330225").toString("latin1")
+    expect(model347FileIssues(detail, "Taxlyn SL", "B67330225")).toEqual([])
+    const content = generateModel347AeatTxt(detail, "Taxlyn SL", "B67330225").toString("latin1")
     const records = content.split("\r\n")
     expect(records).toHaveLength(2)
     expect(records.every((record) => record.length === 500)).toBe(true)
@@ -129,7 +129,7 @@ describe("modelo 347", () => {
     expect(records[1]?.slice(136, 151)).toBe("000000000484000")
     expect(records[1]?.slice(299, 305)).toBe("000000")
     expect(buildModel347Filename(2026, "B67330225")).toBe("3472026_B67330225.347")
-    expect(validateAeatSubmission(detail, "Barna Gestoria SL", "B67330225").valid).toBe(true)
+    expect(validateAeatSubmission(detail, "Taxlyn SL", "B67330225").valid).toBe(true)
   })
 
   it("ignora la factura si el impreso no es el 347", () => {

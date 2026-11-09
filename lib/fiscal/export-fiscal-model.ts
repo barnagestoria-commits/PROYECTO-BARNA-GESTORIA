@@ -107,10 +107,10 @@ export async function generateFiscalXlsx(
   companyName: string,
 ): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = "Barna Gestoría"
+  workbook.creator = "Taxlyn"
   const sheet = workbook.addWorksheet(`Modelo ${detail.modelCode}`)
 
-  sheet.getCell("A1").value = "BARNA GESTORÍA"
+  sheet.getCell("A1").value = "TAXLYN"
   sheet.getCell("A1").font = { bold: true, color: { argb: "FF145A32" } }
   sheet.getCell("A2").value = listingText(detail.modelLabel)
   sheet.getCell("A2").font = { bold: true, size: 14 }
@@ -222,7 +222,7 @@ export async function generateFiscalPdf(
       fontSize: 8,
     },
     content: [
-      { text: "BARNA GESTORÍA", style: "brand" },
+      { text: "TAXLYN", style: "brand" },
       { text: listingText(detail.modelLabel), style: "title" },
       {
         columns: [

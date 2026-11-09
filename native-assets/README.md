@@ -21,7 +21,7 @@ Definido en `packages/platform/native-app.config.json`:
 | Plataforma | Valor |
 |------------|-------|
 | Android / iOS / macOS | `com.gestoria.platform` |
-| Nombre visible | Gestoría |
+| Nombre visible | Taxlyn |
 
 Cambiar el bundle id antes del primer envío a las tiendas; requiere recrear proyectos nativos en Xcode/Android Studio.
 

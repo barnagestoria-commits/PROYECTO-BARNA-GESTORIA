@@ -73,10 +73,10 @@ export function resolveCompanyAccessPath(
   mode: DocumentStorageMode = "cloud",
 ): string {
   if (mode === "local") {
-    return `\\BarnaGestoria\\Clientes\\E${code}\\`
+    return `\\Taxlyn\\Clientes\\E${code}\\`
   }
 
-  return `Nube / Barna Gestoría / Clientes / E${code}`
+  return `Nube / Taxlyn / Clientes / E${code}`
 }
 
 export function mapCompanyToGestoriaRow(

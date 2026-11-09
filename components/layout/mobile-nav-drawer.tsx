@@ -70,7 +70,7 @@ export function MobileNavDrawer({ open, onClose, onLogout, userName }: MobileNav
         <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
           <Link href="/dashboard" className="flex items-center gap-2" onClick={onClose}>
             <ResponsiveLogo size="sm" />
-            <span className="text-sm font-bold">Barna Gestoría</span>
+            <span className="text-sm font-bold">Taxlyn</span>
           </Link>
           <button
             type="button"

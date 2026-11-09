@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ResponsiveLogo } from "./responsive-logo"
+import { APP_DOMAIN } from "@/lib/brand"
 
 interface ProcessAnimationProps {
   className?: string
@@ -24,8 +25,8 @@ type AnimationStep = "homepage" | "register" | "upload" | "process" | "complete"
 const PROCESS_STEPS = [
   {
     id: "homepage" as AnimationStep,
-    title: "1. Página de Inicio",
-    description: "Conoce nuestros servicios",
+    title: "1. Página de inicio",
+    description: "Entra en el programa",
     icon: Monitor,
     duration: 4000,
   },
@@ -46,7 +47,7 @@ const PROCESS_STEPS = [
   {
     id: "process" as AnimationStep,
     title: "4. Procesamiento",
-    description: "Organizamos tu información",
+    description: "Taxlyn organiza la información",
     icon: FileText,
     duration: 3000,
   },
@@ -172,10 +173,10 @@ function DesktopFrame({ currentStep, animationKey }: { currentStep: AnimationSte
               <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-400 rounded-full"></div>
             </div>
             <div className="flex-1 bg-white rounded px-1 sm:px-2 py-1 text-xs text-graphite-600">
-              {currentStep === "homepage" && "barnagestoria.com"}
-              {currentStep === "register" && "barnagestoria.com/register"}
-              {currentStep === "upload" && "barnagestoria.com/dashboard"}
-              {(currentStep === "process" || currentStep === "complete") && "barnagestoria.com/dashboard"}
+              {currentStep === "homepage" && APP_DOMAIN}
+              {currentStep === "register" && `${APP_DOMAIN}/register`}
+              {currentStep === "upload" && `${APP_DOMAIN}/dashboard`}
+              {(currentStep === "process" || currentStep === "complete") && `${APP_DOMAIN}/dashboard`}
             </div>
           </div>
 
@@ -287,7 +288,7 @@ function DesktopStepContent({ step, animationKey }: { step: AnimationStep; anima
           <div className="bg-white/95 border-b border-sand-300 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ResponsiveLogo size="sm" />
-              <span className="font-bold text-pine-900 text-sm">Barna Gestoría</span>
+              <span className="font-bold text-pine-900 text-sm">Taxlyn</span>
             </div>
             <div className="flex gap-2">
               <div className="px-3 py-1 border border-emerald-700 text-emerald-800 rounded text-xs">Iniciar Sesión</div>
@@ -302,14 +303,12 @@ function DesktopStepContent({ step, animationKey }: { step: AnimationStep; anima
             <div className="grid grid-cols-2 gap-4 h-full">
               <div className="space-y-3">
                 <h2 className="text-2xl font-bold text-pine-900 leading-tight animate-fade-in">
-                  Gestoría
+                  Programa de gestión
                   <br />
-                  <span className="text-emerald-800">Contable, Fiscal</span>
-                  <br />
-                  <span className="text-pine-800">y Laboral</span>
+                  <span className="text-emerald-800">contable y fiscal</span>
                 </h2>
                 <p className="text-sm text-graphite-700 animate-fade-in delay-500">
-                  Servicios de gestoría en Barcelona para empresas y autónomos.
+                  La ficha, la contabilidad y los impuestos, en un solo programa.
                 </p>
               </div>
 
@@ -341,11 +340,11 @@ function DesktopStepContent({ step, animationKey }: { step: AnimationStep; anima
               </div>
               <div className="bg-white rounded-lg p-2 text-center shadow-sm">
                 <FileText className="h-4 w-4 mx-auto text-gold-600 mb-1" />
-                <p className="text-xs font-medium">Organizamos</p>
+                <p className="text-xs font-medium">Organiza</p>
               </div>
               <div className="bg-white rounded-lg p-2 text-center shadow-sm">
                 <Download className="h-4 w-4 mx-auto text-pine-600 mb-1" />
-                <p className="text-xs font-medium">Contabilizamos</p>
+                <p className="text-xs font-medium">Contabilidad</p>
               </div>
             </div>
           </div>
@@ -359,7 +358,7 @@ function DesktopStepContent({ step, animationKey }: { step: AnimationStep; anima
               <div className="text-center mb-4">
                 <div className="flex items-center justify-center gap-2 mb-2">
                   <ResponsiveLogo size="sm" />
-                  <span className="font-bold text-pine-900">Barna Gestoría</span>
+                  <span className="font-bold text-pine-900">Taxlyn</span>
                 </div>
                 <h3 className="font-bold text-pine-900">Crear Cuenta</h3>
                 <p className="text-xs text-graphite-600">Regístrate para comenzar</p>
@@ -520,13 +519,13 @@ function MobileStepContent({ step, animationKey }: { step: AnimationStep; animat
       {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <ResponsiveLogo size="sm" />
-        <span className="font-bold text-emerald-800 text-sm">Barna Gestoría</span>
+        <span className="font-bold text-emerald-800 text-sm">Taxlyn</span>
       </div>
 
       {step === "homepage" && (
         <div className="space-y-3 animate-fade-in">
-          <h3 className="font-bold text-emerald-800 text-lg">Gestoría Digital</h3>
-          <p className="text-xs text-graphite-600">Contable, Fiscal y Laboral</p>
+          <h3 className="font-bold text-emerald-800 text-lg">Programa de gestión</h3>
+          <p className="text-xs text-graphite-600">Contable y fiscal</p>
           <div className="space-y-2">
             <div className="h-8 bg-emerald-600 rounded text-white flex items-center justify-center animate-pulse">
               <span className="text-sm">Registrarse</span>

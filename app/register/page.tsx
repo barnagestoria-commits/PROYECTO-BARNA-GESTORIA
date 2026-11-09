@@ -46,8 +46,8 @@ const ACCOUNT_TYPE_OPTIONS: {
   },
   {
     value: "GESTORIA",
-    title: "Gestoría",
-    description: "Despacho profesional que gestiona múltiples clientes.",
+    title: "Despacho",
+    description: "Gestoría o despacho que gestiona varios clientes con Taxlyn.",
     price: "Desde 1.000 €/mes",
     icon: Briefcase,
   },
@@ -159,11 +159,11 @@ export default function RegisterPage() {
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-2 md:gap-3 mb-4">
             <ResponsiveLogo size="md" />
-            <span className="text-xl md:text-2xl font-bold text-pine-900">Barna Gestoría</span>
+            <span className="text-xl md:text-2xl font-bold text-pine-900">Taxlyn</span>
           </div>
           <CardTitle className="text-pine-900">Crear Cuenta</CardTitle>
           <CardDescription className="text-graphite-600">
-            Elige tu tipo de usuario: Autónomo, Empresa o Gestoría
+            Elige cómo vas a usar Taxlyn: autónomo, empresa o despacho
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -15,8 +15,8 @@ export default function HomePage() {
           <div className="flex items-center gap-2 md:gap-3">
             <ResponsiveLogo size="md" />
             <h1 className="text-base sm:text-lg md:text-2xl font-bold text-pine-900">
-              <span className="hidden sm:inline">Barna Gestoría</span>
-              <span className="sm:hidden">Barna</span>
+              <span className="hidden sm:inline">Taxlyn</span>
+              <span className="sm:hidden">Taxlyn</span>
             </h1>
           </div>
           <nav className="hidden lg:flex items-center gap-6 xl:gap-8">
@@ -24,7 +24,7 @@ export default function HomePage() {
               Inicio
             </Link>
             <Link href="#servicios" className="text-pine-800 hover:text-emerald-800 font-medium transition-colors">
-              Servicios
+              Cómo funciona
             </Link>
             <Link href="/contact" className="text-pine-800 hover:text-emerald-800 font-medium transition-colors">
               Contacto
@@ -62,14 +62,12 @@ export default function HomePage() {
           <div className="space-y-6 lg:space-y-8">
             <div className="space-y-4">
               <h2 className="text-3xl sm:text-4xl lg:text-5xl xl:text-6xl font-bold text-pine-900 leading-tight">
-                Gestoría
+                Programa de gestión
                 <br />
-                <span className="text-emerald-800">Contable, Fiscal</span>
-                <br />
-                <span className="text-pine-800">y Laboral</span>
+                <span className="text-emerald-800">contable y fiscal</span>
               </h2>
               <p className="text-lg sm:text-xl text-graphite-700 max-w-lg">
-                Servicios de gestoría en Barcelona para empresas y autónomos.
+                Sube facturas y extractos. Taxlyn organiza la ficha, la contabilidad y los impuestos de tu empresa.
               </p>
             </div>
 
@@ -79,7 +77,7 @@ export default function HomePage() {
                 className="bg-emerald-800 hover:bg-pine-900 text-white px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg rounded-2xl shadow-lg transition-all hover:shadow-xl w-full sm:w-auto"
                 asChild
               >
-                <Link href="/register">Obtener más información</Link>
+                <Link href="/register">Crear cuenta</Link>
               </Button>
               <Button
                 variant="outline"
@@ -102,9 +100,9 @@ export default function HomePage() {
       {/* Features */}
       <section id="servicios" className="bg-white py-12 sm:py-16 lg:py-24 relative z-10">
         <div className="container mx-auto px-4">
-          <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-center mb-4 text-pine-900">¿Cómo funciona?</h3>
+            <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-center mb-4 text-pine-900">¿Cómo funciona?</h3>
           <p className="text-center text-graphite-600 mb-8 sm:mb-12 text-base sm:text-lg max-w-2xl mx-auto">
-            Proceso simple y seguro para gestionar tus documentos.
+            Tres pasos. Un programa. Tu empresa al día.
           </p>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
@@ -113,9 +111,9 @@ export default function HomePage() {
                 <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-emerald-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                   <Upload className="h-8 w-8 text-emerald-800" />
                 </div>
-                <CardTitle className="text-pine-900">1. Sube tus Documentos</CardTitle>
+                <CardTitle className="text-pine-900">1. Sube documentos</CardTitle>
                 <CardDescription className="text-graphite-600">
-                  Facturas recibidas, emitidas y extractos bancarios de forma segura.
+                  Facturas recibidas, emitidas y extractos bancarios, en el programa.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -125,9 +123,9 @@ export default function HomePage() {
                 <div className="w-16 h-16 bg-gradient-to-br from-gold-100 to-gold-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                   <FileText className="h-8 w-8 text-gold-800" />
                 </div>
-                <CardTitle className="text-pine-900">2. Organizamos</CardTitle>
+                <CardTitle className="text-pine-900">2. Taxlyn organiza</CardTitle>
                 <CardDescription className="text-graphite-600">
-                  Categorizamos y organizamos toda tu documentación fiscal.
+                  Cada documento queda en su sitio: ficha, contabilidad e impuestos.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -137,9 +135,9 @@ export default function HomePage() {
                 <div className="w-16 h-16 bg-gradient-to-br from-pine-100 to-pine-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                   <Download className="h-8 w-8 text-pine-800" />
                 </div>
-                <CardTitle className="text-pine-900">3. Contabilizamos</CardTitle>
+                <CardTitle className="text-pine-900">3. Contabilidad al día</CardTitle>
                 <CardDescription className="text-graphite-600">
-                  Procesamos tu información y mantenemos tu contabilidad al día.
+                  Asientos, IVA y modelos, sin perseguir papeles ni dejarlo para enero.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -170,17 +168,17 @@ export default function HomePage() {
                 <ResponsiveLogo size="md" showText={true} textClassName="text-white" />
               </div>
               <p className="text-sand-200">
-                Gestoría Contable, Fiscal y Laboral especializada en empresas y autónomos en Barcelona.
+                Programa de gestión contable y fiscal para empresas, autónomos y despachos.
               </p>
             </div>
 
             <div>
-              <h4 className="font-semibold mb-4 text-gold-200">Servicios</h4>
+              <h4 className="font-semibold mb-4 text-gold-200">El programa</h4>
               <ul className="space-y-2 text-sand-200">
                 <li>• Contabilidad</li>
-                <li>• Asesoría Fiscal</li>
-                <li>• Gestión Laboral</li>
-                <li>• Constitución de Empresas</li>
+                <li>• Impuestos</li>
+                <li>• Facturas y extractos</li>
+                <li>• Documentos</li>
               </ul>
             </div>
 
@@ -191,7 +189,7 @@ export default function HomePage() {
           </div>
 
           <div className="border-t border-emerald-700 mt-8 pt-8 text-center text-sand-200">
-            <p>&copy; 2024 Barna Gestoría. Todos los derechos reservados.</p>
+            <p>&copy; 2026 Taxlyn. Todos los derechos reservados.</p>
           </div>
         </div>
       </footer>

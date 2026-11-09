@@ -41,7 +41,7 @@ interface WhatsAppTemplatesProps {
 
 export function WhatsAppTemplates({
   phoneNumber = "634090785",
-  businessName = "Barna Gestoría",
+  businessName = "Taxlyn",
 }: WhatsAppTemplatesProps) {
   const [selectedTemplate, setSelectedTemplate] = useState<WhatsAppTemplate | null>(null)
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({})
@@ -54,27 +54,27 @@ export function WhatsAppTemplates({
       category: "UTILITY",
       language: "es",
       status: "APPROVED",
-      description: "Confirmación de cita programada",
-      useCase: "Confirmar citas con clientes",
+      description: "Confirmación de demo o llamada de soporte",
+      useCase: "Confirmar demos del programa",
       components: [
         {
           type: "HEADER",
           format: "TEXT",
-          text: "Confirmación de Cita - {{1}}",
+          text: "Confirmación de demo - {{1}}",
           example: {
-            header_text: ["Barna Gestoría"],
+            header_text: ["Taxlyn"],
           },
         },
         {
           type: "BODY",
-          text: "Hola {{1}},\n\nTu cita ha sido confirmada para el {{2}} a las {{3}}.\n\n📍 Ubicación: Barcelona\n👤 Asesor: {{4}}\n📋 Motivo: {{5}}\n\nSi necesitas reprogramar, responde a este mensaje.\n\n¡Te esperamos!",
+          text: "Hola {{1}},\n\nTu demo de Taxlyn está confirmada para el {{2}} a las {{3}}.\n\n💻 Videollamada o pantalla compartida\n👤 Soporte: {{4}}\n📋 Motivo: {{5}}\n\nSi necesitas cambiar la hora, responde a este mensaje.\n\n¡Te esperamos!",
           example: {
-            body_text: [["Juan Pérez", "15 de enero", "10:00", "María García", "Asesoría fiscal"]],
+            body_text: [["Juan Pérez", "15 de enero", "10:00", "María García", "Ver el programa"]],
           },
         },
         {
           type: "FOOTER",
-          text: "Barna Gestoría - Contable, Fiscal y Laboral",
+          text: "Taxlyn · Programa de gestión contable y fiscal",
         },
         {
           type: "BUTTONS",
@@ -119,7 +119,7 @@ export function WhatsAppTemplates({
         },
         {
           type: "FOOTER",
-          text: "Barna Gestoría - Tu documentación en buenas manos",
+          text: "Taxlyn - Tu documentación en buenas manos",
         },
         {
           type: "BUTTONS",
@@ -161,7 +161,7 @@ export function WhatsAppTemplates({
         },
         {
           type: "FOOTER",
-          text: "Barna Gestoría - Nunca olvides una fecha importante",
+          text: "Taxlyn - Nunca olvides una fecha importante",
         },
         {
           type: "BUTTONS",
@@ -197,19 +197,19 @@ export function WhatsAppTemplates({
           format: "TEXT",
           text: "¡Bienvenido a {{1}}! 🎉",
           example: {
-            header_text: ["Barna Gestoría"],
+            header_text: ["Taxlyn"],
           },
         },
         {
           type: "BODY",
-          text: "Hola {{1}},\n\n¡Gracias por confiar en nosotros!\n\nYa puedes acceder a tu panel de cliente:\n🌐 {{2}}\n\nTu asesor asignado: {{3}}\n📞 Contacto directo: {{4}}\n\nEstamos aquí para ayudarte con todas tus necesidades contables, fiscales y laborales.",
+          text: "Hola {{1}},\n\n¡Gracias por confiar en Taxlyn!\n\nYa puedes acceder a tu programa:\n🌐 {{2}}\n\nSoporte: {{3}}\n📞 Contacto directo: {{4}}\n\nEstamos aquí para ayudarte con la contabilidad y los impuestos de tu empresa.",
           example: {
-            body_text: [["Juan Pérez", "portal.barnagestoria.com", "María García", "+34 634 090 785"]],
+            body_text: [["Juan Pérez", "taxlyn.com", "María García", "+34 634 090 785"]],
           },
         },
         {
           type: "FOOTER",
-          text: "Barna Gestoría - Tu socio de confianza",
+          text: "Taxlyn - Tu socio de confianza",
         },
         {
           type: "BUTTONS",
@@ -258,7 +258,7 @@ export function WhatsAppTemplates({
         },
         {
           type: "FOOTER",
-          text: "Barna Gestoría - Trabajo completado con éxito",
+          text: "Taxlyn - Trabajo completado con éxito",
         },
         {
           type: "BUTTONS",
@@ -310,7 +310,7 @@ export function WhatsAppTemplates({
         },
         {
           type: "FOOTER",
-          text: "Barna Gestoría - Siempre innovando para ti",
+          text: "Taxlyn - Siempre innovando para ti",
         },
         {
           type: "BUTTONS",
@@ -326,7 +326,7 @@ export function WhatsAppTemplates({
             {
               type: "URL",
               text: "Ver todos los servicios",
-              url: "https://barnagestoria.com/servicios",
+              url: "https://taxlyn.com/#servicios",
             },
           ],
         },

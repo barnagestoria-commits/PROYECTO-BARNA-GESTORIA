@@ -23,7 +23,7 @@ interface WhatsAppIntegrationProps {
 
 export function WhatsAppIntegration({
   phoneNumber = "634090785",
-  businessName = "Barna Gestoría",
+  businessName = "Taxlyn",
   className,
 }: WhatsAppIntegrationProps) {
   const [copiedTemplate, setCopiedTemplate] = useState<string | null>(null)
@@ -31,44 +31,44 @@ export function WhatsAppIntegration({
   const whatsappTemplates: WhatsAppTemplate[] = [
     {
       id: "consulta-general",
-      title: "Consulta General",
-      description: "Para consultas generales sobre servicios",
-      message: `Hola ${businessName}, me gustaría obtener información sobre sus servicios de gestoría. ¿Podrían ayudarme?`,
+      title: "El programa",
+      description: "Qué es Taxlyn y cómo empezar",
+      message: `Hola ${businessName}, quiero información sobre el programa de gestión. ¿Me podéis explicar cómo funciona?`,
       category: "consulta",
     },
     {
       id: "consulta-fiscal",
-      title: "Asesoría Fiscal",
-      description: "Consultas sobre temas fiscales y tributarios",
-      message: `Hola ${businessName}, necesito asesoramiento fiscal. ¿Podrían ayudarme con mi declaración de impuestos?`,
+      title: "Impuestos",
+      description: "IVA, modelos y cierre en Taxlyn",
+      message: `Hola ${businessName}, quiero ver cómo queda el IVA y los modelos en el programa.`,
       category: "consulta",
     },
     {
-      id: "gestion-laboral",
-      title: "Gestión Laboral",
-      description: "Consultas sobre nóminas y temas laborales",
-      message: `Hola ${businessName}, tengo una consulta sobre gestión laboral y nóminas. ¿Podrían asesorarme?`,
+      id: "consulta-contabilidad",
+      title: "Contabilidad",
+      description: "Asientos, IVA y cierre en el programa",
+      message: `Hola ${businessName}, quiero ver cómo queda la contabilidad en Taxlyn.`,
       category: "consulta",
     },
     {
-      id: "constitucion-empresa",
-      title: "Constitución de Empresa",
-      description: "Para crear una nueva empresa",
-      message: `Hola ${businessName}, estoy interesado en constituir una empresa. ¿Podrían informarme sobre el proceso y costes?`,
+      id: "alta-cuenta",
+      title: "Alta de cuenta",
+      description: "Autónomo, empresa o despacho",
+      message: `Hola ${businessName}, quiero darme de alta en el programa. Soy autónomo / empresa / despacho.`,
       category: "informacion",
     },
     {
-      id: "cita-previa",
-      title: "Solicitar Cita",
-      description: "Para agendar una reunión",
-      message: `Hola ${businessName}, me gustaría solicitar una cita para una consulta presencial. ¿Qué disponibilidad tienen?`,
+      id: "demo",
+      title: "Ver el programa",
+      description: "Para que te enseñemos Taxlyn",
+      message: `Hola ${businessName}, me gustaría que me enseñarais el programa. ¿Cuándo podéis?`,
       category: "cita",
     },
     {
       id: "urgente",
-      title: "Consulta Urgente",
-      description: "Para temas que requieren atención inmediata",
-      message: `Hola ${businessName}, tengo una consulta urgente que requiere atención inmediata. ¿Podrían ayudarme?`,
+      title: "Soporte urgente",
+      description: "Un problema con la cuenta o un plazo",
+      message: `Hola ${businessName}, tengo un problema urgente con el programa. ¿Podéis echarme un cable?`,
       category: "urgente",
     },
   ]
@@ -107,7 +107,7 @@ export function WhatsAppIntegration({
       case "urgente":
         return "Urgente"
       case "cita":
-        return "Cita"
+        return "Demo"
       case "informacion":
         return "Información"
       default:
@@ -141,7 +141,7 @@ export function WhatsAppIntegration({
             </div>
             <Button
               className="bg-green-500 hover:bg-green-600 text-white"
-              onClick={() => openWhatsApp(`Hola ${businessName}, me gustaría obtener información sobre sus servicios.`)}
+              onClick={() => openWhatsApp(`Hola ${businessName}, me gustaría información sobre el programa de gestión.`)}
             >
               <MessageCircle className="h-4 w-4 mr-2" />
               Abrir Chat
@@ -229,7 +229,7 @@ export function WhatsAppIntegration({
               className="h-auto p-4 flex flex-col items-center gap-2 border-green-200 hover:bg-green-50 bg-transparent"
               onClick={() =>
                 openWhatsApp(
-                  `Hola ${businessName}, me gustaría agendar una cita para una consulta presencial. ¿Cuál es su disponibilidad?`,
+                  `Hola ${businessName}, me gustaría una demo o videollamada para ver el programa. ¿Cuándo podéis?`,
                 )
               }
             >
@@ -237,8 +237,8 @@ export function WhatsAppIntegration({
                 <MessageCircle className="h-4 w-4 text-blue-600" />
               </div>
               <div className="text-center">
-                <p className="font-medium text-sm">Agendar Cita</p>
-                <p className="text-xs text-gray-500">Reunión presencial</p>
+                <p className="font-medium text-sm">Ver el programa</p>
+                <p className="text-xs text-gray-500">Demo o videollamada</p>
               </div>
             </Button>
 
@@ -247,7 +247,7 @@ export function WhatsAppIntegration({
               className="h-auto p-4 flex flex-col items-center gap-2 border-green-200 hover:bg-green-50 bg-transparent"
               onClick={() =>
                 openWhatsApp(
-                  `Hola ${businessName}, me gustaría recibir información detallada sobre sus servicios y tarifas.`,
+                  `Hola ${businessName}, me gustaría información de las cuentas y precios de Taxlyn (autónomo, empresa o despacho).`,
                 )
               }
             >
@@ -255,8 +255,8 @@ export function WhatsAppIntegration({
                 <MessageCircle className="h-4 w-4 text-emerald-600" />
               </div>
               <div className="text-center">
-                <p className="font-medium text-sm">Información</p>
-                <p className="text-xs text-gray-500">Servicios y tarifas</p>
+                <p className="font-medium text-sm">Cuentas y precios</p>
+                <p className="text-xs text-gray-500">Autónomo, empresa o despacho</p>
               </div>
             </Button>
           </div>

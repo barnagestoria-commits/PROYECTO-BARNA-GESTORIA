@@ -12,10 +12,14 @@ const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   metadataBase: new URL(env.appUrl),
-  title: "Barna Gestoría - Contable, Fiscal y Laboral",
+  title: "Taxlyn · Programa de gestión contable y fiscal",
   description:
-    "Servicios de gestoría en Barcelona para empresas y autónomos. Gestión contable, fiscal y laboral profesional.",
-  keywords: "gestoría, Barcelona, contable, fiscal, laboral, empresas, autónomos",
+    "Taxlyn es el programa de gestión contable y fiscal para empresas, autónomos y despachos.",
+  keywords: "Taxlyn, programa de gestión, contabilidad, fiscal, empresas, autónomos, despachos",
+  icons: {
+    icon: "/brand/taxlyn-perfil-400.png",
+    apple: "/brand/taxlyn-redes-1080.png",
+  },
     generator: 'v0.app'
 }
 

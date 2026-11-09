@@ -157,7 +157,7 @@ export default function AdminPage() {
           <div className="flex items-center gap-2 md:gap-3">
             <ResponsiveLogo size="sm" />
             <h1 className="text-lg md:text-2xl font-bold text-emerald-800">
-              <span className="hidden lg:inline">Panel Administrativo - Barna Gestoría</span>
+              <span className="hidden lg:inline">Panel Administrativo - Taxlyn</span>
               <span className="hidden sm:inline lg:hidden">Panel Admin</span>
               <span className="sm:hidden">Admin</span>
             </h1>

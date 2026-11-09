@@ -42,11 +42,11 @@ export default function LoginPage() {
         <CardHeader className="text-center">
           <div className="flex items-center justify-center gap-2 md:gap-3 mb-4">
             <ResponsiveLogo size="md" />
-            <span className="text-xl md:text-2xl font-bold text-pine-900">Barna Gestoría</span>
+            <span className="text-xl md:text-2xl font-bold text-pine-900">Taxlyn</span>
           </div>
           <CardTitle className="text-pine-900">Iniciar Sesión</CardTitle>
           <CardDescription className="text-graphite-600">
-            Accede a tu panel de documentos fiscales
+            Accede a tu programa de gestión
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -105,7 +105,7 @@ export default function LoginPage() {
           {SHOW_DEMO_CREDENTIALS && (
           <div className="space-y-2 rounded-lg border border-sand-300 bg-sand-100 p-3 text-sm text-pine-800">
             <p>
-              <strong>Gestoría:</strong> admin@gestoria.com / demo123
+              <strong>Despacho:</strong> admin@gestoria.com / demo123
             </p>
             <p>
               <strong>Gestor:</strong> gestor@gestoria.com / demo123

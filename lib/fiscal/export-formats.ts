@@ -13,7 +13,7 @@ export const FISCAL_EXPORT_LABELS: Record<FiscalExportFormat, string> = {
 
 export const FISCAL_EXPORT_DESCRIPTIONS: Record<FiscalExportFormat, string> = {
   pdf: "Documento formal para archivo e impresión. No sustituye al fichero de Hacienda.",
-  xlsx: "Hoja de cálculo del desglose interno de Barna. No sirve para importar en la Sede.",
+  xlsx: "Hoja de cálculo del desglose interno de Taxlyn. No sirve para importar en la Sede.",
   csv: "Texto delimitado para sistemas externos",
   txt: "Fichero oficial para importar y presentar el modelo en la Sede Electrónica de la AEAT",
   lsi: "Libros registro .xlsx para que Hacienda rellene casillas del 130, Pre303 y Renta WEB",

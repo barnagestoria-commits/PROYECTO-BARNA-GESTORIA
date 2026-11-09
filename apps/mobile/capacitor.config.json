@@ -1,6 +1,6 @@
 {
   "appId": "com.gestoria.platform",
-  "appName": "Gestoría",
+  "appName": "Taxlyn",
   "webDir": "www",
   "server": {
     "url": "https://v0-factura-y-extractos-web.vercel.app",

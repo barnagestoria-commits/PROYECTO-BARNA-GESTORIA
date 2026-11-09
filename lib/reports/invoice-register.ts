@@ -297,7 +297,7 @@ function money(value: number): number {
 
 export async function buildInvoiceRegisterXlsx(listing: InvoiceRegisterListing, withTotal: boolean): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = "Barna Gestoría"
+  workbook.creator = "Taxlyn"
   const sheet = workbook.addWorksheet("Libro de facturas")
   const headers = [
     "Libro",

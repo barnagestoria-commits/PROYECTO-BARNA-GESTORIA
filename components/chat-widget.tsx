@@ -55,16 +55,16 @@ export function ChatWidget({ className }: ChatWidgetProps) {
       const welcomeMessage: Message = {
         id: "welcome",
         text: isOnline
-          ? "¡Hola! Soy el asistente virtual de Barna Gestoría. ¿En qué puedo ayudarte hoy?"
+          ? "¡Hola! Soy el asistente virtual de Taxlyn. ¿En qué puedo ayudarte hoy?"
           : "¡Hola! Actualmente estamos fuera del horario de atención (L-V 9:00-18:00). Puedes dejarnos tu consulta y te responderemos lo antes posible.",
         sender: "bot",
         timestamp: new Date(),
         type: "options",
         options: [
-          "Información sobre servicios",
-          "Consulta fiscal",
-          "Gestión laboral",
-          "Hablar con un agente",
+          "Qué es Taxlyn",
+          "Contabilidad",
+          "Impuestos",
+          "Hablar con alguien",
           "Contactar por WhatsApp",
         ],
       }
@@ -124,36 +124,42 @@ export function ChatWidget({ className }: ChatWidgetProps) {
       }
     }
 
-    if (text.includes("servicio") || text.includes("qué hacen") || text.includes("información")) {
+    if (
+      text.includes("servicio") ||
+      text.includes("qué es") ||
+      text.includes("taxlyn") ||
+      text.includes("información") ||
+      text.includes("contabilidad")
+    ) {
       return {
         id: Date.now().toString(),
-        text: "Ofrecemos servicios de:\n\n• Contabilidad y Administración\n• Asesoría Fiscal y Tributaria\n• Gestión Laboral y Nóminas\n• Constitución de Empresas\n• Trámites con Hacienda y Seguridad Social\n\n¿Te interesa algún servicio en particular?",
+        text: "Taxlyn es un programa de gestión contable y fiscal, no una gestoría.\n\nEn un solo sitio:\n\n• Ficha de la empresa\n• Facturas y extractos\n• Contabilidad\n• Impuestos\n• Documentos\n\nTú subes los documentos. El programa organiza y deja la empresa al día.",
         sender: "bot",
         timestamp: new Date(),
         type: "options",
-        options: ["Más información", "Contactar por WhatsApp", "Solicitar presupuesto"],
+        options: ["Crear cuenta", "Contactar por WhatsApp", "Ver precios"],
       }
     }
 
     if (text.includes("fiscal") || text.includes("hacienda") || text.includes("impuesto")) {
       return {
         id: Date.now().toString(),
-        text: "En asesoría fiscal te ayudamos con:\n\n• Declaraciones de IRPF\n• IVA trimestral y anual\n• Impuesto de Sociedades\n• Planificación fiscal\n• Recursos ante Hacienda\n\n¿Necesitas ayuda con algún trámite específico?",
+        text: "En Taxlyn el módulo fiscal cubre:\n\n• IVA\n• IRPF\n• Impuesto de sociedades\n• Modelos y plazos\n\nNo sustituye un asesoramiento personalizado: el programa deja los datos listos para presentar.",
         sender: "bot",
         timestamp: new Date(),
         type: "options",
-        options: ["Consulta por WhatsApp", "Agendar cita", "Más información"],
+        options: ["Consulta por WhatsApp", "Más información"],
       }
     }
 
     if (text.includes("laboral") || text.includes("nómina") || text.includes("trabajador")) {
       return {
         id: Date.now().toString(),
-        text: "En gestión laboral nos encargamos de:\n\n• Altas y bajas de trabajadores\n• Nóminas mensuales\n• Contratos laborales\n• Seguros sociales\n• Finiquitos y liquidaciones\n\n¿Tienes alguna consulta laboral específica?",
+        text: "Taxlyn es un programa de gestión contable y fiscal. No incluye nóminas ni gestión laboral.\n\nSi lo que buscas es contabilidad o impuestos, te ayudamos por WhatsApp.",
         sender: "bot",
         timestamp: new Date(),
         type: "options",
-        options: ["Consulta por WhatsApp", "Información de contacto", "Solicitar presupuesto"],
+        options: ["Consulta por WhatsApp", "Qué es Taxlyn"],
       }
     }
 
@@ -180,7 +186,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
     if (text.includes("precio") || text.includes("coste") || text.includes("tarifa")) {
       return {
         id: Date.now().toString(),
-        text: "Nuestras tarifas varían según el servicio y las necesidades específicas de cada cliente. Te recomiendo que nos contactes para hacer una valoración personalizada sin compromiso.",
+        text: "Taxlyn tiene tres cuentas: autónomo, empresa y despacho. La cuota depende del tipo y del volumen. Te lo decimos por WhatsApp cuando sepamos qué tienes entre manos.",
         sender: "bot",
         timestamp: new Date(),
         type: "options",
@@ -257,7 +263,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
               <div className="flex items-center gap-2">
                 <ResponsiveLogo size="sm" className="brightness-0 invert" />
                 <div>
-                  <CardTitle className="text-sm font-medium">Barna Gestoría</CardTitle>
+                  <CardTitle className="text-sm font-medium">Taxlyn</CardTitle>
                   <div className="flex items-center gap-1 text-xs">
                     <div className={cn("w-2 h-2 rounded-full", isOnline ? "bg-green-400" : "bg-red-400")} />
                     {isOnline ? "En línea" : "Fuera de horario"}
@@ -325,7 +331,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
                         <WhatsAppButton
                           size="sm"
                           variant="inline"
-                          message="Hola Barna Gestoría, me gustaría obtener más información sobre sus servicios."
+                          message="Hola Taxlyn, me gustaría información sobre el programa de gestión."
                           className="max-w-xs"
                         />
                       </div>
@@ -352,7 +358,7 @@ export function ChatWidget({ className }: ChatWidgetProps) {
                           <Mail className="h-3 w-3 mr-1" />
                           Email
                         </Button>
-                        <WhatsAppButton size="sm" message="Hola Barna Gestoría, me gustaría contactar con ustedes." />
+                        <WhatsAppButton size="sm" message="Hola Taxlyn, me gustaría contactar con ustedes." />
                       </div>
                     )}
 

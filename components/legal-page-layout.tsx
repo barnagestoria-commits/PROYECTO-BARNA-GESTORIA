@@ -23,7 +23,7 @@ export function LegalPageLayout({
         <div className="container mx-auto flex items-center justify-between px-4 py-4">
           <div className="flex items-center gap-2 md:gap-3">
             <ResponsiveLogo size="md" />
-            <span className="text-lg font-bold text-emerald-800 md:text-xl">Barna Gestoría</span>
+            <span className="text-lg font-bold text-emerald-800 md:text-xl">Taxlyn</span>
           </div>
           <Button
             variant="outline"

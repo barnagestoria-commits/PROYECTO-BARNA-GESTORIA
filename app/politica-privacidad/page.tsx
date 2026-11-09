@@ -2,9 +2,9 @@ import type { Metadata } from "next"
 import { LegalPageLayout, LegalSection } from "@/components/legal-page-layout"
 
 export const metadata: Metadata = {
-  title: "Política de privacidad | Barna Gestoría",
+  title: "Política de privacidad | Taxlyn",
   description:
-    "Política de privacidad de la plataforma Barna Gestoría. Información sobre tratamiento de datos y OAuth.",
+    "Política de privacidad de la plataforma Taxlyn. Información sobre tratamiento de datos y OAuth.",
 }
 
 export default function PoliticaPrivacidadPage() {

@@ -43,8 +43,8 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
         >
           <ResponsiveLogo size="sm" className="brightness-110" />
           <div className={cn("min-w-0", isCompactNav ? "hidden" : "block")}>
-            <p className="truncate text-sm font-bold text-white">Barna Gestoría</p>
-            <p className="truncate text-[11px] text-white/45">Panel financiero</p>
+            <p className="truncate text-sm font-bold text-white">Taxlyn</p>
+            <p className="truncate text-[11px] text-white/45">Programa de gestión</p>
           </div>
         </Link>
 

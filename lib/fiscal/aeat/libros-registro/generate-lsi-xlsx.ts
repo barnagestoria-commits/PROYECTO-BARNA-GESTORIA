@@ -336,7 +336,7 @@ export async function generateLibrosRegistroXlsx(params: {
   books: LibrosRegistroBooks
 }): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = "Barna Gestoría"
+  workbook.creator = "Taxlyn"
   workbook.company = params.companyName
 
   const issued = workbook.addWorksheet("EXPEDIDAS_INGRESOS")

@@ -1,7 +1,7 @@
 import { DEFAULT_APP_URL } from "./app-url"
 
 export const NATIVE_APP_CONFIG = {
-  appDisplayName: "Gestoría",
+  appDisplayName: "Taxlyn",
   bundleId: "com.gestoria.platform",
   defaultCloudAppUrl: DEFAULT_APP_URL,
   legalPaths: {

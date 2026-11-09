@@ -45,7 +45,7 @@ export function buildMockCertificate(payload: CertificateUploadPayload): StoredD
 
   return {
     fileName: payload.fileName,
-    holderName: "Barna Gestoría SL",
+    holderName: "Taxlyn SL",
     issuerNif: "B00000083",
     expiresAt: expires.toISOString(),
     environment: payload.environment,

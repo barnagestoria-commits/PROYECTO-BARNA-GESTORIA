@@ -16,12 +16,12 @@ interface WhatsAppButtonProps {
 export function WhatsAppButton({
   phoneNumber = "634090785",
   message,
-  businessName = "Barna Gestoría",
+  businessName = "Taxlyn",
   variant = "default",
   size = "md",
   className,
 }: WhatsAppButtonProps) {
-  const defaultMessage = `Hola ${businessName}, me gustaría obtener información sobre sus servicios de gestoría.`
+  const defaultMessage = `Hola ${businessName}, me gustaría información sobre el programa de gestión.`
 
   const openWhatsApp = () => {
     const finalMessage = message || defaultMessage

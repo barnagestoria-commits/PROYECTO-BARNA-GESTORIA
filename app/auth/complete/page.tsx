@@ -43,7 +43,7 @@ export default function OAuthCompletePage() {
       <div className="w-full max-w-md rounded-xl border border-sand-300 bg-white p-8 text-center shadow-xl">
         <div className="mb-4 flex items-center justify-center gap-2">
           <ResponsiveLogo size="md" />
-          <span className="text-xl font-bold text-pine-900">Barna Gestoría</span>
+          <span className="text-xl font-bold text-pine-900">Taxlyn</span>
         </div>
 
         {error ? (

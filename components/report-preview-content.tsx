@@ -29,7 +29,7 @@ type SerializedPreview =
 function ReportHeader({ meta }: { meta: SerializedReportMeta }) {
   return (
     <div className="border-b border-emerald-200 pb-4">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Barna Gestoría</p>
+      <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">Taxlyn</p>
       <h2 className="mt-1 text-xl font-bold text-emerald-950">{meta.reportTitle}</h2>
       <div className="mt-3 grid gap-1 text-sm text-gray-600 sm:grid-cols-2">
         <p>

@@ -55,8 +55,8 @@ export function LoadingScreen({ onLoadingComplete, duration = 2500 }: LoadingScr
             )}
           >
             <Image
-              src="/images/barna-logo-updated.png"
-              alt="Barna Gestoría"
+              src="/images/taxlyn-hero.png"
+              alt="Taxlyn"
               width={120}
               height={120}
               className="object-contain drop-shadow-lg"
@@ -103,7 +103,7 @@ export function LoadingScreen({ onLoadingComplete, duration = 2500 }: LoadingScr
               animationPhase === "exit" && "opacity-80 translate-y-0",
             )}
           >
-            Barna Gestoría
+            Taxlyn
           </h1>
           <p
             className={cn(
@@ -113,7 +113,7 @@ export function LoadingScreen({ onLoadingComplete, duration = 2500 }: LoadingScr
               animationPhase === "exit" && "opacity-60 translate-y-0",
             )}
           >
-            Contable, Fiscal y Laboral
+            Contable y fiscal
           </p>
         </div>
 

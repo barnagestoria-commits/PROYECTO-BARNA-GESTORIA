@@ -17,7 +17,7 @@ export function LogoChecker({ size = "md", showText = true, className, textClass
   useEffect(() => {
     const checkLogo = async () => {
       try {
-        const response = await fetch("/images/barna-logo-updated.png", { method: "HEAD" })
+        const response = await fetch("/images/taxlyn-hero.png", { method: "HEAD" })
         setLogoExists(response.ok)
       } catch {
         setLogoExists(false)

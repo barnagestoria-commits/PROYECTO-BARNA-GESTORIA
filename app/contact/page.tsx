@@ -18,8 +18,8 @@ export default function ContactPage() {
           <div className="flex items-center gap-2 md:gap-3">
             <ResponsiveLogo size="md" />
             <h1 className="text-lg md:text-2xl font-bold text-emerald-800">
-              <span className="hidden sm:inline">Barna Gestoría</span>
-              <span className="sm:hidden">Barna</span>
+              <span className="hidden sm:inline">Taxlyn</span>
+              <span className="sm:hidden">Taxlyn</span>
             </h1>
           </div>
           <Button
@@ -40,7 +40,7 @@ export default function ContactPage() {
           <div className="text-center mb-12">
             <h1 className="text-4xl md:text-5xl font-bold text-emerald-800 mb-4">Contacta con Nosotros</h1>
             <p className="text-xl text-emerald-600 max-w-2xl mx-auto">
-              Estamos aquí para ayudarte con todas tus necesidades contables, fiscales y laborales
+              Dudas del programa, el alta o un plazo. Te respondemos.
             </p>
           </div>
 
@@ -55,7 +55,7 @@ export default function ContactPage() {
               <Card className="relative overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-emerald-800">Información de Contacto</CardTitle>
-                  <CardDescription>Ponte en contacto con nuestro equipo profesional</CardDescription>
+                  <CardDescription>Soporte de Taxlyn</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ContactInfo variant="card" />
@@ -65,7 +65,7 @@ export default function ContactPage() {
               <Card className="relative overflow-hidden">
                 <CardHeader>
                   <CardTitle className="text-emerald-800">Horarios de Atención</CardTitle>
-                  <CardDescription>Nuestros horarios de oficina</CardDescription>
+                  <CardDescription>Soporte de Taxlyn</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex justify-between">
@@ -90,15 +90,15 @@ export default function ContactPage() {
 
               <Card className="relative overflow-hidden">
                 <CardHeader>
-                  <CardTitle className="text-emerald-800">Servicios Principales</CardTitle>
+                  <CardTitle className="text-emerald-800">Qué incluye Taxlyn</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2 text-emerald-700">
-                    <li>• Contabilidad y Administración</li>
-                    <li>• Asesoría Fiscal y Tributaria</li>
-                    <li>• Gestión Laboral y Nóminas</li>
-                    <li>• Constitución de Empresas</li>
-                    <li>• Trámites con Hacienda y Seguridad Social</li>
+                    <li>• Contabilidad</li>
+                    <li>• Impuestos y modelos</li>
+                    <li>• Facturas y extractos</li>
+                    <li>• Documentos de la empresa</li>
+                    <li>• Cuentas para autónomos, empresas y despachos</li>
                   </ul>
                 </CardContent>
               </Card>

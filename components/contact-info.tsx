@@ -47,7 +47,7 @@ export function ContactInfo({ variant = "default", showIcons = true }: ContactIn
         <div className="pt-3">
           <WhatsAppButton
             size="sm"
-            message="Hola Barna Gestoría, me gustaría obtener información sobre sus servicios."
+            message="Hola Taxlyn, me gustaría información sobre el programa de gestión."
           />
         </div>
       </div>
@@ -97,7 +97,7 @@ export function ContactInfo({ variant = "default", showIcons = true }: ContactIn
           <p className="font-medium text-green-800 mb-2">WhatsApp Business</p>
           <WhatsAppButton
             variant="inline"
-            message="Hola Barna Gestoría, me gustaría obtener información sobre sus servicios."
+            message="Hola Taxlyn, me gustaría información sobre el programa de gestión."
           />
         </div>
       </div>

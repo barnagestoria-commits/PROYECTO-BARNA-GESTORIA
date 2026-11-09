@@ -110,7 +110,7 @@ export function getFiscalPresentationChoice(params: {
     sedeUrl: source?.presentationPath ?? AEAT_OFFICIAL_PORTALS.declarationsByModel,
     sedeTitle: "Presentar en Hacienda",
     sedeDescription:
-      "Abre el formulario oficial con tu certificado digital. Allí puedes cumplimentarlo o importar los ficheros de Barna.",
+      "Abre el formulario oficial con tu certificado digital. Allí puedes cumplimentarlo o importar los ficheros de Taxlyn.",
     sedeCta: `Abrir modelo ${params.modelCode} en la AEAT`,
     certificateHref: "/configuracion/certificado",
     filesOptionLabel: "Opción 2",

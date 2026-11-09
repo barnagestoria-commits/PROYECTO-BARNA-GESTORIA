@@ -42,7 +42,7 @@ function styleSubtotalRow(row: ExcelJS.Row) {
 
 function addMetaHeader(sheet: ExcelJS.Worksheet, meta: ReportMeta) {
   sheet.mergeCells("A1:E1")
-  sheet.getCell("A1").value = "BARNA GESTORÍA"
+  sheet.getCell("A1").value = "TAXLYN"
   sheet.getCell("A1").font = { bold: true, color: { argb: "FF145A32" }, size: 10 }
 
   sheet.mergeCells("A2:E2")
@@ -242,7 +242,7 @@ function buildPygSheet(workbook: ExcelJS.Workbook, data: PygReportData) {
 export async function generateReportXlsx(type: ReportType, query: LedgerQuery): Promise<Buffer> {
   const report = await fetchReportData(type, query)
   const workbook = new ExcelJS.Workbook()
-  workbook.creator = "Barna Gestoría"
+  workbook.creator = "Taxlyn"
   workbook.created = new Date()
 
   switch (report.type) {

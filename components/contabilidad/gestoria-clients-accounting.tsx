@@ -244,7 +244,7 @@ export function GestoriaClientsAccountingPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-pine-900">Contabilidad Clientes Gestoría</h1>
         <p className="mt-1 text-sm text-graphite-500">
-          Buscador de empresas cliente · modo nube (documentación centralizada en Barna Gestoría)
+          Buscador de empresas cliente · modo nube (documentación centralizada en Taxlyn)
         </p>
       </div>
 
@@ -275,7 +275,7 @@ export function GestoriaClientsAccountingPage() {
             icon={HelpCircle}
             onClick={() =>
               setStatusMessage(
-                "En modo nube la documentación se guarda en el repositorio de Barna Gestoría por cliente. En instalación de escritorio se usará una ruta local configurable por cliente.",
+                "En modo nube la documentación se guarda en el repositorio de Taxlyn por cliente. En instalación de escritorio se usará una ruta local configurable por cliente.",
               )
             }
           />
