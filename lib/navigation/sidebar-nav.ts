@@ -89,9 +89,9 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Registro y envío de facturas de venta",
           },
           {
-            label: "Ingresos del periodo",
-            href: "/dashboard/informes/pyg",
-            description: "Consultar cuenta de resultados",
+            label: "Asiento de ventas",
+            href: "/dashboard/contabilidad?comando=17",
+            description: "Contabilizar la factura de venta",
           },
         ],
       },
@@ -112,9 +112,9 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Gastos, proveedores y OCR",
           },
           {
-            label: "Gastos deducibles",
-            href: "/dashboard/contabilidad",
-            description: "Clasificación contable de gastos",
+            label: "Asiento de gastos",
+            href: "/dashboard/contabilidad?comando=34",
+            description: "Contabilizar la factura de compra",
           },
         ],
       },
@@ -143,21 +143,6 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Historial de importaciones",
             href: "/dashboard/utilidades/importar?tab=historial",
             description: "Ficheros procesados recientemente",
-          },
-        ],
-      },
-      {
-        title: "Captura documental",
-        items: [
-          {
-            label: "Facturas recibidas",
-            href: "/dashboard/compras/facturas-recibidas",
-            description: "Cámara, archivo o arrastrar PDF",
-          },
-          {
-            label: "Facturas emitidas",
-            href: "/dashboard/ventas/facturas-emitidas",
-            description: "Ventas y facturas de tu empresa",
           },
         ],
       },
@@ -356,16 +341,6 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
           },
         ],
       },
-      {
-        title: "Exportación",
-        items: [
-          {
-            label: "Informes PDF / Excel",
-            href: "/dashboard/informes/balance",
-            description: "Exportar listados contables",
-          },
-        ],
-      },
     ],
   },
 ]
@@ -402,13 +377,16 @@ export function getSidebarNavModules(accountType: AccountType, options?: { sii?:
 
 export function isNavLinkActive(href: string, pathname: string, searchParams?: string): boolean {
   const [path, query] = href.split("?")
-  if (query && searchParams) {
+  if (query) {
+    if (pathname !== path) return false
     const target = new URLSearchParams(query)
-    const current = new URLSearchParams(searchParams)
-    const accion = target.get("accion")
-    if (accion && current.get("accion") === accion && pathname === path) return true
+    const current = new URLSearchParams(searchParams ?? "")
+    for (const [key, value] of target.entries()) {
+      if (current.get(key) !== value) return false
+    }
+    return true
   }
-  if (path === "/dashboard" && !query) {
+  if (path === "/dashboard") {
     return pathname === "/dashboard" && !searchParams?.includes("accion=")
   }
   if (path === "/dashboard/importacion") {
@@ -427,7 +405,7 @@ export function isNavLinkActive(href: string, pathname: string, searchParams?: s
     return pathname === "/dashboard/contabilidad/conciliacion-bancaria"
   }
   if (path === "/dashboard/contabilidad") {
-    return pathname === "/dashboard/contabilidad"
+    return pathname === "/dashboard/contabilidad" && !searchParams?.includes("comando=")
   }
   if (path === "/dashboard/fiscal") {
     return pathname === "/dashboard/fiscal" || pathname.startsWith("/dashboard/fiscal/")
