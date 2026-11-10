@@ -19,10 +19,8 @@ import {
   withIssuedClassification,
   withPurchaseClassification,
 } from "@/lib/accounting/invoice-supplier-classification"
-import {
-  DuplicateInvoiceError,
-  findDuplicateInvoiceEntry,
-} from "@/lib/accounting/duplicate-invoice"
+import { DuplicateInvoiceError } from "@/lib/accounting/duplicate-invoice"
+import { findDuplicateInvoiceEntry } from "@/lib/accounting/duplicate-invoice-lookup"
 import { reassignCompanyAccount } from "@/lib/accounting/account-reassign-service"
 import { calculateTotalFromBreakdown, sumDesglose } from "@/lib/invoice-totals"
 import { invoiceDetailsFromOcr } from "@/lib/accounting/invoice-details-normalize"

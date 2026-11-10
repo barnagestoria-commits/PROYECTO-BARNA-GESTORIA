@@ -20,9 +20,9 @@ import { repairCanonicalAccountCodes } from "@/lib/accounting/canonical-account-
 import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
 import {
   DuplicateInvoiceError,
-  findDuplicateInvoiceEntry,
   shouldProbeDuplicateInvoice,
 } from "@/lib/accounting/duplicate-invoice"
+import { findDuplicateInvoiceEntry } from "@/lib/accounting/duplicate-invoice-lookup"
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 

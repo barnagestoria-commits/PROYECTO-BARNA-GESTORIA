@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
-import { findDuplicateInvoiceEntry } from "@/lib/accounting/duplicate-invoice"
+import { findDuplicateInvoiceEntry } from "@/lib/accounting/duplicate-invoice-lookup"
 
 export async function GET(request: Request) {
   try {

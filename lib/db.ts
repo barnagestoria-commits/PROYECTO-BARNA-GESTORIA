@@ -28,8 +28,13 @@ function createPrismaClient(): PrismaClient {
   }) as unknown as PrismaClient
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient()
-
-if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma
+function loadPrisma(): PrismaClient {
+  if (!globalForPrisma.prisma) {
+    globalForPrisma.prisma = createPrismaClient()
+  }
+  return globalForPrisma.prisma
 }
+
+/** Nunca instanciar Prisma en el navegador: el asiento rápido importa helpers de facturas duplicadas. */
+export const prisma =
+  typeof window === "undefined" ? loadPrisma() : (null as unknown as PrismaClient)
