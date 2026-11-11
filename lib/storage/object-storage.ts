@@ -18,7 +18,7 @@ function blobToken(): string | undefined {
   return process.env.BLOB_READ_WRITE_TOKEN?.trim() || undefined
 }
 
-function useBlobStore(): boolean {
+function blobStoreEnabled(): boolean {
   return Boolean(blobToken() || process.env.VERCEL === "1")
 }
 
@@ -129,7 +129,7 @@ export async function putCompanyObject(params: {
   const storageKey = buildCompanyStorageKey(params.companyId, params.kind, params.fileName)
   const sha256 = hashBufferSha256(params.body)
 
-  if (useBlobStore()) {
+  if (blobStoreEnabled()) {
     const url = await putBlob(storageKey, params.body, params.contentType)
     return {
       storageKey,
@@ -151,7 +151,7 @@ export async function putCompanyObject(params: {
 }
 
 export async function getStoredObject(storageKey: string): Promise<Buffer> {
-  if (useBlobStore()) {
+  if (blobStoreEnabled()) {
     try {
       return await getBlob(storageKey)
     } catch {
@@ -163,7 +163,7 @@ export async function getStoredObject(storageKey: string): Promise<Buffer> {
 
 export async function deleteStoredObject(storageKey: string | null | undefined): Promise<void> {
   if (!storageKey) return
-  if (useBlobStore()) {
+  if (blobStoreEnabled()) {
     try {
       await deleteBlob(storageKey)
       return
