@@ -6,6 +6,8 @@ import { CheckCircle2, FileSpreadsheet, Loader2, Upload, Users } from "lucide-re
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { apiFormFetch } from "@/lib/api-client"
+import { accountingImportNeedsAssistance } from "@/lib/imports/assisted-import"
+import { AssistedImportNotice } from "@/components/import-export/assisted-import-notice"
 import { cn } from "@/lib/utils"
 
 interface PortfolioCandidatePreview {
@@ -40,6 +42,7 @@ export function PortfolioImportPanel() {
   const [isConfirming, setIsConfirming] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [needsAssistance, setNeedsAssistance] = useState(false)
 
   const reset = () => {
     setPendingFile(null)
@@ -52,6 +55,15 @@ export function PortfolioImportPanel() {
     setMessage(null)
     setPreview(null)
     setPendingFile(file)
+
+    if (accountingImportNeedsAssistance(file.size)) {
+      setNeedsAssistance(true)
+      setPendingFile(null)
+      setIsPreviewing(false)
+      return
+    }
+
+    setNeedsAssistance(false)
 
     try {
       const formData = new FormData()
@@ -160,6 +172,7 @@ export function PortfolioImportPanel() {
           {message}
         </p>
       )}
+      {needsAssistance ? <AssistedImportNotice /> : null}
       {error && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}

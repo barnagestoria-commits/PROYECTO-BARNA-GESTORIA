@@ -158,11 +158,28 @@ model User {
   role          UserRole
   accountId     String
   hasCompletedOnboarding Boolean @default(false)
+  /// Operador de Taxlyn. Puede abrir cualquier cuenta para resolver incidencias.
+  isPlatformOperator Boolean @default(false)
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   sessions      Session[]
   companyAccess UserCompanyAccess[]
+  supportAccessEvents SupportAccessEvent[]
+}
+
+/// Entrada de un operador de Taxlyn en la empresa de un cliente.
+model SupportAccessEvent {
+  id             String   @id @default(cuid())
+  operatorUserId String
+  operator       User     @relation(fields: [operatorUserId], references: [id], onDelete: Cascade)
+  companyId      String
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  action         String
+  createdAt      DateTime @default(now())
+
+  @@index([operatorUserId, createdAt])
+  @@index([companyId, createdAt])
 }
 
 /// Empresa/cliente fiscal. OCR y extractos siempre vinculados a companyId.
@@ -220,6 +237,7 @@ model Company {
   siiSubmissions       SiiInvoiceSubmission[]
   taxReturns           TaxReturn[]
   taxFacts             TaxFact[]
+  supportAccessEvents  SupportAccessEvent[]
 
   @@index([accountId, kind])
 }
@@ -255,6 +273,11 @@ model CompanyDigitalCertificate {
   environment String
   uploadedAt  DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  /// Sobre cifrado del .p12 en object storage. Postgres solo guarda la clave.
+  storageKey  String?
+  contentType String?
+  sha256      String?
+  byteSize    Int?
 }
 
 /// Asignación gestor ↔ empresa cliente (solo cuentas GESTORIA)
@@ -282,6 +305,10 @@ model FiscalDocument {
   updatedAt         DateTime       @updatedAt
   accountingEntryId String?        @unique
   accountingEntry   AccountingEntry? @relation(fields: [accountingEntryId], references: [id], onDelete: SetNull)
+  /// Ruta en object storage. El PDF/binario no se guarda en Postgres.
+  storageKey        String?
+  contentType       String?
+  sha256            String?
 }
 
 model Session {
@@ -638,6 +665,10 @@ model BankStatementImport {
   uploadedById    String?
   createdAt       DateTime            @default(now())
   movements       BankMovement[]
+  /// Extracto original en object storage. Postgres solo guarda la ruta.
+  storageKey      String?
+  contentType     String?
+  sha256          String?
 
   @@index([companyId, createdAt])
 }

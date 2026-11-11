@@ -14,12 +14,13 @@ import {
   getOcrInvoiceUsage,
   recordOcrInvoiceUsage,
 } from "@/lib/ocr/ocr-quota-service"
+import { deleteStoredObject, putCompanyObject } from "@/lib/storage/object-storage"
+import { assertUploadSize, UPLOAD_LIMITS_BYTES } from "@/lib/storage/upload-limits"
 
 export const runtime = "nodejs"
 export const maxDuration = 180
 
 const ALLOWED_TYPES = ["application/pdf", "image/jpeg", "image/jpg", "image/png"]
-const MAX_FILE_SIZE = 10 * 1024 * 1024
 
 export async function GET(request: Request) {
   try {
@@ -69,9 +70,11 @@ export async function POST(request: Request) {
       )
     }
 
-    if (file.size > MAX_FILE_SIZE) {
+    try {
+      assertUploadSize(file.size, UPLOAD_LIMITS_BYTES.invoice, "El archivo")
+    } catch (error) {
       return NextResponse.json<InvoiceOcrErrorResponse>(
-        { success: false, error: "El archivo supera el tamaño máximo de 10 MB." },
+        { success: false, error: error instanceof Error ? error.message : "Archivo demasiado grande." },
         { status: 400 },
       )
     }
@@ -92,12 +95,26 @@ export async function POST(request: Request) {
       documentTypeRaw === "factura-emitida" ? "factura-emitida" : "factura-recibida"
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const invoices = await extractInvoiceData({
-      buffer,
-      mimeType: file.type,
+    const stored = await putCompanyObject({
+      companyId,
+      kind: "documents",
       fileName: file.name,
-      documentType,
+      body: buffer,
+      contentType: file.type || "application/octet-stream",
     })
+
+    let invoices
+    try {
+      invoices = await extractInvoiceData({
+        buffer,
+        mimeType: file.type,
+        fileName: file.name,
+        documentType,
+      })
+    } catch (error) {
+      await deleteStoredObject(stored.storageKey)
+      throw error
+    }
     const purchaseContext = await loadCompanyPurchaseContext(companyId)
     const classifiedInvoices = invoices.map((invoice) =>
       documentType === "factura-emitida"
@@ -122,6 +139,9 @@ export async function POST(request: Request) {
       companyId,
       processedAt: new Date().toISOString(),
       usage,
+      storageKey: stored.storageKey,
+      sha256: stored.sha256,
+      contentType: stored.contentType,
     })
   } catch (error) {
     if (error instanceof OcrQuotaError) {

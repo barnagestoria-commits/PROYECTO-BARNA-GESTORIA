@@ -50,6 +50,10 @@ export function CertificateUploadForm({
       setFeedback("Selecciona un archivo .p12 o .pfx.")
       return
     }
+    if (file.size > 2 * 1024 * 1024) {
+      setFeedback("El certificado no puede superar 2 MB.")
+      return
+    }
     if (!password.trim()) {
       setFeedback("Introduce la contraseña del certificado.")
       return
@@ -90,7 +94,7 @@ export function CertificateUploadForm({
       <CardHeader className="p-4 sm:p-6">
         <CardTitle className="text-base text-pine-900 sm:text-lg">Subir certificado digital</CardTitle>
         <CardDescription>
-          El certificado se analiza en el servidor para extraer NIF y titular. No se guarda el archivo .p12.
+          El .p12 se cifra y se guarda en el almacén de objetos. En la base de datos solo queda la ruta, nunca el binario.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 p-4 pt-0 sm:p-6 sm:pt-0">

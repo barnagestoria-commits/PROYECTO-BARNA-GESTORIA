@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Command, MessageCircle, Search } from "lucide-react"
+import { Command, LifeBuoy, MessageCircle, Search } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useAuth } from "@/components/auth-provider"
 import { ModuleNavBar } from "@/components/layout/module-nav-bar"
@@ -67,6 +67,17 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
               </kbd>
             </button>
           )}
+
+          {session?.user.isPlatformOperator ? (
+            <Link
+              href="/dashboard/soporte"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Entrar en una cuenta"
+            >
+              <LifeBuoy className="h-4 w-4 shrink-0" />
+              <span className={isCompactNav ? "sr-only" : "hidden lg:inline"}>Cuentas</span>
+            </Link>
+          ) : null}
 
           <SidebarCompanySelector userName={userName} className={cn("max-w-[220px]", isCompactNav ? "hidden" : "block")} />
 

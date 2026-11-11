@@ -14,6 +14,8 @@ import {
   shouldUseClientSideA3Import,
 } from "@/lib/imports/a3/a3-client-import"
 import { parseA3ZipBytes } from "@/lib/imports/a3/parse-a3-zip"
+import { accountingImportNeedsAssistance } from "@/lib/imports/assisted-import"
+import { AssistedImportNotice } from "@/components/import-export/assisted-import-notice"
 import {
   isZipPasswordError,
   ZIP_PASSWORD_INCORRECT_CODE,
@@ -84,6 +86,7 @@ export function A3CompanyImportPanel({
   const [confirmProgress, setConfirmProgress] = useState<string | null>(null)
   const [importMessage, setImportMessage] = useState<string | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [needsAssistance, setNeedsAssistance] = useState(false)
   const [accountingVersion, setAccountingVersion] = useState(0)
   const [zipPassword, setZipPassword] = useState<string | null>(null)
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false)
@@ -376,9 +379,20 @@ export function A3CompanyImportPanel({
 
       if (!file.name.toLowerCase().endsWith(".zip")) {
         setImportError("Selecciona un archivo .zip con diario y subcuentas.")
+        setNeedsAssistance(false)
         return
       }
 
+      if (accountingImportNeedsAssistance(file.size)) {
+        setImportError(null)
+        setA3Preview(null)
+        setParsedState(null)
+        setPendingZipFile(null)
+        setNeedsAssistance(true)
+        return
+      }
+
+      setNeedsAssistance(false)
       void handleZipPreview(file)
     },
     // handleZipPreview uses current companyId/state via closure; busy flags prevent re-entry.
@@ -416,6 +430,7 @@ export function A3CompanyImportPanel({
           {importMessage}
         </p>
       )}
+      {needsAssistance ? <AssistedImportNotice /> : null}
       {importError && (
         <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {importError}

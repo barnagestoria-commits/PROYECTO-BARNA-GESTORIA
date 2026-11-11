@@ -6,6 +6,7 @@ import {
   type AccountingSourceFormat,
 } from "@/lib/imports/accounting-formats"
 import { detectAccountingFileFormat } from "@/lib/imports/parse-accounting-file"
+import { accountingImportNeedsAssistance, assistedAccountingImportMessage } from "@/lib/imports/assisted-import"
 
 export const runtime = "nodejs"
 
@@ -39,6 +40,10 @@ export async function POST(request: Request) {
         },
         { status: 400 },
       )
+    }
+
+    if (accountingImportNeedsAssistance(file.size)) {
+      return NextResponse.json({ success: false, error: assistedAccountingImportMessage() }, { status: 400 })
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())

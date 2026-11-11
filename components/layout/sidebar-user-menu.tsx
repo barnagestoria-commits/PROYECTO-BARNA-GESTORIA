@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ChevronDown, KeyRound, LogOut, Settings, Sparkles, User } from "lucide-react"
+import { ChevronDown, KeyRound, LifeBuoy, LogOut, Settings, Sparkles, User } from "lucide-react"
+import { useAuth } from "@/components/auth-provider"
 import { cn } from "@/lib/utils"
 
 interface SidebarUserMenuProps {
@@ -56,6 +57,8 @@ export function SidebarUserMenu({
   onNavigate,
 }: SidebarUserMenuProps) {
   const pathname = usePathname()
+  const { session } = useAuth()
+  const isOperator = Boolean(session?.user.isPlatformOperator)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -74,12 +77,13 @@ export function SidebarUserMenu({
 
   if (variant === "mobile") {
     return (
-      <MobileUserSection
+        <MobileUserSection
         userName={userName}
         pathname={pathname}
         onNavigate={onNavigate}
         onLogout={onLogout}
         placement={placement}
+        isOperator={isOperator}
       />
     )
   }
@@ -154,6 +158,7 @@ export function SidebarUserMenu({
               </Link>
             )
           })}
+          {isOperator ? <OperatorMenuLink onClick={() => setOpen(false)} /> : null}
           <div className="my-1 border-t border-white/10" />
           <button
             type="button"
@@ -172,18 +177,38 @@ export function SidebarUserMenu({
   )
 }
 
+function OperatorMenuLink({ onClick }: { onClick?: () => void }) {
+  const pathname = usePathname()
+  const active = pathname.startsWith("/dashboard/soporte")
+  return (
+    <Link
+      href="/dashboard/soporte"
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2.5 text-sm transition-colors",
+        active ? "bg-emerald-800/40 text-white" : "text-white/75 hover:bg-white/5 hover:text-white",
+      )}
+    >
+      <LifeBuoy className="h-4 w-4 shrink-0" />
+      <span>Entrar en una cuenta</span>
+    </Link>
+  )
+}
+
 function MobileUserSection({
   userName,
   pathname,
   onNavigate,
   onLogout,
   placement = "footer",
+  isOperator = false,
 }: {
   userName: string
   pathname: string
   onNavigate?: () => void
   onLogout: () => void
   placement?: "top" | "footer"
+  isOperator?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -227,6 +252,7 @@ function MobileUserSection({
               </Link>
             )
           })}
+          {isOperator ? <OperatorMenuLink onClick={onNavigate} /> : null}
           <button
             type="button"
             onClick={() => {

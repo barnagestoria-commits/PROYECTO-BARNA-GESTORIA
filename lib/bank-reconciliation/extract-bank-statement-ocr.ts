@@ -1,5 +1,6 @@
 import OpenAI from "openai"
 import type { BankMovementDraft, BankImportPreview } from "@/lib/bank-reconciliation/types"
+import { MAX_BANK_MOVEMENTS } from "@/lib/storage/upload-limits"
 import { OcrConfigError, OcrExtractionError } from "@/lib/ocr/errors"
 import { extractTextFromPdf, hasUsableExtractedText } from "@/lib/ocr/extract-pdf-text"
 
@@ -112,6 +113,11 @@ export async function extractBankStatementPreview(
   }
 
   const movements = await extractBankMovementsFromText(text)
+  if (movements.length > MAX_BANK_MOVEMENTS) {
+    throw new OcrExtractionError(
+      `El extracto supera el máximo de ${MAX_BANK_MOVEMENTS.toLocaleString("es-ES")} movimientos. Divídelo por meses o cuentas.`,
+    )
+  }
   return {
     fileName,
     source: "OCR",

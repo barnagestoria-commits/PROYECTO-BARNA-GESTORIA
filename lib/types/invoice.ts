@@ -51,6 +51,9 @@ export interface InvoiceOcrResponse {
   companyId: string
   processedAt: string
   usage?: InvoiceOcrUsage
+  storageKey?: string
+  sha256?: string
+  contentType?: string
 }
 
 export interface InvoiceOcrErrorResponse {

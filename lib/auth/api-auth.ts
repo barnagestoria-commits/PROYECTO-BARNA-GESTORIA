@@ -106,6 +106,14 @@ export async function requireGestoriaSession(request: Request): Promise<AuthSess
   return session
 }
 
+export async function requirePlatformOperator(request: Request): Promise<AuthSession> {
+  const session = await requireRequestSession(request)
+  if (!session.user.isPlatformOperator) {
+    throw new AuthApiError("Solo el operador de Taxlyn puede entrar en otras cuentas.", 403)
+  }
+  return session
+}
+
 export async function requireGestoriaAdmin(request: Request): Promise<AuthSession> {
   const session = await requireGestoriaSession(request)
   if (session.user.role !== "ADMIN_GESTOR") {

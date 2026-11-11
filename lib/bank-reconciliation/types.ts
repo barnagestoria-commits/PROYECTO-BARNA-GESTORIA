@@ -15,6 +15,16 @@ export interface BankImportPreview {
   warnings: string[]
 }
 
+/** Respuesta al cliente: sin el extracto completo, solo muestra y clave de storage. */
+export interface BankImportPreviewClient {
+  storageKey: string
+  fileName: string
+  source: "CSV" | "XLSX" | "OCR"
+  movementCount: number
+  warnings: string[]
+  sample: BankMovementDraft[]
+}
+
 export interface BankMovementView {
   id: string
   movementDate: string

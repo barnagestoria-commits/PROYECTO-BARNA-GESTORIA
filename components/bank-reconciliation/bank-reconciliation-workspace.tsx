@@ -20,7 +20,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
 import type {
-  BankImportPreview,
+  BankImportPreviewClient,
   BankMovementView,
   BankReconciliationSummary,
   ReconciliationCandidate,
@@ -50,7 +50,7 @@ export function BankReconciliationWorkspace() {
   const [isPreviewing, setIsPreviewing] = useState(false)
   const [isImporting, setIsImporting] = useState(false)
   const [isAutoMatching, setIsAutoMatching] = useState(false)
-  const [pendingPreview, setPendingPreview] = useState<BankImportPreview | null>(null)
+  const [pendingPreview, setPendingPreview] = useState<BankImportPreviewClient | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busyMovementId, setBusyMovementId] = useState<string | null>(null)
@@ -143,15 +143,10 @@ export function BankReconciliationWorkspace() {
 
       const data = await apiFormFetch<{
         success: true
-        preview: BankImportPreview & { movementCount: number }
+        preview: BankImportPreviewClient
       }>("/api/bank-reconciliation/preview", formData)
 
-      setPendingPreview({
-        fileName: data.preview.fileName,
-        source: data.preview.source,
-        movements: data.preview.movements,
-        warnings: data.preview.warnings,
-      })
+      setPendingPreview(data.preview)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al leer el extracto.")
     } finally {
@@ -171,7 +166,11 @@ export function BankReconciliationWorkspace() {
         result: { imported: number; duplicatesSkipped: number }
       }>("/api/bank-reconciliation/import", {
         method: "POST",
-        body: JSON.stringify({ companyId, preview: pendingPreview }),
+        body: JSON.stringify({
+          companyId,
+          storageKey: pendingPreview.storageKey,
+          fileName: pendingPreview.fileName,
+        }),
       })
 
       setMessage(
@@ -381,7 +380,7 @@ export function BankReconciliationWorkspace() {
         <Card className="border-emerald-200 bg-emerald-50/50">
           <CardContent className="space-y-3 p-4">
             <p className="text-sm font-medium">
-              Vista previa: {pendingPreview.movements.length} movimientos ({pendingPreview.source})
+              Vista previa: {pendingPreview.movementCount} movimientos ({pendingPreview.source})
             </p>
             <div className="flex gap-2">
               <Button size="sm" disabled={isImporting} onClick={() => void handleConfirmImport()}>

@@ -97,7 +97,7 @@ export function getTourStepsForProfile(profile: OnboardingRoleProfile): Onboardi
       target: '[data-tour="onboarding-certificate"]',
       title: "Certificado digital",
       content:
-        "🔐 **Primer documento:** Sube el certificado .p12 o .pfx y su contraseña. Con él se firma y se presenta ante la AEAT. El archivo no se guarda: solo el NIF y el titular.",
+        "🔐 **Cuando quieras firmar:** Sube el certificado .p12 o .pfx y su contraseña. Se cifra en el almacén de objetos. En la ficha solo quedan el NIF y el titular.",
       placement: "bottom",
     },
     {

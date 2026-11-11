@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
 import { deleteAccountingEntry } from "@/lib/accounting/entry-service"
 import { prisma } from "@/lib/db"
+import { deleteStoredObject } from "@/lib/storage/object-storage"
 
 export async function DELETE(
   request: Request,
@@ -13,7 +14,7 @@ export async function DELETE(
 
     const document = await prisma.fiscalDocument.findFirst({
       where: { id, companyId },
-      select: { id: true, accountingEntryId: true },
+      select: { id: true, accountingEntryId: true, storageKey: true },
     })
 
     if (!document) {
@@ -27,6 +28,7 @@ export async function DELETE(
     await prisma.fiscalDocument.delete({
       where: { id: document.id },
     })
+    await deleteStoredObject(document.storageKey)
 
     return NextResponse.json({ success: true })
   } catch (error) {

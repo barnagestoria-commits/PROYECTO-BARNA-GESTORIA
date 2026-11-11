@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireGestoriaAdmin } from "@/lib/auth/api-auth"
 import { confirmPortfolioImport } from "@/lib/imports/portfolio/portfolio-import-service"
+import { accountingImportNeedsAssistance, assistedAccountingImportMessage } from "@/lib/imports/assisted-import"
 
 export const runtime = "nodejs"
 
@@ -12,6 +13,10 @@ export async function POST(request: Request) {
 
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: "Archivo no proporcionado." }, { status: 400 })
+    }
+
+    if (accountingImportNeedsAssistance(file.size)) {
+      return NextResponse.json({ success: false, error: assistedAccountingImportMessage() }, { status: 400 })
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())

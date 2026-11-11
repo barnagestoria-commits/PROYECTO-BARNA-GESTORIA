@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { InvoiceCameraCapture } from "@/components/invoice-camera-capture"
 import { apiFormFetch } from "@/lib/api-client"
 import { isOcrMediaFile, isSpreadsheetFile } from "@/lib/documents/upload-file-type"
+import { accountingImportNeedsAssistance, assistedAccountingImportMessage } from "@/lib/imports/assisted-import"
 import { cn } from "@/lib/utils"
 import {
   Camera,
@@ -146,6 +147,12 @@ export function FileUpload({
   const handleSpreadsheetImport = useCallback(
     async (file: File | undefined) => {
       if (!file || disabled || isImporting) return
+
+      if (accountingImportNeedsAssistance(file.size)) {
+        onImportError?.(assistedAccountingImportMessage())
+        if (spreadsheetInputRef.current) spreadsheetInputRef.current.value = ""
+        return
+      }
 
       setIsImporting(true)
 

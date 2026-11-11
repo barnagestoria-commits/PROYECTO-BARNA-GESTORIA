@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, CheckCircle2, Loader2, ScanLine, Settings2, Trash2 } from "lucide-react"
+import { Calendar, CheckCircle2, Download, Loader2, ScanLine, Settings2, Trash2 } from "lucide-react"
 import { FileUpload, type UploadDocumentType } from "@/components/file-upload"
 import { InvoiceValidationForm } from "@/components/invoice-validation-form"
 import { OcrSettingsDialog } from "@/components/documents/ocr-settings-dialog"
@@ -35,6 +35,7 @@ interface Document {
   status: "pendiente" | "procesado"
   size: string
   ocrData?: InvoiceOcrResult
+  hasOriginal?: boolean
 }
 
 interface PendingValidation {
@@ -44,6 +45,9 @@ interface PendingValidation {
   remainingInvoices: InvoiceOcrResult[]
   invoiceIndex: number
   invoiceCount: number
+  storageKey?: string
+  sha256?: string
+  contentType?: string
 }
 
 interface CounterpartPreferencePrompt {
@@ -133,22 +137,26 @@ function DocumentUploadWorkspaceContent({
   const saveDocument = async (file: File, type: UploadDocumentType, ocrData?: InvoiceOcrResult) => {
     if (!session?.activeCompanyId) return
 
-    await apiFetch("/api/documents", {
-      method: "POST",
-      body: JSON.stringify({
-        companyId: session.activeCompanyId,
-        name: file.name,
-        type,
-        status: ocrData ? "procesado" : "pendiente",
-        sizeBytes: file.size,
-        ocrData,
-      }),
-    })
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("companyId", session.activeCompanyId)
+    formData.append("type", type)
+    formData.append("status", ocrData ? "procesado" : "pendiente")
+    if (ocrData) formData.append("ocrData", JSON.stringify(ocrData))
+
+    await apiFormFetch("/api/documents", formData)
 
     await loadDocuments()
   }
 
-  const processInvoiceOcr = async (file: File): Promise<InvoiceOcrResult[]> => {
+  const processInvoiceOcr = async (
+    file: File,
+  ): Promise<{
+    invoices: InvoiceOcrResult[]
+    storageKey?: string
+    sha256?: string
+    contentType?: string
+  }> => {
     if (!session?.activeCompanyId) {
       throw new Error("Selecciona una empresa antes de subir facturas.")
     }
@@ -163,11 +171,19 @@ function DocumentUploadWorkspaceContent({
       data: InvoiceOcrResult
       invoices?: InvoiceOcrResult[]
       usage?: InvoiceOcrUsage
+      storageKey?: string
+      sha256?: string
+      contentType?: string
     }>("/api/invoices/ocr", formData)
 
     if (result.usage) setOcrUsage(result.usage)
     const invoices = result.invoices?.length ? result.invoices : [result.data]
-    return invoices
+    return {
+      invoices,
+      storageKey: result.storageKey,
+      sha256: result.sha256,
+      contentType: result.contentType,
+    }
   }
 
   const processNextInQueue = async (queue: File[]) => {
@@ -179,14 +195,17 @@ function DocumentUploadWorkspaceContent({
     setOcrError(null)
 
     try {
-      const invoices = await processInvoiceOcr(currentFile)
+      const extracted = await processInvoiceOcr(currentFile)
       setPendingValidation({
         file: currentFile,
         fileName: currentFile.name,
-        ocrData: invoices[0],
-        remainingInvoices: invoices.slice(1),
+        ocrData: extracted.invoices[0],
+        remainingInvoices: extracted.invoices.slice(1),
         invoiceIndex: 1,
-        invoiceCount: invoices.length,
+        invoiceCount: extracted.invoices.length,
+        storageKey: extracted.storageKey,
+        sha256: extracted.sha256,
+        contentType: extracted.contentType,
       })
     } catch (error) {
       if (error instanceof ApiRequestError && error.code === OCR_QUOTA_CODE) {
@@ -296,6 +315,9 @@ function DocumentUploadWorkspaceContent({
           documentType,
           invoice: data,
           allowDuplicate: Boolean(options?.allowDuplicate),
+          storageKey: pendingValidation.storageKey,
+          sha256: pendingValidation.sha256,
+          contentType: pendingValidation.contentType,
         }),
       })
 
@@ -671,6 +693,14 @@ function DocumentUploadWorkspaceContent({
                       <Badge variant={doc.status === "procesado" ? "default" : "secondary"}>
                         {doc.status === "procesado" ? "Procesado" : "Pendiente"}
                       </Badge>
+                      {doc.hasOriginal ? (
+                        <Button type="button" variant="outline" size="sm" asChild>
+                          <a href={`/api/documents/${doc.id}/file`}>
+                            <Download className="mr-1 h-4 w-4" />
+                            Original
+                          </a>
+                        </Button>
+                      ) : null}
                       <Button
                         type="button"
                         variant="outline"

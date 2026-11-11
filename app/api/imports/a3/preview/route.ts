@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, resolveImportCompany } from "@/lib/auth/api-auth"
 import { previewA3ZipImport } from "@/lib/imports/a3/a3-import-service"
+import { accountingImportNeedsAssistance, assistedAccountingImportMessage } from "@/lib/imports/assisted-import"
 import { readZipPasswordFromFormData } from "@/lib/imports/a3/read-zip-password"
 
 export const runtime = "nodejs"
@@ -23,6 +24,10 @@ export async function POST(request: Request) {
         { success: false, error: "Esta ruta solo acepta archivos .zip con contabilidad." },
         { status: 400 },
       )
+    }
+
+    if (accountingImportNeedsAssistance(file.size)) {
+      return NextResponse.json({ success: false, error: assistedAccountingImportMessage() }, { status: 400 })
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())

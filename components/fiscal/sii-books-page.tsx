@@ -40,9 +40,6 @@ export function SiiBooksPage() {
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [environment, setEnvironment] = useState<"sandbox" | "production">("sandbox")
-  const [password, setPassword] = useState("")
-  const [fileBase64, setFileBase64] = useState("")
-  const [fileName, setFileName] = useState("")
   const [sending, setSending] = useState<SiiBook | null>(null)
 
   const load = useCallback(async () => {
@@ -66,16 +63,6 @@ export function SiiBooksPage() {
     void load()
   }, [load])
 
-  const onFile = async (file: File | undefined) => {
-    if (!file) return
-    const buffer = await file.arrayBuffer()
-    const bytes = new Uint8Array(buffer)
-    let binary = ""
-    for (const byte of bytes) binary += String.fromCharCode(byte)
-    setFileBase64(btoa(binary))
-    setFileName(file.name)
-  }
-
   const send = async (book: SiiBook) => {
     setSending(book)
     setError(null)
@@ -85,10 +72,9 @@ export function SiiBooksPage() {
         "/api/fiscal/sii/submit",
         {
           method: "POST",
-          body: JSON.stringify({ year, month, book, environment, fileBase64, password }),
+          body: JSON.stringify({ year, month, book, environment }),
         },
       )
-      setPassword("")
       setNotice(
         `Enviadas ${result.sent}. Aceptadas ${result.accepted}. Rechazadas ${result.rejected}.`,
       )
@@ -117,8 +103,8 @@ export function SiiBooksPage() {
         <CardHeader>
           <CardTitle className="text-emerald-900">Libros del SII</CardTitle>
           <CardDescription>
-            Facturas emitidas y recibidas del mes. Se envían con el certificado de {activeCompany.name}. El
-            archivo no se guarda.
+            Facturas emitidas y recibidas del mes. Se firman con el certificado digital guardado de{" "}
+            {activeCompany.name}.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap items-end gap-3">
@@ -173,19 +159,10 @@ export function SiiBooksPage() {
         <CardHeader>
           <CardTitle className="text-base">Certificado para el envío</CardTitle>
           <CardDescription>
-            El mismo .p12 de la empresa. El entorno de pruebas no presenta el libro real.
+            Se usa el .p12 cifrado de la empresa. El entorno de pruebas no presenta el libro real.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label>Certificado .p12</Label>
-            <Input type="file" accept=".p12,.pfx" onChange={(event) => void onFile(event.target.files?.[0])} />
-            {fileName ? <p className="text-xs text-graphite-500">{fileName}</p> : null}
-          </div>
-          <div className="space-y-1">
-            <Label>Contraseña</Label>
-            <Input type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-          </div>
           <div className="space-y-1">
             <Label>Entorno</Label>
             <select

@@ -42,3 +42,16 @@ next-env.d.ts
 # python pdf extraction (local venv / temp)
 .venv-pdf/
 tmp/aeat-extractions/
+
+# object storage local (solo desarrollo; producción usa Vercel Blob)
+.data/
+uploads/
+tmp/
+
+# certificados y binarios de clientes (nunca en Git)
+*.pfx
+*.p12
+*.p7b
+
+# material interno no versionado
+docs/empresa/

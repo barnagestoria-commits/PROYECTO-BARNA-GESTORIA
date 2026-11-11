@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db"
 import { calculateTotalFromBreakdown } from "@/lib/invoice-totals"
 import { parseOcrSettings } from "@/lib/ocr/ocr-settings"
 import type { InvoiceOcrResult } from "@/lib/types/invoice"
+import { assertCompanyStorageKey } from "@/lib/storage/object-storage"
 
 function mapDocumentType(type: string): DocumentType {
   switch (type) {
@@ -27,6 +28,9 @@ interface ConfirmInvoiceRequest {
   documentType: "factura-recibida" | "factura-emitida"
   invoice: InvoiceOcrResult
   allowDuplicate?: boolean
+  storageKey?: string
+  contentType?: string
+  sha256?: string
 }
 
 export async function POST(request: Request) {
@@ -89,6 +93,10 @@ export async function POST(request: Request) {
       }
     }
 
+    if (body.storageKey) {
+      assertCompanyStorageKey(companyId, body.storageKey, "documents")
+    }
+
     const allowDuplicate = ocrSettings.blockDuplicates ? Boolean(body.allowDuplicate) : true
 
     const accounting = await createInvoiceAccountingEntry({
@@ -109,6 +117,9 @@ export async function POST(request: Request) {
         ocrDataJson: JSON.stringify(body.invoice),
         uploadedById: session.user.id,
         accountingEntryId: accounting.entryId,
+        storageKey: body.storageKey ?? null,
+        contentType: body.contentType ?? null,
+        sha256: body.sha256 ?? null,
       },
     })
 

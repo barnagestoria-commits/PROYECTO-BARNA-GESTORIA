@@ -42,6 +42,15 @@ export interface AuthUser {
   accountId: string
   accountType: AccountType
   accountName: string
+  /** Operador de Taxlyn: puede entrar en cualquier empresa para resolver incidencias. */
+  isPlatformOperator: boolean
+}
+
+export interface SupportAccess {
+  companyId: string
+  companyName: string
+  accountName: string
+  ownerEmail: string | null
 }
 
 export interface UpdateUserProfileRequest {
@@ -69,6 +78,8 @@ export interface AuthSession {
   companies: CompanySummary[]
   activeCompanyId: string | null
   canSwitchCompanies: boolean
+  /** Empresa ajena en la que el operador está trabajando ahora. */
+  supportAccess: SupportAccess | null
 }
 
 export interface RegisterRequest {

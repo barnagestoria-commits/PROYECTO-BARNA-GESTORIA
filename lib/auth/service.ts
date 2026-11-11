@@ -6,6 +6,7 @@ import type {
   CompanyKind,
   CompanySummary,
   RegisterRequest,
+  SupportAccess,
   UpdateUserProfileRequest,
   UserRole,
 } from "@/lib/types/auth"
@@ -15,6 +16,7 @@ import {
   canSwitchCompanies,
   resolveActiveCompanyId,
 } from "@/lib/auth/permissions"
+import { userIsPlatformOperator } from "@/lib/auth/platform-operator"
 import { selectCompaniesVisibleToUser } from "@/lib/auth/gestoria-access"
 
 import {
@@ -125,6 +127,58 @@ async function getCompaniesForUser(
   })
 }
 
+async function ensureStoredOperatorFlag(user: {
+  id: string
+  email: string
+  isPlatformOperator?: boolean | null
+}): Promise<boolean> {
+  const operator = userIsPlatformOperator(user)
+  if (operator && !user.isPlatformOperator) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { isPlatformOperator: true },
+    })
+  }
+  return operator
+}
+
+async function loadCompanyForSupport(companyId: string) {
+  return prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      id: true,
+      name: true,
+      cif: true,
+      kind: true,
+      accountId: true,
+      activityStartDate: true,
+      taxDirectDebitIban: true,
+      taxDirectDebitBank: true,
+      salesCollectionIban: true,
+      salesCollectionBank: true,
+      cnae: true,
+      corporateTaxCharacter: true,
+      censusDocumentName: true,
+      censusDocumentKind: true,
+      censusExtractedAt: true,
+      censusExtractedJson: true,
+      siiMode: true,
+      cashBasisSubject: true,
+      cashBasisRecipient: true,
+      account: {
+        select: {
+          name: true,
+          users: {
+            select: { email: true },
+            orderBy: { createdAt: "asc" },
+            take: 1,
+          },
+        },
+      },
+    },
+  })
+}
+
 async function buildAuthSession(
   user: {
     id: string
@@ -133,17 +187,36 @@ async function buildAuthSession(
     phone: string | null
     role: UserRole
     accountId: string
+    isPlatformOperator?: boolean | null
     account: { name: string; accountType: AccountType }
   },
   activeCompanyId?: string | null,
 ): Promise<AuthSession> {
-  const companies = await getCompaniesForUser(
+  const operator = await ensureStoredOperatorFlag(user)
+  let companies = await getCompaniesForUser(
     user.id,
     user.account.accountType,
     user.accountId,
     user.role,
   )
-  const canSwitch = canSwitchCompanies(user.account.accountType, user.role)
+  let supportAccess: SupportAccess | null = null
+  let resolvedActive = resolveActiveCompanyId(companies, activeCompanyId)
+
+  if (operator && activeCompanyId && !companies.some((company) => company.id === activeCompanyId)) {
+    const foreign = await loadCompanyForSupport(activeCompanyId)
+    if (foreign) {
+      companies = [...companies, toCompanySummary(foreign)]
+      resolvedActive = foreign.id
+      if (foreign.accountId !== user.accountId) {
+        supportAccess = {
+          companyId: foreign.id,
+          companyName: foreign.name,
+          accountName: foreign.account.name,
+          ownerEmail: foreign.account.users[0]?.email ?? null,
+        }
+      }
+    }
+  }
 
   return {
     user: {
@@ -155,10 +228,12 @@ async function buildAuthSession(
       accountId: user.accountId,
       accountType: user.account.accountType,
       accountName: user.account.name,
+      isPlatformOperator: operator,
     },
     companies,
-    activeCompanyId: resolveActiveCompanyId(companies, activeCompanyId),
-    canSwitchCompanies: canSwitch,
+    activeCompanyId: resolvedActive,
+    canSwitchCompanies: canSwitchCompanies(user.account.accountType, user.role) || operator,
+    supportAccess,
   }
 }
 
@@ -322,6 +397,87 @@ export async function setActiveCompany(companyId: string): Promise<AuthSession> 
   })
 
   return { ...session, activeCompanyId: companyId }
+}
+
+export async function enterSupportCompany(companyId: string): Promise<AuthSession> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  const current = await getSessionFromToken(token)
+
+  if (!current) {
+    throw new Error("Sesión no válida.")
+  }
+
+  if (!current.user.isPlatformOperator) {
+    throw new Error("Solo el operador de Taxlyn puede entrar en otra cuenta.")
+  }
+
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { id: true },
+  })
+
+  if (!company) {
+    throw new Error("No encontramos esa empresa.")
+  }
+
+  await prisma.session.updateMany({
+    where: { token: token! },
+    data: { activeCompanyId: company.id },
+  })
+  await prisma.supportAccessEvent.create({
+    data: {
+      operatorUserId: current.user.id,
+      companyId: company.id,
+      action: "ENTER",
+    },
+  })
+
+  const next = await getSessionFromToken(token)
+  if (!next) {
+    throw new Error("Sesión no válida.")
+  }
+  return next
+}
+
+export async function leaveSupportCompany(): Promise<AuthSession> {
+  const token = (await cookies()).get(SESSION_COOKIE)?.value
+  const current = await getSessionFromToken(token)
+
+  if (!current) {
+    throw new Error("Sesión no válida.")
+  }
+
+  if (!current.user.isPlatformOperator) {
+    throw new Error("Solo el operador de Taxlyn puede salir de una cuenta de soporte.")
+  }
+
+  const ownCompanies = await getCompaniesForUser(
+    current.user.id,
+    current.user.accountType,
+    current.user.accountId,
+    current.user.role,
+  )
+
+  if (current.supportAccess) {
+    await prisma.supportAccessEvent.create({
+      data: {
+        operatorUserId: current.user.id,
+        companyId: current.supportAccess.companyId,
+        action: "LEAVE",
+      },
+    })
+  }
+
+  await prisma.session.updateMany({
+    where: { token: token! },
+    data: { activeCompanyId: resolveActiveCompanyId(ownCompanies, null) },
+  })
+
+  const next = await getSessionFromToken(token)
+  if (!next) {
+    throw new Error("Sesión no válida.")
+  }
+  return next
 }
 
 export async function upgradeAccountPlan(

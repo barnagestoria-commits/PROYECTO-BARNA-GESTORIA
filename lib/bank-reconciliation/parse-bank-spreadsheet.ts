@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx"
 import type { BankMovementDraft, BankImportPreview } from "@/lib/bank-reconciliation/types"
+import { MAX_BANK_MOVEMENTS, MAX_BANK_WARNINGS } from "@/lib/storage/upload-limits"
 
 const DATE_HEADERS = [
   "fecha",
@@ -214,8 +215,16 @@ function parseRows(rows: unknown[][], fileName: string, source: "CSV" | "XLSX"):
     const amount = resolveAmount(row, columns)
 
     if (!movementDate || amount === null || amount === 0) {
-      warnings.push(`Fila ${rowIndex + 1}: omitida (fecha o importe no válidos).`)
+      if (warnings.length < MAX_BANK_WARNINGS) {
+        warnings.push(`Fila ${rowIndex + 1}: omitida (fecha o importe no válidos).`)
+      }
       continue
+    }
+
+    if (movements.length >= MAX_BANK_MOVEMENTS) {
+      throw new Error(
+        `El extracto supera el máximo de ${MAX_BANK_MOVEMENTS.toLocaleString("es-ES")} movimientos. Divídelo por meses o cuentas.`,
+      )
     }
 
     const concept =
@@ -236,6 +245,10 @@ function parseRows(rows: unknown[][], fileName: string, source: "CSV" | "XLSX"):
 
   if (movements.length === 0) {
     throw new Error("No se encontraron movimientos bancarios válidos en el archivo.")
+  }
+
+  if (warnings.length >= MAX_BANK_WARNINGS) {
+    warnings.push("Se omitieron avisos adicionales para no saturar la vista previa.")
   }
 
   return { fileName, source, movements, warnings }
