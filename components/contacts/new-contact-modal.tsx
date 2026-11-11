@@ -269,7 +269,7 @@ export function NewContactModal({
                     setForm((p) => ({ ...p, nif: e.target.value.toUpperCase() }))
                   }}
                   className="font-mono uppercase sm:flex-1"
-                  placeholder="B00000018"
+                  placeholder="B12345678"
                   required
                 />
                 <Button
@@ -288,8 +288,7 @@ export function NewContactModal({
                 </Button>
               </div>
               <p className="mt-1.5 text-xs text-graphite-500">
-                Prueba con <span className="font-mono">B00000018</span> o{" "}
-                <span className="font-mono">B00000083</span>
+                Introduce el NIF o CIF real del cliente o proveedor.
               </p>
             </div>
 

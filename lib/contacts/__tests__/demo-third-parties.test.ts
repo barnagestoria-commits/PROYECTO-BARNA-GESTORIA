@@ -34,4 +34,24 @@ describe("demo third parties", () => {
       }),
     ).toBe(false)
   })
+
+  it("keeps a user-created contact even if the NIF matches the sample catalog", () => {
+    expect(
+      isDemoThirdParty({
+        cif: "B00000018",
+        name: "Tech Solutions SL",
+        accountCode: "4300001",
+      }),
+    ).toBe(false)
+  })
+
+  it("still hides leftover sample rows with the old 43000000x accounts", () => {
+    expect(
+      isDemoThirdParty({
+        cif: "B00000018",
+        name: "Tech Solutions SL",
+        accountCode: "430000001",
+      }),
+    ).toBe(true)
+  })
 })

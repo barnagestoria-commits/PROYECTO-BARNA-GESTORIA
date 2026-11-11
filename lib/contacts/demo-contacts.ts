@@ -169,11 +169,31 @@ export function isDemoAccountName(name: string): boolean {
   )
 }
 
-export function isDemoThirdParty(party: { cif?: string | null; name?: string | null; accountCode?: string | null }): boolean {
-  if (party.cif && isDemoNif(party.cif)) return true
-  if (party.name && isDemoAccountName(party.name)) return true
-  if (party.accountCode && isDemoStyleAccountCode(party.accountCode)) return true
-  return false
+const IMPORTED_DEMO_NIFS = new Set(["A84919760"])
+
+function isImportedDemoName(name: string): boolean {
+  const normalized = normalizeDemoName(name)
+  return normalized.includes("DIGI SPAIN TELECOM")
+}
+
+/**
+ * Terceros de demostración que no deben verse cuando el cliente ya guarda datos reales.
+ * Un alta con NIF de ejemplo y cuenta real (430.0001) no se trata como demo:
+ * antes se ocultaba y la lista seguía mostrando los 8 contactos de muestra.
+ */
+export function isDemoThirdParty(party: {
+  cif?: string | null
+  name?: string | null
+  accountCode?: string | null
+}): boolean {
+  const nif = party.cif?.replace(/[^A-Z0-9]/gi, "").toUpperCase() ?? ""
+  if (nif && IMPORTED_DEMO_NIFS.has(nif)) return true
+  if (party.name && isImportedDemoName(party.name)) return true
+
+  const nifDemo = Boolean(nif && isDemoNif(nif))
+  const nameDemo = Boolean(party.name && isDemoAccountName(party.name))
+  const accountDemo = Boolean(party.accountCode && isDemoStyleAccountCode(party.accountCode))
+  return accountDemo && (nifDemo || nameDemo)
 }
 
 export function isDemoContact(contact: Contact): boolean {

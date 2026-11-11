@@ -202,63 +202,37 @@ export function ContactsPage() {
   }
 
   const handleSubmit = async (data: NewContactFormData) => {
-    if (isDemoMode && !isDemoNif(data.nif)) {
-      setIsSaving(true)
-      try {
-        await persistThirdParty(data)
-        await loadContacts()
-        setModalOpen(false)
-        setEditingContact(null)
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "No se pudo guardar el contacto.",
-        )
-      } finally {
-        setIsSaving(false)
-      }
-      return
-    }
+    const isCreating = !editingContact
+    const convertingDemoToReal = Boolean(isDemoMode && editingContact && !isDemoNif(data.nif))
+    const editingReal = Boolean(!isDemoMode && editingContact)
+    const shouldPersist = isCreating || convertingDemoToReal || editingReal
 
-    if (!isDemoMode && !editingContact && !isDemoNif(data.nif)) {
+    if (shouldPersist) {
       setIsSaving(true)
+      setErrorMessage(null)
       try {
-        await persistThirdParty(data)
-        await loadContacts()
-        setModalOpen(false)
-        setEditingContact(null)
-      } catch (error) {
-        setErrorMessage(
-          error instanceof Error ? error.message : "No se pudo guardar el contacto.",
-        )
-      } finally {
-        setIsSaving(false)
-      }
-      return
-    }
-
-    if (editingContact && !isDemoMode) {
-      setIsSaving(true)
-      try {
-        if (data.cuentaCliente) {
-          await persistAccountChange(
-            editingContact.cuentaCliente,
-            data.cuentaCliente,
-            data.razonSocial,
-            "430",
-            data.nif,
-          )
-        }
-        if (data.cuentaProveedor) {
-          const supplierPrefix = data.cuentaProveedor.replace(/\D/g, "").startsWith("410")
-            ? "410"
-            : "400"
-          await persistAccountChange(
-            editingContact.cuentaProveedor,
-            data.cuentaProveedor,
-            data.razonSocial,
-            supplierPrefix,
-            data.nif,
-          )
+        if (editingContact && editingReal) {
+          if (data.cuentaCliente) {
+            await persistAccountChange(
+              editingContact.cuentaCliente,
+              data.cuentaCliente,
+              data.razonSocial,
+              "430",
+              data.nif,
+            )
+          }
+          if (data.cuentaProveedor) {
+            const supplierPrefix = data.cuentaProveedor.replace(/\D/g, "").startsWith("410")
+              ? "410"
+              : "400"
+            await persistAccountChange(
+              editingContact.cuentaProveedor,
+              data.cuentaProveedor,
+              data.razonSocial,
+              supplierPrefix,
+              data.nif,
+            )
+          }
         }
         await persistThirdParty(data)
         await loadContacts()
@@ -282,8 +256,6 @@ export function ContactsPage() {
             : contact,
         ),
       )
-    } else {
-      setContacts((prev) => [...prev, contactFromForm(data, String(Date.now()))])
     }
 
     setModalOpen(false)
