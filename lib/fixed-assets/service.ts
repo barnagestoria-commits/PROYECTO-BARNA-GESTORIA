@@ -218,6 +218,14 @@ export async function generateAmortizations(companyId: string, createdById?: str
   const settings = await getAmortizationSettings(companyId)
   const { start, end, label } = getPeriodBounds(settings.periodization as AmortizationPeriodization)
 
+  const already = await prisma.amortizationRun.findFirst({
+    where: { companyId, periodLabel: label },
+    select: { id: true },
+  })
+  if (already) {
+    throw new Error(`Las amortizaciones del periodo ${label} ya están generadas.`)
+  }
+
   const assets = await prisma.fixedAsset.findMany({
     where: { companyId, isActive: true },
     include: assetInclude,
