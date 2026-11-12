@@ -63,6 +63,13 @@ export const STATIC_COMMAND_PALETTE_ITEMS: CommandPaletteItem[] = [
     "Balance de debe, haber y saldo",
     ["extracto", "sumas", "saldos", "balance", "mayor"],
   ),
+  navItem(
+    "nav-punteo",
+    "Ir a Punteo de extractos",
+    "/dashboard/informes/punteo",
+    "Marca los apuntes ya casados",
+    ["punteo", "puntear", "casar", "conciliar", "extracto"],
+  ),
   navItem("nav-fiscal", "Ir a Modelos fiscales", "/dashboard/fiscal", "Vista panorámica trimestral", [
     "impuestos",
     "fiscal",

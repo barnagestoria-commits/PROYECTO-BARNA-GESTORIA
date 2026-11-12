@@ -40,6 +40,12 @@ export const ACCOUNTING_TOOLBAR_GROUPS: AccountingToolbarGroup[] = [
         pdfReportType: "sumas-saldos",
       },
       {
+        id: "punteo",
+        label: "Punteo de extractos",
+        description: "Marca cobros y pagos ya casados",
+        href: "/dashboard/informes/punteo",
+      },
+      {
         id: "sumas-saldos",
         label: "Sumas y Saldos",
         description: "Mayor resumido por cuenta",
@@ -203,6 +209,7 @@ export function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/fiscal/resumen")) return "Resumen fiscal"
   if (pathname.startsWith("/dashboard/fiscal")) return "Vista Panorámica Fiscal"
   if (pathname.includes("/informes/balance")) return "Balance de Situación"
+  if (pathname.includes("/informes/punteo")) return "Punteo de extractos"
   if (pathname.includes("/informes/extracto")) return "Extracto de cuentas"
   if (pathname.includes("/informes/sumas-saldos")) return "Sumas y Saldos"
   if (pathname.includes("/informes/pyg")) return "Pérdidas y Ganancias"

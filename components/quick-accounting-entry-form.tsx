@@ -1212,12 +1212,14 @@ export function QuickAccountingEntryForm() {
         setNifDialogOpen(true)
         return
       }
+
+      if (isEntryNavigationBlocked()) return
+
       if (event.key === "F8") {
         event.preventDefault()
         openCompanyExtract()
+        return
       }
-
-      if (isEntryNavigationBlocked()) return
 
       const target = event.target
       const inDraftInput =
@@ -2172,6 +2174,7 @@ export function QuickAccountingEntryForm() {
               }
             : undefined
         }
+        onCuentaChange={setMovementsAccount}
         onClose={() => {
           setMovementsDialogOpen(false)
           setMovementsAccount(null)

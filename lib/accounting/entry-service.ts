@@ -25,6 +25,7 @@ import {
 import { findDuplicateInvoiceEntry } from "@/lib/accounting/duplicate-invoice-lookup"
 import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
+import { indexPunteoStamps, takePunteoStamp } from "@/lib/accounting/account-punteo"
 
 const COMMAND_CODES = new Set(Object.keys(ACCOUNTING_COMMANDS))
 
@@ -256,8 +257,26 @@ export async function updateAccountingEntry(
   const entry = await prisma.$transaction(async (tx) => {
     const existingLines = await tx.entryLine.findMany({
       where: { entryId },
-      select: { id: true },
+      select: {
+        id: true,
+        cuenta: true,
+        concepto: true,
+        debe: true,
+        haber: true,
+        punteado: true,
+        punteadoAt: true,
+      },
     })
+    const punteoPool = indexPunteoStamps(
+      existingLines.map((line) => ({
+        cuenta: line.cuenta,
+        concepto: line.concepto,
+        debe: decimalToNumber(line.debe),
+        haber: decimalToNumber(line.haber),
+        punteado: line.punteado,
+        punteadoAt: line.punteadoAt,
+      })),
+    )
     if (existingLines.length > 0) {
       await tx.entryLineAnalyticDistribution.deleteMany({
         where: { entryLineId: { in: existingLines.map((line) => line.id) } },
@@ -276,13 +295,18 @@ export async function updateAccountingEntry(
         invoiceDataJson: invoiceFields.invoiceDataJson,
         commandCode,
         lines: {
-          create: normalized.lines.map((line, index) => ({
-            sortOrder: index,
-            cuenta: line.cuenta,
-            concepto: line.concepto,
-            debe: line.debe,
-            haber: line.haber,
-          })),
+          create: normalized.lines.map((line, index) => {
+            const stamp = takePunteoStamp(punteoPool, line)
+            return {
+              sortOrder: index,
+              cuenta: line.cuenta,
+              concepto: line.concepto,
+              debe: line.debe,
+              haber: line.haber,
+              punteado: stamp?.punteado ?? false,
+              punteadoAt: stamp?.punteadoAt ?? null,
+            }
+          }),
         },
       },
       include: { lines: true },

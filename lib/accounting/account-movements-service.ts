@@ -70,6 +70,7 @@ export interface AccountMovementRow {
   debe: number
   haber: number
   saldo: number
+  punteado: boolean
 }
 
 export interface AccountMovementsSummary {
@@ -78,6 +79,7 @@ export interface AccountMovementsSummary {
   label: string
   year: number
   openingBalance: number
+  openingPunteado: number
   totalDebe: number
   totalHaber: number
   closingBalance: number
@@ -127,7 +129,7 @@ export async function fetchAccountMovements(
           fecha: { lt: start },
         },
       },
-      select: { cuenta: true, debe: true, haber: true },
+      select: { cuenta: true, debe: true, haber: true, punteado: true },
     }),
     prisma.thirdParty.findFirst({
       where: { companyId, accountCode: { in: [normalized, cuenta] } },
@@ -142,9 +144,16 @@ export async function fetchAccountMovements(
     }),
   ])
 
+  const priorMatched = priorLines.filter((line) => matchesCuenta(line.cuenta, normalized))
   const openingBalance = round2(
-    priorLines
-      .filter((line) => matchesCuenta(line.cuenta, normalized))
+    priorMatched.reduce(
+      (sum, line) => sum + decimalToNumber(line.debe) - decimalToNumber(line.haber),
+      0,
+    ),
+  )
+  const openingPunteado = round2(
+    priorMatched
+      .filter((line) => line.punteado)
       .reduce(
         (sum, line) => sum + decimalToNumber(line.debe) - decimalToNumber(line.haber),
         0,
@@ -205,6 +214,7 @@ export async function fetchAccountMovements(
       debe,
       haber,
       saldo: running,
+      punteado: line.punteado,
     }
   })
 
@@ -217,6 +227,7 @@ export async function fetchAccountMovements(
     label: formatAccountNameDisplay(nameRecord ?? getAccountLabel(normalized)),
     year,
     openingBalance,
+    openingPunteado,
     totalDebe,
     totalHaber,
     closingBalance: round2(openingBalance + totalDebe - totalHaber),

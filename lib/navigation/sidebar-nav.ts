@@ -183,6 +183,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             description: "Balance de debe, haber y saldo por cuenta",
           },
           {
+            label: "Punteo de extractos",
+            href: "/dashboard/informes/punteo",
+            description: "Marca los apuntes ya casados y recorre las cuentas con F7 y F8",
+          },
+          {
             label: "Sumas y saldos",
             href: "/dashboard/informes/sumas-saldos",
             description: "Mayor resumido por cuenta",
@@ -328,6 +333,11 @@ export const SIDEBAR_NAV_MODULES: SidebarNavModule[] = [
             label: "Extracto de cuentas",
             href: "/dashboard/informes/extracto",
             description: "Debe, haber y saldo de todas las cuentas",
+          },
+          {
+            label: "Punteo de extractos",
+            href: "/dashboard/informes/punteo",
+            description: "Apuntes casados y cuentas pendientes de puntear",
           },
           {
             label: "Sumas y saldos",

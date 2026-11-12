@@ -134,7 +134,7 @@ export function EntryShortcutPrompt({
 
       {byName === "F8" || byCif === "F8" ? (
         <p className="mt-3 text-xs text-amber-700">
-          F8 abre el extracto de cuentas. Si la usas para buscar, el extracto sigue en el botón EX.
+          Dentro del extracto, F7 y F8 cambian de cuenta. Si usas F8 para buscar, el extracto sigue en el botón EX.
         </p>
       ) : null}
 

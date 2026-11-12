@@ -369,6 +369,9 @@ model EntryLine {
   concepto  String          @default("")
   debe      Decimal         @default(0) @db.Decimal(14, 2)
   haber     Decimal         @default(0) @db.Decimal(14, 2)
+  /// Apunte ya casado: cobro, pago o contrapartida revisada.
+  punteado  Boolean         @default(false)
+  punteadoAt DateTime?
   analyticDistributions EntryLineAnalyticDistribution[]
   bankMovement BankMovement?
 
