@@ -998,6 +998,7 @@ export function parseNativeA3ExportFiles(
   let staivareParsed = false
   let assetDefaults = parseTpPredefiAssetDefaults(new Uint8Array(0))
   let fixedAssets: A3FixedAsset[] = []
+  const aamBuffers: ImportBytes[] = []
 
   for (const { path, buffer } of fileIndex.values()) {
     if (endsWithBase(path, "cu.dat") || endsWithBase(path, "da.dat")) {
@@ -1020,11 +1021,17 @@ export function parseNativeA3ExportFiles(
       tpDefaults = { ...staivareDefaults, ...tpDefaults }
     }
     if (endsWithBase(path, "aam.dat") && isAamDatBuffer(buffer)) {
-      fixedAssets = parseAamDatFixedAssets(buffer, {
+      aamBuffers.push(buffer)
+    }
+  }
+
+  for (const buffer of aamBuffers) {
+    fixedAssets.push(
+      ...parseAamDatFixedAssets(buffer, {
         fiscalYear,
         defaults: assetDefaults,
-      })
-    }
+      }),
+    )
   }
 
   subaccountLists.push(tcliproData.subaccounts)

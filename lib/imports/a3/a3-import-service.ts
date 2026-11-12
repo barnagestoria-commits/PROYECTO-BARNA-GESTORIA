@@ -11,6 +11,7 @@ import type { A3VendorRef } from "@/lib/imports/a3/a3-client-import"
 import type { A3ImportPreview, A3ImportResult, A3FixedAsset, A3JournalEntry, A3Subaccount, A3ThirdParty } from "@/lib/imports/a3/types"
 import { resolveVendorAccountCodes } from "@/lib/imports/a3/vendor-matching"
 import { prisma } from "@/lib/db"
+import { canonicalizeStoredAccountCode } from "@/lib/accounting/canonical-account-code"
 
 function uniqueVendorCifs(entries: A3JournalEntry[]): Map<string, string> {
   const map = new Map<string, string>()
@@ -163,9 +164,9 @@ async function createFixedAssetsFromParsed(
       code: asset.code,
       name: asset.name,
       description: asset.description,
-      cuentaInmovilizado: asset.cuentaInmovilizado,
-      cuentaAmortAcumulada: asset.cuentaAmortAcumulada,
-      cuentaGastoAmort: asset.cuentaGastoAmort,
+      cuentaInmovilizado: canonicalizeStoredAccountCode(asset.cuentaInmovilizado),
+      cuentaAmortAcumulada: canonicalizeStoredAccountCode(asset.cuentaAmortAcumulada),
+      cuentaGastoAmort: canonicalizeStoredAccountCode(asset.cuentaGastoAmort),
       acquisitionDate: new Date(`${asset.acquisitionDate}T00:00:00.000Z`),
       acquisitionCost: asset.acquisitionCost,
       residualValue: asset.residualValue,

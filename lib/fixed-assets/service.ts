@@ -237,14 +237,14 @@ export async function generateAmortizations(companyId: string, createdById?: str
     const remaining = Math.max(0, depreciable - accumulated)
     if (remaining <= 0) continue
 
-    const monthly = remaining / Math.max(1, asset.usefulLifeMonths)
+    const monthly = depreciable / Math.max(1, asset.usefulLifeMonths)
     const months =
       settings.periodization === "ANUAL"
         ? 12
         : settings.periodization === "TRIMESTRAL"
           ? 3
           : 1
-    const amount = Math.round(monthly * months * 100) / 100
+    const amount = Math.min(remaining, Math.round(monthly * months * 100) / 100)
     if (amount <= 0) continue
 
     const distNote =
