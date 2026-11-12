@@ -8,6 +8,8 @@ export type AccountType = "GESTORIA" | "CLIENTE_FINAL" | "EMPRESA"
 
 export type UserRole = "ADMIN_GESTOR" | "GESTOR" | "CLIENTE"
 
+export type AccountBillingStatus = "ACTIVE" | "PAUSED"
+
 export type CompanyKind = "STANDARD" | "GESTORIA_PROPIA" | "CLIENTE_CARTERA"
 
 export interface CompanySummary {
@@ -44,6 +46,15 @@ export interface AuthUser {
   accountName: string
   /** Operador de Taxlyn: puede entrar en cualquier empresa para resolver incidencias. */
   isPlatformOperator: boolean
+  /** Tecla elegida para buscar una cuenta por nombre en el asiento. */
+  entryShortcutByName: string
+  /** Tecla elegida para buscar por CIF en el asiento. */
+  entryShortcutByCif: string
+  /** Si ya eligió las teclas, o la cuenta ya estaba de alta antes de esta ventana. */
+  entryShortcutsConfigured: boolean
+  /** PAUSED: la suscripción no se cobra y los datos siguen. */
+  accountBillingStatus: AccountBillingStatus
+  accountBillingPausedAt: string | null
 }
 
 export interface SupportAccess {

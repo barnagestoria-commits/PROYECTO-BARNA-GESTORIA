@@ -135,6 +135,12 @@ enum CompanyKind {
   CLIENTE_CARTERA
 }
 
+/// ACTIVE cobra la suscripción. PAUSED la deja en pausa y conserva los datos.
+enum AccountBillingStatus {
+  ACTIVE
+  PAUSED
+}
+
 /// Cuenta raíz: despacho de gestoría o cliente final (autónomo/empresa)
 model Account {
   id          String      @id @default(cuid())
@@ -143,6 +149,9 @@ model Account {
   maxSeats    Int         @default(8)
   /// Facturas analizadas con OCR DeepSeek en la prueba gratuita (tope 8, todas las cuentas).
   ocrInvoiceCount Int     @default(0)
+  /// PAUSED: no se cobra la suscripción y los datos siguen en la cuenta.
+  billingStatus   AccountBillingStatus @default(ACTIVE)
+  billingPausedAt DateTime?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   users       User[]
@@ -160,6 +169,12 @@ model User {
   hasCompletedOnboarding Boolean @default(false)
   /// Operador de Taxlyn. Puede abrir cualquier cuenta para resolver incidencias.
   isPlatformOperator Boolean @default(false)
+  /// Tecla para buscar una cuenta por nombre en el asiento. Propuesta: F4.
+  entryShortcutByName String @default("F4")
+  /// Tecla para buscar por CIF en el asiento. Propuesta: F6.
+  entryShortcutByCif String @default("F6")
+  /// Quien ya estaba de alta no ve la ventana. Quien se registra ahora, sí, hasta que elige las teclas.
+  entryShortcutsConfigured Boolean @default(false)
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt

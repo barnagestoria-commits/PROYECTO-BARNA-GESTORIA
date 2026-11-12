@@ -125,7 +125,7 @@ export function getTourStepsForProfile(profile: OnboardingRoleProfile): Onboardi
       target: '[data-tour="onboarding-entry-form"]',
       title: "Entrada rápida de asientos",
       content:
-        "⚡ **Entrada rápida con teclado:** Utiliza TAB para avanzar. El cursor saltará al Debe o Haber según la cuenta. Usa F4 para buscar por nombre o F6 por NIF.",
+        "⚡ **Entrada rápida con teclado:** Utiliza TAB para avanzar. El cursor saltará al Debe o Haber según la cuenta. En el primer asiento eliges la tecla para buscar por nombre o cuenta y la de buscar por CIF. La propuesta es F4 y F6.",
       placement: "bottom",
     },
     {

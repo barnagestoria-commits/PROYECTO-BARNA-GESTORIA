@@ -91,6 +91,12 @@ import { ApiRequestError, apiFetch } from "@/lib/api-client"
 import { confirmReleaseAccount } from "@/lib/accounting/release-account-client"
 import { describeEntryAccountLabels } from "@/lib/accounting/entry-account-label"
 import { useAuth } from "@/components/auth-provider"
+import { EntryShortcutPrompt } from "@/components/accounting/entry-shortcut-prompt"
+import {
+  DEFAULT_ENTRY_SHORTCUT_BY_CIF,
+  DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+  matchEntryShortcut,
+} from "@/lib/accounting/entry-shortcuts"
 import { AccountCellInput } from "@/components/accounting/account-cell-input"
 import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
 import { NifAccountDialog } from "@/components/accounting/nif-account-dialog"
@@ -163,7 +169,15 @@ interface CommittedEntry {
 }
 
 export function QuickAccountingEntryForm() {
-  const { activeCompany } = useAuth()
+  const { activeCompany, session, refreshSession } = useAuth()
+  const [capturingEntryShortcut, setCapturingEntryShortcut] = useState(false)
+  const entryShortcuts = useMemo(
+    () => ({
+      byName: session?.user.entryShortcutByName || DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+      byCif: session?.user.entryShortcutByCif || DEFAULT_ENTRY_SHORTCUT_BY_CIF,
+    }),
+    [session?.user.entryShortcutByCif, session?.user.entryShortcutByName],
+  )
   const searchParams = useSearchParams()
   const [activeCommand, setActiveCommand] = useState<AccountingCommandCode | null>(null)
   const [fecha, setFecha] = useState(new Date().toISOString().split("T")[0])
@@ -1186,13 +1200,17 @@ export function QuickAccountingEntryForm() {
 
   useEffect(() => {
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "F4") {
+      if (capturingEntryShortcut) return
+      const shortcut = matchEntryShortcut(entryShortcuts, event)
+      if (shortcut === "name") {
         event.preventDefault()
         setPgcDialogOpen(true)
+        return
       }
-      if (event.key === "F6") {
+      if (shortcut === "cif") {
         event.preventDefault()
         setNifDialogOpen(true)
+        return
       }
       if (event.key === "F8") {
         event.preventDefault()
@@ -1239,6 +1257,8 @@ export function QuickAccountingEntryForm() {
     isEntryNavigationBlocked,
     navigateCommittedEntry,
     openCompanyExtract,
+    capturingEntryShortcut,
+    entryShortcuts,
     openSelectedCommittedEntry,
     selectCommittedEntry,
     selectedCommittedEntryId,
@@ -1327,10 +1347,10 @@ export function QuickAccountingEntryForm() {
       return "↑ desde la primera línea vuelve al último asiento · ←→ entre campos · Tab para avanzar"
     }
     if (activeCell.field === "codigo") {
-      return "Indique el Código de Predefinido o Pulse F4"
+      return `Indique el Código de Predefinido o Pulse ${entryShortcuts.byName}`
     }
     if (activeCell.field === "cuenta") {
-      return "F4 · Plan contable · F6 · Buscar NIF · EX · extracto de cuentas (balance)"
+      return `${entryShortcuts.byName} · Plan contable · ${entryShortcuts.byCif} · Buscar NIF · EX · extracto de cuentas (balance)`
     }
     if (activeCell.field === "contrapartida") {
       return "Contrapartida en esta línea, o Enter para crearla debajo y cuadrar el asiento"
@@ -1339,7 +1359,14 @@ export function QuickAccountingEntryForm() {
       return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
     }
     return "Apunte manual — Enter en el importe va a la contrapartida · Enter otra vez abre la línea de abajo"
-  }, [activeCell.field, activeCommand, committedEntries.length, selectedCommittedEntry])
+  }, [
+    activeCell.field,
+    activeCommand,
+    committedEntries.length,
+    entryShortcuts.byCif,
+    entryShortcuts.byName,
+    selectedCommittedEntry,
+  ])
 
   const handleSubmit = async () => {
     if (!totals.isBalanced || isSubmitting) return
@@ -1535,7 +1562,7 @@ export function QuickAccountingEntryForm() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-graphite-500">
-              ←→ entre campos · ↑ al asiento anterior · Tab · F4 plan contable · F6 NIF · EX extracto
+              ←→ entre campos · ↑ al asiento anterior · Tab · {entryShortcuts.byName} plan contable · {entryShortcuts.byCif} NIF · EX extracto
             </p>
             <button
               type="button"
@@ -1575,8 +1602,16 @@ export function QuickAccountingEntryForm() {
           onApplyTotals={applyInvoiceTotalsAndFocus}
           onOpenPgcChart={() => setPgcDialogOpen(true)}
           onOpenNifLookup={() => setNifDialogOpen(true)}
+          searchByNameKey={entryShortcuts.byName}
+          searchByCifKey={entryShortcuts.byCif}
         />
       )}
+
+      <EntryShortcutPrompt
+        open={Boolean(session) && session?.user.entryShortcutsConfigured === false}
+        onSaved={refreshSession}
+        onCapturingChange={setCapturingEntryShortcut}
+      />
 
       <Card data-tour="onboarding-entry-grid">
         <CardContent className="p-0">

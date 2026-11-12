@@ -34,6 +34,8 @@ interface InvoiceEntryPanelProps {
   onApplyTotals: (totals: { base: number; quota: number; total: number; irpf?: number }) => void
   onOpenPgcChart: () => void
   onOpenNifLookup: () => void
+  searchByNameKey?: string
+  searchByCifKey?: string
   /** La base y la cuota salen del total del tercero; no se editan a mano. */
   deriveFromTotal?: boolean
 }
@@ -60,6 +62,8 @@ export function InvoiceEntryPanel({
   onApplyTotals,
   onOpenPgcChart,
   onOpenNifLookup,
+  searchByNameKey = "F4",
+  searchByCifKey = "F6",
   deriveFromTotal = false,
 }: InvoiceEntryPanelProps) {
   const vatLines = details.vatLines?.length ? details.vatLines : [createEmptyVatLine()]
@@ -152,10 +156,10 @@ export function InvoiceEntryPanel({
               {details.isRectificativa ? "Rectificativa" : "Ordinaria"}
             </Badge>
             <Button type="button" size="sm" variant="outline" onClick={onOpenPgcChart}>
-              F4 · Plan contable
+              {searchByNameKey} · Plan contable
             </Button>
             <Button type="button" size="sm" variant="outline" onClick={onOpenNifLookup}>
-              F6 · Buscar NIF
+              {searchByCifKey} · Buscar NIF
             </Button>
           </div>
         </div>

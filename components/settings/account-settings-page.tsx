@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRequireAuth } from "@/components/auth-provider"
 import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel"
+import { AccountClosureCard } from "@/components/settings/account-closure-card"
 import { GestoriaTeamPanel } from "@/components/settings/gestoria-team-panel"
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 import { formatIbanDisplay } from "@/lib/banking/iban"
@@ -534,6 +535,8 @@ export function AccountSettingsPage() {
           })}
         </CardContent>
       </Card>
+
+      <AccountClosureCard />
     </div>
   )
 }

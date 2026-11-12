@@ -6,6 +6,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AccountingModal } from "@/components/accounting/accounting-modal"
+import { useAuth } from "@/components/auth-provider"
+import {
+  DEFAULT_ENTRY_SHORTCUT_BY_CIF,
+  DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+} from "@/lib/accounting/entry-shortcuts"
 import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
 import { MissingAccountDialog } from "@/components/accounting/missing-account-dialog"
 import {
@@ -108,6 +113,7 @@ export function EditAccountingEntryDialog({
   onSaved,
   onDeleted,
 }: EditAccountingEntryDialogProps) {
+  const { session } = useAuth()
   const [entry, setEntry] = useState<AccountingEntryDetail | null>(null)
   const [fecha, setFecha] = useState("")
   const [lines, setLines] = useState<AccountingEntryLine[]>([])
@@ -731,6 +737,8 @@ export function EditAccountingEntryDialog({
               onApplyTotals={applyInvoiceTotals}
               onOpenPgcChart={() => undefined}
               onOpenNifLookup={() => undefined}
+              searchByNameKey={session?.user.entryShortcutByName || DEFAULT_ENTRY_SHORTCUT_BY_NAME}
+              searchByCifKey={session?.user.entryShortcutByCif || DEFAULT_ENTRY_SHORTCUT_BY_CIF}
               deriveFromTotal
             />
           )}

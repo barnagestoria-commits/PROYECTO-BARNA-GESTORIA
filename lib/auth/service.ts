@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto"
 import { cookies } from "next/headers"
 import type {
+  AccountBillingStatus,
   AccountType,
   AuthSession,
   CompanyKind,
@@ -10,6 +11,13 @@ import type {
   UpdateUserProfileRequest,
   UserRole,
 } from "@/lib/types/auth"
+import {
+  DEFAULT_ENTRY_SHORTCUT_BY_CIF,
+  DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+  normalizeEntryShortcut,
+  validateEntryShortcuts,
+} from "@/lib/accounting/entry-shortcuts"
+import { canCloseOwnAccount } from "@/lib/auth/account-closure"
 import { prisma } from "@/lib/db"
 import { hashPassword, verifyPassword } from "@/lib/auth/password"
 import {
@@ -188,7 +196,15 @@ async function buildAuthSession(
     role: UserRole
     accountId: string
     isPlatformOperator?: boolean | null
-    account: { name: string; accountType: AccountType }
+    entryShortcutByName?: string | null
+    entryShortcutByCif?: string | null
+    entryShortcutsConfigured?: boolean | null
+    account: {
+      name: string
+      accountType: AccountType
+      billingStatus?: AccountBillingStatus | null
+      billingPausedAt?: Date | null
+    }
   },
   activeCompanyId?: string | null,
 ): Promise<AuthSession> {
@@ -229,6 +245,15 @@ async function buildAuthSession(
       accountType: user.account.accountType,
       accountName: user.account.name,
       isPlatformOperator: operator,
+      entryShortcutByName:
+        normalizeEntryShortcut(user.entryShortcutByName ?? "") || DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+      entryShortcutByCif:
+        normalizeEntryShortcut(user.entryShortcutByCif ?? "") || DEFAULT_ENTRY_SHORTCUT_BY_CIF,
+      entryShortcutsConfigured: Boolean(user.entryShortcutsConfigured),
+      accountBillingStatus: user.account.billingStatus === "PAUSED" ? "PAUSED" : "ACTIVE",
+      accountBillingPausedAt: user.account.billingPausedAt
+        ? user.account.billingPausedAt.toISOString()
+        : null,
     },
     companies,
     activeCompanyId: resolvedActive,
@@ -755,4 +780,63 @@ export async function assertCompanyAccess(
   if (!allowed) {
     throw new Error("No tienes acceso a esta empresa.")
   }
+}
+
+function assertAccountHolder(session: AuthSession) {
+  if (!canCloseOwnAccount(session.user.role)) {
+    throw new Error("La baja de la suscripción la gestiona quien administra la cuenta.")
+  }
+}
+
+export async function saveEntryShortcuts(
+  session: AuthSession,
+  byName: string,
+  byCif: string,
+): Promise<AuthSession> {
+  const choice = {
+    byName: normalizeEntryShortcut(byName),
+    byCif: normalizeEntryShortcut(byCif),
+  }
+  const error = validateEntryShortcuts(choice)
+  if (error) throw new Error(error)
+
+  await prisma.user.update({
+    where: { id: session.user.id },
+    data: {
+      entryShortcutByName: choice.byName,
+      entryShortcutByCif: choice.byCif,
+      entryShortcutsConfigured: true,
+    },
+  })
+
+  const updated = await getCurrentSession()
+  if (!updated) throw new Error("No se pudo actualizar la sesión.")
+  return updated
+}
+
+export async function pauseOwnSubscription(session: AuthSession): Promise<AuthSession> {
+  assertAccountHolder(session)
+  await prisma.account.update({
+    where: { id: session.user.accountId },
+    data: { billingStatus: "PAUSED", billingPausedAt: new Date() },
+  })
+  const updated = await getCurrentSession()
+  if (!updated) throw new Error("No se pudo actualizar la sesión.")
+  return updated
+}
+
+export async function resumeOwnSubscription(session: AuthSession): Promise<AuthSession> {
+  assertAccountHolder(session)
+  await prisma.account.update({
+    where: { id: session.user.accountId },
+    data: { billingStatus: "ACTIVE", billingPausedAt: null },
+  })
+  const updated = await getCurrentSession()
+  if (!updated) throw new Error("No se pudo actualizar la sesión.")
+  return updated
+}
+
+export async function deleteOwnAccount(session: AuthSession): Promise<void> {
+  assertAccountHolder(session)
+  await prisma.account.delete({ where: { id: session.user.accountId } })
 }
