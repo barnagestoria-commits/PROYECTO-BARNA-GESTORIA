@@ -11,11 +11,7 @@ NEXT_PUBLIC_APP_URL=https://tu-dominio-definitivo.com
 NEXTAUTH_URL=https://tu-dominio-definitivo.com
 ```
 
-Hasta tener dominio de marca, la URL temporal oficial es:
-
-`https://v0-factura-y-extractos-web.vercel.app`
-
-El código resuelve automáticamente el origen en este orden: `NEXT_PUBLIC_APP_URL` → `NEXTAUTH_URL` → `VERCEL_URL` → localhost (solo desarrollo).
+La URL pública es `https://taxlyn.com`. En el despliegue de producción, un dominio `*.vercel.app` se sustituye por ese origen para que Google y Microsoft muestren taxlyn.com. En local se mantiene localhost, y en una vista previa se mantiene su propia dirección.
 
 **Importante:** No registres `http://localhost:3000` en Google Cloud ni Azure para producción comercial.
 
@@ -30,11 +26,11 @@ Registrar en cada proveedor (copiar desde `GET /api/auth/oauth-status` en produc
 
 Post-login interno: `{ORIGIN}/auth/complete`
 
-### Ejemplo con dominio Vercel actual
+### Ejemplo con taxlyn.com
 
 ```
-https://v0-factura-y-extractos-web.vercel.app/api/oauth/callback/google
-https://v0-factura-y-extractos-web.vercel.app/api/oauth/callback/azure-ad
+https://taxlyn.com/api/oauth/callback/google
+https://taxlyn.com/api/oauth/callback/azure-ad
 ```
 
 ## Páginas legales (verificación OAuth)

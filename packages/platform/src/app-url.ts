@@ -1,5 +1,5 @@
-/** URL cloud por defecto hasta tener dominio de marca propio. */
-export const DEFAULT_APP_URL = "https://v0-factura-y-extractos-web.vercel.app"
+/** URL pública del programa. */
+export const DEFAULT_APP_URL = "https://taxlyn.com"
 
 function normalizeOrigin(value: string): string {
   return value.replace(/\/$/, "")
