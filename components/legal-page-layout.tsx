@@ -67,7 +67,7 @@ export function LegalPageLayout({
 
 interface LegalSectionProps {
   title: string
-  placeholder: string
+  placeholder?: string
   children?: ReactNode
 }
 

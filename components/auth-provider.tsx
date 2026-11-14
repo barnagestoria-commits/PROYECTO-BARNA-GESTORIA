@@ -56,7 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       })
-      if ("twoFactorRequired" in data && data.twoFactorRequired) {
+      if ("challengeId" in data) {
         return { twoFactorRequired: true as const, challengeId: data.challengeId }
       }
       setSession(data.session)
