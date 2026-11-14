@@ -178,12 +178,16 @@ model User {
   /// El operador corta el acceso. La sesión abierta se cierra y el login deja de entrar.
   blockedAt     DateTime?
   blockReason   String?
+  /// Si está activo, el acceso pide un código al correo salvo en un dispositivo recordado.
+  emailTwoFactorEnabled Boolean @default(false)
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
   sessions      Session[]
   companyAccess UserCompanyAccess[]
   supportAccessEvents SupportAccessEvent[]
+  emailLoginChallenges EmailLoginChallenge[]
+  trustedDevices TrustedDevice[]
 }
 
 /// Entrada de un operador de Taxlyn en la empresa de un cliente.
@@ -340,6 +344,34 @@ model Session {
 }
 
 /// Intentos fallidos de acceso. Tras varios, el correo queda en pausa unos minutos.
+/// Código de un solo uso enviado al correo para completar el acceso.
+model EmailLoginChallenge {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+/// Equipo en el que el usuario aceptó no volver a recibir el código durante un tiempo.
+model TrustedDevice {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash       String   @unique
+  acceptedTermsAt DateTime
+  termsVersion    String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+  lastUsedAt      DateTime @default(now())
+
+  @@index([userId])
+}
+
 model LoginGuard {
   emailKey    String    @id
   failures    Int       @default(0)

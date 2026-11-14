@@ -31,6 +31,7 @@ import {
   resolveActiveCompanyId,
 } from "@/lib/auth/permissions"
 import { ACCESS_BLOCKED_MESSAGE, blockTargetError } from "@/lib/auth/access-block"
+import { createEmailChallenge, trustedDeviceStillValid } from "@/lib/auth/two-factor-login"
 import { isPlatformOperatorEmail, userIsPlatformOperator } from "@/lib/auth/platform-operator"
 import { selectCompaniesVisibleToUser } from "@/lib/auth/gestoria-access"
 
@@ -206,6 +207,7 @@ async function buildAuthSession(
     entryShortcutByName?: string | null
     entryShortcutByCif?: string | null
     entryShortcutsConfigured?: boolean | null
+    emailTwoFactorEnabled?: boolean | null
     account: {
       name: string
       accountType: AccountType
@@ -257,6 +259,7 @@ async function buildAuthSession(
       entryShortcutByCif:
         normalizeEntryShortcut(user.entryShortcutByCif ?? "") || DEFAULT_ENTRY_SHORTCUT_BY_CIF,
       entryShortcutsConfigured: Boolean(user.entryShortcutsConfigured),
+      emailTwoFactorEnabled: Boolean(user.emailTwoFactorEnabled),
       accountBillingStatus: user.account.billingStatus === "PAUSED" ? "PAUSED" : "ACTIVE",
       accountBillingPausedAt: user.account.billingPausedAt
         ? user.account.billingPausedAt.toISOString()
@@ -360,7 +363,15 @@ export async function establishUserSession(
   return buildAuthSession(user, session.activeCompanyId)
 }
 
-export async function loginAccount(email: string, password: string): Promise<AuthSession> {
+export type LoginResult =
+  | { twoFactorRequired: false; session: AuthSession }
+  | { twoFactorRequired: true; challengeId: string }
+
+export async function loginAccount(
+  email: string,
+  password: string,
+  deviceToken?: string | null,
+): Promise<LoginResult> {
   const normalized = email.toLowerCase()
   await assertLoginOpen(normalized)
 
@@ -386,13 +397,24 @@ export async function loginAccount(email: string, password: string): Promise<Aut
     throw new Error(ACCESS_BLOCKED_MESSAGE)
   }
 
+  if (user.emailTwoFactorEnabled) {
+    const remembered = await trustedDeviceStillValid(user.id, deviceToken)
+    if (!remembered) {
+      const challengeId = await createEmailChallenge(user)
+      return { twoFactorRequired: true, challengeId }
+    }
+  }
+
   const companies = await getCompaniesForUser(
     user.id,
     user.account.accountType,
     user.accountId,
     user.role,
   )
-  return establishUserSession(user.id, resolveActiveCompanyId(companies))
+  return {
+    twoFactorRequired: false,
+    session: await establishUserSession(user.id, resolveActiveCompanyId(companies)),
+  }
 }
 
 export async function logoutAccount(): Promise<void> {

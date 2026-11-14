@@ -20,7 +20,8 @@ interface AuthContextValue {
   panelTitle: string
   roleLabel: string
   activeCompany: AuthSession["companies"][number] | null
-  login: (email: string, password: string) => Promise<void>
+  login: (email: string, password: string) => Promise<{ twoFactorRequired: false } | { twoFactorRequired: true; challengeId: string }>
+  confirmLoginCode: (challengeId: string, code: string, rememberDevice: boolean) => Promise<void>
   register: (data: RegisterRequest) => Promise<void>
   logout: () => Promise<void>
   refreshSession: () => Promise<void>
@@ -49,9 +50,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const data = await apiFetch<SessionResponse>("/api/auth/login", {
+      const data = await apiFetch<
+        SessionResponse | { success: true; twoFactorRequired: true; challengeId: string }
+      >("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
+      })
+      if ("twoFactorRequired" in data && data.twoFactorRequired) {
+        return { twoFactorRequired: true as const, challengeId: data.challengeId }
+      }
+      setSession(data.session)
+      router.push("/dashboard")
+      return { twoFactorRequired: false as const }
+    },
+    [router],
+  )
+
+  const confirmLoginCode = useCallback(
+    async (challengeId: string, code: string, rememberDevice: boolean) => {
+      const data = await apiFetch<SessionResponse>("/api/auth/login/verify", {
+        method: "POST",
+        body: JSON.stringify({ challengeId, code, rememberDevice }),
       })
       setSession(data.session)
       router.push("/dashboard")
@@ -98,12 +117,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       roleLabel: session ? getRoleLabel(session.user.role) : "",
       activeCompany,
       login,
+      confirmLoginCode,
       register,
       logout,
       refreshSession,
       setActiveCompany,
     }),
-    [session, isLoading, activeCompany, login, register, logout, refreshSession, setActiveCompany],
+    [session, isLoading, activeCompany, login, confirmLoginCode, register, logout, refreshSession, setActiveCompany],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

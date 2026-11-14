@@ -57,6 +57,18 @@ export default function TerminosServicioPage() {
         title="9. Ley aplicable y jurisdicción"
         placeholder="Legislación española, tribunales de Barcelona (o domicilio del prestador)."
       />
+
+      <div id="dispositivos-de-confianza">
+        <LegalSection title="10. Verificación por correo y dispositivos de confianza">
+          <p className="text-sm leading-relaxed text-graphite-700">
+            Quien active la verificación en dos pasos recibe un código en su correo para completar el acceso.
+            Si marca «Recordar este dispositivo», acepta que Taxlyn no vuelva a pedir ese código en ese equipo
+            durante 90 días. El acceso que se haga desde ese dispositivo se entiende realizado por el titular de
+            la cuenta. Taxlyn no responde de los usos, pérdidas o accesos de terceros cuando el cliente ha marcado
+            el dispositivo como de confianza, ha compartido su contraseña o ha dejado la sesión abierta.
+          </p>
+        </LegalSection>
+      </div>
     </LegalPageLayout>
   )
 }

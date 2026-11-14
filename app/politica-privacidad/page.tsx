@@ -33,10 +33,15 @@ export default function PoliticaPrivacidadPage() {
         placeholder="Ejecución de contrato, consentimiento, interés legítimo según RGPD/LOPDGDD para cada categoría de datos."
       />
 
-      <LegalSection
-        title="5. Conservación y seguridad"
-        placeholder="Plazos de retención, cifrado en tránsito (HTTPS), almacenamiento en servidores UE, cookies httpOnly para sesión."
-      />
+      <LegalSection title="5. Conservación y seguridad">
+        <p className="text-sm leading-relaxed text-graphite-700">
+          La sesión y, si el usuario lo acepta, el recuerdo del dispositivo se guardan en cookies técnicas
+          httpOnly. El código de verificación se envía al correo de la cuenta y no se conserva en claro. El
+          registro de que el usuario aceptó recordar un dispositivo incluye la fecha y la versión del texto
+          aceptado, y se conserva mientras el dispositivo siga autorizado y el tiempo necesario para atender
+          una reclamación.
+        </p>
+      </LegalSection>
 
       <LegalSection
         title="6. Cesiones y encargados"

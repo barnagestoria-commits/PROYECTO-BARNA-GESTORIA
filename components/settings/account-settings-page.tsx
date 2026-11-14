@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { useRequireAuth } from "@/components/auth-provider"
 import { SubscriptionPlansPanel } from "@/components/settings/subscription-plans-panel"
 import { AccountClosureCard } from "@/components/settings/account-closure-card"
+import { TwoFactorCard } from "@/components/settings/two-factor-card"
 import { GestoriaTeamPanel } from "@/components/settings/gestoria-team-panel"
 import { apiFetch, type SessionResponse } from "@/lib/api-client"
 import { formatIbanDisplay } from "@/lib/banking/iban"
@@ -505,6 +506,8 @@ export function AccountSettingsPage() {
         <SubscriptionPlansPanel />
       </div>
       )}
+
+      <TwoFactorCard />
 
       <Card className="border-sand-200 shadow-sm">
         <CardHeader>

@@ -52,6 +52,8 @@ export interface AuthUser {
   entryShortcutByCif: string
   /** Si ya eligió las teclas, o la cuenta ya estaba de alta antes de esta ventana. */
   entryShortcutsConfigured: boolean
+  /** El acceso pide un código al correo, salvo en un dispositivo recordado. */
+  emailTwoFactorEnabled: boolean
   /** PAUSED: la suscripción no se cobra y los datos siguen. */
   accountBillingStatus: AccountBillingStatus
   accountBillingPausedAt: string | null

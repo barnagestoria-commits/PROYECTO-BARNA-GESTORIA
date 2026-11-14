@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { PasswordInput } from "@/components/password-input"
 import { SocialLoginButtons } from "@/components/social-login-buttons"
 import { LegalFooterLinks } from "@/components/legal-footer-links"
+import { TRUSTED_DEVICE_ACCEPTANCE } from "@/lib/auth/trusted-device-terms"
 import { Mail, Lock } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useAuth } from "@/components/auth-provider"
@@ -17,9 +18,12 @@ import { useAuth } from "@/components/auth-provider"
 const SHOW_DEMO_CREDENTIALS = process.env.NODE_ENV !== "production"
 
 export default function LoginPage() {
-  const { login } = useAuth()
+  const { login, confirmLoginCode } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [challengeId, setChallengeId] = useState<string | null>(null)
+  const [code, setCode] = useState("")
+  const [rememberDevice, setRememberDevice] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -29,9 +33,26 @@ export default function LoginPage() {
     setIsLoading(true)
 
     try {
-      await login(email, password)
+      const result = await login(email, password)
+      if (result.twoFactorRequired) {
+        setChallengeId(result.challengeId)
+        setIsLoading(false)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al iniciar sesión.")
+      setIsLoading(false)
+    }
+  }
+
+  const handleCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!challengeId) return
+    setError(null)
+    setIsLoading(true)
+    try {
+      await confirmLoginCode(challengeId, code, rememberDevice)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se ha podido comprobar el código.")
       setIsLoading(false)
     }
   }
@@ -50,6 +71,50 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {challengeId ? (
+          <form onSubmit={handleCode} className="space-y-4">
+            <p className="text-sm text-graphite-600">
+              Te hemos enviado un código a tu correo. Escríbelo para entrar.
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="code">Código</Label>
+              <Input
+                id="code"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                required
+              />
+            </div>
+            <label className="flex items-start gap-2 text-sm text-pine-900">
+              <input
+                type="checkbox"
+                className="mt-1"
+                checked={rememberDevice}
+                onChange={(event) => setRememberDevice(event.target.checked)}
+              />
+              Recordar este dispositivo
+            </label>
+            {rememberDevice ? (
+              <p className="rounded-lg border border-sand-300 bg-sand-50 px-3 py-2 text-xs leading-relaxed text-graphite-700">
+                {TRUSTED_DEVICE_ACCEPTANCE}{" "}
+                <Link href="/terminos-servicio#dispositivos-de-confianza" className="text-emerald-800 underline">
+                  Ver los términos
+                </Link>
+                .
+              </p>
+            ) : null}
+            {error ? (
+              <p className="text-sm text-red-600" role="alert">
+                {error}
+              </p>
+            ) : null}
+            <Button type="submit" className="w-full bg-emerald-800 hover:bg-pine-900" disabled={isLoading}>
+              {isLoading ? "Comprobando..." : "Confirmar código"}
+            </Button>
+          </form>
+          ) : (
           <form onSubmit={handleSubmit} className="space-y-4" noValidate={false}>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -92,6 +157,7 @@ export default function LoginPage() {
               {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
             </Button>
           </form>
+          )}
 
           <SocialLoginButtons />
 
