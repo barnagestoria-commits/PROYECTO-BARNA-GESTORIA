@@ -190,7 +190,7 @@ function OperatorMenuLink({ onClick }: { onClick?: () => void }) {
       )}
     >
       <LifeBuoy className="h-4 w-4 shrink-0" />
-      <span>Entrar en una cuenta</span>
+      <span>Cuentas dadas de alta</span>
     </Link>
   )
 }

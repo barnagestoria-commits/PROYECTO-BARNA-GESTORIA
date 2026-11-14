@@ -19,12 +19,19 @@ import {
 } from "@/lib/accounting/entry-shortcuts"
 import { canCloseOwnAccount } from "@/lib/auth/account-closure"
 import { prisma } from "@/lib/db"
-import { hashPassword, verifyPassword } from "@/lib/auth/password"
+import { hashPassword, passwordNeedsRehash, verifyPassword } from "@/lib/auth/password"
+import {
+  assertLoginOpen,
+  clearLoginFailures,
+  operatorEmailChangeError,
+  recordLoginFailure,
+} from "@/lib/auth/login-guard"
 import {
   canSwitchCompanies,
   resolveActiveCompanyId,
 } from "@/lib/auth/permissions"
-import { userIsPlatformOperator } from "@/lib/auth/platform-operator"
+import { ACCESS_BLOCKED_MESSAGE, blockTargetError } from "@/lib/auth/access-block"
+import { isPlatformOperatorEmail, userIsPlatformOperator } from "@/lib/auth/platform-operator"
 import { selectCompaniesVisibleToUser } from "@/lib/auth/gestoria-access"
 
 import {
@@ -267,6 +274,9 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
   if (existing) {
     throw new Error("Ya existe una cuenta con este email.")
   }
+  if (isPlatformOperatorEmail(input.email)) {
+    throw new Error("Ese correo está reservado para el operador de Taxlyn.")
+  }
 
   const passwordHash = hashPassword(input.password)
   const role: UserRole = input.accountType === "GESTORIA" ? "ADMIN_GESTOR" : "CLIENTE"
@@ -328,6 +338,11 @@ export async function establishUserSession(
     user.accountId,
     user.role,
   )
+  const operator = await ensureStoredOperatorFlag(user)
+  if (operator) {
+    await prisma.session.deleteMany({ where: { userId: user.id } })
+  }
+
   const token = createSessionToken()
   const activeCompanyId = resolveActiveCompanyId(companies, preferredCompanyId)
 
@@ -335,7 +350,7 @@ export async function establishUserSession(
     data: {
       token,
       userId: user.id,
-      expiresAt: getSessionExpiry(),
+      expiresAt: getSessionExpiry(operator),
       activeCompanyId,
     },
   })
@@ -346,13 +361,29 @@ export async function establishUserSession(
 }
 
 export async function loginAccount(email: string, password: string): Promise<AuthSession> {
+  const normalized = email.toLowerCase()
+  await assertLoginOpen(normalized)
+
   const user = await prisma.user.findUnique({
-    where: { email: email.toLowerCase() },
+    where: { email: normalized },
     include: { account: true },
   })
 
   if (!user || !verifyPassword(password, user.passwordHash)) {
+    await recordLoginFailure(normalized)
     throw new Error("Email o contraseña incorrectos.")
+  }
+
+  await clearLoginFailures(normalized)
+  if (passwordNeedsRehash(user.passwordHash)) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash: hashPassword(password) },
+    })
+  }
+
+  if (user.blockedAt) {
+    throw new Error(ACCESS_BLOCKED_MESSAGE)
   }
 
   const companies = await getCompaniesForUser(
@@ -392,6 +423,11 @@ export async function getSessionFromToken(token: string | undefined): Promise<Au
     return null
   }
 
+  if (session.user.blockedAt) {
+    await prisma.session.deleteMany({ where: { userId: session.userId } })
+    return null
+  }
+
   return buildAuthSession(session.user, session.activeCompanyId)
 }
 
@@ -424,7 +460,7 @@ export async function setActiveCompany(companyId: string): Promise<AuthSession> 
   return { ...session, activeCompanyId: companyId }
 }
 
-export async function enterSupportCompany(companyId: string): Promise<AuthSession> {
+export async function enterSupportCompany(companyId: string, password: string): Promise<AuthSession> {
   const token = (await cookies()).get(SESSION_COOKIE)?.value
   const current = await getSessionFromToken(token)
 
@@ -435,6 +471,17 @@ export async function enterSupportCompany(companyId: string): Promise<AuthSessio
   if (!current.user.isPlatformOperator) {
     throw new Error("Solo el operador de Taxlyn puede entrar en otra cuenta.")
   }
+
+  await assertLoginOpen(current.user.email)
+  const operatorUser = await prisma.user.findUnique({
+    where: { id: current.user.id },
+    select: { passwordHash: true },
+  })
+  if (!password || !operatorUser || !verifyPassword(password, operatorUser.passwordHash)) {
+    await recordLoginFailure(current.user.email)
+    throw new Error("Confirma la contraseña del operador para entrar en un cliente.")
+  }
+  await clearLoginFailures(current.user.email)
 
   const company = await prisma.company.findUnique({
     where: { id: companyId },
@@ -663,6 +710,9 @@ export async function updateUserProfile(input: UpdateUserProfileRequest): Promis
   }
 
   if (email) {
+    const reserved = operatorEmailChangeError(session.user.email, email)
+    if (reserved) throw new Error(reserved)
+
     const existing = await prisma.user.findFirst({
       where: { email, NOT: { id: session.user.id } },
     })
@@ -812,6 +862,43 @@ export async function saveEntryShortcuts(
   const updated = await getCurrentSession()
   if (!updated) throw new Error("No se pudo actualizar la sesión.")
   return updated
+}
+
+export async function setUserAccessBlock(input: {
+  operatorUserId: string
+  userId: string
+  blocked: boolean
+  reason?: string | null
+}): Promise<void> {
+  const target = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { id: true, email: true, isPlatformOperator: true },
+  })
+  if (!target) {
+    throw new Error("No existe ese usuario.")
+  }
+
+  const refused = blockTargetError({
+    operatorUserId: input.operatorUserId,
+    targetUserId: target.id,
+    targetIsOperator: userIsPlatformOperator(target),
+  })
+  if (refused) throw new Error(refused)
+
+  if (!input.blocked) {
+    await prisma.user.update({
+      where: { id: target.id },
+      data: { blockedAt: null, blockReason: null },
+    })
+    return
+  }
+
+  const reason = input.reason?.trim() || null
+  await prisma.user.update({
+    where: { id: target.id },
+    data: { blockedAt: new Date(), blockReason: reason },
+  })
+  await prisma.session.deleteMany({ where: { userId: target.id } })
 }
 
 export async function pauseOwnSubscription(session: AuthSession): Promise<AuthSession> {

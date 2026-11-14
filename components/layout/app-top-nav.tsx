@@ -72,7 +72,7 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
             <Link
               href="/dashboard/soporte"
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
-              aria-label="Entrar en una cuenta"
+              aria-label="Cuentas dadas de alta"
             >
               <LifeBuoy className="h-4 w-4 shrink-0" />
               <span className={isCompactNav ? "sr-only" : "hidden lg:inline"}>Cuentas</span>

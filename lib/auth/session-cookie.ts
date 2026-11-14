@@ -1,5 +1,7 @@
 import { env } from "@/lib/config/env"
 
+import { OPERATOR_SESSION_HOURS } from "@/lib/auth/login-guard"
+
 export const SESSION_COOKIE = "barna_session"
 export const SESSION_DAYS = 7
 
@@ -19,8 +21,12 @@ export function getSessionCookieOptions(expires: Date) {
   }
 }
 
-export function getSessionExpiry(): Date {
+export function getSessionExpiry(forOperator = false): Date {
   const expires = new Date()
+  if (forOperator) {
+    expires.setHours(expires.getHours() + OPERATOR_SESSION_HOURS)
+    return expires
+  }
   expires.setDate(expires.getDate() + SESSION_DAYS)
   return expires
 }

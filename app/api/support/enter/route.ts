@@ -5,14 +5,14 @@ import { enterSupportCompany } from "@/lib/auth/service"
 export async function POST(request: Request) {
   try {
     await requirePlatformOperator(request)
-    const { companyId } = (await request.json()) as { companyId?: string }
+    const { companyId, password } = (await request.json()) as { companyId?: string; password?: string }
     if (!companyId?.trim()) {
       return NextResponse.json(
         { success: false, error: "Indica la empresa a la que quieres entrar." },
         { status: 400 },
       )
     }
-    const session = await enterSupportCompany(companyId.trim())
+    const session = await enterSupportCompany(companyId.trim(), password ?? "")
     return NextResponse.json({ success: true, session })
   } catch (error) {
     return authErrorResponse(error)

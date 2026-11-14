@@ -175,6 +175,9 @@ model User {
   entryShortcutByCif String @default("F6")
   /// Quien ya estaba de alta no ve la ventana. Quien se registra ahora, sí, hasta que elige las teclas.
   entryShortcutsConfigured Boolean @default(false)
+  /// El operador corta el acceso. La sesión abierta se cierra y el login deja de entrar.
+  blockedAt     DateTime?
+  blockReason   String?
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
@@ -334,6 +337,14 @@ model Session {
   activeCompanyId String?
   expiresAt       DateTime
   createdAt       DateTime @default(now())
+}
+
+/// Intentos fallidos de acceso. Tras varios, el correo queda en pausa unos minutos.
+model LoginGuard {
+  emailKey    String    @id
+  failures    Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
 }
 
 /// Asiento contable vinculado a una empresa
