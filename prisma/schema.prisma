@@ -136,6 +136,13 @@ enum CompanyKind {
 }
 
 /// ACTIVE cobra la suscripción. PAUSED la deja en pausa y conserva los datos.
+/// TRIAL: prueba gratuita de 7 días y luego 15 de solo lectura con descarga. ACTIVE: acceso completo.
+/// Las cuentas anteriores a la prueba son ACTIVE (valor por defecto).
+enum AccountAccessStatus {
+  TRIAL
+  ACTIVE
+}
+
 enum AccountBillingStatus {
   ACTIVE
   PAUSED
@@ -152,6 +159,16 @@ model Account {
   /// PAUSED: no se cobra la suscripción y los datos siguen en la cuenta.
   billingStatus   AccountBillingStatus @default(ACTIVE)
   billingPausedAt DateTime?
+  accessStatus    AccountAccessStatus  @default(ACTIVE)
+  /// Fin de la prueba gratuita. Solo tiene sentido con accessStatus = TRIAL.
+  trialEndsAt     DateTime?
+  /// Avisos de la prueba ya enviados por correo: trial-2d, trial-ended, delete-7d, delete-1d.
+  lifecycleNotices String[]            @default([])
+  /// Plan pedido por el cliente y pendiente de validar el pago por transferencia.
+  requestedAccountType AccountType?
+  requestedTierId      String?
+  /// Tramo contratado (se rellena al aprobar el pago).
+  planTierId           String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
   users       User[]
@@ -181,6 +198,9 @@ model User {
   /// Acceso al programa validado (pago por transferencia aprobado por el operador).
   /// Los usuarios que ya existían quedan en true; ver migración 20261115140000.
   isActive      Boolean             @default(true)
+  /// Aceptación de los términos y la política de privacidad (versión del texto y fecha).
+  termsAcceptedAt DateTime?
+  termsVersion    String?
   /// Si está activo, el acceso pide un código al correo salvo en un dispositivo recordado.
   emailTwoFactorEnabled Boolean @default(false)
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -221,6 +241,12 @@ model PagoPendiente {
   contentType    String    @map("content_type")
   byteSize       Int       @map("byte_size")
   sha256         String
+  /// Plan que el cliente quiere contratar con esta transferencia (se aplica al aprobar).
+  planAccountType AccountType? @map("plan_account_type")
+  planTierId      String?      @map("plan_tier_id")
+  planLabel       String?      @map("plan_label")
+  /// Importe mensual esperado en euros; null si es un presupuesto a medida.
+  importeEuros    Int?         @map("importe_euros")
   estado         String    @default("pendiente")
   fecha          DateTime  @default(now())
   revisadoPor    String?   @map("revisado_por")

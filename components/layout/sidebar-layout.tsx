@@ -4,6 +4,7 @@ import { Suspense, useCallback, useState, type ReactNode } from "react"
 import { usePathname } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { AppTopNav } from "@/components/layout/app-top-nav"
+import { AccountAccessBanner } from "@/components/billing/account-access-banner"
 import { SupportAccessBanner } from "@/components/support/support-access-banner"
 import { CommandPalette } from "@/components/command-palette"
 import { getPageTitle } from "@/lib/navigation/accounting-toolbar"
@@ -43,6 +44,7 @@ function SidebarLayoutInner({
       </Suspense>
 
       <SupportAccessBanner />
+      <AccountAccessBanner />
 
       <header className="w-full min-w-0 shrink-0 overflow-x-hidden border-b border-sand-200 bg-white">
         <div className="min-w-0 px-4 py-2.5 md:px-6 md:py-4">

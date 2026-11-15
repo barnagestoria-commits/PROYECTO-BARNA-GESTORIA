@@ -19,6 +19,8 @@ import {
 } from "@/lib/accounting/entry-shortcuts"
 import { canCloseOwnAccount } from "@/lib/auth/account-closure"
 import { prisma } from "@/lib/db"
+import { computeAccountAccess, trialEndDate } from "@/lib/billing/access-state"
+import { LEGAL_TEXTS_VERSION } from "@/lib/legal/versions"
 import { hashPassword, passwordNeedsRehash, verifyPassword } from "@/lib/auth/password"
 import {
   assertLoginOpen,
@@ -213,6 +215,11 @@ async function buildAuthSession(
       accountType: AccountType
       billingStatus?: AccountBillingStatus | null
       billingPausedAt?: Date | null
+      accessStatus?: "TRIAL" | "ACTIVE" | null
+      trialEndsAt?: Date | null
+      planTierId?: string | null
+      requestedAccountType?: AccountType | null
+      requestedTierId?: string | null
     }
   },
   activeCompanyId?: string | null,
@@ -264,6 +271,19 @@ async function buildAuthSession(
       accountBillingPausedAt: user.account.billingPausedAt
         ? user.account.billingPausedAt.toISOString()
         : null,
+      access: operator
+        ? computeAccountAccess({ accessStatus: "ACTIVE" })
+        : computeAccountAccess({
+            accessStatus: user.account.accessStatus,
+            trialEndsAt: user.account.trialEndsAt,
+          }),
+      accountPlanTierId: user.account.planTierId ?? null,
+      accountRequestedPlan: user.account.requestedAccountType
+        ? {
+            accountType: user.account.requestedAccountType,
+            tierId: user.account.requestedTierId ?? null,
+          }
+        : null,
     },
     companies,
     activeCompanyId: resolvedActive,
@@ -288,6 +308,9 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
     data: {
       name: input.companyName,
       accountType: input.accountType,
+      // Prueba gratuita de 7 días con todas las funciones (después, 15 días de solo lectura y descarga).
+      accessStatus: "TRIAL",
+      trialEndsAt: trialEndDate(new Date()),
       users: {
         create: {
           email: input.email.toLowerCase(),
@@ -295,6 +318,8 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
           name: input.name,
           phone: input.phone,
           role,
+          termsAcceptedAt: input.acceptTerms ? new Date() : null,
+          termsVersion: input.acceptTerms ? LEGAL_TEXTS_VERSION : null,
         },
       },
       companies: {

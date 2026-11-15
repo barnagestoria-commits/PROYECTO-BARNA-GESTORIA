@@ -1,3 +1,4 @@
+import { trialEndDate } from "@/lib/billing/access-state"
 import { randomBytes } from "crypto"
 import type { AuthSession } from "@/lib/types/auth"
 import { prisma } from "@/lib/db"
@@ -32,6 +33,9 @@ export async function completeOAuthSignIn(profile: OAuthProfile): Promise<AuthSe
     data: {
       name: displayName,
       accountType: "CLIENTE_FINAL",
+      // Misma prueba gratuita que el registro con correo.
+      accessStatus: "TRIAL",
+      trialEndsAt: trialEndDate(new Date()),
       users: {
         create: {
           email,

@@ -1,3 +1,4 @@
+import type { AccountAccess } from "@/lib/billing/access-state"
 import type { CensusReading } from "@/lib/company/census-document"
 import type { CorporateTaxCharacter } from "@/lib/company/corporate-tax"
 import type { CompanySiiMode } from "@/lib/company/sii"
@@ -57,6 +58,12 @@ export interface AuthUser {
   /** PAUSED: la suscripción no se cobra y los datos siguen. */
   accountBillingStatus: AccountBillingStatus
   accountBillingPausedAt: string | null
+  /** Prueba gratuita, solo lectura o cuenta activa. */
+  access: AccountAccess
+  /** Tramo contratado, una vez validado el pago. */
+  accountPlanTierId: string | null
+  /** Plan pedido que espera la validación de la transferencia. */
+  accountRequestedPlan: { accountType: AccountType; tierId: string | null } | null
 }
 
 export interface SupportAccess {
@@ -103,6 +110,8 @@ export interface RegisterRequest {
   accountType: AccountType
   companyName: string
   cif?: string
+  /** Ha aceptado los Términos del servicio y la Política de privacidad. */
+  acceptTerms?: boolean
 }
 
 export interface LoginRequest {

@@ -2,6 +2,7 @@ import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { AuthSession } from "@/lib/types/auth"
 import { SESSION_COOKIE, getSessionFromToken } from "@/lib/auth/service"
+import { ACCESS_BLOCKED_MESSAGE, isRequestAllowedForPhase } from "@/lib/billing/access-state"
 import { getZipPasswordErrorCode } from "@/lib/imports/a3/zip-password-errors"
 
 export const SESSION_HEADER = "x-session-token"
@@ -16,7 +17,20 @@ export async function requireRequestSession(request: Request): Promise<AuthSessi
   if (!session) {
     throw new AuthApiError("No autenticado.", 401)
   }
+  assertAccountAccess(session, request)
   return session
+}
+
+/**
+ * Pasada la prueba gratuita la cuenta queda en solo lectura: se puede ver, descargar y contratar,
+ * pero no crear, editar ni borrar nada. El operador de Taxlyn queda fuera de esta regla.
+ */
+function assertAccountAccess(session: AuthSession, request: Request): void {
+  if (session.user.isPlatformOperator) return
+  const pathname = new URL(request.url).pathname
+  if (!isRequestAllowedForPhase(session.user.access.phase, request.method, pathname)) {
+    throw new AuthApiError(ACCESS_BLOCKED_MESSAGE, 402)
+  }
 }
 
 export async function requireActiveCompany(request: Request): Promise<{
