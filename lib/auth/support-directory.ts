@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db"
+import { DEMO_ACCOUNT_EMAILS, countDemoAccounts } from "@/lib/auth/demo-accounts"
 import type { AccountType, CompanyKind } from "@/lib/types/auth"
 
 export interface SupportDirectoryCompany {
@@ -27,9 +28,11 @@ export async function searchSupportAccounts(query: string): Promise<{
   truncated: boolean
   totalUsers: number
   blockedUsers: number
+  /** Cuentas de ejemplo que existen pero no se listan. */
+  demoAccounts: number
 }> {
   const q = query.trim()
-  const where = q
+  const searchFilter = q
     ? {
         OR: [
           { name: { contains: q, mode: "insensitive" as const } },
@@ -51,7 +54,11 @@ export async function searchSupportAccounts(query: string): Promise<{
       }
     : {}
 
-  const [users, totalUsers, blockedUsers] = await Promise.all([
+  // Las cuentas de ejemplo no son clientes: ni salen en la lista ni cuentan en los totales.
+  const notDemo = { email: { notIn: [...DEMO_ACCOUNT_EMAILS] } }
+  const where = { AND: [notDemo, searchFilter] }
+
+  const [users, totalUsers, blockedUsers, demoAccounts] = await Promise.all([
     prisma.user.findMany({
       where,
       take: RESULT_LIMIT + 1,
@@ -75,8 +82,9 @@ export async function searchSupportAccounts(query: string): Promise<{
         },
       },
     }),
-    prisma.user.count(),
-    prisma.user.count({ where: { blockedAt: { not: null } } }),
+    prisma.user.count({ where: notDemo }),
+    prisma.user.count({ where: { AND: [notDemo, { blockedAt: { not: null } }] } }),
+    countDemoAccounts(),
   ])
 
   const truncated = users.length > RESULT_LIMIT
@@ -85,6 +93,7 @@ export async function searchSupportAccounts(query: string): Promise<{
     truncated,
     totalUsers,
     blockedUsers,
+    demoAccounts,
     accounts: users.slice(0, RESULT_LIMIT).map((user) => ({
       userId: user.id,
       name: user.name,

@@ -4,6 +4,15 @@ import { hashPassword } from "../lib/auth/password"
 const prisma = new PrismaClient()
 
 async function main() {
+  // Este script BORRA todos los usuarios, empresas y cuentas y crea cuentas con contraseña "demo123".
+  // Solo para bases de desarrollo; nunca contra producción.
+  if (process.env.ALLOW_DESTRUCTIVE_SEED !== "1") {
+    console.error(
+      "Seed cancelado: borraría todos los datos. Si es una base de desarrollo, ejecútalo con ALLOW_DESTRUCTIVE_SEED=1.",
+    )
+    process.exit(1)
+  }
+
   await prisma.fiscalDocument.deleteMany()
   await prisma.userCompanyAccess.deleteMany()
   await prisma.session.deleteMany()

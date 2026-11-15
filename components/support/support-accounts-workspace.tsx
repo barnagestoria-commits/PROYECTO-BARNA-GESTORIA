@@ -19,6 +19,8 @@ export function SupportAccountsWorkspace() {
   const [accounts, setAccounts] = useState<SupportDirectoryAccount[]>([])
   const [totalUsers, setTotalUsers] = useState(0)
   const [blockedUsers, setBlockedUsers] = useState(0)
+  const [demoAccounts, setDemoAccounts] = useState(0)
+  const [removingDemo, setRemovingDemo] = useState(false)
   const [truncated, setTruncated] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,11 +40,13 @@ export function SupportAccountsWorkspace() {
         truncated: boolean
         totalUsers: number
         blockedUsers: number
+        demoAccounts: number
       }>(`/api/support/accounts?${params.toString()}`)
       setAccounts(data.accounts)
       setTruncated(data.truncated)
       setTotalUsers(data.totalUsers)
       setBlockedUsers(data.blockedUsers)
+      setDemoAccounts(data.demoAccounts)
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se ha podido cargar el listado.")
       setAccounts([])
@@ -76,6 +80,23 @@ export function SupportAccountsWorkspace() {
       setError(cause instanceof Error ? cause.message : "No se ha podido cambiar el acceso.")
     } finally {
       setBlockingId(null)
+    }
+  }
+
+  async function removeDemo() {
+    const confirmed = window.confirm(
+      "Se borrarán las cuentas de ejemplo (juan@empresa.com, gestor@gestoria.com y admin@gestoria.com) con sus datos de prueba. No afecta a clientes reales. ¿Continuar?",
+    )
+    if (!confirmed) return
+    setRemovingDemo(true)
+    setError(null)
+    try {
+      await apiFetch("/api/support/demo-accounts", { method: "POST" })
+      await load(query)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se han podido borrar las cuentas de ejemplo.")
+    } finally {
+      setRemovingDemo(false)
     }
   }
 
@@ -140,6 +161,23 @@ export function SupportAccountsWorkspace() {
           : `${totalUsers} ${totalUsers === 1 ? "usuario dado de alta" : "usuarios dados de alta"}. ${blockedUsers} con el acceso bloqueado.`}{" "}
         Desde aquí entras en una empresa para una incidencia, o bloqueas el acceso por mal uso o por la suscripción.
       </p>
+
+      {demoAccounts > 0 ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between">
+          <p>
+            Hay {demoAccounts} {demoAccounts === 1 ? "cuenta de ejemplo" : "cuentas de ejemplo"} que no son clientes reales.
+            No salen en este listado, pero conviene borrarlas: tienen una contraseña de prueba conocida.
+          </p>
+          <button
+            type="button"
+            onClick={() => void removeDemo()}
+            disabled={removingDemo}
+            className="inline-flex h-10 shrink-0 items-center justify-center rounded-lg bg-amber-900 px-4 font-semibold text-white hover:bg-amber-950 disabled:opacity-60"
+          >
+            {removingDemo ? "Borrando…" : "Borrar cuentas de ejemplo"}
+          </button>
+        </div>
+      ) : null}
 
       <label className="block text-sm text-graphite-700">
         Contraseña del operador
