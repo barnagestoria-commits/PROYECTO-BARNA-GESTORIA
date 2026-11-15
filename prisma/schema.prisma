@@ -178,6 +178,9 @@ model User {
   /// El operador corta el acceso. La sesión abierta se cierra y el login deja de entrar.
   blockedAt     DateTime?
   blockReason   String?
+  /// Acceso al programa validado (pago por transferencia aprobado por el operador).
+  /// Los usuarios que ya existían quedan en true; ver migración 20261115140000.
+  isActive      Boolean             @default(true)
   /// Si está activo, el acceso pide un código al correo salvo en un dispositivo recordado.
   emailTwoFactorEnabled Boolean @default(false)
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)
@@ -186,6 +189,7 @@ model User {
   sessions      Session[]
   companyAccess UserCompanyAccess[]
   supportAccessEvents SupportAccessEvent[]
+  pagosPendientes PagoPendiente[]
   emailLoginChallenges EmailLoginChallenge[]
   trustedDevices TrustedDevice[]
 }
@@ -202,6 +206,43 @@ model SupportAccessEvent {
 
   @@index([operatorUserId, createdAt])
   @@index([companyId, createdAt])
+}
+
+/// Justificante de una transferencia bancaria subido por un cliente, pendiente de validar por el operador.
+/// estado: "pendiente" | "aprobado" | "rechazado".
+model PagoPendiente {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// URL del objeto en el almacén. Es privada: el justificante se ve solo a través de /api/admin/pagos/:id/comprobante.
+  comprobanteUrl String?   @map("comprobante_url")
+  comprobanteKey String    @map("comprobante_key")
+  fileName       String    @map("file_name")
+  contentType    String    @map("content_type")
+  byteSize       Int       @map("byte_size")
+  sha256         String
+  estado         String    @default("pendiente")
+  fecha          DateTime  @default(now())
+  revisadoPor    String?   @map("revisado_por")
+  revisadoAt     DateTime? @map("revisado_at")
+
+  @@index([estado, fecha])
+  @@index([userId, fecha])
+  @@index([sha256])
+  @@map("pagos_pendientes")
+}
+
+/// Datos bancarios que se enseñan al cliente en /checkout/transferencia. Una sola fila (id = "default").
+model BankTransferSettings {
+  id          String   @id @default("default")
+  iban        String
+  beneficiary String
+  bankName    String?
+  instructions String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("bank_transfer_settings")
 }
 
 /// Empresa/cliente fiscal. OCR y extractos siempre vinculados a companyId.

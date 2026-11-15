@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Loader2, Search } from "lucide-react"
 import { useAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
@@ -15,8 +14,7 @@ function accountTypeLabel(accountType: AccountType): string {
 }
 
 export function SupportAccountsWorkspace() {
-  const { session, isLoading, refreshSession } = useAuth()
-  const router = useRouter()
+  const { session, isLoading } = useAuth()
   const [query, setQuery] = useState("")
   const [accounts, setAccounts] = useState<SupportDirectoryAccount[]>([])
   const [totalUsers, setTotalUsers] = useState(0)
@@ -82,19 +80,39 @@ export function SupportAccountsWorkspace() {
   }
 
   async function enterCompany(companyId: string) {
+    if (!operatorPassword) {
+      setError("Escribe arriba la contraseña del operador para poder entrar en un cliente.")
+      window.scrollTo({ top: 0, behavior: "smooth" })
+      return
+    }
+
     setEnteringId(companyId)
     setError(null)
+    // Si el servidor no contesta, el botón no se queda en "Entrando…" para siempre.
+    const controller = new AbortController()
+    const timeout = window.setTimeout(() => controller.abort(), 20_000)
     try {
       await apiFetch("/api/support/enter", {
         method: "POST",
         body: JSON.stringify({ companyId, password: operatorPassword }),
+        signal: controller.signal,
       })
-      await refreshSession()
-      router.push("/dashboard")
-      router.refresh()
+      // Carga completa: la sesión ya apunta a la empresa del cliente y no queda estado viejo en pantalla.
+      window.location.assign("/dashboard")
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se ha podido entrar en la empresa.")
+      const timedOut = cause instanceof DOMException && cause.name === "AbortError"
+      setError(
+        timedOut
+          ? "El servidor tardó demasiado en responder. Vuelve a intentarlo."
+          : cause instanceof Error
+            ? cause.message
+            : "No se ha podido entrar en la empresa.",
+      )
       setEnteringId(null)
+      // El aviso está arriba del listado; si estabas más abajo no lo verías.
+      window.scrollTo({ top: 0, behavior: "smooth" })
+    } finally {
+      window.clearTimeout(timeout)
     }
   }
 

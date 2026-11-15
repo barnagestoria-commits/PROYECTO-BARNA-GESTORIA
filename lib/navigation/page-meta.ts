@@ -14,6 +14,9 @@ export function getPageBreadcrumb(pathname: string): string {
   if (pathname.startsWith("/dashboard/soporte")) {
     return "Soporte / Cuentas de clientes"
   }
+  if (pathname.startsWith("/admin/pagos")) {
+    return "Soporte / Pagos por transferencia"
+  }
 
   const activeModuleId = getActiveModuleId(pathname)
   const activeModule = SIDEBAR_NAV_MODULES.find((module) => module.id === activeModuleId)

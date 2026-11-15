@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Command, LifeBuoy, MessageCircle, Search } from "lucide-react"
+import { Command, CreditCard, LifeBuoy, MessageCircle, Search } from "lucide-react"
 import { ResponsiveLogo } from "@/components/responsive-logo"
 import { useAuth } from "@/components/auth-provider"
 import { ModuleNavBar } from "@/components/layout/module-nav-bar"
@@ -76,6 +76,17 @@ export function AppTopNav({ onLogout, userName, onOpenCommandPalette }: AppTopNa
             >
               <LifeBuoy className="h-4 w-4 shrink-0" />
               <span className={isCompactNav ? "sr-only" : "hidden lg:inline"}>Cuentas</span>
+            </Link>
+          ) : null}
+
+          {session?.user.isPlatformOperator ? (
+            <Link
+              href="/admin/pagos"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+              aria-label="Pagos por transferencia"
+            >
+              <CreditCard className="h-4 w-4 shrink-0" />
+              <span className={isCompactNav ? "sr-only" : "hidden lg:inline"}>Pagos</span>
             </Link>
           ) : null}
 

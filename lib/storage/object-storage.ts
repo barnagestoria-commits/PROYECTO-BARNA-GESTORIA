@@ -173,3 +173,43 @@ export async function deleteStoredObject(storageKey: string | null | undefined):
   }
   await deleteLocal(storageKey)
 }
+
+/** Prefijo de los justificantes de pago de clientes. No pertenecen a ninguna empresa. */
+export const PAYMENT_PROOF_PREFIX = "taxlyn-platform/payments/"
+
+export function assertPaymentProofKey(storageKey: string): void {
+  if (
+    !storageKey.startsWith(PAYMENT_PROOF_PREFIX) ||
+    storageKey.includes("..") ||
+    storageKey.includes("\\")
+  ) {
+    throw new Error("La referencia del justificante no es válida.")
+  }
+}
+
+/** Guarda un justificante de pago (privado) en el mismo almacén que el resto de archivos. */
+export async function putPaymentProofObject(params: {
+  userId: string
+  fileName: string
+  body: Buffer
+  contentType: string
+}): Promise<StoredObjectRef> {
+  if (!params.body.length) {
+    throw new Error("El archivo está vacío.")
+  }
+
+  const year = new Date().getUTCFullYear()
+  const storageKey = `${PAYMENT_PROOF_PREFIX}${params.userId}/${year}/${randomUUID()}-${sanitizeStorageFileName(params.fileName)}`
+  const sha256 = hashBufferSha256(params.body)
+  const url = blobStoreEnabled()
+    ? await putBlob(storageKey, params.body, params.contentType)
+    : await putLocal(storageKey, params.body)
+
+  return {
+    storageKey,
+    url,
+    sha256,
+    byteSize: params.body.length,
+    contentType: params.contentType,
+  }
+}

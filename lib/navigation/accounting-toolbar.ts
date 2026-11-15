@@ -200,6 +200,7 @@ export function getPageTitle(pathname: string): string {
   if (pathname.startsWith("/dashboard/utilidades/importar")) return "Importar datos contables"
   if (pathname.startsWith("/dashboard/importacion")) return "Importar datos contables"
   if (pathname.startsWith("/dashboard/soporte")) return "Cuentas de clientes"
+  if (pathname.startsWith("/admin/pagos")) return "Pagos por transferencia"
   if (pathname.startsWith("/dashboard/fiscal/pagar-devolver")) return "A pagar / devolver"
   if (pathname.match(/^\/dashboard\/fiscal\/\d{3}\/\d{4}/)) return "Borrador fiscal"
   if (pathname.match(/^\/dashboard\/fiscal\/\d{3}$/)) {
