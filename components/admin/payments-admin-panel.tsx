@@ -18,6 +18,7 @@ interface AdminPayment {
   byteSize: number
   previewUrl: string
   repeatedByOthers: boolean
+  plan: { label: string; importeEuros: number | null } | null
   user: { id: string; name: string; email: string; accountName: string; isActive: boolean }
 }
 
@@ -303,11 +304,12 @@ export function PaymentsAdminPanel() {
         </p>
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-sand-200 bg-white">
-          <table className="w-full min-w-[44rem] text-left text-sm">
+          <table className="w-full min-w-[52rem] text-left text-sm">
             <thead className="border-b border-sand-200 bg-sand-50 text-xs uppercase tracking-wide text-graphite-500">
               <tr>
                 <th className="px-4 py-3 font-semibold">Fecha</th>
                 <th className="px-4 py-3 font-semibold">Cliente</th>
+                <th className="px-4 py-3 font-semibold">Plan e importe</th>
                 <th className="px-4 py-3 font-semibold">Justificante</th>
                 <th className="px-4 py-3 font-semibold">Estado</th>
                 <th className="px-4 py-3 text-right font-semibold">Acción</th>
@@ -323,6 +325,20 @@ export function PaymentsAdminPanel() {
                     <p className="font-semibold text-pine-950">{payment.user.name}</p>
                     <p className="text-graphite-600">{payment.user.email}</p>
                     <p className="mt-0.5 break-all font-mono text-xs text-graphite-500">Ref. {payment.user.id}</p>
+                  </td>
+                  <td className="px-4 py-3">
+                    {payment.plan ? (
+                      <>
+                        <p className="font-medium text-pine-950">{payment.plan.label}</p>
+                        <p className="text-graphite-600">
+                          {payment.plan.importeEuros !== null
+                            ? `Debe sumar ${payment.plan.importeEuros.toLocaleString("es-ES")} €`
+                            : "Importe a convenir"}
+                        </p>
+                      </>
+                    ) : (
+                      <span className="text-graphite-500">Sin plan indicado</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <ProofPreview payment={payment} />

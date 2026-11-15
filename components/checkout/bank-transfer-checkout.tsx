@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
+import Link from "next/link"
 import { CheckCircle2, Clock, Copy, FileUp, Loader2, ShieldCheck } from "lucide-react"
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch, apiFormFetch } from "@/lib/api-client"
@@ -17,6 +18,13 @@ interface CheckoutData {
   }
   reference: string
   isActive: boolean
+  access: {
+    phase: "active" | "trial" | "readonly" | "expired"
+    trialEndsAt: string | null
+    deletionAt: string | null
+  }
+  plan: { label: string; priceEuros: number | null } | null
+  needsPlanSelection: boolean
   payments: { id: string; estado: PagoEstado; fecha: string; fileName: string }[]
 }
 
@@ -179,6 +187,50 @@ export function BankTransferCheckout() {
 
         {data ? (
           <>
+            <section className="rounded-2xl border border-sand-200 bg-white p-5" aria-labelledby="tu-plan">
+              <h2 id="tu-plan" className="text-lg font-semibold text-pine-950">
+                Tu plan
+              </h2>
+              {data.needsPlanSelection ? (
+                <div className="mt-2 text-sm text-graphite-700">
+                  <p>Antes de pagar, elige el plan que quieres contratar.</p>
+                  <Link
+                    href="/configuracion#suscripcion"
+                    className="mt-3 inline-flex h-10 items-center rounded-lg bg-emerald-800 px-4 text-sm font-semibold text-white hover:bg-emerald-900"
+                  >
+                    Elegir plan
+                  </Link>
+                </div>
+              ) : data.plan ? (
+                <div className="mt-2">
+                  <p className="font-semibold text-pine-950">{data.plan.label}</p>
+                  {data.plan.priceEuros !== null ? (
+                    <p className="mt-1 text-sm text-graphite-700">
+                      Importe a transferir:{" "}
+                      <span className="font-mono font-semibold text-pine-950">
+                        {data.plan.priceEuros.toLocaleString("es-ES")} €
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-sm text-graphite-700">
+                      Este plan es a medida. Escríbenos a infotaxlyn@gmail.com y te confirmamos el importe antes de pagar.
+                    </p>
+                  )}
+                  {data.access.phase === "trial" && data.access.trialEndsAt ? (
+                    <p className="mt-2 text-xs text-graphite-500">
+                      Tu prueba gratuita termina el {new Date(data.access.trialEndsAt).toLocaleDateString("es-ES")}.
+                    </p>
+                  ) : null}
+                  {(data.access.phase === "readonly" || data.access.phase === "expired") && data.access.deletionAt ? (
+                    <p className="mt-2 text-xs font-medium text-red-800">
+                      Tu cuenta está en solo lectura y se eliminará el{" "}
+                      {new Date(data.access.deletionAt).toLocaleDateString("es-ES")} si no se confirma el pago.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </section>
+
             <section className="rounded-2xl border border-sand-200 bg-white p-5" aria-labelledby="datos-bancarios">
               <h2 id="datos-bancarios" className="text-lg font-semibold text-pine-950">
                 1. Datos bancarios
@@ -218,14 +270,14 @@ export function BankTransferCheckout() {
                 type="file"
                 accept="application/pdf,image/jpeg,image/png,image/webp"
                 onChange={onFileChosen}
-                disabled={uploading}
+                disabled={uploading || data.needsPlanSelection}
                 className="sr-only"
                 id="comprobante"
               />
               <button
                 type="button"
                 onClick={() => inputRef.current?.click()}
-                disabled={uploading}
+                disabled={uploading || data.needsPlanSelection}
                 className={cn(
                   "mt-4 flex min-h-[7rem] w-full flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors",
                   "border-emerald-700/40 bg-emerald-50/40 text-emerald-900 hover:bg-emerald-50 disabled:opacity-60",

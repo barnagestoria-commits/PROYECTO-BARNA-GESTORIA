@@ -20,6 +20,7 @@ import {
 import { canCloseOwnAccount } from "@/lib/auth/account-closure"
 import { prisma } from "@/lib/db"
 import { computeAccountAccess, trialEndDate } from "@/lib/billing/access-state"
+import { validatePlanRequest } from "@/lib/billing/plan-request"
 import { LEGAL_TEXTS_VERSION } from "@/lib/legal/versions"
 import { hashPassword, passwordNeedsRehash, verifyPassword } from "@/lib/auth/password"
 import {
@@ -599,7 +600,11 @@ export async function leaveSupportCompany(): Promise<AuthSession> {
   return next
 }
 
-export async function upgradeAccountPlan(
+/**
+ * Pide un cambio de plan. NO lo aplica: el plan solo cambia cuando el operador aprueba la
+ * transferencia (ver approvePayment en lib/payments/bank-transfer.ts).
+ */
+export async function requestAccountPlan(
   targetAccountType: AccountType,
   options?: { gestoriaTierId?: string; empresaTierId?: string },
 ): Promise<AuthSession> {
@@ -609,49 +614,35 @@ export async function upgradeAccountPlan(
   if (!session) {
     throw new Error("Sesión no válida.")
   }
-
-  if (session.user.accountType === targetAccountType) {
-    if (targetAccountType === "GESTORIA" && options?.gestoriaTierId) {
-      return session
-    }
-    if (targetAccountType === "EMPRESA" && options?.empresaTierId) {
-      return session
-    }
-    throw new Error("Ya tienes este plan activo.")
+  if (!canCloseOwnAccount(session.user.role)) {
+    throw new Error("Solo quien administra la cuenta puede cambiar de plan.")
   }
 
-  if (session.user.accountType === "GESTORIA") {
-    throw new Error("Para cambiar a un plan inferior, contacta con soporte.")
-  }
+  const tierId =
+    targetAccountType === "GESTORIA"
+      ? (options?.gestoriaTierId ?? null)
+      : targetAccountType === "EMPRESA"
+        ? (options?.empresaTierId ?? null)
+        : null
 
-  const upgradePaths: Record<AccountType, AccountType[]> = {
-    CLIENTE_FINAL: ["EMPRESA", "GESTORIA"],
-    EMPRESA: ["GESTORIA"],
-    GESTORIA: [],
-  }
+  const account = await prisma.account.findUniqueOrThrow({
+    where: { id: session.user.accountId },
+    select: { planTierId: true },
+  })
 
-  if (!upgradePaths[session.user.accountType]?.includes(targetAccountType)) {
-    throw new Error("Mejora de plan no disponible.")
+  const problem = validatePlanRequest(
+    { accountType: session.user.accountType, planTierId: account.planTierId },
+    targetAccountType,
+    tierId,
+  )
+  if (problem) {
+    throw new Error(problem)
   }
 
   await prisma.account.update({
     where: { id: session.user.accountId },
-    data: { accountType: targetAccountType },
+    data: { requestedAccountType: targetAccountType, requestedTierId: tierId },
   })
-
-  if (targetAccountType === "GESTORIA") {
-    await prisma.user.update({
-      where: { id: session.user.id },
-      data: { role: "ADMIN_GESTOR" },
-    })
-
-    if (session.activeCompanyId) {
-      await prisma.company.update({
-        where: { id: session.activeCompanyId },
-        data: { kind: "GESTORIA_PROPIA" },
-      })
-    }
-  }
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { authErrorResponse, requireRequestSession } from "@/lib/auth/api-auth"
 import { getBankDetails, listOwnPayments, submitPaymentReceipt } from "@/lib/payments/bank-transfer"
 import { MAX_RECEIPT_BYTES } from "@/lib/payments/receipt-file"
+import { resolveCheckoutPlan } from "@/lib/payments/checkout-plan"
 
 export const runtime = "nodejs"
 
@@ -10,10 +11,11 @@ export const runtime = "nodejs"
 export async function GET(request: Request) {
   try {
     const session = await requireRequestSession(request)
-    const [bank, payments, user] = await Promise.all([
+    const [bank, payments, user, checkout] = await Promise.all([
       getBankDetails(),
       listOwnPayments(session.user.id),
       prisma.user.findUnique({ where: { id: session.user.id }, select: { isActive: true } }),
+      resolveCheckoutPlan(session.user.accountId),
     ])
 
     return NextResponse.json(
@@ -23,6 +25,9 @@ export async function GET(request: Request) {
         // El concepto de la transferencia es el ID del usuario, tal como se pidió.
         reference: session.user.id,
         isActive: user?.isActive ?? false,
+        access: session.user.access,
+        plan: checkout.plan,
+        needsPlanSelection: checkout.needsPlanSelection,
         payments,
       },
       { headers: { "Cache-Control": "private, no-store" } },
@@ -45,16 +50,25 @@ export async function POST(request: Request) {
       )
     }
 
+    const checkout = await resolveCheckoutPlan(session.user.accountId)
+    if (checkout.needsPlanSelection) {
+      return NextResponse.json(
+        { success: false, error: "Elige primero el plan que quieres contratar." },
+        { status: 400 },
+      )
+    }
+
     const formData = await request.formData().catch(() => null)
     const file = formData?.get("file")
     if (!(file instanceof File)) {
       return NextResponse.json({ success: false, error: "Adjunta el justificante de la transferencia." }, { status: 400 })
     }
 
-    const result = await submitPaymentReceipt(session.user.id, {
-      name: file.name,
-      bytes: Buffer.from(await file.arrayBuffer()),
-    })
+    const result = await submitPaymentReceipt(
+      session.user.id,
+      { name: file.name, bytes: Buffer.from(await file.arrayBuffer()) },
+      checkout.plan,
+    )
 
     return NextResponse.json({ success: true, ...result })
   } catch (error) {

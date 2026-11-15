@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server"
-import { upgradeAccountPlan } from "@/lib/auth/service"
-import { authErrorResponse } from "@/lib/auth/api-auth"
+import { requestAccountPlan } from "@/lib/auth/service"
+import { authErrorResponse, requireRequestSession } from "@/lib/auth/api-auth"
 import type { AccountType } from "@/lib/types/auth"
-import {
-  ACCOUNT_TYPE_LABELS,
-  getEmpresaTierById,
-  getGestoriaTierById,
-} from "@/lib/settings/subscription-plans"
+import { describePlan } from "@/lib/billing/plan-request"
 
+/**
+ * Pedir un plan. No cambia nada por sí solo: deja la solicitud guardada y el cliente paga por
+ * transferencia en /checkout/transferencia. El plan se activa cuando el operador aprueba el pago.
+ */
 export async function POST(request: Request) {
   try {
+    await requireRequestSession(request)
+
     const body = (await request.json()) as {
       targetAccountType?: AccountType
       gestoriaTierId?: string
@@ -24,48 +26,16 @@ export async function POST(request: Request) {
       )
     }
 
-    if (targetAccountType === "GESTORIA") {
-      if (!gestoriaTierId || !getGestoriaTierById(gestoriaTierId)) {
-        return NextResponse.json(
-          { success: false, error: "Selecciona un tramo de gestoría válido." },
-          { status: 400 },
-        )
-      }
-    }
+    const session = await requestAccountPlan(targetAccountType, { gestoriaTierId, empresaTierId })
 
-    if (targetAccountType === "EMPRESA") {
-      if (!empresaTierId || !getEmpresaTierById(empresaTierId)) {
-        return NextResponse.json(
-          { success: false, error: "Selecciona un tramo de empresa válido según tu volumen." },
-          { status: 400 },
-        )
-      }
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 800))
-
-    const session = await upgradeAccountPlan(targetAccountType, {
-      gestoriaTierId,
-      empresaTierId,
-    })
-
-    let message = `Plan ${ACCOUNT_TYPE_LABELS[targetAccountType]} contratado correctamente.`
-
-    if (targetAccountType === "GESTORIA" && gestoriaTierId) {
-      const tier = getGestoriaTierById(gestoriaTierId)!
-      message = `Plan Gestoría activado: hasta ${tier.maxClients} clientes por ${tier.priceLabel}/mes.`
-    } else if (targetAccountType === "EMPRESA" && empresaTierId) {
-      const tier = getEmpresaTierById(empresaTierId)!
-      message =
-        tier.priceEuros === null
-          ? `${tier.name} activado. Te contactaremos con un presupuesto personalizado tras la evaluación.`
-          : `${tier.name} activado: ${tier.priceLabel}/mes (tarifa provisional del primer año).`
-    }
+    const tierId = targetAccountType === "GESTORIA" ? gestoriaTierId : empresaTierId
+    const plan = describePlan(targetAccountType, tierId ?? null)
 
     return NextResponse.json({
       success: true,
       session,
-      message,
+      redirectTo: "/checkout/transferencia",
+      message: `Solicitud registrada${plan ? `: ${plan.label}` : ""}. Haz la transferencia y sube el justificante; activaremos el plan cuando confirmemos el pago.`,
     })
   } catch (error) {
     return authErrorResponse(error)

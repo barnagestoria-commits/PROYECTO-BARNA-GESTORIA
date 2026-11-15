@@ -45,11 +45,7 @@ import {
   loadEmpresaSubscriptionStartedAt,
   loadStoredEmpresaSizing,
   loadStoredEmpresaTierId,
-  loadStoredGestoriaTierId,
-  saveEmpresaSubscriptionStartedAt,
   saveStoredEmpresaSizing,
-  saveStoredEmpresaTierId,
-  saveStoredGestoriaTierId,
 } from "@/lib/settings/subscription-storage"
 import { cn } from "@/lib/utils"
 
@@ -69,9 +65,8 @@ export function SubscriptionPlansPanel() {
   )
 
   useEffect(() => {
-    setActiveGestoriaTierId(loadStoredGestoriaTierId())
+    // Lo recordado en este navegador solo preselecciona el tramo; el contratado lo dice el servidor.
     const storedEmpresaTier = loadStoredEmpresaTierId()
-    setActiveEmpresaTierId(storedEmpresaTier)
     if (storedEmpresaTier) setSelectedEmpresaTierId(storedEmpresaTier)
 
     const sizing = loadStoredEmpresaSizing()
@@ -82,6 +77,14 @@ export function SubscriptionPlansPanel() {
 
     setEmpresaStartedAt(loadEmpresaSubscriptionStartedAt())
   }, [])
+
+  // El tramo contratado lo guarda el servidor al aprobar el pago.
+  useEffect(() => {
+    const tier = session?.user.accountPlanTierId ?? null
+    setActiveGestoriaTierId(session?.user.accountType === "GESTORIA" ? tier : null)
+    setActiveEmpresaTierId(session?.user.accountType === "EMPRESA" ? tier : null)
+    if (tier && session?.user.accountType === "EMPRESA") setSelectedEmpresaTierId(tier)
+  }, [session?.user.accountPlanTierId, session?.user.accountType])
 
   useEffect(() => {
     if (typeof window === "undefined") return
@@ -145,7 +148,7 @@ export function SubscriptionPlansPanel() {
     setFeedback(null)
 
     try {
-      const result = await apiFetch<SessionResponse & { message?: string }>(
+      const result = await apiFetch<SessionResponse & { message?: string; redirectTo?: string }>(
         "/api/account/upgrade",
         {
           method: "POST",
@@ -156,25 +159,13 @@ export function SubscriptionPlansPanel() {
         },
       )
 
-      saveStoredEmpresaTierId(tierId)
       saveStoredEmpresaSizing({
         annualRevenueEuros: revenue,
         monthlyBankMovements: movements,
       })
-      if (!empresaStartedAt) {
-        const started = new Date().toISOString()
-        saveEmpresaSubscriptionStartedAt(started)
-        setEmpresaStartedAt(started)
-      }
-
-      setActiveEmpresaTierId(tierId)
-      setSelectedEmpresaTierId(tierId)
-      await refreshSession()
-      setExpanded(true)
-      setFeedback({
-        tone: "success",
-        message: result.message ?? `${tier.name} contratado.`,
-      })
+      // El plan no cambia hasta que el operador valida la transferencia: se pasa a pagar.
+      window.location.assign(result.redirectTo ?? "/checkout/transferencia")
+      return
     } catch (error) {
       setFeedback({
         tone: "error",
@@ -199,7 +190,7 @@ export function SubscriptionPlansPanel() {
     setFeedback(null)
 
     try {
-      const result = await apiFetch<SessionResponse & { message?: string }>(
+      const result = await apiFetch<SessionResponse & { message?: string; redirectTo?: string }>(
         "/api/account/upgrade",
         {
           method: "POST",
@@ -210,17 +201,9 @@ export function SubscriptionPlansPanel() {
         },
       )
 
-      saveStoredGestoriaTierId(tierId)
-      setActiveGestoriaTierId(tierId)
-      setSelectedGestoriaTierId(tierId)
-      await refreshSession()
-      setExpanded(true)
-      setFeedback({
-        tone: "success",
-        message:
-          result.message ??
-          `Plan Gestoría contratado: hasta ${tier.maxClients} clientes por ${tier.priceLabel}/mes.`,
-      })
+      // El plan no cambia hasta que el operador valida la transferencia: se pasa a pagar.
+      window.location.assign(result.redirectTo ?? "/checkout/transferencia")
+      return
     } catch (error) {
       setFeedback({
         tone: "error",
@@ -268,11 +251,21 @@ export function SubscriptionPlansPanel() {
       {expanded && (
         <CardContent className="space-y-6 border-t border-sand-100 pt-4">
           <p className="text-sm text-graphite-500">
-            Mejora tu plan sin crear una cuenta nueva.{" "}
+            Mejora tu plan sin crear una cuenta nueva. El plan se activa cuando confirmamos tu transferencia.{" "}
             <strong className="font-medium text-pine-900">Autónomo: 100 €/mes</strong> ·{" "}
             <strong className="font-medium text-pine-900">Empresa: según facturación y movimientos</strong>{" "}
             · <strong className="font-medium text-pine-900">Gestoría: desde 1.000 €/mes</strong>.
           </p>
+
+          {session.user.accountRequestedPlan ? (
+            <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="status">
+              Tienes un cambio de plan pendiente de pago.{" "}
+              <a href="/checkout/transferencia" className="font-semibold underline">
+                Sube el justificante de la transferencia
+              </a>{" "}
+              y lo activaremos en cuanto lo confirmemos.
+            </div>
+          ) : null}
 
           {feedback && (
             <div

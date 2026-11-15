@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db"
+import type { PlanDescription } from "@/lib/billing/plan-request"
+import { canUpgradeAccountType } from "@/lib/settings/subscription-plans"
 import { formatIbanDisplay, isValidIban, normalizeIban } from "@/lib/banking/iban"
 import { putPaymentProofObject, deleteStoredObject } from "@/lib/storage/object-storage"
 import {
@@ -107,6 +109,7 @@ export async function listOwnPayments(userId: string): Promise<OwnPayment[]> {
 export async function submitPaymentReceipt(
   userId: string,
   file: { name: string; bytes: Buffer },
+  plan: PlanDescription | null = null,
 ): Promise<{ payment: OwnPayment; duplicate: boolean }> {
   if (file.bytes.length === 0) {
     throw new Error("El archivo está vacío.")
@@ -156,6 +159,10 @@ export async function submitPaymentReceipt(
         byteSize: stored.byteSize,
         sha256: stored.sha256,
         estado: "pendiente",
+        planAccountType: plan?.accountType ?? null,
+        planTierId: plan?.tierId ?? null,
+        planLabel: plan?.label ?? null,
+        importeEuros: plan?.priceEuros ?? null,
       },
       select: { id: true, estado: true, fecha: true, fileName: true },
     })
@@ -186,6 +193,8 @@ export interface AdminPaymentRow {
   previewUrl: string
   /** El mismo archivo ya lo subió otro usuario: conviene mirarlo antes de aprobar. */
   repeatedByOthers: boolean
+  /** Plan que el cliente quiere contratar y cuánto debería haber transferido. */
+  plan: { label: string; importeEuros: number | null } | null
   user: { id: string; name: string; email: string; accountName: string; isActive: boolean }
 }
 
@@ -203,6 +212,8 @@ export async function listPaymentsForOperator(filter: PagoEstado | "todos"): Pro
       byteSize: true,
       sha256: true,
       userId: true,
+      planLabel: true,
+      importeEuros: true,
       user: {
         select: {
           id: true,
@@ -232,6 +243,7 @@ export async function listPaymentsForOperator(filter: PagoEstado | "todos"): Pro
     byteSize: row.byteSize,
     previewUrl: `/api/admin/pagos/${row.id}/comprobante`,
     repeatedByOthers: sameHash.some((other) => other.sha256 === row.sha256 && other.userId !== row.userId),
+    plan: row.planLabel ? { label: row.planLabel, importeEuros: row.importeEuros } : null,
     user: {
       id: row.user.id,
       name: row.user.name,
@@ -243,8 +255,9 @@ export async function listPaymentsForOperator(filter: PagoEstado | "todos"): Pro
 }
 
 /**
- * Aprueba el pago y activa al usuario en una sola transacción.
- * `updateMany` con estado = pendiente evita aprobar dos veces si se pulsa el botón en dos pestañas.
+ * Aprueba el pago en una sola transacción: marca el pago, activa al usuario y activa la cuenta
+ * (sale de la prueba) con el plan que pidió el cliente. `updateMany` con estado = pendiente evita
+ * aprobar dos veces si se pulsa el botón en dos pestañas.
  */
 export async function approvePayment(paymentId: string, operatorUserId: string): Promise<{ userId: string }> {
   return prisma.$transaction(async (tx) => {
@@ -258,13 +271,64 @@ export async function approvePayment(paymentId: string, operatorUserId: string):
 
     const payment = await tx.pagoPendiente.findUnique({
       where: { id: paymentId },
-      select: { userId: true },
+      select: {
+        userId: true,
+        planAccountType: true,
+        planTierId: true,
+        user: { select: { accountId: true } },
+      },
     })
     if (!payment) {
       throw new Error("No se encontró el pago.")
     }
 
     await tx.user.update({ where: { id: payment.userId }, data: { isActive: true } })
+
+    const account = await tx.account.findUniqueOrThrow({
+      where: { id: payment.user.accountId },
+      select: { id: true, accountType: true },
+    })
+
+    const data: {
+      accessStatus: "ACTIVE"
+      trialEndsAt: null
+      lifecycleNotices: string[]
+      requestedAccountType: null
+      requestedTierId: null
+      planTierId?: string
+      accountType?: "GESTORIA" | "CLIENTE_FINAL" | "EMPRESA"
+    } = {
+      accessStatus: "ACTIVE",
+      trialEndsAt: null,
+      lifecycleNotices: [],
+      requestedAccountType: null,
+      requestedTierId: null,
+    }
+
+    if (payment.planTierId) {
+      data.planTierId = payment.planTierId
+    }
+
+    if (
+      payment.planAccountType &&
+      payment.planAccountType !== account.accountType &&
+      canUpgradeAccountType(account.accountType, payment.planAccountType)
+    ) {
+      data.accountType = payment.planAccountType
+      if (payment.planAccountType === "GESTORIA") {
+        await tx.user.update({ where: { id: payment.userId }, data: { role: "ADMIN_GESTOR" } })
+        const company = await tx.company.findFirst({
+          where: { accountId: account.id, kind: "STANDARD" },
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
+        })
+        if (company) {
+          await tx.company.update({ where: { id: company.id }, data: { kind: "GESTORIA_PROPIA" } })
+        }
+      }
+    }
+
+    await tx.account.update({ where: { id: account.id }, data })
     return { userId: payment.userId }
   })
 }
