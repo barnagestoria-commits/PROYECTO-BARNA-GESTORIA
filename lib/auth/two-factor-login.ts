@@ -25,7 +25,7 @@ export async function trustedDeviceStillValid(userId: string, token: string | nu
 
 export async function createEmailChallenge(
   user: { id: string; email: string },
-  purpose: "login" | "register" = "login",
+  purpose: "login" | "register" | "password" = "login",
 ): Promise<string> {
   const code = generateEmailCode()
   const challenge = await prisma.emailLoginChallenge.create({

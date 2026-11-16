@@ -26,6 +26,13 @@ export function SupportAccountsWorkspace() {
   const [error, setError] = useState<string | null>(null)
   const [enteringId, setEnteringId] = useState<string | null>(null)
   const [operatorPassword, setOperatorPassword] = useState("")
+  const [setupOpen, setSetupOpen] = useState(false)
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [passwordChallengeId, setPasswordChallengeId] = useState<string | null>(null)
+  const [passwordCode, setPasswordCode] = useState("")
+  const [passwordBusy, setPasswordBusy] = useState(false)
+  const [passwordNotice, setPasswordNotice] = useState<string | null>(null)
   const [blockingId, setBlockingId] = useState<string | null>(null)
   const [reasonByUser, setReasonByUser] = useState<Record<string, string>>({})
 
@@ -97,6 +104,67 @@ export function SupportAccountsWorkspace() {
       setError(cause instanceof Error ? cause.message : "No se han podido borrar las cuentas de ejemplo.")
     } finally {
       setRemovingDemo(false)
+    }
+  }
+
+  async function sendPasswordCode() {
+    setError(null)
+    setPasswordNotice(null)
+    if (newPassword.length < 8) {
+      setError("La contraseña nueva debe tener al menos 8 caracteres.")
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Las dos contraseñas no coinciden.")
+      return
+    }
+    setPasswordBusy(true)
+    try {
+      const data = await apiFetch<{ challengeId: string }>("/api/auth/operator-password/code", {
+        method: "POST",
+      })
+      setPasswordChallengeId(data.challengeId)
+      setPasswordNotice(`Te hemos enviado un código a ${session?.user.email}. Escríbelo para guardar la contraseña.`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se ha podido enviar el código.")
+    } finally {
+      setPasswordBusy(false)
+    }
+  }
+
+  async function saveOperatorPassword() {
+    if (!passwordChallengeId) return
+    setError(null)
+    setPasswordNotice(null)
+    if (newPassword.length < 8) {
+      setError("La contraseña nueva debe tener al menos 8 caracteres.")
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Las dos contraseñas no coinciden.")
+      return
+    }
+    setPasswordBusy(true)
+    try {
+      await apiFetch("/api/auth/operator-password", {
+        method: "POST",
+        body: JSON.stringify({
+          challengeId: passwordChallengeId,
+          code: passwordCode,
+          password: newPassword,
+        }),
+      })
+      setOperatorPassword(newPassword)
+      setNewPassword("")
+      setConfirmPassword("")
+      setPasswordCode("")
+      setPasswordChallengeId(null)
+      setSetupOpen(false)
+      setPasswordNotice("Contraseña guardada. Ya puedes usarla para entrar en un cliente.")
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se ha podido guardar la contraseña.")
+    } finally {
+      setPasswordBusy(false)
     }
   }
 
@@ -179,17 +247,87 @@ export function SupportAccountsWorkspace() {
         </div>
       ) : null}
 
-      <label className="block text-sm text-graphite-700">
-        Contraseña del operador
-        <input
-          type="password"
-          value={operatorPassword}
-          onChange={(event) => setOperatorPassword(event.target.value)}
-          autoComplete="current-password"
-          placeholder="Hace falta para entrar en un cliente"
-          className="mt-1 h-12 w-full rounded-xl border border-sand-300 bg-white px-3 text-base text-pine-950 outline-none ring-emerald-700/30 focus:ring-2"
-        />
-      </label>
+      <div className="flex flex-col gap-2">
+        <label className="block text-sm text-graphite-700">
+          Contraseña del operador
+          <input
+            type="password"
+            value={operatorPassword}
+            onChange={(event) => setOperatorPassword(event.target.value)}
+            autoComplete="current-password"
+            placeholder="Hace falta para entrar en un cliente"
+            className="mt-1 h-12 w-full rounded-xl border border-sand-300 bg-white px-3 text-base text-pine-950 outline-none ring-emerald-700/30 focus:ring-2"
+          />
+        </label>
+        <p className="text-xs text-graphite-600">
+          Si entraste con Google, no elegiste esta contraseña. Créala aquí y confírmala con un código a {session.user.email}.
+        </p>
+        <button
+          type="button"
+          onClick={() => {
+            setSetupOpen((open) => !open)
+            setError(null)
+          }}
+          className="self-start text-sm font-medium text-emerald-800 underline"
+        >
+          {setupOpen ? "Cerrar" : "Crear o cambiar la contraseña"}
+        </button>
+        {setupOpen ? (
+          <div className="flex flex-col gap-3 rounded-xl border border-sand-300 bg-white p-3">
+            <label className="block text-sm text-graphite-700">
+              Contraseña nueva
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                className="mt-1 h-12 w-full rounded-xl border border-sand-300 bg-white px-3 text-base text-pine-950 outline-none ring-emerald-700/30 focus:ring-2"
+              />
+            </label>
+            <label className="block text-sm text-graphite-700">
+              Repite la contraseña
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                className="mt-1 h-12 w-full rounded-xl border border-sand-300 bg-white px-3 text-base text-pine-950 outline-none ring-emerald-700/30 focus:ring-2"
+              />
+            </label>
+            {passwordChallengeId ? (
+              <label className="block text-sm text-graphite-700">
+                Código del correo
+                <input
+                  value={passwordCode}
+                  onChange={(event) => setPasswordCode(event.target.value)}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  className="mt-1 h-12 w-full rounded-xl border border-sand-300 bg-white px-3 text-base text-pine-950 outline-none ring-emerald-700/30 focus:ring-2"
+                />
+              </label>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => void (passwordChallengeId ? saveOperatorPassword() : sendPasswordCode())}
+              disabled={passwordBusy}
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-emerald-800 px-4 text-sm font-semibold text-white hover:bg-pine-900 disabled:opacity-60"
+            >
+              {passwordBusy
+                ? "Enviando…"
+                : passwordChallengeId
+                  ? "Guardar contraseña"
+                  : "Enviar código al correo"}
+            </button>
+          </div>
+        ) : null}
+        {passwordNotice ? (
+          <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+            {passwordNotice}
+          </p>
+        ) : null}
+      </div>
 
       <label className="relative block">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-graphite-400" />
