@@ -646,6 +646,41 @@ export function QuickAccountingEntryForm() {
     [activeCommand, invoiceDetails.invoiceNumber, invoiceMode],
   )
 
+  const enrichLinesWithSupplierTreatment = useCallback(
+    async (
+      sourceLines: AccountingEntryLine[],
+      details: InvoiceEntryDetails,
+    ): Promise<{ lines: AccountingEntryLine[]; details: InvoiceEntryDetails }> => {
+      if (!isInvoiceConceptCommand(activeCommand)) {
+        return { lines: sourceLines, details }
+      }
+      const thirdIdx = sourceLines.findIndex((line) => isThirdPartyAccountPrefix(line.cuenta))
+      if (thirdIdx < 0) return { lines: sourceLines, details }
+      const accountCode = sourceLines[thirdIdx]?.cuenta ?? ""
+      if (!accountCode.trim()) return { lines: sourceLines, details }
+
+      try {
+        const data = await apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
+          `/api/accounting/account-treatment?accountCode=${encodeURIComponent(accountCode)}`,
+        )
+        if (!data.treatment?.defaultCounterpartAccount?.trim()) {
+          return { lines: sourceLines, details }
+        }
+        return {
+          lines: applyTreatmentToEntryLines(sourceLines, data.treatment, {
+            activeCommand,
+            thirdPartyRow: thirdIdx,
+            thirdPartyLabel: details.thirdPartyName,
+          }),
+          details: applyTreatmentToInvoiceDetails(details, data.treatment),
+        }
+      } catch {
+        return { lines: sourceLines, details }
+      }
+    },
+    [activeCommand],
+  )
+
   const applyAccountAssignment = useCallback(
     (
       assignment: { formattedAccountCode: string; name: string; cif?: string; accountCode?: string },
@@ -719,22 +754,26 @@ export function QuickAccountingEntryForm() {
           next = applyInvoiceConceptsToLines(next, activeCommand, invoiceConceptOptions)
         }
 
-        requestAnimationFrame(() => {
-          const ctx: EntryNavigationContext = {
-            activeCommand,
-            invoiceMode,
-            invoiceDetails,
-            lines: next,
-          }
-          const firstLine = next[0]
-          const side = firstLine ? getLineAmountSide(0, firstLine, ctx) ?? "debe" : "debe"
-          focusCell(0, side)
+        void enrichLinesWithSupplierTreatment(next, invoiceDetails).then((enriched) => {
+          setInvoiceDetails(enriched.details)
+          setLines(enriched.lines)
+          requestAnimationFrame(() => {
+            const ctx: EntryNavigationContext = {
+              activeCommand,
+              invoiceMode,
+              invoiceDetails: enriched.details,
+              lines: enriched.lines,
+            }
+            const firstLine = enriched.lines[0]
+            const side = firstLine ? getLineAmountSide(0, firstLine, ctx) ?? "debe" : "debe"
+            focusCell(0, side)
+          })
         })
 
         return next
       })
     },
-    [activeCommand, focusCell, invoiceConceptOptions, invoiceDetails, invoiceMode],
+    [activeCommand, enrichLinesWithSupplierTreatment, focusCell, invoiceConceptOptions, invoiceDetails, invoiceMode],
   )
 
   const applyCommand = useCallback(
@@ -1052,12 +1091,16 @@ export function QuickAccountingEntryForm() {
           invoiceMode,
           total: amount,
         })
+        void enrichLinesWithSupplierTreatment(built.lines, built.details).then((enriched) => {
+          setInvoiceDetails(enriched.details)
+          setLines(enriched.lines)
+        })
         setInvoiceDetails(built.details)
         return built.lines
       })
       return true
     },
-    [activeCommand, invoiceDetails, invoiceMode, showInvoicePanel],
+    [activeCommand, enrichLinesWithSupplierTreatment, invoiceDetails, invoiceMode, showInvoicePanel],
   )
 
   const handleCellKeyDown = async (

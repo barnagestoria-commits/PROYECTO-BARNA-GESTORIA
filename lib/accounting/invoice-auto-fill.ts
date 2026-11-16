@@ -6,6 +6,8 @@ import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import {
   applyInvoiceConceptsToLines,
   buildRetentionConcept,
+  isExpenseAccount,
+  isIncomeAccount,
   isInvoiceConceptCommand,
   resolveThirdPartyLabel,
 } from "@/lib/accounting/invoice-entry-concepts"
@@ -75,6 +77,14 @@ export function applyTreatmentToInvoiceDetails(
   }
 }
 
+function findInvoiceBaseLineIndex(lines: AccountingEntryLine[], emitida: boolean): number {
+  const idx = lines.findIndex((line) => (emitida ? isIncomeAccount(line.cuenta) : isExpenseAccount(line.cuenta)))
+  if (idx >= 0) return idx
+  const fallback = lines.findIndex((line) => isBaseAccount(line.cuenta))
+  if (fallback >= 0) return fallback
+  return lines.length >= 3 ? 2 : -1
+}
+
 export function applyTreatmentToEntryLines(
   lines: AccountingEntryLine[],
   treatment: AccountTreatmentConfigDto,
@@ -103,7 +113,10 @@ export function applyTreatmentToEntryLines(
 
   if (counterpart) {
     const formattedCounterpart = formatAccountCodeStored(counterpart)
-    const baseIdx = next.findIndex((line) => isBaseAccount(line.cuenta))
+    const invoiceCommand = options.activeCommand === "17" || options.activeCommand === "34"
+    const baseIdx = invoiceCommand
+      ? findInvoiceBaseLineIndex(next, emitida)
+      : next.findIndex((line) => isBaseAccount(line.cuenta))
     if (baseIdx >= 0) {
       next[baseIdx] = { ...next[baseIdx], cuenta: formattedCounterpart }
     }

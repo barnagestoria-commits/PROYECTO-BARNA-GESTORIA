@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest"
 import { createEmptyLine } from "@/lib/accounting/command-templates"
 import {
+  applyTreatmentToEntryLines,
   buildFullInvoiceEntry,
   calculateAmountsFromTotal,
   isDerivedInvoiceAmountAccount,
 } from "@/lib/accounting/invoice-auto-fill"
+import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { createDefaultInvoiceDetails } from "@/lib/types/invoice-entry-details"
 
 function receivedLines() {
@@ -14,6 +16,34 @@ function receivedLines() {
     { ...createEmptyLine(), cuenta: "629.00001", concepto: "Gasto" },
   ]
 }
+
+describe("applyTreatmentToEntryLines", () => {
+  it("replaces the generic purchase line with the supplier predefined expense account", () => {
+    const lines = [
+      { ...createEmptyLine(), cuenta: "410.00004", concepto: "Happy House" },
+      { ...createEmptyLine(), cuenta: "472", concepto: "IVA S." },
+      { ...createEmptyLine(), cuenta: "600", concepto: "Gasto a" },
+    ]
+    const treatment: AccountTreatmentConfigDto = {
+      id: "t1",
+      accountCode: "41000004",
+      formattedAccountCode: "410.00004",
+      defaultCounterpartAccount: "629.00001",
+      defaultVatOperation: "1",
+      defaultVatType: "04",
+      defaultVatPercent: 21,
+      defaultSurchargePercent: 0,
+      applySurcharge: false,
+      defaultIrpfPercent: null,
+      defaultIrpfAccount: "",
+      defaultTaxForm: "347",
+      documentAccumulationType: "347",
+    }
+
+    const next = applyTreatmentToEntryLines(lines, treatment, { activeCommand: "34" })
+    expect(next[2]?.cuenta.replace(/\D/g, "")).toBe("62900001")
+  })
+})
 
 describe("invoice auto-fill from third-party total", () => {
   it("recalculates base and VAT from the supplier total at 21%", () => {

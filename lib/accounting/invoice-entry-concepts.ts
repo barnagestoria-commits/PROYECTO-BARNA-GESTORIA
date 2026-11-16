@@ -97,12 +97,12 @@ function isVatAccountRecibida(cuenta: string): boolean {
   return accountDigits(cuenta).startsWith("472")
 }
 
-function isIncomeAccount(cuenta: string): boolean {
+export function isIncomeAccount(cuenta: string): boolean {
   const digits = accountDigits(cuenta)
   return digits.length > 0 && digits.startsWith("7")
 }
 
-function isExpenseAccount(cuenta: string): boolean {
+export function isExpenseAccount(cuenta: string): boolean {
   const digits = accountDigits(cuenta)
   return /^6[0-9]/.test(digits) && !isVatAccountRecibida(cuenta)
 }
