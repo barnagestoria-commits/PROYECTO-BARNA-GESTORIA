@@ -10,8 +10,11 @@ import { useAuth } from "@/components/auth-provider"
 import {
   DEFAULT_ENTRY_SHORTCUT_BY_CIF,
   DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+  matchEntryShortcut,
 } from "@/lib/accounting/entry-shortcuts"
 import { InvoiceEntryPanel } from "@/components/accounting/invoice-entry-panel"
+import { NifAccountDialog } from "@/components/accounting/nif-account-dialog"
+import { PgcChartDialog } from "@/components/accounting/pgc-chart-dialog"
 import { MissingAccountDialog } from "@/components/accounting/missing-account-dialog"
 import {
   NewSubaccountDialog,
@@ -61,7 +64,7 @@ import {
 } from "@/lib/accounting/invoice-auto-fill"
 import type { AccountingCommandCode } from "@/lib/types/accounting-entry"
 import { cn } from "@/lib/utils"
-import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
+import { formatAccountCodeDisplay, type ThirdPartyResolution } from "@/lib/accounting/third-party-types"
 import { formatEntryRefLabel } from "@/lib/accounting/entry-ref-service"
 
 function resolveInvoiceMode(
@@ -128,9 +131,27 @@ export function EditAccountingEntryDialog({
   const [pendingLineId, setPendingLineId] = useState<string | null>(null)
   const [newSubaccountPrefix, setNewSubaccountPrefix] = useState<NewAccountPrefix | null>(null)
   const [fixedAccountCode, setFixedAccountCode] = useState<string | null>(null)
+  const [pgcDialogOpen, setPgcDialogOpen] = useState(false)
+  const [nifDialogOpen, setNifDialogOpen] = useState(false)
+  const [activeLineId, setActiveLineId] = useState<string | null>(null)
   const lastCommittedCuenta = useRef(new Map<string, string>())
   const pendingLineIdRef = useRef<string | null>(null)
   const createdAccountRef = useRef(false)
+
+  const entryShortcuts = useMemo(
+    () => ({
+      byName: session?.user.entryShortcutByName || DEFAULT_ENTRY_SHORTCUT_BY_NAME,
+      byCif: session?.user.entryShortcutByCif || DEFAULT_ENTRY_SHORTCUT_BY_CIF,
+    }),
+    [session?.user.entryShortcutByCif, session?.user.entryShortcutByName],
+  )
+
+  const resolveActiveLineId = useCallback(() => {
+    if (activeLineId && lines.some((line) => line.id === activeLineId)) {
+      return activeLineId
+    }
+    return lines[0]?.id ?? null
+  }, [activeLineId, lines])
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -221,6 +242,48 @@ export function EditAccountingEntryDialog({
     if (!open) return
     void loadCatalogs()
   }, [open, loadCatalogs])
+
+  useEffect(() => {
+    if (!open) {
+      setPgcDialogOpen(false)
+      setNifDialogOpen(false)
+      setActiveLineId(null)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !entry) return
+    const shortcutsBlocked =
+      missingAccount !== null ||
+      newSubaccountPrefix !== null ||
+      pgcDialogOpen ||
+      nifDialogOpen
+
+    const onKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (shortcutsBlocked) return
+      const shortcut = matchEntryShortcut(entryShortcuts, event)
+      if (shortcut === "name") {
+        event.preventDefault()
+        setPgcDialogOpen(true)
+        return
+      }
+      if (shortcut === "cif") {
+        event.preventDefault()
+        setNifDialogOpen(true)
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [
+    entry,
+    entryShortcuts,
+    missingAccount,
+    newSubaccountPrefix,
+    nifDialogOpen,
+    open,
+    pgcDialogOpen,
+  ])
 
   const updateLine = (lineId: string, patch: Partial<AccountingEntryLine>) => {
     setLines((prev) => prev.map((line) => (line.id === lineId ? { ...line, ...patch } : line)))
@@ -609,6 +672,29 @@ export function EditAccountingEntryDialog({
     onClose()
   }
 
+  const handlePgcSelect = (accountCode: string, accountName: string) => {
+    const lineId = resolveActiveLineId()
+    if (!lineId) return
+    const line = lines.find((item) => item.id === lineId)
+    if (!line) return
+
+    const concepto = line.concepto.trim() ? line.concepto : accountName
+    updateLine(lineId, { cuenta: accountCode, concepto })
+    void applyResolvedAccount(
+      lineId,
+      accountCode,
+      isThirdPartyAccountPrefix(accountCode) ? accountName : undefined,
+    )
+    setPgcDialogOpen(false)
+  }
+
+  const handleNifResolved = (resolution: ThirdPartyResolution) => {
+    const lineId = resolveActiveLineId()
+    if (!lineId) return
+    void applyResolvedAccount(lineId, resolution.formattedAccountCode, resolution.name, resolution.cif)
+    setNifDialogOpen(false)
+  }
+
   return (
     <>
     <AccountingModal
@@ -735,8 +821,8 @@ export function EditAccountingEntryDialog({
               details={invoiceDetails}
               onChange={handleInvoiceDetailsChange}
               onApplyTotals={applyInvoiceTotals}
-              onOpenPgcChart={() => undefined}
-              onOpenNifLookup={() => undefined}
+              onOpenPgcChart={() => setPgcDialogOpen(true)}
+              onOpenNifLookup={() => setNifDialogOpen(true)}
               searchByNameKey={session?.user.entryShortcutByName || DEFAULT_ENTRY_SHORTCUT_BY_NAME}
               searchByCifKey={session?.user.entryShortcutByCif || DEFAULT_ENTRY_SHORTCUT_BY_CIF}
               deriveFromTotal
@@ -770,6 +856,7 @@ export function EditAccountingEntryDialog({
                       <Input
                         value={line.cuenta}
                         onChange={(event) => updateLine(line.id, { cuenta: event.target.value })}
+                        onFocus={() => setActiveLineId(line.id)}
                         onBlur={(event) => {
                           void commitAccountLine(line, event.target.value)
                         }}
@@ -891,6 +978,21 @@ export function EditAccountingEntryDialog({
       fixedAccountCode={fixedAccountCode}
       onClose={handleCreateAccountClose}
       onCreated={handleSubaccountCreated}
+    />
+    <PgcChartDialog
+      open={pgcDialogOpen}
+      onClose={() => setPgcDialogOpen(false)}
+      onSelect={handlePgcSelect}
+      ledgerSubaccounts={ledgerSubaccounts}
+      thirdParties={thirdParties}
+      subtitle={`${entryShortcuts.byName} · Selecciona una cuenta para la línea activa`}
+      layer="top"
+    />
+    <NifAccountDialog
+      open={nifDialogOpen}
+      onClose={() => setNifDialogOpen(false)}
+      thirdPartyType={invoiceMode === "emitida" ? "CLIENTE" : "PROVEEDOR"}
+      onResolved={handleNifResolved}
     />
     </>
   )
