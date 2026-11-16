@@ -128,6 +128,12 @@ export function resolveAccountShortcut(
   raw: string,
   candidates: AccountShortcutCandidate[],
 ): ResolvedAccountShortcut | null {
+  const exactDigits = digitsOf(raw)
+  if (exactDigits.length >= 7) {
+    const exactAccount = candidates.find((item) => digitsOf(item.accountCode) === exactDigits)
+    if (exactAccount) return toResolved(exactAccount)
+  }
+
   const parsed = parseDottedAccountShortcut(raw)
   if (!parsed) return null
 

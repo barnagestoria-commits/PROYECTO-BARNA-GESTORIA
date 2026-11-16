@@ -43,7 +43,9 @@ import {
 } from "@/lib/accounting/new-account-prefix"
 import {
   applyInvoiceConceptsToLines,
+  formatPartyLabel,
   INVOICE_CONCEPT_PREFIX,
+  isInvoiceConceptAccountLine,
 } from "@/lib/accounting/invoice-entry-concepts"
 import {
   parseDottedAccountShortcut,
@@ -197,13 +199,7 @@ export function EditAccountingEntryDialog({
         const total = getInvoiceThirdPartyTotal(mapped, mode)
         if (details && total > 0) {
           const built = rebuildInvoiceFromTotal(mapped, details, data.entry.commandCode, total)
-          const savedConcepts = new Map(mapped.map((line) => [line.id, line.concepto]))
-          setLines(
-            built.lines.map((line) => ({
-              ...line,
-              concepto: savedConcepts.get(line.id) ?? line.concepto,
-            })),
-          )
+          setLines(built.lines)
           setInvoiceDetails(built.details)
         } else {
           setLines(mapped)
@@ -354,10 +350,16 @@ export function EditAccountingEntryDialog({
 
   useEffect(() => {
     if (!open || !entry || !thirdPartyCuenta) return
-    if (invoiceDetails?.thirdPartyName.trim()) return
+    const command = entry.commandCode === "17" || entry.commandCode === "34" ? entry.commandCode : null
+    if (!command) return
 
-    const party = lookupExactParty(thirdPartyCuenta)
-    if (!party?.name || party.source !== "tercero") return
+    const party = lookupPartyForAccount(thirdPartyCuenta)
+    if (!party?.name) return
+    const digits = thirdPartyCuenta.replace(/\D/g, "")
+    const genericAccount = digits.length <= 4 || /^0+$/.test(digits.slice(3))
+    if (genericAccount) return
+    const label = formatPartyLabel(party.name)
+    if (!label) return
 
     setInvoiceDetails((prev) =>
       prev
@@ -368,12 +370,19 @@ export function EditAccountingEntryDialog({
           }
         : prev,
     )
-    setLines((prev) => applyPartyToInvoice(prev, party.name, entry.commandCode, party.cif))
+    setLines((prev) => {
+      const stale = prev.some(
+        (line) =>
+          isInvoiceConceptAccountLine(line.cuenta, command) &&
+          !line.concepto.toUpperCase().includes(label),
+      )
+      if (!stale) return prev
+      return applyPartyToInvoice(prev, party.name, entry.commandCode, party.cif)
+    })
   }, [
     applyPartyToInvoice,
     entry,
-    invoiceDetails?.thirdPartyName,
-    lookupExactParty,
+    lookupPartyForAccount,
     open,
     thirdPartyCuenta,
   ])
@@ -620,17 +629,18 @@ export function EditAccountingEntryDialog({
         const shortcut = resolveAccountShortcut(line.cuenta, candidates)
         return shortcut ? { ...line, cuenta: shortcut.formattedAccountCode } : line
       })
-      const expandedShortcut = resolvedLines.some((line, index) => line.cuenta !== lines[index]?.cuenta)
       const thirdLine = resolvedLines.find(
         (line) => isThirdPartyAccountPrefix(line.cuenta) || Boolean(parseDottedAccountShortcut(line.cuenta)),
       )
       const party = thirdLine ? lookupPartyForAccount(thirdLine.cuenta) : null
+      const invoiceCommand =
+        entry.commandCode === "17" || entry.commandCode === "34" ? entry.commandCode : null
       const linesToSave =
-        expandedShortcut && party?.name
+        party?.name && invoiceCommand
           ? applyPartyToInvoice(resolvedLines, party.name, entry.commandCode, party.cif)
           : resolvedLines
       const detailsToSave =
-        expandedShortcut && party?.name && invoiceDetails
+        party?.name && invoiceDetails
           ? { ...invoiceDetails, nif: party.cif || invoiceDetails.nif, thirdPartyName: party.name }
           : invoiceDetails
 

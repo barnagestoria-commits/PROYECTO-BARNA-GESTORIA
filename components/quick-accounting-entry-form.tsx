@@ -1450,7 +1450,6 @@ export function QuickAccountingEntryForm() {
         const shortcut = resolveAccountShortcut(line.cuenta, candidates)
         return shortcut ? { ...line, cuenta: shortcut.formattedAccountCode } : line
       })
-      const expandedShortcut = resolvedLines.some((line, index) => line.cuenta !== lines[index]?.cuenta)
       const originalThird = lines.find((line) => isThirdPartyAccountPrefix(line.cuenta) || parseDottedAccountShortcut(line.cuenta))
       const party =
         (originalThird ? resolveAccountShortcut(originalThird.cuenta, candidates) : null) ??
@@ -1464,7 +1463,7 @@ export function QuickAccountingEntryForm() {
           return found ? { name: found.name, cif: "cif" in found ? found.cif : undefined } : null
         })()
       const linesToSave =
-        expandedShortcut && party?.name && isInvoiceConceptCommand(activeCommand)
+        party?.name && isInvoiceConceptCommand(activeCommand)
           ? applyInvoiceConceptsToLines(resolvedLines, activeCommand, {
               invoiceNumber: invoiceDetails.invoiceNumber.trim() || duplicateProbe.numeroFactura,
               thirdPartyLabel: party.name,
@@ -1473,7 +1472,7 @@ export function QuickAccountingEntryForm() {
             })
           : resolvedLines
       const detailsToSave = {
-        ...(expandedShortcut && party?.name
+        ...(party?.name
           ? { ...invoiceDetails, nif: party.cif || invoiceDetails.nif, thirdPartyName: party.name }
           : invoiceDetails),
         invoiceNumber: invoiceDetails.invoiceNumber.trim() || duplicateProbe.numeroFactura,

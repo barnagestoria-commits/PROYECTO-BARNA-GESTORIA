@@ -85,6 +85,16 @@ describe("account-shortcut", () => {
     expect(fallback.fallbackAccountCode).toBe("4000001")
   })
 
+  it("keeps a full subaccount on itself instead of another sequence-1 account", () => {
+    const resolved = resolveAccountShortcut("629.0001", [
+      { accountCode: "6280001", name: "COMISIONES CATCHER", source: "ledger" },
+      { accountCode: "6290001", name: "Otros servicios", source: "ledger" },
+    ])
+    expect(resolved?.accountCode).toBe("6290001")
+    expect(resolved?.formattedAccountCode).toBe("629.0001")
+    expect(resolved?.name).toBe("Otros servicios")
+  })
+
   it("does not parse 41.1 as the PGC account 411", () => {
     expect(parseDottedAccountShortcut("41.1")?.group).toBe("41")
     expect(resolveAccountShortcut("41.1", [catcher])?.accountCode).not.toBe("411")
