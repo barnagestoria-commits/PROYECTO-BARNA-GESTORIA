@@ -219,6 +219,16 @@ export function getNextNavigableField(
   const line = context.lines[rowIndex]
   if (!line) return null
 
+  const invoiceCommand = context.activeCommand === "17" || context.activeCommand === "34"
+  if (invoiceCommand && isThirdPartyAccountPrefix(line.cuenta)) {
+    const base = context.lines.findIndex((item) => isBaseAccount(item.cuenta))
+    const hasAmount = (line.debe || 0) > 0 || (line.haber || 0) > 0
+    const leavingAmount = field === "debe" || field === "haber"
+    if (base >= 0 && base !== rowIndex && (leavingAmount || (field === "cuenta" && hasAmount))) {
+      return { row: base, field: "cuenta" }
+    }
+  }
+
   if (field === "debe" || field === "haber") {
     const nextInvoiceRow = getNextInvoiceAmountRow(rowIndex, context)
     if (nextInvoiceRow !== null) {

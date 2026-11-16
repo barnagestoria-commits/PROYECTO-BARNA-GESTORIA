@@ -137,6 +137,21 @@ describe("shouldCreateBalancingLineBelow", () => {
     expect(shouldCreateBalancingLineBelow(0, "debe", manualContext(lines))).toBe(false)
   })
 
+  it("jumps from the supplier amount to the expense account, skipping IVA", () => {
+    const lines = [
+      { ...createEmptyLine(), cuenta: "410.0002", debe: 0, haber: 162.46 },
+      { ...createEmptyLine(), cuenta: "472.0000", debe: 28.2, haber: 0 },
+      { ...createEmptyLine(), cuenta: "628.0001", debe: 134.26, haber: 0 },
+    ]
+    const context: EntryNavigationContext = {
+      activeCommand: "34",
+      invoiceMode: "recibida",
+      invoiceDetails: null,
+      lines,
+    }
+    expect(getNextNavigableField(0, "haber", context)).toEqual({ row: 2, field: "cuenta" })
+  })
+
   it("does not insert a line when another row already follows", () => {
     const lines = [
       { ...createEmptyLine(), cuenta: "642.0001", debe: 79.7, haber: 0 },

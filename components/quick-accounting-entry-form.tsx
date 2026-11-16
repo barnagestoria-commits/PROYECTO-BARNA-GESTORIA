@@ -988,7 +988,7 @@ export function QuickAccountingEntryForm() {
           nif: shortcut.cif || prev.nif,
           thirdPartyName: shortcut.name || prev.thirdPartyName,
         }))
-        void applyAccountTreatment(shortcut.accountCode, row, shortcut.name)
+        await applyAccountTreatment(shortcut.accountCode, row, shortcut.name)
         return true
       }
 
@@ -1015,7 +1015,7 @@ export function QuickAccountingEntryForm() {
               ...prev,
               thirdPartyName: data.label ?? prev.thirdPartyName,
             }))
-            void applyAccountTreatment(data.accountCode, row, data.label ?? undefined)
+            await applyAccountTreatment(data.accountCode, row, data.label ?? undefined)
           }
           return true
         }
