@@ -18,12 +18,22 @@ export async function POST(request: Request) {
 
     const deviceToken = (await cookies()).get(DEVICE_COOKIE)?.value
     const result = await loginAccount(body.email, body.password, deviceToken)
+    if ("emailVerificationRequired" in result && result.emailVerificationRequired) {
+      return NextResponse.json({
+        success: true,
+        emailVerificationRequired: true,
+        challengeId: result.challengeId,
+      })
+    }
     if (result.twoFactorRequired) {
       return NextResponse.json({
         success: true,
         twoFactorRequired: true,
         challengeId: result.challengeId,
       })
+    }
+    if (!("session" in result)) {
+      throw new Error("No se ha podido iniciar sesión.")
     }
     return NextResponse.json({ success: true, session: result.session })
   } catch (error) {

@@ -34,7 +34,7 @@ import {
   resolveActiveCompanyId,
 } from "@/lib/auth/permissions"
 import { ACCESS_BLOCKED_MESSAGE, blockTargetError } from "@/lib/auth/access-block"
-import { createEmailChallenge, trustedDeviceStillValid } from "@/lib/auth/two-factor-login"
+import { createEmailChallenge, trustedDeviceStillValid, verifyEmailChallenge } from "@/lib/auth/two-factor-login"
 import { isPlatformOperatorEmail, userIsPlatformOperator } from "@/lib/auth/platform-operator"
 import { selectCompaniesVisibleToUser } from "@/lib/auth/gestoria-access"
 
@@ -293,9 +293,14 @@ async function buildAuthSession(
   }
 }
 
-export async function registerAccount(input: RegisterRequest): Promise<AuthSession> {
+export async function registerAccount(input: RegisterRequest): Promise<{ challengeId: string }> {
   const existing = await prisma.user.findUnique({ where: { email: input.email.toLowerCase() } })
   if (existing) {
+    if (!existing.emailVerifiedAt) {
+      throw new Error(
+        "Ya hay un alta con este correo pendiente de confirmar. Entra con la contraseña y te enviaremos otro código.",
+      )
+    }
     throw new Error("Ya existe una cuenta con este email.")
   }
   if (isPlatformOperatorEmail(input.email)) {
@@ -321,6 +326,7 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
           role,
           termsAcceptedAt: input.acceptTerms ? new Date() : null,
           termsVersion: input.acceptTerms ? LEGAL_TEXTS_VERSION : null,
+          emailVerifiedAt: null,
         },
       },
       companies: {
@@ -349,7 +355,16 @@ export async function registerAccount(input: RegisterRequest): Promise<AuthSessi
     })
   }
 
-  return establishUserSession(user.id, company?.id ?? null)
+  try {
+    const challengeId = await createEmailChallenge(
+      { id: user.id, email: user.email },
+      "register",
+    )
+    return { challengeId }
+  } catch (error) {
+    await prisma.account.delete({ where: { id: account.id } })
+    throw error
+  }
 }
 
 export async function establishUserSession(
@@ -389,9 +404,23 @@ export async function establishUserSession(
   return buildAuthSession(user, session.activeCompanyId)
 }
 
+export async function confirmEmailVerification(challengeId: string, code: string): Promise<AuthSession> {
+  const verified = await verifyEmailChallenge({
+    challengeId,
+    code,
+    rememberDevice: false,
+  })
+  await prisma.user.update({
+    where: { id: verified.userId },
+    data: { emailVerifiedAt: new Date() },
+  })
+  return establishUserSession(verified.userId)
+}
+
 export type LoginResult =
   | { twoFactorRequired: false; session: AuthSession }
   | { twoFactorRequired: true; challengeId: string }
+  | { twoFactorRequired: false; emailVerificationRequired: true; challengeId: string }
 
 export async function loginAccount(
   email: string,
@@ -421,6 +450,11 @@ export async function loginAccount(
 
   if (user.blockedAt) {
     throw new Error(ACCESS_BLOCKED_MESSAGE)
+  }
+
+  if (!user.emailVerifiedAt) {
+    const challengeId = await createEmailChallenge({ id: user.id, email: user.email }, "register")
+    return { twoFactorRequired: false, emailVerificationRequired: true, challengeId }
   }
 
   if (user.emailTwoFactorEnabled) {

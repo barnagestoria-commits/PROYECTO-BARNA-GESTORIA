@@ -47,8 +47,12 @@ export async function POST(request: Request) {
       )
     }
 
-    const session = await registerAccount(body)
-    return NextResponse.json({ success: true, session })
+    const pending = await registerAccount(body)
+    return NextResponse.json({
+      success: true,
+      emailVerificationRequired: true,
+      challengeId: pending.challengeId,
+    })
   } catch (error) {
     return authErrorResponse(error)
   }

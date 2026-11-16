@@ -20,9 +20,17 @@ interface AuthContextValue {
   panelTitle: string
   roleLabel: string
   activeCompany: AuthSession["companies"][number] | null
-  login: (email: string, password: string) => Promise<{ twoFactorRequired: false } | { twoFactorRequired: true; challengeId: string }>
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<
+    | { twoFactorRequired: false }
+    | { twoFactorRequired: true; challengeId: string }
+    | { twoFactorRequired: false; emailVerificationRequired: true; challengeId: string }
+  >
   confirmLoginCode: (challengeId: string, code: string, rememberDevice: boolean) => Promise<void>
-  register: (data: RegisterRequest) => Promise<void>
+  confirmRegistrationCode: (challengeId: string, code: string) => Promise<void>
+  register: (data: RegisterRequest) => Promise<{ challengeId: string }>
   logout: () => Promise<void>
   refreshSession: () => Promise<void>
   setActiveCompany: (companyId: string) => Promise<void>
@@ -51,13 +59,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(
     async (email: string, password: string) => {
       const data = await apiFetch<
-        SessionResponse | { success: true; twoFactorRequired: true; challengeId: string }
+        | SessionResponse
+        | { success: true; twoFactorRequired: true; challengeId: string }
+        | { success: true; emailVerificationRequired: true; challengeId: string }
       >("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({ email, password }),
       })
-      if ("challengeId" in data) {
+      if ("emailVerificationRequired" in data && data.emailVerificationRequired) {
+        return {
+          twoFactorRequired: false as const,
+          emailVerificationRequired: true as const,
+          challengeId: data.challengeId,
+        }
+      }
+      if ("twoFactorRequired" in data && data.twoFactorRequired) {
         return { twoFactorRequired: true as const, challengeId: data.challengeId }
+      }
+      if (!("session" in data)) {
+        throw new Error("No se ha podido iniciar sesión.")
       }
       setSession(data.session)
       router.push("/dashboard")
@@ -78,17 +98,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [router],
   )
 
-  const register = useCallback(
-    async (payload: RegisterRequest) => {
-      const data = await apiFetch<SessionResponse>("/api/auth/register", {
+  const confirmRegistrationCode = useCallback(
+    async (challengeId: string, code: string) => {
+      const data = await apiFetch<SessionResponse>("/api/auth/register/verify", {
         method: "POST",
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ challengeId, code }),
       })
       setSession(data.session)
       router.push("/dashboard")
     },
     [router],
   )
+
+  const register = useCallback(async (payload: RegisterRequest) => {
+    const data = await apiFetch<{ success: true; emailVerificationRequired: true; challengeId: string }>(
+      "/api/auth/register",
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    )
+    return { challengeId: data.challengeId }
+  }, [])
 
   const logout = useCallback(async () => {
     await apiFetch("/api/auth/session", { method: "POST" })
@@ -118,12 +149,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       activeCompany,
       login,
       confirmLoginCode,
+      confirmRegistrationCode,
       register,
       logout,
       refreshSession,
       setActiveCompany,
     }),
-    [session, isLoading, activeCompany, login, confirmLoginCode, register, logout, refreshSession, setActiveCompany],
+    [session, isLoading, activeCompany, login, confirmLoginCode, confirmRegistrationCode, register, logout, refreshSession, setActiveCompany],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

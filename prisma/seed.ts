@@ -31,12 +31,14 @@ async function main() {
             passwordHash: hashPassword("demo123"),
             name: "Admin Gestoría",
             role: "ADMIN_GESTOR",
+            emailVerifiedAt: new Date(),
           },
           {
             email: "gestor@gestoria.com",
             passwordHash: hashPassword("demo123"),
             name: "María Gestor",
             role: "GESTOR",
+            emailVerifiedAt: new Date(),
           },
         ],
       },
@@ -78,6 +80,7 @@ async function main() {
           name: "Juan Pérez",
           phone: "+34 600 111 222",
           role: "CLIENTE",
+          emailVerifiedAt: new Date(),
         },
       },
       companies: {

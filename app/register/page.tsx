@@ -65,7 +65,7 @@ function getCompanyNameLabel(accountType: AccountType): string {
 }
 
 export default function RegisterPage() {
-  const { register } = useAuth()
+  const { register, confirmRegistrationCode } = useAuth()
   const [accountType, setAccountType] = useState<AccountType>("CLIENTE_FINAL")
   const [formData, setFormData] = useState({
     name: "",
@@ -81,6 +81,8 @@ export default function RegisterPage() {
   const [acceptTerms, setAcceptTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [challengeId, setChallengeId] = useState<string | null>(null)
+  const [code, setCode] = useState("")
 
   const suggestedEmpresaTier = useMemo(() => {
     const revenue = Number(formData.annualRevenue) || 0
@@ -126,7 +128,7 @@ export default function RegisterPage() {
     setIsLoading(true)
 
     try {
-      await register({
+      const pending = await register({
         name: formData.name,
         email: formData.email,
         phone: formData.phone || undefined,
@@ -147,8 +149,23 @@ export default function RegisterPage() {
         saveStoredEmpresaTierId(suggestedEmpresaTier.id)
         saveEmpresaSubscriptionStartedAt(new Date().toISOString())
       }
+      setChallengeId(pending.challengeId)
+      setIsLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al crear la cuenta.")
+      setIsLoading(false)
+    }
+  }
+
+  const handleCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!challengeId) return
+    setError(null)
+    setIsLoading(true)
+    try {
+      await confirmRegistrationCode(challengeId, code)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "No se ha podido comprobar el código.")
       setIsLoading(false)
     }
   }
@@ -168,12 +185,41 @@ export default function RegisterPage() {
             <ResponsiveLogo size="md" />
             <span className="text-xl md:text-2xl font-bold text-pine-900">Taxlyn</span>
           </div>
-          <CardTitle className="text-pine-900">Crear Cuenta</CardTitle>
+          <CardTitle className="text-pine-900">{challengeId ? "Confirma tu correo" : "Crear Cuenta"}</CardTitle>
           <CardDescription className="text-graphite-600">
-            Elige cómo vas a usar Taxlyn: autónomo, empresa o despacho
+            {challengeId
+              ? `Te hemos enviado un código a ${formData.email}. Escríbelo para abrir el programa.`
+              : "Elige cómo vas a usar Taxlyn: autónomo, empresa o despacho"}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {challengeId ? (
+            <form onSubmit={handleCode} className="mx-auto max-w-md space-y-4">
+              <p className="text-xs text-graphite-600">
+                El código caduca en 10 minutos. Si se te pasa, entra con el mismo correo y contraseña y te enviaremos otro.
+              </p>
+              <div className="space-y-2">
+                <Label htmlFor="code">Código</Label>
+                <Input
+                  id="code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value)}
+                  required
+                />
+              </div>
+              {error ? (
+                <p className="text-sm text-red-600" role="alert">
+                  {error}
+                </p>
+              ) : null}
+              <Button type="submit" className="w-full bg-emerald-800 hover:bg-pine-900" disabled={isLoading}>
+                {isLoading ? "Comprobando..." : "Confirmar código"}
+              </Button>
+            </form>
+          ) : (
+          <>
           <SocialLoginButtons mode="register" />
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -370,6 +416,8 @@ export default function RegisterPage() {
               {isLoading ? "Creando cuenta..." : "Crear cuenta"}
             </Button>
           </form>
+          </>
+          )}
 
           <div className="mt-6 text-center text-sm">
             <span className="text-graphite-600">¿Ya tienes cuenta? </span>

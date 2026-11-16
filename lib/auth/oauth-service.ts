@@ -24,6 +24,12 @@ export async function completeOAuthSignIn(profile: OAuthProfile): Promise<AuthSe
   })
 
   if (existing) {
+    if (!existing.emailVerifiedAt) {
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { emailVerifiedAt: new Date() },
+      })
+    }
     return establishUserSession(existing.id)
   }
 
@@ -42,6 +48,7 @@ export async function completeOAuthSignIn(profile: OAuthProfile): Promise<AuthSe
           passwordHash,
           name: displayName,
           role: "CLIENTE",
+          emailVerifiedAt: new Date(),
         },
       },
       companies: {

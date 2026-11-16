@@ -201,6 +201,9 @@ model User {
   /// Aceptación de los términos y la política de privacidad (versión del texto y fecha).
   termsAcceptedAt DateTime?
   termsVersion    String?
+  /// Null hasta que el alta con contraseña confirma el código enviado al correo.
+  /// Las cuentas ya existentes y las de Google o Microsoft quedan verificadas.
+  emailVerifiedAt DateTime?
   /// Si está activo, el acceso pide un código al correo salvo en un dispositivo recordado.
   emailTwoFactorEnabled Boolean @default(false)
   account       Account             @relation(fields: [accountId], references: [id], onDelete: Cascade)

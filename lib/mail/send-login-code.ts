@@ -6,12 +6,23 @@ export function mailDeliveryConfigured(): boolean {
   )
 }
 
-export async function sendLoginCodeEmail(to: string, code: string): Promise<void> {
-  const text = [
-    `Tu código de acceso a Taxlyn es ${code}.`,
-    "Caduca en 10 minutos.",
-    "Si no has intentado entrar, cambia la contraseña y escríbenos a infotaxlyn@gmail.com.",
-  ].join("\n")
+export async function sendLoginCodeEmail(
+  to: string,
+  code: string,
+  purpose: "login" | "register" = "login",
+): Promise<void> {
+  const text =
+    purpose === "register"
+      ? [
+          `Tu código para confirmar el alta en Taxlyn es ${code}.`,
+          "Caduca en 10 minutos.",
+          "Si no has creado esta cuenta, ignora este correo.",
+        ].join("\n")
+      : [
+          `Tu código de acceso a Taxlyn es ${code}.`,
+          "Caduca en 10 minutos.",
+          "Si no has intentado entrar, cambia la contraseña y escríbenos a infotaxlyn@gmail.com.",
+        ].join("\n")
 
   if (!mailDeliveryConfigured()) {
     if (process.env.NODE_ENV !== "production") {
@@ -35,7 +46,7 @@ export async function sendLoginCodeEmail(to: string, code: string): Promise<void
   await transporter.sendMail({
     from: process.env.EMAIL_FROM?.trim() || "Taxlyn <infotaxlyn@gmail.com>",
     to,
-    subject: "Código de acceso a Taxlyn",
+    subject: purpose === "register" ? "Confirma tu correo en Taxlyn" : "Código de acceso a Taxlyn",
     text,
   })
 }

@@ -23,7 +23,10 @@ export async function trustedDeviceStillValid(userId: string, token: string | nu
   return true
 }
 
-export async function createEmailChallenge(user: { id: string; email: string }): Promise<string> {
+export async function createEmailChallenge(
+  user: { id: string; email: string },
+  purpose: "login" | "register" = "login",
+): Promise<string> {
   const code = generateEmailCode()
   const challenge = await prisma.emailLoginChallenge.create({
     data: {
@@ -34,7 +37,7 @@ export async function createEmailChallenge(user: { id: string; email: string }):
   })
 
   try {
-    await sendLoginCodeEmail(user.email, code)
+    await sendLoginCodeEmail(user.email, code, purpose)
   } catch (error) {
     await prisma.emailLoginChallenge.delete({ where: { id: challenge.id } })
     throw error

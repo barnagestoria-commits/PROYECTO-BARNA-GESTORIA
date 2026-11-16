@@ -18,10 +18,11 @@ import { useAuth } from "@/components/auth-provider"
 const SHOW_DEMO_CREDENTIALS = process.env.NODE_ENV !== "production"
 
 export default function LoginPage() {
-  const { login, confirmLoginCode } = useAuth()
+  const { login, confirmLoginCode, confirmRegistrationCode } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [challengeId, setChallengeId] = useState<string | null>(null)
+  const [codePurpose, setCodePurpose] = useState<"login" | "register">("login")
   const [code, setCode] = useState("")
   const [rememberDevice, setRememberDevice] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,7 +35,14 @@ export default function LoginPage() {
 
     try {
       const result = await login(email, password)
+      if ("emailVerificationRequired" in result && result.emailVerificationRequired) {
+        setCodePurpose("register")
+        setChallengeId(result.challengeId)
+        setIsLoading(false)
+        return
+      }
       if (result.twoFactorRequired) {
+        setCodePurpose("login")
         setChallengeId(result.challengeId)
         setIsLoading(false)
       }
@@ -50,7 +58,11 @@ export default function LoginPage() {
     setError(null)
     setIsLoading(true)
     try {
-      await confirmLoginCode(challengeId, code, rememberDevice)
+      if (codePurpose === "register") {
+        await confirmRegistrationCode(challengeId, code)
+      } else {
+        await confirmLoginCode(challengeId, code, rememberDevice)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se ha podido comprobar el código.")
       setIsLoading(false)
@@ -74,7 +86,9 @@ export default function LoginPage() {
           {challengeId ? (
           <form onSubmit={handleCode} className="space-y-4">
             <p className="text-sm text-graphite-600">
-              Te hemos enviado un código a tu correo. Escríbelo para entrar.
+              {codePurpose === "register"
+                ? "Tu correo todavía no está confirmado. Te hemos enviado un código. Escríbelo para entrar."
+                : "Te hemos enviado un código a tu correo. Escríbelo para entrar."}
             </p>
             <div className="space-y-2">
               <Label htmlFor="code">Código</Label>
@@ -87,6 +101,7 @@ export default function LoginPage() {
                 required
               />
             </div>
+            {codePurpose === "login" ? (
             <label className="flex items-start gap-2 text-sm text-pine-900">
               <input
                 type="checkbox"
@@ -96,7 +111,8 @@ export default function LoginPage() {
               />
               Recordar este dispositivo
             </label>
-            {rememberDevice ? (
+            ) : null}
+            {codePurpose === "login" && rememberDevice ? (
               <p className="rounded-lg border border-sand-300 bg-sand-50 px-3 py-2 text-xs leading-relaxed text-graphite-700">
                 {TRUSTED_DEVICE_ACCEPTANCE}{" "}
                 <Link href="/terminos-servicio#dispositivos-de-confianza" className="text-emerald-800 underline">
