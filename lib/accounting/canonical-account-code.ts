@@ -8,6 +8,7 @@ import {
   formatAccountCodeDisplay,
   formatAccountCodeStored,
 } from "@/lib/accounting/third-party-types"
+import { parseNewAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { normalizeCuenta } from "@/lib/reports/format"
 
 export function inferParentCodeFromAccount(digits: string): string | null {
@@ -59,6 +60,22 @@ export function formatAccountCodeForUi(raw: string): string {
   const trimmed = raw.trim()
   if (!trimmed) return ""
   return formatAccountCodeDisplay(expandCanonicalSubaccountCode(trimmed))
+}
+
+/** Formato homogéneo en rejillas de asiento (472 → 472.0000, 6290001 → 629.0001). */
+export function formatLineAccountForUi(raw: string): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ""
+  if (trimmed.toUpperCase() === "EX") return trimmed
+  if (parseNewAccountPrefix(trimmed)) return trimmed
+  if (parseDottedAccountShortcut(trimmed)) return trimmed
+  const digits = normalizeCuenta(trimmed)
+  if (digits.length < 2) return trimmed
+  return formatAccountCodeForUi(trimmed)
+}
+
+export function withUiFormattedAccounts<T extends { cuenta: string }>(lines: T[]): T[] {
+  return lines.map((line) => ({ ...line, cuenta: formatLineAccountForUi(line.cuenta) }))
 }
 
 export function needsCanonicalAccountRepair(stored: string): boolean {

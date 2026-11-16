@@ -8,6 +8,7 @@ import {
   canonicalizeStoredAccountCode,
   formatAccountCodeForUi,
   needsCanonicalAccountRepair,
+  withUiFormattedAccounts,
 } from "@/lib/accounting/canonical-account-code"
 import { normalizeEntryLines } from "@/lib/accounting/entry-payload"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
@@ -38,6 +39,17 @@ describe("expandCanonicalSubaccountCode", () => {
   it("expands proveedor shortcut 4.1 to 400.0001", () => {
     expect(expandCanonicalSubaccountCode("4.1")).toBe("4000001")
     expect(formatAccountCodeForUi("4.1")).toBe("400.0001")
+  })
+
+  it("alinea el formato visual de las líneas del asiento", () => {
+    const [first, second, third] = withUiFormattedAccounts([
+      { cuenta: "400" },
+      { cuenta: "472" },
+      { cuenta: "6290001" },
+    ])
+    expect(first?.cuenta).toBe("400.0000")
+    expect(second?.cuenta).toBe("472.0000")
+    expect(third?.cuenta).toBe("629.0001")
   })
 })
 

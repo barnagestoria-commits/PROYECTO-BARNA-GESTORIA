@@ -10,6 +10,7 @@ import {
   applyInvoiceConceptsToLines,
   isInvoiceConceptCommand,
 } from "@/lib/accounting/invoice-entry-concepts"
+import { withUiFormattedAccounts } from "@/lib/accounting/canonical-account-code"
 
 export const ACCOUNTING_COMMANDS: Record<AccountingCommandCode, AccountingCommandTemplate> = {
   "17": {
@@ -86,14 +87,16 @@ export function linesFromTemplate(
   }))
 
   if (isInvoiceConceptCommand(code)) {
-    return applyInvoiceConceptsToLines(lines, code, {
-      invoiceNumber,
-      thirdPartyLabel,
-      invoiceMode: code === "17" ? "emitida" : "recibida",
-    })
+    return withUiFormattedAccounts(
+      applyInvoiceConceptsToLines(lines, code, {
+        invoiceNumber,
+        thirdPartyLabel,
+        invoiceMode: code === "17" ? "emitida" : "recibida",
+      }),
+    )
   }
 
-  return lines
+  return withUiFormattedAccounts(lines)
 }
 
 export function parseCommandInput(value: string): AccountingCommandCode | null {

@@ -74,7 +74,7 @@ import {
   toShortcutCandidates,
   unresolvedDottedShortcut,
 } from "@/lib/accounting/account-shortcut"
-import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
+import { formatAccountCodeForUi, formatLineAccountForUi } from "@/lib/accounting/canonical-account-code"
 import {
   applyInvoiceAmountsToLines,
   applyTreatmentToEntryLines,
@@ -1019,10 +1019,9 @@ export function QuickAccountingEntryForm() {
         )
         if (data.exists) {
           if (data.formattedAccountCode && data.formattedAccountCode !== line.cuenta) {
+            const cuenta = formatLineAccountForUi(data.formattedAccountCode)
             setLines((prev) =>
-              prev.map((item, index) =>
-                index === row ? { ...item, cuenta: data.formattedAccountCode } : item,
-              ),
+              prev.map((item, index) => (index === row ? { ...item, cuenta } : item)),
             )
           }
           if (data.label && isThirdPartyAccountPrefix(data.accountCode)) {
@@ -1800,7 +1799,9 @@ export function QuickAccountingEntryForm() {
                           </td>
                           <td className="px-2 py-1.5">{line.concepto || "—"}</td>
                           <td className="px-2 py-1.5 font-mono text-xs">{line.documento || "—"}</td>
-                          <td className="px-2 py-1.5 font-mono text-xs">{line.cuenta || "—"}</td>
+                          <td className="px-2 py-1.5 font-mono text-xs">
+                            {line.cuenta ? formatLineAccountForUi(line.cuenta) : "—"}
+                          </td>
                           <td className="px-2 py-1.5 text-right font-mono tabular-nums">
                             {line.debe > 0 ? formatEuro(line.debe) : ""}
                           </td>

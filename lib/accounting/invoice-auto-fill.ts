@@ -14,6 +14,7 @@ import {
 import { extractPrimaryEuVatId, formatEuVatIdForAeat } from "@/lib/fiscal/eu-vat-id"
 import { findVatRateType } from "@/lib/accounting/vat-catalog"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
+import { formatAccountCodeForUi, withUiFormattedAccounts } from "@/lib/accounting/canonical-account-code"
 import { formatAccountCodeStored } from "@/lib/accounting/third-party-types"
 import { recalculateVatQuota } from "@/lib/types/invoice-entry-details"
 
@@ -112,7 +113,7 @@ export function applyTreatmentToEntryLines(
   let next = [...lines]
 
   if (counterpart) {
-    const formattedCounterpart = formatAccountCodeStored(counterpart)
+    const formattedCounterpart = formatAccountCodeForUi(counterpart)
     const invoiceCommand = options.activeCommand === "17" || options.activeCommand === "34"
     const baseIdx = invoiceCommand
       ? findInvoiceBaseLineIndex(next, emitida)
@@ -124,7 +125,7 @@ export function applyTreatmentToEntryLines(
 
   const vatIdx = next.findIndex((line) => isVatAccount(line.cuenta))
   if (vatIdx >= 0) {
-    next[vatIdx] = { ...next[vatIdx], cuenta: formatAccountCodeStored(vatAccount) }
+    next[vatIdx] = { ...next[vatIdx], cuenta: formatAccountCodeForUi(vatAccount) }
   }
 
   const hasIrpf = Boolean(treatment.defaultIrpfPercent && treatment.defaultIrpfPercent > 0)
@@ -137,7 +138,7 @@ export function applyTreatmentToEntryLines(
   if (hasIrpf) {
     const irpfLine: AccountingEntryLine = {
       id: createLineId(),
-      cuenta: formatAccountCodeStored(irpfAccount),
+      cuenta: formatAccountCodeForUi(irpfAccount),
       concepto: buildRetentionConcept(partyLabel),
       debe: 0,
       haber: 0,
@@ -152,7 +153,7 @@ export function applyTreatmentToEntryLines(
     next = next.filter((_, index) => index !== irpfIdx)
   }
 
-  return next
+  return withUiFormattedAccounts(next)
 }
 
 export interface InvoiceAmountsWithIrpf {
@@ -253,7 +254,7 @@ export function syncInvoiceIrpfLine(
   })
   const nextLine: AccountingEntryLine = {
     id: irpfIdx >= 0 ? lines[irpfIdx].id : createLineId(),
-    cuenta: formatAccountCodeStored(account),
+    cuenta: formatAccountCodeForUi(account),
     concepto: buildRetentionConcept(partyLabel),
     debe: options.invoiceMode === "emitida" ? options.irpfAmount : 0,
     haber: options.invoiceMode === "emitida" ? 0 : options.irpfAmount,
@@ -311,7 +312,7 @@ export function buildFullInvoiceEntry(
     nextLines = nextLines.map((line) => ({ ...line, documento }))
   }
 
-  return { lines: nextLines, details: nextDetails }
+  return { lines: withUiFormattedAccounts(nextLines), details: nextDetails }
 }
 
 /** Importe total en la línea de tercero (430/43 debe · 400/40 haber). */
@@ -345,24 +346,26 @@ export function applyInvoiceAmountsToLines(
     (options.activeCommand !== "34" &&
       isEmitidaThirdPartyAccount(lines[thirdPartyIndex]?.cuenta ?? ""))
 
-  return lines.map((line, index) => {
-    if (emitida) {
-      if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
-      if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
-      if (index === baseIndex) return { ...line, debe: 0, haber: amounts.base }
-      if (index === irpfIdx && amounts.irpf > 0) {
-        return { ...line, debe: amounts.irpf, haber: 0 }
+  return withUiFormattedAccounts(
+    lines.map((line, index) => {
+      if (emitida) {
+        if (index === thirdPartyIndex) return { ...line, debe: amounts.total, haber: 0 }
+        if (index === vatIndex) return { ...line, debe: 0, haber: amounts.quota }
+        if (index === baseIndex) return { ...line, debe: 0, haber: amounts.base }
+        if (index === irpfIdx && amounts.irpf > 0) {
+          return { ...line, debe: amounts.irpf, haber: 0 }
+        }
+      } else {
+        if (index === thirdPartyIndex) return { ...line, debe: 0, haber: amounts.total }
+        if (index === vatIndex) return { ...line, debe: amounts.quota, haber: 0 }
+        if (index === baseIndex) return { ...line, debe: amounts.base, haber: 0 }
+        if (index === irpfIdx && amounts.irpf > 0) {
+          return { ...line, debe: 0, haber: amounts.irpf }
+        }
       }
-    } else {
-      if (index === thirdPartyIndex) return { ...line, debe: 0, haber: amounts.total }
-      if (index === vatIndex) return { ...line, debe: amounts.quota, haber: 0 }
-      if (index === baseIndex) return { ...line, debe: amounts.base, haber: 0 }
-      if (index === irpfIdx && amounts.irpf > 0) {
-        return { ...line, debe: 0, haber: amounts.irpf }
-      }
-    }
-    return line
-  })
+      return line
+    }),
+  )
 }
 
 export function ensureMinimumInvoiceLines(lines: AccountingEntryLine[]): AccountingEntryLine[] {

@@ -41,7 +41,7 @@ describe("applyTreatmentToEntryLines", () => {
     }
 
     const next = applyTreatmentToEntryLines(lines, treatment, { activeCommand: "34" })
-    expect(next[2]?.cuenta.replace(/\D/g, "")).toBe("62900001")
+    expect(next[2]?.cuenta).toBe("629.0001")
   })
 })
 

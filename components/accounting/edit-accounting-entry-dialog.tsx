@@ -51,7 +51,7 @@ import {
   toShortcutCandidates,
   unresolvedDottedShortcut,
 } from "@/lib/accounting/account-shortcut"
-import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
+import { formatAccountCodeForUi, formatLineAccountForUi } from "@/lib/accounting/canonical-account-code"
 import { SpanishAmountInput } from "@/components/accounting/spanish-amount-input"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
 import type { ThirdPartyAccountOption } from "@/lib/accounting/account-suggestions"
@@ -384,12 +384,13 @@ export function EditAccountingEntryDialog({
     partyName?: string,
     partyCif?: string,
   ) => {
-    lastCommittedCuenta.current.set(lineId, resolvedCode)
-    const applyParty = Boolean(partyName && isThirdPartyAccountPrefix(resolvedCode))
+    const formattedCode = formatLineAccountForUi(resolvedCode)
+    lastCommittedCuenta.current.set(lineId, formattedCode)
+    const applyParty = Boolean(partyName && isThirdPartyAccountPrefix(formattedCode))
 
     setLines((prev) => {
       const withAccount = prev.map((item) =>
-        item.id === lineId ? { ...item, cuenta: resolvedCode } : item,
+        item.id === lineId ? { ...item, cuenta: formattedCode } : item,
       )
       return applyParty ? applyPartyToInvoice(withAccount, partyName ?? "", entry?.commandCode, partyCif) : withAccount
     })
@@ -406,11 +407,11 @@ export function EditAccountingEntryDialog({
       )
     }
 
-    if (!isThirdPartyAccountPrefix(resolvedCode)) return
+    if (!isThirdPartyAccountPrefix(formattedCode)) return
 
     try {
       const data = await apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
-        `/api/accounting/account-treatment?accountCode=${encodeURIComponent(resolvedCode)}`,
+        `/api/accounting/account-treatment?accountCode=${encodeURIComponent(formattedCode)}`,
       )
       if (!data.treatment) return
 
