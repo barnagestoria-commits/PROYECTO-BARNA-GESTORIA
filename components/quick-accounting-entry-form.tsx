@@ -22,7 +22,6 @@ import {
   getInvoiceAmountsFromDetails,
   getLineAmountSide,
   getLinePrefilledAmount,
-  getAdjacentEntryField,
   getNavigableFieldsForRow,
   getNextNavigableField,
   isAmountFieldDisabled,
@@ -117,20 +116,6 @@ import { cn } from "@/lib/utils"
 
 function cellKey(row: number, field: EntryCellField): string {
   return `${row}-${field}`
-}
-
-/** La flecha sale de la casilla si el texto está seleccionado o el cursor está en el borde. */
-function arrowLeavesEntryField(event: KeyboardEvent<HTMLInputElement>): boolean {
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return true
-  const input = event.currentTarget
-  if (input.type === "number" || input.readOnly) return true
-  const start = input.selectionStart
-  const end = input.selectionEnd
-  if (start == null || end == null) return true
-  const allSelected = start === 0 && end === input.value.length
-  if (allSelected) return true
-  if (event.key === "ArrowLeft") return start === 0 && end === 0
-  return start === input.value.length && end === input.value.length
 }
 
 function isValidAccountValue(value: string): boolean {
@@ -1110,56 +1095,8 @@ export function QuickAccountingEntryForm() {
     field: EntryCellField,
   ) => {
     if (!isEntryNavigationBlocked()) {
-      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
-        const leavingDate = field === "fecha"
-        if (!leavingDate && !arrowLeavesEntryField(event)) return
-        const next = getAdjacentEntryField(
-          row,
-          field,
-          event.key === "ArrowLeft" ? "left" : "right",
-        )
-        if (!next) {
-          if (leavingDate || event.currentTarget.type === "number") event.preventDefault()
-          return
-        }
-        event.preventDefault()
-        event.stopPropagation()
-        focusCell(next.row, next.field)
+      if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight") {
         return
-      }
-
-      if (event.key === "ArrowUp") {
-        if (committedEntries.length > 0 && row === 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          if (selectedCommittedEntryId) {
-            navigateCommittedEntry("up")
-          } else {
-            selectCommittedEntry(committedEntries[committedEntries.length - 1].id)
-          }
-          return
-        }
-        if (row > 0) {
-          event.preventDefault()
-          event.stopPropagation()
-          focusCell(row - 1, field)
-          return
-        }
-      }
-
-      if (event.key === "ArrowDown") {
-        if (selectedCommittedEntryId) {
-          event.preventDefault()
-          event.stopPropagation()
-          navigateCommittedEntry("down")
-          return
-        }
-        if (row < lines.length - 1) {
-          event.preventDefault()
-          event.stopPropagation()
-          focusCell(row + 1, field)
-          return
-        }
       }
     }
 
@@ -1281,7 +1218,7 @@ export function QuickAccountingEntryForm() {
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
         if (committedEntries.length === 0) return
         if (committedListRef.current?.contains(event.target as Node)) return
-        if (inDraftInput && !selectedCommittedEntryId) return
+        if (inDraftInput) return
 
         event.preventDefault()
         navigateCommittedEntry(event.key === "ArrowUp" ? "up" : "down")
@@ -1397,7 +1334,7 @@ export function QuickAccountingEntryForm() {
       return `Asiento Ref. ${selectedCommittedEntry.refNumber} — ↑↓ navegar · Enter editar · Esc nuevo asiento`
     }
     if (committedEntries.length > 0) {
-      return "↑ desde la primera línea vuelve al último asiento · ←→ entre campos · Tab para avanzar"
+      return "Tab o Enter pasan de casilla · las flechas mueven el cursor dentro del campo"
     }
     if (activeCell.field === "codigo") {
       return `Indique el Código de Predefinido o Pulse ${entryShortcuts.byName}`
@@ -1622,7 +1559,7 @@ export function QuickAccountingEntryForm() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-graphite-500">
-              ←→ entre campos · ↑ al asiento anterior · Tab · {entryShortcuts.byName} plan contable · {entryShortcuts.byCif} NIF · EX extracto
+              Tab o Enter para pasar de casilla · las flechas mueven el cursor · {entryShortcuts.byName} plan contable · {entryShortcuts.byCif} NIF · EX extracto
             </p>
             <button
               type="button"
@@ -1683,7 +1620,7 @@ export function QuickAccountingEntryForm() {
                   {committedEntries.length} asiento{committedEntries.length === 1 ? "" : "s"}
                 </strong>{" "}
                 · {committedEntries.reduce((sum, entry) => sum + entry.lines.length, 0)} líneas
-                visibles · <span className="text-graphite-500">↑↓ navegar · ←→ entre campos · Enter editar</span>
+                visibles · <span className="text-graphite-500">↑↓ navegar la lista · Enter editar</span>
               </span>
               <Button
                 type="button"

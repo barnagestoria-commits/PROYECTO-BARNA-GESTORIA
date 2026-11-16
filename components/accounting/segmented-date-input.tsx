@@ -170,35 +170,42 @@ export function SegmentedDateInput({
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
       event.preventDefault()
-      onKeyDown?.(event)
+      const max = segment === "day" ? 31 : segment === "month" ? 12 : 9999
+      const min = segment === "year" ? 1900 : 1
+      const parsed = Number.parseInt(currentValue, 10)
+      const base = Number.isFinite(parsed) && parsed > 0 ? parsed : min
+      const delta = event.key === "ArrowUp" ? 1 : -1
+      const next = Math.min(max, Math.max(min, base + delta))
+      const width = segment === "year" ? 4 : 2
+      applyParts({ ...parts, [segment]: String(next).padStart(width, "0") })
       return
     }
 
     if (event.key === "ArrowLeft") {
-      event.preventDefault()
       if (segment === "month") {
+        event.preventDefault()
         focusSegment(refs.current, "day")
         return
       }
       if (segment === "year") {
+        event.preventDefault()
         focusSegment(refs.current, "month")
         return
       }
-      onKeyDown?.(event)
       return
     }
 
     if (event.key === "ArrowRight") {
-      event.preventDefault()
       if (segment === "day") {
+        event.preventDefault()
         focusSegment(refs.current, "month")
         return
       }
       if (segment === "month") {
+        event.preventDefault()
         focusSegment(refs.current, "year")
         return
       }
-      onKeyDown?.(event)
       return
     }
 
