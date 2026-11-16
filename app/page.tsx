@@ -85,7 +85,7 @@ export default function HomePage() {
                 className="border-gold-600 text-gold-800 hover:bg-gold-50 px-6 sm:px-8 py-3 sm:py-4 text-base sm:text-lg rounded-2xl bg-white/80 transition-all hover:shadow-lg w-full sm:w-auto"
                 asChild
               >
-                <Link href="/admin">Mi panel de empresa</Link>
+                <Link href="/dashboard">Mi panel de empresa</Link>
               </Button>
             </div>
           </div>

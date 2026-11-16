@@ -78,6 +78,7 @@ export default function RegisterPage() {
     password: "",
     confirmPassword: "",
   })
+  const [acceptTerms, setAcceptTerms] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -99,8 +100,13 @@ export default function RegisterPage() {
       return
     }
 
-    if (formData.password.length < 6) {
-      setError("La contraseña debe tener al menos 6 caracteres.")
+    if (formData.password.length < 8) {
+      setError("La contraseña debe tener al menos 8 caracteres.")
+      return
+    }
+
+    if (!acceptTerms) {
+      setError("Debes aceptar los Términos del servicio y la Política de privacidad.")
       return
     }
 
@@ -125,6 +131,7 @@ export default function RegisterPage() {
         email: formData.email,
         phone: formData.phone || undefined,
         password: formData.password,
+        acceptTerms: true,
         accountType,
         companyName: formData.companyName,
         cif: accountType !== "GESTORIA" ? formData.cif || undefined : undefined,
@@ -336,6 +343,26 @@ export default function RegisterPage() {
                 />
               </div>
             </div>
+
+            <label className="flex items-start gap-2 text-sm text-graphite-700">
+              <input
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => setAcceptTerms(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-emerald-800"
+              />
+              <span>
+                He leído y acepto los{" "}
+                <Link href="/terminos-servicio" target="_blank" className="text-emerald-700 underline">
+                  Términos del servicio
+                </Link>{" "}
+                y la{" "}
+                <Link href="/politica-privacidad" target="_blank" className="text-emerald-700 underline">
+                  Política de privacidad
+                </Link>
+                . Incluye 7 días de prueba gratuita.
+              </span>
+            </label>
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 

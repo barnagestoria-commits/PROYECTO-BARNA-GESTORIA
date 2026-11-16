@@ -71,3 +71,26 @@ export async function recordLoginFailure(email: string): Promise<void> {
 export async function clearLoginFailures(email: string): Promise<void> {
   await prisma.loginGuard.deleteMany({ where: { emailKey: emailKey(email) } })
 }
+
+export const REGISTRATION_ATTEMPT_LIMIT = 5
+export const REGISTRATION_LOCK_MS = 60 * 60 * 1000
+export const REGISTRATION_LOCKED_MESSAGE =
+  "Se han creado demasiadas cuentas desde esta conexión. Inténtalo de nuevo más tarde."
+
+/** Cuenta cada intento de alta por IP; al llegar al límite bloquea una hora. */
+export async function consumeRegistrationAttempt(ip: string): Promise<void> {
+  const key = `reg:${ip.trim().toLowerCase() || "desconocida"}`
+  const row = await prisma.loginGuard.findUnique({ where: { emailKey: key } })
+  const now = Date.now()
+  if (row?.lockedUntil && row.lockedUntil.getTime() > now) {
+    throw new Error(REGISTRATION_LOCKED_MESSAGE)
+  }
+  const expired = Boolean(row?.lockedUntil && row.lockedUntil.getTime() <= now)
+  const failures = (!row || expired ? 0 : row.failures) + 1
+  const lockedUntil = failures >= REGISTRATION_ATTEMPT_LIMIT ? new Date(now + REGISTRATION_LOCK_MS) : null
+  await prisma.loginGuard.upsert({
+    where: { emailKey: key },
+    create: { emailKey: key, failures, lockedUntil },
+    update: { failures, lockedUntil },
+  })
+}
