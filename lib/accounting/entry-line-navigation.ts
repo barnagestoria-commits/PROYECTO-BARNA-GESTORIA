@@ -298,6 +298,12 @@ export function buildBalancingCounterpartLine(
   return { line, focusField: account ? (difference > 0 ? "haber" : "debe") : "cuenta" }
 }
 
+/** Asiento cuadrado con importe: Enter en la última celda abre un asiento nuevo, no otra línea vacía. */
+export function shouldStartNextEntryDraft(lines: AccountingEntryLine[]): boolean {
+  const totals = calculateTotals(lines)
+  return totals.isBalanced
+}
+
 /** Si no hay más líneas y el asiento está descuadrado, Enter en contrapartida abre una línea debajo. */
 export function shouldCreateBalancingLineBelow(
   rowIndex: number,

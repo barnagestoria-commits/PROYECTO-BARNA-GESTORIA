@@ -28,6 +28,7 @@ import {
   isAmountFieldDisabled,
   buildBalancingCounterpartLine,
   createContinuedEntryLine,
+  shouldStartNextEntryDraft,
   type EntryNavigationContext,
 } from "@/lib/accounting/entry-line-navigation"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
@@ -230,6 +231,7 @@ export function QuickAccountingEntryForm() {
   const committedEntryRowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map())
   const committedListRef = useRef<HTMLDivElement>(null)
   const shownDuplicateKeyRef = useRef<string | null>(null)
+  const submitCurrentEntryRef = useRef<() => void>(() => {})
 
   const totals = useMemo(() => calculateTotals(lines), [lines])
   const lineValidations = useMemo(() => validateEntryLines(lines), [lines])
@@ -574,6 +576,11 @@ export function QuickAccountingEntryForm() {
           return [...nextLines, draft.line]
         })
         requestAnimationFrame(() => focusCell(row + 1, draft.focusField))
+        return
+      }
+
+      if (shouldStartNextEntryDraft(navigationContext.lines)) {
+        submitCurrentEntryRef.current()
         return
       }
 
@@ -1358,9 +1365,12 @@ export function QuickAccountingEntryForm() {
       return "Contrapartida en esta línea, o Enter para crearla debajo y cuadrar el asiento"
     }
     if (activeCommand) {
-      return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description}`
+      return `${ACCOUNTING_COMMANDS[activeCommand].label} — ${ACCOUNTING_COMMANDS[activeCommand].description} · Enter al terminar confirma y abre un asiento nuevo`
     }
-    return "Apunte manual — Enter en el importe va a la contrapartida · Enter otra vez abre la línea de abajo"
+    if (totals.isBalanced) {
+      return "Asiento cuadrado — Enter confirma este asiento y abre uno nuevo debajo"
+    }
+    return "Apunte manual — Enter en el importe va a la contrapartida · Enter en la última celda abre línea de cuadre si falta saldo"
   }, [
     activeCell.field,
     activeCommand,
@@ -1368,6 +1378,7 @@ export function QuickAccountingEntryForm() {
     entryShortcuts.byCif,
     entryShortcuts.byName,
     selectedCommittedEntry,
+    totals.isBalanced,
   ])
 
   const handleSubmit = async () => {
@@ -1478,6 +1489,10 @@ export function QuickAccountingEntryForm() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  submitCurrentEntryRef.current = () => {
+    void handleSubmit()
   }
 
   const handlePgcSelect = (accountCode: string, accountName: string) => {

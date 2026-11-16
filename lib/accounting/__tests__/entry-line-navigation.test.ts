@@ -6,6 +6,7 @@ import {
   getAdjacentEntryField,
   getNextNavigableField,
   shouldCreateBalancingLineBelow,
+  shouldStartNextEntryDraft,
   type EntryNavigationContext,
 } from "@/lib/accounting/entry-line-navigation"
 
@@ -102,6 +103,22 @@ describe("createContinuedEntryLine", () => {
     expect(next.concepto).toBe("")
     expect(next.cuenta).toBe("")
     expect(next.id).not.toBe(previous.id)
+  })
+})
+
+describe("shouldStartNextEntryDraft", () => {
+  it("returns true when the entry is balanced with amounts", () => {
+    const lines = [
+      { ...createEmptyLine(), cuenta: "430.0001", debe: 127.78, haber: 0 },
+      { ...createEmptyLine(), cuenta: "477", debe: 0, haber: 22.18 },
+      { ...createEmptyLine(), cuenta: "705", debe: 0, haber: 105.6 },
+    ]
+    expect(shouldStartNextEntryDraft(lines)).toBe(true)
+  })
+
+  it("returns false while the entry is still unbalanced", () => {
+    const lines = [{ ...createEmptyLine(), cuenta: "642.0001", debe: 79.7, haber: 0 }]
+    expect(shouldStartNextEntryDraft(lines)).toBe(false)
   })
 })
 
