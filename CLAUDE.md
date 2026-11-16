@@ -9,37 +9,34 @@ This is **Taxlyn**, a Next.js web application for a Spanish accounting and tax m
 ## Development Commands
 
 ```bash
-# Development server
-npm run dev
-
-# Build production
-npm run build
-
-# Start production server
-npm start
-
-# Run linting
+npm run dev            # servidor de desarrollo
+npm run build          # prisma generate + next build
+npm start              # servidor de producción
 npm run lint
+npm run test           # vitest run
+npm run db:migrate     # prisma migrate dev (local)
+npm run db:setup       # migrate deploy + seed (el seed borra datos: requiere ALLOW_DESTRUCTIVE_SEED=1)
 ```
+
+`npm run vercel-build` (usado por Vercel) ejecuta `prisma generate && prisma migrate deploy && next build`,
+así que **cada despliegue aplica las migraciones pendientes a la base de datos de producción**.
 
 ## Architecture & Structure
 
 ### Tech Stack
-- **Framework**: Next.js 14 with TypeScript
-- **Styling**: Tailwind CSS with custom design system
-- **UI Components**: Custom components built with Radix UI primitives
-- **State Management**: React Context (ChatProvider)
-- **Deployment**: Vercel (auto-synced with v0.app)
-
-### Key Architecture Patterns
-
-1. **App Router Structure**: Uses Next.js app directory with route-based pages
-2. **Component Organization**: 
-   - `/components/ui/` - Base UI components (buttons, cards, inputs)
-   - `/components/` - Feature-specific components
-   - `/app/` - Pages and layouts
-3. **Wrapper Pattern**: Uses `AppWrapper` for global loading state and resource preloading
-4. **Provider Pattern**: `ChatProvider` manages chat/communication state
+- **Framework**: Next.js 15.5.x (App Router) + React 18 + TypeScript. Next se subió de la 14 a la 15.5.x para
+  corregir vulnerabilidades críticas (commit 03a3118); no fue por una integración incompatible. No bajar de versión.
+- **Styling**: Tailwind CSS 3 con sistema de diseño propio; componentes con primitivas Radix UI
+- **Datos**: Prisma 6 + PostgreSQL (hoy Neon; previsto migrar a Supabase, región UE). `DATABASE_URL` / `DIRECT_URL`
+- **Autenticación**: sesión propia con cookie `barna_session` (no NextAuth como sesión), OAuth Google/Microsoft,
+  verificación por correo y dispositivos de confianza (`taxlyn_device`). Helpers en `lib/auth/api-auth.ts`
+  (`requireRequestSession`, `requirePlatformOperator`, `authErrorResponse`)
+- **Archivos**: Vercel Blob privado vía `lib/storage/object-storage.ts` (límite de 4 MB por subida por el tope de 4,5 MB de Vercel)
+- **OCR**: DeepSeek (los contenidos de facturas/extractos salen del EEE: está declarado en la política de privacidad)
+- **Correo**: nodemailer (SMTP por variables de entorno)
+- **Tests**: vitest
+- **Despliegue**: Vercel (plan Hobby), auto-despliegue desde `main`. Cron diario en `vercel.json`
+- **Estado cliente**: React Context (ChatProvider y proveedores de sesión)
 
 ### Custom Design System
 
@@ -74,6 +71,26 @@ Taxlyn is a **programa de gestión contable y fiscal** (Spanish software):
 It is **not** a gestoría and **not** laboral/payroll. Despacho accounts are accounting firms *using* Taxlyn, not a claim that Taxlyn itself is a firm.
 
 Target audience: Spanish-speaking businesses, autónomos, and despachos.
+
+## Product rules (billing and access)
+
+- **Prueba gratuita**: 7 días con todas las funciones (`trial`), luego 15 días de solo lectura con descarga de datos
+  (`readonly`: las escrituras responden HTTP 402), después borrado (`expired`). Lógica en `lib/billing/access-state.ts`.
+- **Descarga de datos**: `/api/account/export` (ZIP en streaming) desde el banner de acceso.
+- **Borrado automático**: cron `/api/cron/trial-lifecycle` (`CRON_SECRET`); solo borra si `TRIAL_PURGE_ENABLED=1`.
+- **Pago**: por transferencia con validación manual (`/checkout/transferencia`, `/admin/pagos`). Aprobar un pago activa
+  usuario y cuenta, y aplica el plan solicitado. **Ningún cambio de plan se aplica sin pago aprobado por el operador**
+  (`/api/account/upgrade` solo registra la solicitud).
+- **Operador**: cuenta `infotaxlyn@gmail.com`; las cuentas demo (juan@empresa.com, gestor@gestoria.com,
+  admin@gestoria.com) no se listan y se pueden borrar desde el panel de soporte.
+- **Textos legales**: `app/terminos-servicio`, `app/politica-privacidad`, versión en `lib/legal/versions.ts` (súbela al
+  cambiar los textos) y datos del titular en `lib/legal/company-info.ts`.
+
+## Workflow
+
+- Claude hace los commits y los despliegues a producción, pero **solo cuando la titular lo confirma en el chat**.
+  Trabajar en una rama; el despliegue es fusionar a `main`.
+- Al tocar el esquema de Prisma, crear la migración en `prisma/migrations/`.
 
 ## Development Notes
 

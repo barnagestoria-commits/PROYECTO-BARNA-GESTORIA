@@ -3,6 +3,7 @@ import type { ReactNode } from "react"
 import { ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ResponsiveLogo } from "@/components/responsive-logo"
+import { LEGAL_TEXTS_DATE_LABEL } from "@/lib/legal/versions"
 
 interface LegalPageLayoutProps {
   title: string
@@ -14,7 +15,7 @@ interface LegalPageLayoutProps {
 export function LegalPageLayout({
   title,
   description,
-  lastUpdated = "Pendiente de revisión legal",
+  lastUpdated = LEGAL_TEXTS_DATE_LABEL,
   children,
 }: LegalPageLayoutProps) {
   return (
@@ -81,5 +82,28 @@ export function LegalSection({ title, placeholder, children }: LegalSectionProps
         </p>
       )}
     </section>
+  )
+}
+
+export function LegalP({ children }: { children: ReactNode }) {
+  return <p className="text-sm leading-relaxed text-graphite-700">{children}</p>
+}
+
+export function LegalList({ items }: { items: ReactNode[] }) {
+  return (
+    <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-graphite-700">
+      {items.map((item, i) => (
+        <li key={i}>{item}</li>
+      ))}
+    </ul>
+  )
+}
+
+export function LegalDraftNotice() {
+  return (
+    <p className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      Texto vigente a la fecha indicada. Será revisado y, en su caso, actualizado por asesoría jurídica; cualquier
+      cambio se comunicará a las personas usuarias.
+    </p>
   )
 }
