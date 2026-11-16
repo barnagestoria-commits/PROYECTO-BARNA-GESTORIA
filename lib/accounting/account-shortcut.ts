@@ -24,17 +24,18 @@ export interface UnresolvedDottedShortcut {
 }
 
 const PREFERRED_GROUP_PREFIX: Record<string, string> = {
+  "4": "400",
   "40": "400",
   "41": "410",
   "43": "430",
 }
 
-const THIRD_PARTY_SHORTCUT_GROUPS = new Set(["40", "41", "43", "400", "410", "430"])
+const THIRD_PARTY_SHORTCUT_GROUPS = new Set(["4", "40", "41", "43", "400", "410", "430"])
 
 export function parseDottedAccountShortcut(
   raw: string,
 ): { group: string; sequence: number } | null {
-  const match = raw.trim().match(/^(\d{2,4})\.(\d{1,8})$/)
+  const match = raw.trim().match(/^(\d{1,4})\.(\d{1,8})$/)
   if (!match) return null
   const sequence = Number.parseInt(match[2], 10)
   if (!Number.isFinite(sequence) || sequence < 1) return null

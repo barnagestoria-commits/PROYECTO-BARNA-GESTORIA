@@ -4,6 +4,7 @@ import {
   parseDottedAccountShortcut,
   resolveAccountShortcut,
   toShortcutCandidates,
+  unresolvedDottedShortcut,
 } from "@/lib/accounting/account-shortcut"
 import { accountCodeLookupVariants } from "@/lib/accounting/account-code-edit"
 import {
@@ -127,8 +128,11 @@ export async function checkAccountExists(
   const shortcut = await resolveShortcutFromCompany(companyId, rawCode)
   if (shortcut) return shortcut
 
+  const dotted = parseDottedAccountShortcut(rawCode)
   const rawDigits = normalizeCuenta(rawCode)
-  const digits = canonicalAccountDigits(rawCode) || rawDigits
+  const digits = dotted
+    ? unresolvedDottedShortcut(dotted).fallbackAccountCode
+    : canonicalAccountDigits(rawCode) || rawDigits
   const lookupCodes = accountCodeLookupVariants(rawCode)
   const formattedAccountCode = formatAccountCodeDisplay(digits)
 

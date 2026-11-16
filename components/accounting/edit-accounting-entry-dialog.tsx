@@ -49,7 +49,10 @@ import {
   parseDottedAccountShortcut,
   resolveAccountShortcut,
   toShortcutCandidates,
+  unresolvedDottedShortcut,
 } from "@/lib/accounting/account-shortcut"
+import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
+import { SpanishAmountInput } from "@/components/accounting/spanish-amount-input"
 import type { AccountExistenceResult } from "@/lib/accounting/account-exists-service"
 import type { ThirdPartyAccountOption } from "@/lib/accounting/account-suggestions"
 import type { LedgerSubaccountOption } from "@/lib/accounting/ledger-subaccount-types"
@@ -464,9 +467,13 @@ export function EditAccountingEntryDialog({
     }
 
     try {
+      const dotted = parseDottedAccountShortcut(trimmed)
+      const accountCodeForCheck = dotted
+        ? unresolvedDottedShortcut(dotted).formattedAccountCode
+        : formatAccountCodeForUi(trimmed) || trimmed
       const year = Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()
       const data = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
-        `/api/accounting/accounts/exists?code=${encodeURIComponent(trimmed)}&year=${year}`,
+        `/api/accounting/accounts/exists?code=${encodeURIComponent(accountCodeForCheck)}&year=${year}`,
       )
 
       if (!data.exists) {
@@ -841,7 +848,7 @@ export function EditAccountingEntryDialog({
                 </tr>
               </thead>
               <tbody>
-                {lines.map((line) => {
+                {lines.map((line, rowIndex) => {
                   const derivedAmount =
                     showInvoicePanel && isDerivedInvoiceAmountAccount(line.cuenta)
                   const accountLabel = describeEntryAccountLabel(
@@ -877,53 +884,29 @@ export function EditAccountingEntryDialog({
                       />
                     </td>
                     <td className="px-2 py-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={line.debe || ""}
+                      <SpanishAmountInput
+                        value={line.debe}
+                        onChange={(amount) => handleLineAmountChange(line, "debe", amount)}
                         readOnly={derivedAmount}
                         tabIndex={derivedAmount ? -1 : undefined}
-                        onChange={(event) =>
-                          handleLineAmountChange(
-                            line,
-                            "debe",
-                            Number.parseFloat(event.target.value) || 0,
-                          )
-                        }
                         className={cn(
                           "h-9 text-right font-mono",
                           derivedAmount && "bg-sand-50 text-graphite-600",
                         )}
-                        title={
-                          derivedAmount
-                            ? "Se calcula desde el total del cliente o proveedor"
-                            : undefined
-                        }
+                        aria-label={`Debe línea ${rowIndex + 1}`}
                       />
                     </td>
                     <td className="px-2 py-1">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={line.haber || ""}
+                      <SpanishAmountInput
+                        value={line.haber}
+                        onChange={(amount) => handleLineAmountChange(line, "haber", amount)}
                         readOnly={derivedAmount}
                         tabIndex={derivedAmount ? -1 : undefined}
-                        onChange={(event) =>
-                          handleLineAmountChange(
-                            line,
-                            "haber",
-                            Number.parseFloat(event.target.value) || 0,
-                          )
-                        }
                         className={cn(
                           "h-9 text-right font-mono",
                           derivedAmount && "bg-sand-50 text-graphite-600",
                         )}
-                        title={
-                          derivedAmount
-                            ? "Se calcula desde el total del cliente o proveedor"
-                            : undefined
-                        }
+                        aria-label={`Haber línea ${rowIndex + 1}`}
                       />
                     </td>
                     <td className="px-1 py-1">

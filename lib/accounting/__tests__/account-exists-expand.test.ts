@@ -34,6 +34,11 @@ describe("expandCanonicalSubaccountCode", () => {
   it("pads income accounts the same way", () => {
     expect(formatAccountCodeDisplay(expandCanonicalSubaccountCode("705.1"))).toBe("705.0001")
   })
+
+  it("expands proveedor shortcut 4.1 to 400.0001", () => {
+    expect(expandCanonicalSubaccountCode("4.1")).toBe("4000001")
+    expect(formatAccountCodeForUi("4.1")).toBe("400.0001")
+  })
 })
 
 describe("canonical account display and storage", () => {

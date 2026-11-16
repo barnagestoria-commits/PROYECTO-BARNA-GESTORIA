@@ -72,7 +72,9 @@ import {
   parseDottedAccountShortcut,
   resolveAccountShortcut,
   toShortcutCandidates,
+  unresolvedDottedShortcut,
 } from "@/lib/accounting/account-shortcut"
+import { formatAccountCodeForUi } from "@/lib/accounting/canonical-account-code"
 import {
   applyInvoiceAmountsToLines,
   applyTreatmentToEntryLines,
@@ -86,6 +88,7 @@ import {
 import type { DuplicateInvoiceMatch } from "@/lib/accounting/duplicate-invoice"
 import { shouldProbeDuplicateInvoice } from "@/lib/accounting/duplicate-invoice"
 import { DuplicateInvoiceDialog } from "@/components/accounting/duplicate-invoice-dialog"
+import { SpanishAmountInput } from "@/components/accounting/spanish-amount-input"
 import { duplicateInvoiceKey } from "@/lib/accounting/duplicate-invoice-message"
 import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 import { ApiRequestError, apiFetch } from "@/lib/api-client"
@@ -114,12 +117,6 @@ import { cn } from "@/lib/utils"
 
 function cellKey(row: number, field: EntryCellField): string {
   return `${row}-${field}`
-}
-
-function parseAmount(value: string): number {
-  const normalized = value.replace(",", ".").trim()
-  const parsed = Number.parseFloat(normalized)
-  return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0
 }
 
 /** La flecha sale de la casilla si el texto está seleccionado o el cursor está en el borde. */
@@ -1010,10 +1007,15 @@ export function QuickAccountingEntryForm() {
         return true
       }
 
+      const dotted = parseDottedAccountShortcut(line.cuenta)
+      const accountCodeForCheck = dotted
+        ? unresolvedDottedShortcut(dotted).formattedAccountCode
+        : formatAccountCodeForUi(line.cuenta) || line.cuenta.trim()
+
       const year = Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()
       try {
         const data = await apiFetch<{ success: true; year: number } & AccountExistenceResult>(
-          `/api/accounting/accounts/exists?code=${encodeURIComponent(line.cuenta)}&year=${year}`,
+          `/api/accounting/accounts/exists?code=${encodeURIComponent(accountCodeForCheck)}&year=${year}`,
         )
         if (data.exists) {
           if (data.formattedAccountCode && data.formattedAccountCode !== line.cuenta) {
@@ -1934,20 +1936,10 @@ export function QuickAccountingEntryForm() {
                         />
                       </td>
                       <td className="px-1 py-1">
-                        <Input
-                          ref={(el) => registerRef(rowIndex, "debe", el)}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={line.debe || ""}
-                          onChange={(e) =>
-                            handleLineAmountChange(
-                              rowIndex,
-                              line,
-                              "debe",
-                              parseAmount(e.target.value),
-                            )
-                          }
+                        <SpanishAmountInput
+                          inputRef={(el) => registerRef(rowIndex, "debe", el)}
+                          value={line.debe}
+                          onChange={(amount) => handleLineAmountChange(rowIndex, line, "debe", amount)}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "debe" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "debe")}
                           readOnly={debeDisabled}
@@ -1956,25 +1948,14 @@ export function QuickAccountingEntryForm() {
                             "h-9 text-right font-mono tabular-nums",
                             debeDisabled && "cursor-default bg-gray-100 text-gray-400",
                           )}
-                          placeholder="0,00"
                           aria-label={`Debe línea ${rowIndex + 1}`}
                         />
                       </td>
                       <td className="px-1 py-1">
-                        <Input
-                          ref={(el) => registerRef(rowIndex, "haber", el)}
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          value={line.haber || ""}
-                          onChange={(e) =>
-                            handleLineAmountChange(
-                              rowIndex,
-                              line,
-                              "haber",
-                              parseAmount(e.target.value),
-                            )
-                          }
+                        <SpanishAmountInput
+                          inputRef={(el) => registerRef(rowIndex, "haber", el)}
+                          value={line.haber}
+                          onChange={(amount) => handleLineAmountChange(rowIndex, line, "haber", amount)}
                           onFocus={() => setActiveCell({ row: rowIndex, field: "haber" })}
                           onKeyDown={(e) => void handleCellKeyDown(e, rowIndex, "haber")}
                           readOnly={haberDisabled}
@@ -1983,7 +1964,6 @@ export function QuickAccountingEntryForm() {
                             "h-9 text-right font-mono tabular-nums",
                             haberDisabled && "cursor-default bg-gray-100 text-gray-400",
                           )}
-                          placeholder="0,00"
                           aria-label={`Haber línea ${rowIndex + 1}`}
                         />
                       </td>

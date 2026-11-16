@@ -9,6 +9,13 @@ export function formatAmount(value: number): string {
   }).format(value)
 }
 
+/** Acepta coma o punto decimal (p. ej. 4,01 o 4.01). */
+export function parseAmountInput(value: string): number {
+  const normalized = value.replace(/\s/g, "").replace(",", ".")
+  const parsed = Number.parseFloat(normalized)
+  return Number.isFinite(parsed) ? round2(parsed) : 0
+}
+
 export function formatEuro(value: number): string {
   return new Intl.NumberFormat("es-ES", {
     style: "currency",

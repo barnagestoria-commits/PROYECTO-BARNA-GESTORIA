@@ -71,6 +71,20 @@ describe("account-shortcut", () => {
     expect(resolved?.name).toBe("Catcher Marketplace SL")
   })
 
+  it("parses 4.1 like A3 to the first proveedor subaccount 400.0001", () => {
+    const proveedor = {
+      accountCode: "4000001",
+      name: "Proveedor demo",
+      source: "tercero" as const,
+    }
+    expect(parseDottedAccountShortcut("4.1")).toEqual({ group: "4", sequence: 1 })
+    const resolved = resolveAccountShortcut("4.1", [proveedor])
+    expect(resolved?.accountCode).toBe("4000001")
+    expect(resolved?.formattedAccountCode).toBe("400.0001")
+    const fallback = unresolvedDottedShortcut({ group: "4", sequence: 1 })
+    expect(fallback.fallbackAccountCode).toBe("4000001")
+  })
+
   it("does not parse 41.1 as the PGC account 411", () => {
     expect(parseDottedAccountShortcut("41.1")?.group).toBe("41")
     expect(resolveAccountShortcut("41.1", [catcher])?.accountCode).not.toBe("411")

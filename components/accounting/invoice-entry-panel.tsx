@@ -13,6 +13,7 @@ import {
   type InvoiceEntryDetails,
 } from "@/lib/types/invoice-entry-details"
 import { formatEuro } from "@/lib/accounting/command-templates"
+import { formatAmount } from "@/lib/reports/format"
 import {
   TAX_FORM_TYPES,
   VAT_OPERATION_TYPES,
@@ -414,10 +415,16 @@ export function InvoiceEntryPanel({
                     </td>
                     <td className="px-2 py-1">
                       <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={line.base || ""}
+                        type={deriveFromTotal ? "text" : "number"}
+                        step={deriveFromTotal ? undefined : "0.01"}
+                        min={deriveFromTotal ? undefined : "0"}
+                        value={
+                          deriveFromTotal
+                            ? line.base > 0
+                              ? formatAmount(line.base)
+                              : ""
+                            : line.base || ""
+                        }
                         readOnly={deriveFromTotal}
                         tabIndex={deriveFromTotal ? -1 : undefined}
                         onChange={(event) =>
