@@ -195,11 +195,11 @@ export function calculateAmountsFromTotal(
   const divisor = 1 + vatRate - irpfRate
 
   const base = round2(total / divisor)
-  const quota = round2(base * vatRate)
   const irpf = irpfRate > 0 ? round2(base * irpfRate) : 0
-  const reconciledTotal = round2(base + quota - irpf)
+  // El céntimo de redondeo se ajusta en la cuota para no cambiar el total escrito.
+  const quota = round2(total - base + irpf)
 
-  return { base, quota, irpf, total: reconciledTotal }
+  return { base, quota, irpf, total }
 }
 
 export function syncInvoiceDetailsFromAmounts(

@@ -56,6 +56,14 @@ describe("invoice auto-fill from third-party total", () => {
     expect(amounts.total).toBe(74.92)
   })
 
+  it("keeps the typed total when VAT rounding would otherwise drop a cent", () => {
+    const details = createDefaultInvoiceDetails("2026-09-13")
+    const amounts = calculateAmountsFromTotal(100, details)
+
+    expect(amounts.total).toBe(100)
+    expect(amounts.base + amounts.quota).toBe(100)
+  })
+
   it("rebuilds a received invoice when the saved lines were wrong", () => {
     const details = {
       ...createDefaultInvoiceDetails("2026-09-13"),

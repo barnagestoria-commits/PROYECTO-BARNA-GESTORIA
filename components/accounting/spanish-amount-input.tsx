@@ -48,17 +48,19 @@ export function SpanishAmountInput({
       }}
       onChange={(event) => {
         if (readOnly) return
-        const next = event.target.value
-        setDraft(next)
-        onChange(parseAmountInput(next))
+        setDraft(event.target.value)
       }}
-      onBlur={() => {
+      onBlur={(event) => {
+        const parsed = parseAmountInput(event.target.value)
         setDraft(null)
-        if (value > 0) {
-          onChange(value)
-        }
+        onChange(parsed)
       }}
-      onKeyDown={onKeyDown}
+      onKeyDown={(event) => {
+        if (!readOnly && (event.key === "Enter" || event.key === "Tab")) {
+          onChange(parseAmountInput(event.currentTarget.value))
+        }
+        onKeyDown?.(event)
+      }}
       className={cn(className)}
       placeholder={placeholder}
       aria-label={ariaLabel}

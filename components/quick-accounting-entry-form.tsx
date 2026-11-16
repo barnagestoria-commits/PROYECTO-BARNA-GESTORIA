@@ -112,7 +112,7 @@ import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounti
 import { EditAccountDialog } from "@/components/accounting/edit-account-dialog"
 import { EntryRefSearchBar } from "@/components/accounting/entry-ref-search-bar"
 import { SegmentedDateInput } from "@/components/accounting/segmented-date-input"
-import { normalizeCuenta } from "@/lib/reports/format"
+import { normalizeCuenta, parseAmountInput } from "@/lib/reports/format"
 import { cn } from "@/lib/utils"
 
 function cellKey(row: number, field: EntryCellField): string {
@@ -1203,9 +1203,9 @@ export function QuickAccountingEntryForm() {
 
       if (field === "debe" || field === "haber") {
         const line = lines[row]
-        const amount = field === "debe" ? line?.debe ?? 0 : line?.haber ?? 0
-        if (line && amount > 0) {
-          applyInvoiceTotalFromLine(row, line, field, amount)
+        const typed = parseAmountInput(event.currentTarget.value)
+        if (line) {
+          handleLineAmountChange(row, line, field, typed)
         }
 
         const canAdvance = await maybePromptAnalytic(row)
