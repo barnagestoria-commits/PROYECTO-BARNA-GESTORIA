@@ -331,6 +331,15 @@ function DocumentUploadWorkspaceContent({
       const counterpartAccount =
         documentType === "factura-emitida" ? data.incomeAccount?.trim() : data.expenseAccount?.trim()
       if (options?.offerRememberCounterpartAccount && counterpartAccount) {
+        const stored = await apiFetch<{
+          success: true
+          treatment: { defaultCounterpartAccount?: string | null } | null
+        }>(
+          `/api/accounting/account-treatment?accountCode=${encodeURIComponent(result.accounting.thirdParty.accountCode)}`,
+        ).catch(() => null)
+        const storedDigits = stored?.treatment?.defaultCounterpartAccount?.replace(/\D/g, "") ?? ""
+        const nextDigits = counterpartAccount.replace(/\D/g, "")
+        if (!storedDigits || storedDigits !== nextDigits) {
         setCounterpartPrompt({
           thirdPartyAccountCode: result.accounting.thirdParty.accountCode,
           thirdPartyName: result.accounting.thirdParty.name || data.proveedor,
@@ -340,6 +349,7 @@ function DocumentUploadWorkspaceContent({
           error: null,
         })
         return
+        }
       }
 
       await advanceAfterConfirmedInvoice()

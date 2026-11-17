@@ -142,6 +142,9 @@ export function ContactsPage() {
             address: data.direccionFiscal,
             postalCode: data.codigoPostal,
             city: data.ciudad,
+            treatment: data.tratamientoCliente?.defaultCounterpartAccount?.trim()
+              ? data.tratamientoCliente
+              : undefined,
           }),
         }),
       )
@@ -162,6 +165,9 @@ export function ContactsPage() {
             address: data.direccionFiscal,
             postalCode: data.codigoPostal,
             city: data.ciudad,
+            treatment: data.tratamientoProveedor?.defaultCounterpartAccount?.trim()
+              ? data.tratamientoProveedor
+              : undefined,
           }),
         }),
       )

@@ -54,6 +54,7 @@ async function parseApiResponse<T>(response: Response): Promise<T> {
 
 export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
+    cache: "no-store",
     ...init,
     credentials: "include",
     headers: {

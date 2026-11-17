@@ -9,6 +9,13 @@ import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { apiFetch } from "@/lib/api-client"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type { ReassignedAccount } from "@/lib/accounting/account-code-edit"
+import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
+import { AccountTreatmentFields } from "@/components/accounting/account-treatment-fields"
+import {
+  emptyAccountTreatmentInput,
+  type AccountTreatmentConfigDto,
+  type AccountTreatmentConfigInput,
+} from "@/lib/accounting/account-treatment-types"
 
 interface EditAccountDialogProps {
   open: boolean
@@ -29,12 +36,32 @@ export function EditAccountDialog({
   const [name, setName] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isSaving, setIsSaving] = useState(false)
+  const [treatment, setTreatment] = useState<AccountTreatmentConfigInput>(emptyAccountTreatmentInput())
+  const isThirdParty = Boolean(accountCode && isThirdPartyAccountPrefix(accountCode))
 
   useEffect(() => {
     if (!open || !accountCode) return
     setCuenta(formatAccountCodeDisplay(accountCode))
     setName(accountName)
     setError(null)
+    setTreatment(emptyAccountTreatmentInput())
+    if (!isThirdPartyAccountPrefix(accountCode)) return
+
+    let cancelled = false
+    apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
+      `/api/accounting/account-treatment?accountCode=${encodeURIComponent(accountCode)}`,
+    )
+      .then((data) => {
+        if (cancelled || !data.treatment) return
+        setTreatment({ ...emptyAccountTreatmentInput(), ...data.treatment })
+      })
+      .catch(() => {
+        /* sin tratamiento previo */
+      })
+
+    return () => {
+      cancelled = true
+    }
   }, [accountCode, accountName, open])
 
   const handleSave = async () => {
@@ -53,6 +80,15 @@ export function EditAccountDialog({
           }),
         },
       )
+      if (isThirdParty && treatment.defaultCounterpartAccount?.trim()) {
+        await apiFetch("/api/accounting/account-treatment", {
+          method: "PUT",
+          body: JSON.stringify({
+            accountCode: data.account.formattedAccountCode || cuenta,
+            treatment,
+          }),
+        })
+      }
       onSaved(data.account)
       onClose()
     } catch (err) {
@@ -68,7 +104,7 @@ export function EditAccountDialog({
       title="Editar cuenta"
       subtitle="El cambio se aplica al directorio, al extracto y a los asientos."
       onClose={onClose}
-      className="max-w-md"
+      className="max-w-2xl"
       layer="nested"
       footer={
         <div className="flex justify-end gap-2">
@@ -106,6 +142,17 @@ export function EditAccountDialog({
             placeholder="Nombre de la cuenta o del tercero"
           />
         </div>
+        {isThirdParty ? (
+          <AccountTreatmentFields
+            value={treatment}
+            onChange={setTreatment}
+            counterpartLabel={
+              accountCode?.replace(/\D/g, "").startsWith("43")
+                ? "Cuenta de ingreso habitual"
+                : "Cuenta de gasto habitual"
+            }
+          />
+        ) : null}
         {error ? (
           <p className="text-sm text-red-700" role="alert">
             {error}

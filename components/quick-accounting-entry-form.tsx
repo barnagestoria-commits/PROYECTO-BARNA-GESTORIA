@@ -236,6 +236,7 @@ export function QuickAccountingEntryForm() {
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
   const [journalLoading, setJournalLoading] = useState(false)
   const pendingJournalLine = useRef<"first" | "last" | null>(null)
+  const journalRequestId = useRef(0)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
@@ -456,11 +457,15 @@ export function QuickAccountingEntryForm() {
       setCommittedEntries([])
       return
     }
+    const requestId = journalRequestId.current + 1
+    journalRequestId.current = requestId
     setJournalLoading(true)
     try {
       const data = await apiFetch<{ success: true; entries: JournalEntryDto[] }>(
         `/api/accounting/entries/search?journal=true&year=${exerciseYear}`,
+        { cache: "no-store" },
       )
+      if (requestId !== journalRequestId.current) return
       setCommittedEntries(mapJournalToCommitted(data.entries))
 
       const focus = pendingJournalLine.current
@@ -474,7 +479,7 @@ export function QuickAccountingEntryForm() {
     } catch {
       setCommittedEntries([])
     } finally {
-      setJournalLoading(false)
+      if (requestId === journalRequestId.current) setJournalLoading(false)
     }
   }, [activeCompany?.id, exerciseYear, selectCommittedLine])
 
@@ -2310,7 +2315,29 @@ export function QuickAccountingEntryForm() {
         open={editEntryId !== null}
         entryId={editEntryId}
         onClose={() => setEditEntryId(null)}
-        onSaved={() => setMovementsRefreshKey((value) => value + 1)}
+        onSaved={(saved) => {
+          if (saved) {
+            journalRequestId.current += 1
+            setCommittedEntries((prev) =>
+              prev.map((item) =>
+                item.id === saved.id
+                  ? {
+                      ...item,
+                      fecha: saved.fecha,
+                      commandCode: saved.commandCode,
+                      lines: saved.lines.map((line) => ({
+                        concepto: line.concepto,
+                        cuenta: line.cuenta,
+                        debe: line.debe,
+                        haber: line.haber,
+                      })),
+                    }
+                  : item,
+              ),
+            )
+          }
+          setMovementsRefreshKey((value) => value + 1)
+        }}
         onDeleted={() => {
           setMovementsRefreshKey((value) => value + 1)
           setCommittedEntries((prev) =>

@@ -24,6 +24,19 @@ export interface Contact {
   saldoPendiente: number
 }
 
+export interface ContactTreatmentInput {
+  defaultCounterpartAccount?: string | null
+  defaultVatOperation?: string | null
+  defaultVatType?: string | null
+  defaultVatPercent?: number | null
+  defaultSurchargePercent?: number | null
+  applySurcharge?: boolean
+  defaultIrpfPercent?: number | null
+  defaultIrpfAccount?: string | null
+  defaultTaxForm?: string | null
+  documentAccumulationType?: string | null
+}
+
 export interface NewContactFormData {
   razonSocial: string
   nif: string
@@ -37,6 +50,8 @@ export interface NewContactFormData {
   ciudad: string
   iban: string
   formaPago: PaymentMethod
+  tratamientoCliente?: ContactTreatmentInput | null
+  tratamientoProveedor?: ContactTreatmentInput | null
 }
 
 export type ContactTabFilter = "todos" | "clientes" | "proveedores"

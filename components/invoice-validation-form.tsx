@@ -782,7 +782,7 @@ export function InvoiceValidationForm({
       }),
       {
         allowDuplicate: Boolean(duplicate) && allowDuplicate,
-        offerRememberCounterpartAccount: newLedgerAccountCreated,
+        offerRememberCounterpartAccount: Boolean(resolvedLedgerAccount),
       },
     )
   }

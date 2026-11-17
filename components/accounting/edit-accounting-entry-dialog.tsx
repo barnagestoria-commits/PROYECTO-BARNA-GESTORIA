@@ -100,7 +100,7 @@ interface EditAccountingEntryDialogProps {
   open: boolean
   entryId: string | null
   onClose: () => void
-  onSaved?: () => void
+  onSaved?: (entry?: AccountingEntryDetail) => void
   onDeleted?: () => void
 }
 
@@ -659,24 +659,27 @@ export function EditAccountingEntryDialog({
         }
       }
 
-      await apiFetch(`/api/accounting/entries/${entryId}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          fecha,
-          issueDate: detailsToSave?.issueDate ?? entry.issueDate,
-          operationDate: detailsToSave?.operationDate ?? entry.operationDate,
-          invoiceNumber: detailsToSave?.invoiceNumber ?? entry.invoiceNumber,
-          invoiceDetails: showInvoicePanel ? detailsToSave : null,
-          commandCode: entry.commandCode,
-          lines: linesToSave.map(({ cuenta, concepto, debe, haber }) => ({
-            cuenta,
-            concepto,
-            debe,
-            haber,
-          })),
-        }),
-      })
-      onSaved?.()
+      const saved = await apiFetch<{ success: true; entry: AccountingEntryDetail }>(
+        `/api/accounting/entries/${entryId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            fecha,
+            issueDate: detailsToSave?.issueDate ?? entry.issueDate,
+            operationDate: detailsToSave?.operationDate ?? entry.operationDate,
+            invoiceNumber: detailsToSave?.invoiceNumber ?? entry.invoiceNumber,
+            invoiceDetails: showInvoicePanel ? detailsToSave : null,
+            commandCode: entry.commandCode,
+            lines: linesToSave.map(({ cuenta, concepto, debe, haber }) => ({
+              cuenta,
+              concepto,
+              debe,
+              haber,
+            })),
+          }),
+        },
+      )
+      onSaved?.(saved.entry)
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo guardar el asiento.")

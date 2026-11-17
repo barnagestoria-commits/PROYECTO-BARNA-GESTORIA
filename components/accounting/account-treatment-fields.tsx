@@ -14,12 +14,14 @@ interface AccountTreatmentFieldsProps {
   value: AccountTreatmentConfigInput
   onChange: (value: AccountTreatmentConfigInput) => void
   showCounterpart?: boolean
+  counterpartLabel?: string
 }
 
 export function AccountTreatmentFields({
   value,
   onChange,
   showCounterpart = true,
+  counterpartLabel = "Contrapartida habitual",
 }: AccountTreatmentFieldsProps) {
   const patch = (partial: Partial<AccountTreatmentConfigInput>) =>
     onChange({ ...value, ...partial })
@@ -36,7 +38,7 @@ export function AccountTreatmentFields({
       <div className="grid gap-3 sm:grid-cols-2">
         {showCounterpart && (
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="treatment-counterpart">Contrapartida habitual</Label>
+            <Label htmlFor="treatment-counterpart">{counterpartLabel}</Label>
             <CounterpartAccountPicker
               id="treatment-counterpart"
               value={value.defaultCounterpartAccount ?? ""}

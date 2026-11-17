@@ -14,7 +14,10 @@ export async function GET(request: Request) {
         return NextResponse.json({ success: false, error: "Ejercicio no válido." }, { status: 400 })
       }
       const result = await listJournalEntriesForYear(companyId, year)
-      return NextResponse.json({ success: true, ...result })
+      return NextResponse.json(
+        { success: true, ...result },
+        { headers: { "Cache-Control": "no-store" } },
+      )
     }
 
     const last = url.searchParams.get("last") === "true"

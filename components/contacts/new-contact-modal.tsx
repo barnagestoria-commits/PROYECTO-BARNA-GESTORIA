@@ -12,7 +12,10 @@ import {
   suggestAccountCodes,
 } from "@/lib/contacts/mock-contacts"
 import type { CifLookupResult } from "@/lib/contacts/cif-lookup"
-import type { Contact, ContactType, NewContactFormData, PaymentMethod } from "@/lib/contacts/types"
+import type { Contact, ContactTreatmentInput, ContactType, NewContactFormData, PaymentMethod } from "@/lib/contacts/types"
+import { AccountTreatmentFields } from "@/components/accounting/account-treatment-fields"
+import { emptyAccountTreatmentInput } from "@/lib/accounting/account-treatment-types"
+import type { AccountTreatmentConfigDto } from "@/lib/accounting/account-treatment-types"
 
 type LookupFeedback = {
   tone: "success" | "warning"
@@ -65,12 +68,30 @@ export function NewContactModal({
   const [form, setForm] = useState<NewContactFormData>(initialData)
   const [lookupFeedback, setLookupFeedback] = useState<LookupFeedback | null>(null)
   const [isLookingUp, setIsLookingUp] = useState(false)
+  const [clientTreatment, setClientTreatment] = useState<ContactTreatmentInput>(emptyAccountTreatmentInput())
+  const [supplierTreatment, setSupplierTreatment] = useState<ContactTreatmentInput>(emptyAccountTreatmentInput())
 
   useEffect(() => {
-    if (open) {
-      setForm(initialData)
-      setLookupFeedback(null)
+    if (!open) return
+    setForm(initialData)
+    setLookupFeedback(null)
+    setClientTreatment(emptyAccountTreatmentInput())
+    setSupplierTreatment(emptyAccountTreatmentInput())
+
+    const loadTreatment = async (accountCode: string, apply: (value: ContactTreatmentInput) => void) => {
+      if (!accountCode.trim()) return
+      try {
+        const data = await apiFetch<{ success: true; treatment: AccountTreatmentConfigDto | null }>(
+          `/api/accounting/account-treatment?accountCode=${encodeURIComponent(accountCode)}`,
+        )
+        if (data.treatment) apply({ ...emptyAccountTreatmentInput(), ...data.treatment })
+      } catch {
+        /* si no hay tratamiento, se queda el formulario vacío */
+      }
     }
+
+    void loadTreatment(initialData.cuentaCliente, setClientTreatment)
+    void loadTreatment(initialData.cuentaProveedor, setSupplierTreatment)
   }, [open, initialData])
 
   useEffect(() => {
@@ -96,7 +117,11 @@ export function NewContactModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.razonSocial.trim() || !form.nif.trim()) return
-    onSubmit(form)
+    onSubmit({
+      ...form,
+      tratamientoCliente: showClienteAccount ? clientTreatment : null,
+      tratamientoProveedor: showProveedorAccount ? supplierTreatment : null,
+    })
   }
 
   const handleLookupCif = async () => {
@@ -240,6 +265,25 @@ export function NewContactModal({
                   />
                 </div>
               )}
+            </div>
+          )}
+
+          {showClienteAccount && (
+            <div className="mb-6">
+              <AccountTreatmentFields
+                value={clientTreatment}
+                onChange={setClientTreatment}
+                counterpartLabel="Cuenta de ingreso habitual"
+              />
+            </div>
+          )}
+          {showProveedorAccount && (
+            <div className="mb-6">
+              <AccountTreatmentFields
+                value={supplierTreatment}
+                onChange={setSupplierTreatment}
+                counterpartLabel="Cuenta de gasto habitual"
+              />
             </div>
           )}
 
