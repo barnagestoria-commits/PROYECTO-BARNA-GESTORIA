@@ -31,11 +31,14 @@ import {
 } from "@/lib/accounting/account-punteo"
 import type { AccountMovementsSummary } from "@/lib/accounting/account-movements-service"
 import { normalizeCuenta } from "@/lib/reports/format"
+import { AccountingExerciseYearSelect } from "@/components/accounting/accounting-exercise-year-select"
 
 interface AccountMovementsDialogProps {
   open: boolean
   cuenta: string | null
   year?: number
+  yearOptions?: number[]
+  onYearChange?: (year: number) => void
   refreshKey?: number
   startPunteo?: boolean
   onClose: () => void
@@ -58,6 +61,8 @@ export function AccountMovementsDialog({
   open,
   cuenta,
   year = new Date().getFullYear(),
+  yearOptions,
+  onYearChange,
   refreshKey = 0,
   startPunteo = false,
   onClose,
@@ -90,6 +95,11 @@ export function AccountMovementsDialog({
   const [pendingIds, setPendingIds] = useState<string[]>([])
   const sessionReady = useRef(false)
   const pickedAccount = useRef(false)
+  const [selectedMovementIndex, setSelectedMovementIndex] = useState<number | null>(null)
+  const pendingMovementFocus = useRef<"first" | "last" | null>(null)
+  const tableWrapRef = useRef<HTMLDivElement>(null)
+
+  const exerciseOptions = yearOptions ?? [year - 1, year, year + 1]
 
   useEffect(() => {
     setFromDate(`${year}-01-01`)
@@ -106,6 +116,7 @@ export function AccountMovementsDialog({
       setPendingIds([])
       setActionError(null)
       setAccountsError(null)
+      setSelectedMovementIndex(null)
       return
     }
     if (sessionReady.current) return
@@ -256,6 +267,87 @@ export function AccountMovementsDialog({
     return summary.movements.filter((row) => lineVisibleInPunteo(row, punteoWindow, filter))
   }, [filter, punteoMode, punteoWindow, summary])
 
+  useEffect(() => {
+    if (!open || isLoading) return
+    if (visibleMovements.length === 0) {
+      setSelectedMovementIndex(null)
+      return
+    }
+    if (pendingMovementFocus.current === "last") {
+      pendingMovementFocus.current = null
+      setSelectedMovementIndex(visibleMovements.length - 1)
+      return
+    }
+    if (pendingMovementFocus.current === "first") {
+      pendingMovementFocus.current = null
+      setSelectedMovementIndex(0)
+      return
+    }
+    setSelectedMovementIndex((current) => {
+      if (current == null) return null
+      return Math.min(current, visibleMovements.length - 1)
+    })
+  }, [isLoading, open, visibleMovements.length, year])
+
+  useEffect(() => {
+    if (!open) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+      const target = event.target
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        return
+      }
+      if (punteoMode || visibleMovements.length === 0) return
+
+      event.preventDefault()
+      event.stopImmediatePropagation()
+
+      if (selectedMovementIndex == null) {
+        setSelectedMovementIndex(event.key === "ArrowDown" ? 0 : visibleMovements.length - 1)
+        return
+      }
+
+      const delta = event.key === "ArrowDown" ? 1 : -1
+      const next = selectedMovementIndex + delta
+
+      if (next < 0) {
+        const pos = exerciseOptions.indexOf(year)
+        const prevYear = pos > 0 ? exerciseOptions[pos - 1] : null
+        if (prevYear != null && onYearChange) {
+          pendingMovementFocus.current = "last"
+          onYearChange(prevYear)
+        }
+        return
+      }
+
+      if (next >= visibleMovements.length) {
+        const pos = exerciseOptions.indexOf(year)
+        const nextYear = pos >= 0 && pos < exerciseOptions.length - 1 ? exerciseOptions[pos + 1] : null
+        if (nextYear != null && onYearChange) {
+          pendingMovementFocus.current = "first"
+          onYearChange(nextYear)
+        }
+        return
+      }
+
+      setSelectedMovementIndex(next)
+    }
+    window.addEventListener("keydown", onKeyDown, true)
+    return () => window.removeEventListener("keydown", onKeyDown, true)
+  }, [
+    exerciseOptions,
+    onYearChange,
+    open,
+    punteoMode,
+    selectedMovementIndex,
+    visibleMovements.length,
+    year,
+  ])
+
   const balances = useMemo(() => {
     if (!summary) return null
     return buildPunteoBalances(
@@ -370,6 +462,20 @@ export function AccountMovementsDialog({
         className="max-w-6xl"
       >
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {onYearChange ? (
+              <AccountingExerciseYearSelect
+                year={year}
+                options={exerciseOptions}
+                onChange={onYearChange}
+                id="movements-exercise-year"
+                compact
+              />
+            ) : null}
+            <span className="text-xs text-graphite-500">
+              ↑↓ apunte · al final del ejercicio cambia de año
+            </span>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
@@ -607,7 +713,11 @@ export function AccountMovementsDialog({
                 ) : null}
               </div>
 
-              <div className="max-h-[420px] overflow-auto rounded-lg border border-sand-200">
+              <div
+                ref={tableWrapRef}
+                className="max-h-[420px] overflow-auto rounded-lg border border-sand-200"
+                tabIndex={-1}
+              >
                 <table className="w-full min-w-[980px] text-sm">
                   <thead className="sticky top-0 bg-sand-100 text-left text-xs uppercase tracking-wide text-graphite-600">
                     <tr>
@@ -635,13 +745,16 @@ export function AccountMovementsDialog({
                         </td>
                       </tr>
                     ) : (
-                      visibleMovements.map((row) => (
+                      visibleMovements.map((row, rowIndex) => (
                         <tr
                           key={row.id}
                           className={`cursor-pointer border-t border-sand-100 hover:bg-emerald-50/70 ${
                             row.punteado ? "bg-emerald-50/80" : ""
-                          }`}
-                          onClick={() => onOpenEntry?.(row.entryId)}
+                          } ${selectedMovementIndex === rowIndex ? "bg-emerald-100/90 ring-1 ring-inset ring-emerald-400" : ""}`}
+                          onClick={() => {
+                            setSelectedMovementIndex(rowIndex)
+                            onOpenEntry?.(row.entryId)
+                          }}
                           onDoubleClick={() => onOpenEntry?.(row.entryId)}
                           title="Clic para modificar el asiento"
                         >

@@ -2,10 +2,13 @@
 
 import { AccountingModal } from "@/components/accounting/accounting-modal"
 import { CompanyExtractPanel } from "@/components/accounting/company-extract-panel"
+import { AccountingExerciseYearSelect } from "@/components/accounting/accounting-exercise-year-select"
 
 interface CompanyExtractDialogProps {
   open: boolean
   year: number
+  yearOptions?: number[]
+  onYearChange?: (year: number) => void
   onClose: () => void
   onSelectAccount?: (accountCode: string) => void
   onEditAccount?: (accountCode: string, accountName: string) => void
@@ -16,6 +19,8 @@ interface CompanyExtractDialogProps {
 export function CompanyExtractDialog({
   open,
   year,
+  yearOptions,
+  onYearChange,
   onClose,
   onSelectAccount,
   onEditAccount,
@@ -31,7 +36,17 @@ export function CompanyExtractDialog({
       className="max-w-5xl"
     >
       {open ? (
-        <CompanyExtractPanel
+        <div className="space-y-3">
+          {onYearChange ? (
+            <AccountingExerciseYearSelect
+              year={year}
+              options={yearOptions ?? [year - 1, year, year + 1]}
+              onChange={onYearChange}
+              id="company-extract-year"
+              compact
+            />
+          ) : null}
+          <CompanyExtractPanel
           year={year}
           onSelectAccount={onSelectAccount}
           onDoubleSelectAccount={onSelectAccount}
@@ -40,6 +55,7 @@ export function CompanyExtractDialog({
           autoFocusSearch
           refreshKey={refreshKey}
         />
+        </div>
       ) : null}
     </AccountingModal>
   )

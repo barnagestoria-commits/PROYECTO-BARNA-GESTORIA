@@ -113,6 +113,12 @@ import { EntryRefSearchBar } from "@/components/accounting/entry-ref-search-bar"
 import { SegmentedDateInput } from "@/components/accounting/segmented-date-input"
 import { normalizeCuenta, parseAmountInput } from "@/lib/reports/format"
 import { cn } from "@/lib/utils"
+import {
+  defaultDraftDateForExerciseYear,
+  useAccountingExerciseYear,
+} from "@/lib/accounting/accounting-exercise-year"
+import { AccountingExerciseYearSelect } from "@/components/accounting/accounting-exercise-year-select"
+import type { JournalEntryDto } from "@/lib/accounting/entry-ref-service"
 
 function cellKey(row: number, field: EntryCellField): string {
   return `${row}-${field}`
@@ -151,8 +157,28 @@ interface CommittedEntry {
   lines: CommittedEntryLine[]
 }
 
+function mapJournalToCommitted(entries: JournalEntryDto[]): CommittedEntry[] {
+  return entries.map((entry) => ({
+    id: entry.id,
+    refNumber: entry.refNumber,
+    fecha: entry.fecha,
+    commandCode: entry.commandCode as AccountingCommandCode | null,
+    lines: entry.lines.map((line) => ({
+      concepto: line.concepto,
+      cuenta: line.cuenta,
+      debe: line.debe,
+      haber: line.haber,
+    })),
+  }))
+}
+
 export function QuickAccountingEntryForm() {
   const { activeCompany, session, refreshSession } = useAuth()
+  const {
+    year: exerciseYear,
+    setYear: setExerciseYear,
+    options: exerciseYearOptions,
+  } = useAccountingExerciseYear(activeCompany?.id)
   const [capturingEntryShortcut, setCapturingEntryShortcut] = useState(false)
   const entryShortcuts = useMemo(
     () => ({
@@ -208,6 +234,8 @@ export function QuickAccountingEntryForm() {
   const [duplicate, setDuplicate] = useState<DuplicateInvoiceMatch | null>(null)
   const [allowDuplicate, setAllowDuplicate] = useState(false)
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
+  const [journalLoading, setJournalLoading] = useState(false)
+  const pendingJournalLine = useRef<"first" | "last" | null>(null)
 
   const inputRefs = useRef<Map<string, HTMLInputElement>>(new Map())
   const lastAccountByRow = useRef<Map<number, string>>(new Map())
@@ -423,6 +451,54 @@ export function QuickAccountingEntryForm() {
     [scrollCommittedLineIntoView],
   )
 
+  const loadExerciseJournal = useCallback(async () => {
+    if (!activeCompany?.id) {
+      setCommittedEntries([])
+      return
+    }
+    setJournalLoading(true)
+    try {
+      const data = await apiFetch<{ success: true; entries: JournalEntryDto[] }>(
+        `/api/accounting/entries/search?journal=true&year=${exerciseYear}`,
+      )
+      setCommittedEntries(mapJournalToCommitted(data.entries))
+
+      const focus = pendingJournalLine.current
+      if (focus && data.entries.length > 0) {
+        pendingJournalLine.current = null
+        const entry =
+          focus === "first" ? data.entries[0] : data.entries[data.entries.length - 1]
+        const lineIndex = focus === "first" ? 0 : entry.lines.length - 1
+        selectCommittedLine(entry.id, lineIndex)
+      }
+    } catch {
+      setCommittedEntries([])
+    } finally {
+      setJournalLoading(false)
+    }
+  }, [activeCompany?.id, exerciseYear, selectCommittedLine])
+
+  useEffect(() => {
+    void loadExerciseJournal()
+  }, [loadExerciseJournal, movementsRefreshKey])
+
+  useEffect(() => {
+    setFecha(defaultDraftDateForExerciseYear(exerciseYear))
+    setSelectedCommittedEntryId(null)
+    setSelectedCommittedLineIndex(null)
+  }, [exerciseYear])
+
+  const shiftExerciseYear = useCallback(
+    (delta: -1 | 1, land: "first" | "last") => {
+      const index = exerciseYearOptions.indexOf(exerciseYear)
+      const next = exerciseYearOptions[index + delta]
+      if (next == null) return
+      pendingJournalLine.current = land
+      setExerciseYear(next)
+    },
+    [exerciseYear, exerciseYearOptions, setExerciseYear],
+  )
+
   const moveBetweenLines = useCallback(
     (direction: "up" | "down") => {
       type JournalSpot =
@@ -454,7 +530,14 @@ export function QuickAccountingEntryForm() {
       const fallback = direction === "up" ? spots.length - 1 : 0
       const start = currentIndex >= 0 ? currentIndex : fallback
       const nextIndex = direction === "up" ? start - 1 : start + 1
-      if (nextIndex < 0 || nextIndex >= spots.length) return
+      if (nextIndex < 0) {
+        shiftExerciseYear(-1, "last")
+        return
+      }
+      if (nextIndex >= spots.length) {
+        shiftExerciseYear(1, "first")
+        return
+      }
 
       const next = spots[nextIndex]
       if (!next) return
@@ -473,6 +556,7 @@ export function QuickAccountingEntryForm() {
       selectCommittedLine,
       selectedCommittedEntryId,
       selectedCommittedLineIndex,
+      shiftExerciseYear,
     ],
   )
 
@@ -1480,23 +1564,6 @@ export function QuickAccountingEntryForm() {
       })
 
       setSubmitSuccess(`Asiento ${data.entry.refNumber} guardado correctamente (${data.entry.fecha}).`)
-      setCommittedEntries((prev) => [
-        ...prev,
-        {
-          id: data.entry.id,
-          refNumber: data.entry.refNumber,
-          fecha: data.entry.fecha,
-          commandCode: activeCommand,
-          lines: lines.map(({ concepto, documento, cuenta, debe, haber, contrapartida }) => ({
-            concepto,
-            documento,
-            cuenta,
-            debe,
-            haber,
-            contrapartida,
-          })),
-        },
-      ])
       setMovementsRefreshKey((value) => value + 1)
       resetForm()
       setDraftFocusNonce((value) => value + 1)
@@ -1599,9 +1666,18 @@ export function QuickAccountingEntryForm() {
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-graphite-500">
-              Tab o Enter para pasar de casilla · ↑↓ cambian de línea · ←→ mueven el cursor · {entryShortcuts.byName} plan contable · {entryShortcuts.byCif} NIF · EX extracto
-            </p>
+            <div className="flex flex-wrap items-center gap-3">
+              <AccountingExerciseYearSelect
+                year={exerciseYear}
+                options={exerciseYearOptions}
+                onChange={setExerciseYear}
+                id="contabilidad-exercise-year"
+                compact
+              />
+              <p className="text-xs text-graphite-500">
+                Tab o Enter · ↑↓ línea (cambia de ejercicio al llegar al final) · {entryShortcuts.byName} · EX
+              </p>
+            </div>
             <button
               type="button"
               onClick={openCompanyExtract}
@@ -1653,31 +1729,24 @@ export function QuickAccountingEntryForm() {
 
       <Card data-tour="onboarding-entry-grid">
         <CardContent className="p-0">
-          {committedEntries.length > 0 && (
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-sand-100 px-4 py-2 text-xs text-graphite-700">
-              <span>
-                Sesión de alta:{" "}
-                <strong className="text-emerald-900">
-                  {committedEntries.length} asiento{committedEntries.length === 1 ? "" : "s"}
-                </strong>{" "}
-                · {committedEntries.reduce((sum, entry) => sum + entry.lines.length, 0)} líneas
-                visibles · <span className="text-graphite-500">↑↓ línea a línea · Enter extracto · doble clic editar</span>
-              </span>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 border-sand-300 bg-white text-xs"
-                onClick={() => {
-                  setCommittedEntries([])
-                  setSelectedCommittedEntryId(null)
-                  setSelectedCommittedLineIndex(null)
-                }}
-              >
-                Limpiar vista
-              </Button>
-            </div>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-sand-100 px-4 py-2 text-xs text-graphite-700">
+            <span>
+              Ejercicio <strong className="text-emerald-900">{exerciseYear}</strong>
+              {journalLoading ? (
+                <span className="ml-2 text-graphite-500">Cargando asientos…</span>
+              ) : (
+                <>
+                  {" "}
+                  ·{" "}
+                  <strong className="text-emerald-900">
+                    {committedEntries.length} asiento{committedEntries.length === 1 ? "" : "s"}
+                  </strong>{" "}
+                  · {committedEntries.reduce((sum, entry) => sum + entry.lines.length, 0)} líneas ·{" "}
+                  <span className="text-graphite-500">↑↓ · Enter extracto · doble clic editar</span>
+                </>
+              )}
+            </span>
+          </div>
 
           <div className="flex items-center justify-between gap-2 border-b bg-sand-50 px-3 py-2 text-xs text-graphite-600"
             data-tour="onboarding-analytic"
@@ -2131,7 +2200,7 @@ export function QuickAccountingEntryForm() {
 
       <MissingAccountDialog
         open={missingAccountState !== null}
-        year={missingAccountState?.year ?? new Date().getFullYear()}
+        year={missingAccountState?.year ?? exerciseYear}
         account={missingAccountState?.account ?? null}
         onConfirm={handleMissingAccountConfirm}
         onCancel={handleMissingAccountCancel}
@@ -2175,7 +2244,9 @@ export function QuickAccountingEntryForm() {
       <AccountMovementsDialog
         open={movementsDialogOpen}
         cuenta={movementsAccount}
-        year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
+        year={exerciseYear}
+        yearOptions={exerciseYearOptions}
+        onYearChange={setExerciseYear}
         refreshKey={movementsRefreshKey}
         onOpenEntry={(entryId) => setEditEntryId(entryId)}
         onEntryDeleted={() => setMovementsRefreshKey((value) => value + 1)}
@@ -2206,7 +2277,9 @@ export function QuickAccountingEntryForm() {
 
       <CompanyExtractDialog
         open={companyExtractOpen}
-        year={Number.parseInt(fecha.slice(0, 4), 10) || new Date().getFullYear()}
+        year={exerciseYear}
+        yearOptions={exerciseYearOptions}
+        onYearChange={setExerciseYear}
         onClose={() => setCompanyExtractOpen(false)}
         onSelectAccount={handleExtractAccountSelect}
         refreshKey={movementsRefreshKey}

@@ -35,6 +35,57 @@ export interface EntryRefSummary {
 
 export const LAST_ENTRIES_LIMIT = 8
 
+export interface JournalEntryLineDto {
+  concepto: string
+  cuenta: string
+  debe: number
+  haber: number
+}
+
+export interface JournalEntryDto {
+  id: string
+  refNumber: number
+  fecha: string
+  commandCode: string | null
+  lines: JournalEntryLineDto[]
+}
+
+export async function listJournalEntriesForYear(
+  companyId: string,
+  year: number,
+): Promise<{ entries: JournalEntryDto[]; nextRefNumber: number }> {
+  const start = new Date(`${year}-01-01T00:00:00.000Z`)
+  const end = new Date(`${year}-12-31T23:59:59.999Z`)
+  const nextRefNumber = await getNextEntryRefNumber(companyId)
+
+  const entries = await prisma.accountingEntry.findMany({
+    where: {
+      companyId,
+      fecha: { gte: start, lte: end },
+    },
+    orderBy: { refNumber: "asc" },
+    include: {
+      lines: { orderBy: { sortOrder: "asc" } },
+    },
+  })
+
+  return {
+    nextRefNumber,
+    entries: entries.map((entry) => ({
+      id: entry.id,
+      refNumber: entry.refNumber,
+      fecha: entry.fecha.toISOString().split("T")[0],
+      commandCode: entry.commandCode,
+      lines: entry.lines.map((line) => ({
+        concepto: line.concepto,
+        cuenta: formatAccountCodeDisplay(line.cuenta) || line.cuenta,
+        debe: decimalToNumber(line.debe),
+        haber: decimalToNumber(line.haber),
+      })),
+    })),
+  }
+}
+
 export async function searchEntriesByRef(params: {
   companyId: string
   fromRef?: number

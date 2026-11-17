@@ -7,8 +7,10 @@ import { FiscalPanoramaSectionHeader } from "@/components/fiscal/fiscal-models-c
 import { useRequireAuth } from "@/components/auth-provider"
 import { apiFetch } from "@/lib/api-client"
 import type { FiscalPanoramaResponse, FiscalPanoramaScope } from "@/lib/types/fiscal-panorama"
-import { CalendarRange, Loader2, TableProperties } from "lucide-react"
+import { Loader2, TableProperties } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useAccountingExerciseYear } from "@/lib/accounting/accounting-exercise-year"
+import { AccountingExerciseYearSelect } from "@/components/accounting/accounting-exercise-year-select"
 
 const PANORAMA_VIEWS: Array<{ id: FiscalPanoramaScope; label: string }> = [
   { id: "trimestral", label: "Resumen trimestral" },
@@ -17,8 +19,7 @@ const PANORAMA_VIEWS: Array<{ id: FiscalPanoramaScope; label: string }> = [
 
 export default function FiscalPanoramaPage() {
   const { session, activeCompany } = useRequireAuth()
-  const currentYear = new Date().getFullYear()
-  const [year, setYear] = useState(currentYear)
+  const { year, setYear, options: yearOptions } = useAccountingExerciseYear(session?.activeCompanyId)
   const [scope, setScope] = useState<FiscalPanoramaScope>("trimestral")
   const [panorama, setPanorama] = useState<FiscalPanoramaResponse | null>(null)
   const [isLoadingPanorama, setIsLoadingPanorama] = useState(false)
@@ -61,24 +62,12 @@ export default function FiscalPanoramaPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3 px-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6">
-          <div className="flex items-center gap-2">
-            <CalendarRange className="h-4 w-4 text-gray-500" />
-            <label htmlFor="fiscal-year" className="text-sm font-medium">
-              Ejercicio
-            </label>
-            <select
-              id="fiscal-year"
-              value={year}
-              onChange={(e) => setYear(Number.parseInt(e.target.value, 10))}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-            >
-              {[currentYear - 2, currentYear - 1, currentYear, currentYear + 1].map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </div>
+          <AccountingExerciseYearSelect
+            id="fiscal-year"
+            year={year}
+            options={yearOptions}
+            onChange={setYear}
+          />
           <div className="flex flex-wrap gap-2 text-xs text-gray-600">
             <span className="rounded border border-emerald-300 bg-emerald-100 px-2 py-1 font-semibold text-emerald-800">
               Presentado

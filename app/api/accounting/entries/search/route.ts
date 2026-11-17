@@ -1,11 +1,22 @@
 import { NextResponse } from "next/server"
 import { authErrorResponse, requireActiveCompany } from "@/lib/auth/api-auth"
-import { searchEntriesByRef } from "@/lib/accounting/entry-ref-service"
+import { listJournalEntriesForYear, searchEntriesByRef } from "@/lib/accounting/entry-ref-service"
 
 export async function GET(request: Request) {
   try {
     const { companyId } = await requireActiveCompany(request)
     const url = new URL(request.url)
+    const journal = url.searchParams.get("journal") === "true"
+    const yearParam = url.searchParams.get("year")
+    if (journal && yearParam) {
+      const year = Number.parseInt(yearParam, 10)
+      if (!Number.isFinite(year) || year < 1900 || year > 2200) {
+        return NextResponse.json({ success: false, error: "Ejercicio no válido." }, { status: 400 })
+      }
+      const result = await listJournalEntriesForYear(companyId, year)
+      return NextResponse.json({ success: true, ...result })
+    }
+
     const last = url.searchParams.get("last") === "true"
     const fromParam = url.searchParams.get("from")
     const toParam = url.searchParams.get("to")
