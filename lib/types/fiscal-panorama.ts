@@ -126,6 +126,12 @@ export interface FiscalModelDetailResponse {
     total: number
     lines: FiscalModelBreakdownLine[]
   }>
+  declaration?: {
+    status: "SIN_DATOS" | "PENDIENTE" | "PRESENTADO"
+    submittedAt: string | null
+    notes: string | null
+    updatedAt: string
+  } | null
 }
 
 export const FISCAL_PERIOD_COLUMNS: Array<{ key: FiscalPeriodKey; label: string }> = [

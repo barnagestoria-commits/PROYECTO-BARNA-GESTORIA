@@ -123,7 +123,7 @@ export default function FiscalPanoramaPage() {
               <CardContent className="py-10 text-center text-red-700">{error}</CardContent>
             </Card>
           ) : panorama ? (
-            <FiscalPanoramaMatrix panorama={panorama} scope={scope} />
+            <FiscalPanoramaMatrix panorama={panorama} scope={scope} onDeclarationChange={loadPanorama} />
           ) : null}
         </>
       )}

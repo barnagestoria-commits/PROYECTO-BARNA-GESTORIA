@@ -24,6 +24,8 @@ import {
   FISCAL_QUARTERLY_PERIOD_COLUMNS,
 } from "@/lib/types/fiscal-panorama"
 import { cn } from "@/lib/utils"
+import { FiscalDeclarationStatusControls } from "@/components/fiscal/fiscal-declaration-status-controls"
+import type { FiscalModelId } from "@/lib/types/fiscal-panorama"
 
 function statusBadgeClass(status: FiscalPanoramaCell["status"]): string {
   switch (status) {
@@ -47,7 +49,21 @@ function cellBackgroundClass(status: FiscalPanoramaCell["status"]): string {
   }
 }
 
-function PanoramaCell({ cell, unavailable = false }: { cell: FiscalPanoramaCell; unavailable?: boolean }) {
+function PanoramaCell({
+  cell,
+  modelCode,
+  year,
+  onDeclarationChange,
+  unavailable = false,
+  allowStatusEdit = true,
+}: {
+  cell: FiscalPanoramaCell
+  modelCode?: FiscalModelId
+  year?: number
+  onDeclarationChange?: () => void | Promise<void>
+  unavailable?: boolean
+  allowStatusEdit?: boolean
+}) {
   if (unavailable) {
     return (
       <div className="flex min-w-[120px] flex-col items-end px-2 py-1 text-xs text-graphite-500">
@@ -55,41 +71,54 @@ function PanoramaCell({ cell, unavailable = false }: { cell: FiscalPanoramaCell;
       </div>
     )
   }
-  const content = (
-    <div className="flex min-w-[120px] flex-col items-end gap-1">
-      <span
-        className={cn(
-          "font-mono text-sm tabular-nums",
-          cell.amount < 0 ? "text-blue-700" : cell.amount > 0 ? "text-gray-900" : "text-gray-400",
-        )}
-      >
-        {formatFiscalAmount(cell.amount)}
-      </span>
-      <Badge
-        variant="outline"
-        className={cn("px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide", statusBadgeClass(cell.status))}
-      >
-        {cell.statusLabel}
-      </Badge>
-    </div>
-  )
 
   return (
-    <Link
-      href={cell.href}
-      className="block rounded-md px-2 py-1 transition-colors hover:bg-emerald-100/60 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-    >
-      {content}
-    </Link>
+    <div className="flex min-w-[120px] flex-col items-end gap-1 rounded-md px-2 py-1">
+      <Link
+        href={cell.href}
+        className="block transition-colors hover:text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      >
+        <span
+          className={cn(
+            "font-mono text-sm tabular-nums",
+            cell.amount < 0 ? "text-blue-700" : cell.amount > 0 ? "text-gray-900" : "text-gray-400",
+          )}
+        >
+          {formatFiscalAmount(cell.amount)}
+        </span>
+      </Link>
+      {allowStatusEdit && modelCode && year != null ? (
+        <FiscalDeclarationStatusControls
+          modelCode={modelCode}
+          year={year}
+          period={cell.period}
+          status={cell.status}
+          onUpdated={onDeclarationChange}
+          compact
+        />
+      ) : (
+        <Badge
+          variant="outline"
+          className={cn("px-1.5 py-0 text-[10px] font-bold uppercase tracking-wide", statusBadgeClass(cell.status))}
+        >
+          {cell.statusLabel}
+        </Badge>
+      )}
+    </div>
   )
 }
 
 interface FiscalPanoramaMatrixProps {
   panorama: FiscalPanoramaResponse
   scope?: FiscalPanoramaScope
+  onDeclarationChange?: () => void | Promise<void>
 }
 
-export function FiscalPanoramaMatrix({ panorama, scope = "trimestral" }: FiscalPanoramaMatrixProps) {
+export function FiscalPanoramaMatrix({
+  panorama,
+  scope = "trimestral",
+  onDeclarationChange,
+}: FiscalPanoramaMatrixProps) {
   const periodColumns =
     scope === "trimestral" ? FISCAL_QUARTERLY_PERIOD_COLUMNS : FISCAL_ANNUAL_PERIOD_COLUMNS
   const periodKeys = periodColumns.map((column) => column.key)
@@ -162,7 +191,13 @@ export function FiscalPanoramaMatrix({ panorama, scope = "trimestral" }: FiscalP
                         unavailable ? "bg-gray-50" : cellBackgroundClass(row.cells[periodKey].status),
                       )}
                     >
-                      <PanoramaCell cell={row.cells[periodKey]} unavailable={unavailable} />
+                      <PanoramaCell
+                        cell={row.cells[periodKey]}
+                        modelCode={row.modelCode}
+                        year={panorama.year}
+                        onDeclarationChange={onDeclarationChange}
+                        unavailable={unavailable}
+                      />
                     </TableCell>
                     )
                   })}
@@ -179,7 +214,11 @@ export function FiscalPanoramaMatrix({ panorama, scope = "trimestral" }: FiscalP
                   key={`summary-${periodKey}`}
                   className={cn("text-right", cellBackgroundClass(panorama.summary.cells[periodKey].status))}
                 >
-                  <PanoramaCell cell={panorama.summary.cells[periodKey]} />
+                  <PanoramaCell
+                    cell={panorama.summary.cells[periodKey]}
+                    year={panorama.year}
+                    allowStatusEdit={false}
+                  />
                 </TableCell>
               ))}
             </TableRow>

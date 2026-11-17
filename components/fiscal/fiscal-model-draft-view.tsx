@@ -11,6 +11,7 @@ import {
   AeatOfficialSingleAmountSection,
 } from "@/components/fiscal/aeat-official-form"
 import { Model303EngineStatus } from "@/components/fiscal/model-303-engine-status"
+import { FiscalDeclarationStatusControls } from "@/components/fiscal/fiscal-declaration-status-controls"
 import { getDraftTableLayout, getResultCasillaLabel } from "@/lib/fiscal/official-layouts"
 import { EditAccountingEntryDialog } from "@/components/accounting/edit-accounting-entry-dialog"
 import { buildFiscalModelDraft } from "@/lib/fiscal/model-draft/build-model-draft"
@@ -57,6 +58,11 @@ export function FiscalModelDraftView({
     () => buildFiscalModelDraft(detail, companyName, companyCif),
     [detail, companyName, companyCif],
   )
+
+  const declarationPeriod =
+    detail.quarter === "annual"
+      ? ("annual" as const)
+      : (`q${detail.quarter}` as "q1" | "q2" | "q3" | "q4")
 
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailTitle, setDetailTitle] = useState("Datos del cálculo")
@@ -137,7 +143,9 @@ export function FiscalModelDraftView({
           statusClassName={
             draft.status === "presentado"
               ? "border-emerald-700 bg-emerald-50 text-emerald-800"
-              : "border-amber-700 bg-amber-50 text-amber-800"
+              : draft.status === "sin_datos"
+                ? "border-gray-400 bg-gray-50 text-gray-700"
+                : "border-red-300 bg-red-50 text-red-800"
           }
           cnae={
             detail.modelCode === "202"
@@ -190,6 +198,16 @@ export function FiscalModelDraftView({
           </div>
         )}
         </div>
+
+        <FiscalDeclarationStatusControls
+          modelCode={detail.modelCode}
+          year={year}
+          period={declarationPeriod}
+          status={detail.status}
+          notes={detail.declaration?.notes}
+          submittedAt={detail.declaration?.submittedAt}
+          onUpdated={onRefresh}
+        />
 
         <FiscalPresentationChoicePanel
           model={modelParam}

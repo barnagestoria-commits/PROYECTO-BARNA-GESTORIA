@@ -1081,6 +1081,14 @@ export function resolveCellStatus(
     return { status: "presentado", statusLabel: "Presentado" }
   }
 
+  if (declarationStatus === "PENDIENTE") {
+    return { status: "pendiente", statusLabel: "Pendiente" }
+  }
+
+  if (declarationStatus === "SIN_DATOS") {
+    return { status: "sin_datos", statusLabel: "SD" }
+  }
+
   if (lineCount === 0 && Math.abs(amount) < 0.01) {
     return { status: "sin_datos", statusLabel: "SD" }
   }

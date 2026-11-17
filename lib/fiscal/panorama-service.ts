@@ -31,6 +31,10 @@ import { isAnnualOnlyModel } from "@/lib/fiscal/fiscal-settings"
 import type { A3ImportedFiscalResult } from "@/lib/imports/a3/types"
 import { enrichBreakdownWithPartyIdentity } from "@/lib/fiscal/party-identification"
 import { rectifiedYearsOutside } from "@/lib/fiscal/model-349-base-imponible"
+import {
+  FISCAL_ANNUAL_DECLARATION_QUARTER,
+  getFiscalDeclaration,
+} from "@/lib/fiscal/fiscal-declaration-service"
 
 function declarationKey(year: number, quarter: number, modelCode: FiscalModelCode): string {
   return `${year}-${quarter}-${modelCode}`
@@ -212,6 +216,9 @@ function computeRowCells(
     }
 
     const annualResult = calculateModelAmount(modelCode, allLines, year, "annual", options)
+    const annualDeclaration = declarationMap.get(
+      declarationKey(year, FISCAL_ANNUAL_DECLARATION_QUARTER, model.prismaCode),
+    )
     cells.annual = buildCell(
       modelCode,
       year,
@@ -219,6 +226,7 @@ function computeRowCells(
       annualResult.amount,
       annualResult.lineCount,
       annualResult.entryIds.size,
+      annualDeclaration?.status,
     )
     return cells
   }
@@ -520,27 +528,10 @@ export async function buildFiscalModelDetail(
     }
   }
 
-  let declarationStatus: FiscalDeclaration["status"] | undefined
-  if (!month && quarter !== "annual") {
-    const declaration = await prisma.fiscalDeclaration.findUnique({
-      where: {
-        companyId_year_quarter_modelCode: {
-          companyId,
-          year,
-          quarter,
-          modelCode: model.prismaCode,
-        },
-      },
-    })
-    declarationStatus = declaration?.status
-  } else {
-    const declarations = await prisma.fiscalDeclaration.findMany({
-      where: { companyId, year, modelCode: model.prismaCode },
-    })
-    if (declarations.length === 4 && declarations.every((item) => item.status === "PRESENTADO")) {
-      declarationStatus = "PRESENTADO"
-    }
-  }
+  const declarationQuarter =
+    quarter === "annual" ? FISCAL_ANNUAL_DECLARATION_QUARTER : quarter
+  const storedDeclaration = await getFiscalDeclaration(companyId, modelCode, year, declarationQuarter)
+  const declarationStatus = storedDeclaration?.status
 
   const period: FiscalPeriodKey = quarter === "annual" ? "annual" : periodKeyFromQuarter(quarter)
   const { status, statusLabel } = resolveCellStatus(
@@ -572,6 +563,7 @@ export async function buildFiscalModelDetail(
       })),
       thirdParties,
     ),
+    declaration: storedDeclaration,
   }
 }
 
