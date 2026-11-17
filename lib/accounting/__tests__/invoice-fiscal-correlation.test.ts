@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 import {
   applyInvoiceConceptsToLines,
   buildRetentionConcept,
+  correlateStoredInvoiceConcept,
 } from "@/lib/accounting/invoice-entry-concepts"
 import { buildFullInvoiceEntry } from "@/lib/accounting/invoice-auto-fill"
 import { createEmptyLine } from "@/lib/accounting/command-templates"
@@ -47,6 +48,29 @@ describe("invoice concepts correlate with fiscal impresos", () => {
     expect(lines[1].concepto).toBe("IVA S./PROVEEDOR-UE")
     expect(lines[2].concepto).toBe("Gasto a PROVEEDOR-UE")
     expect(isIvaSoportadoBridgeLine(toRawLines([{ id: "iva", ...lines[1] }])[0])).toBe(true)
+  })
+
+  it("replaces a generic IVA S./PROVEEDORES concept with the supplier on the entry", () => {
+    const entryLines = [
+      { cuenta: "410.0001", concepto: "Su factura N. ES I DRI 26 197297" },
+      { cuenta: "472.0000", concepto: "IVA S./PROVEEDORES" },
+      { cuenta: "629.0001", concepto: "Gasto a PROVEEDORES" },
+    ]
+    const party = { name: "Catcher Marketplace SL", cif: "B67845115" }
+    expect(
+      correlateStoredInvoiceConcept(entryLines[1], entryLines, "34", party),
+    ).toBe("IVA S./CATCHER-MARKETPLACE-SL B67845115")
+    expect(
+      correlateStoredInvoiceConcept(entryLines[2], entryLines, "34", party),
+    ).toBe("Gasto a CATCHER-MARKETPLACE-SL")
+    expect(
+      correlateStoredInvoiceConcept(
+        { cuenta: "472.0000", concepto: "IVA S./17-HAPPY-HOUSE,-S.L. B61678843" },
+        entryLines,
+        "34",
+        party,
+      ),
+    ).toBe("IVA S./17-HAPPY-HOUSE,-S.L. B61678843")
   })
 
   it("embeds EU VAT in IVA line for intracomunitaria invoices (modelo 349)", () => {

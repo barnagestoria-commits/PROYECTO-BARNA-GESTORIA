@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/db"
 import { decimalToNumber } from "@/lib/prisma/decimal"
 import { COMMAND_CODES } from "@/lib/accounting/command-templates"
+import { correlateStoredInvoiceConcept } from "@/lib/accounting/invoice-entry-concepts"
+import { isThirdPartyAccountPrefix } from "@/lib/accounting/new-account-prefix"
 import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import { getAccountLabel } from "@/lib/reports/pgc-labels"
 import {
@@ -121,7 +123,7 @@ export async function fetchAccountMovements(
   const start = new Date(`${year}-01-01T00:00:00.000Z`)
   const end = new Date(`${year}-12-31T23:59:59.999Z`)
 
-  const [priorLines, nameRecord] = await Promise.all([
+  const [priorLines, nameRecord, thirdParties] = await Promise.all([
     prisma.entryLine.findMany({
       where: {
         entry: {
@@ -142,7 +144,18 @@ export async function fetchAccountMovements(
       })
       return ledger?.name.trim() || null
     }),
+    prisma.thirdParty.findMany({
+      where: { companyId },
+      select: { accountCode: true, name: true, cif: true },
+    }),
   ])
+
+  const partyByAccount = new Map(
+    thirdParties.flatMap((party) => {
+      const digits = normalizeCuenta(party.accountCode)
+      return digits ? [[digits, party] as const] : []
+    }),
+  )
 
   const priorMatched = priorLines.filter((line) => matchesCuenta(line.cuenta, normalized))
   const openingBalance = round2(
@@ -202,6 +215,21 @@ export async function fetchAccountMovements(
       concepts: line.entry.lines.map((item) => item.concepto),
     })
 
+    const entryLines = line.entry.lines.map((item) => ({
+      cuenta: item.cuenta,
+      concepto: item.concepto,
+    }))
+    const thirdPartyLine = entryLines.find((item) => isThirdPartyAccountPrefix(item.cuenta))
+    const party = thirdPartyLine
+      ? partyByAccount.get(normalizeCuenta(thirdPartyLine.cuenta)) ?? null
+      : null
+    const concepto = correlateStoredInvoiceConcept(
+      { cuenta: line.cuenta, concepto: line.concepto },
+      entryLines,
+      line.entry.commandCode,
+      party,
+    )
+
     return {
       id: line.id,
       entryId: line.entry.id,
@@ -209,7 +237,7 @@ export async function fetchAccountMovements(
       fecha: line.entry.fecha.toISOString().split("T")[0],
       commandCode: line.entry.commandCode,
       documento: documento ? formatListingText(documento) : documento,
-      concepto: formatListingText(line.concepto),
+      concepto: formatListingText(concepto),
       contrapartida,
       debe,
       haber,

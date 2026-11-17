@@ -158,6 +158,45 @@ export function buildLineConceptForInvoice(
   return line.concepto
 }
 
+function isGenericInvoicePartyConcept(concepto: string): boolean {
+  return /(?:IVA\s+[SR]\.\/|Gasto a |Ventas a |Reten\.\/)\s*(PROVEEDORES|CLIENTES|ACREEDORES)(-VARIOS)?\s*$/i.test(
+    concepto.trim(),
+  )
+}
+
+function invoiceCommandFromLines(
+  commandCode: string | null | undefined,
+  lines: Array<Pick<AccountingEntryLine, "cuenta">>,
+): InvoiceConceptCommand | null {
+  if (commandCode === "17" || commandCode === "34") return commandCode
+  if (lines.some((line) => isVatAccountRecibida(line.cuenta))) return "34"
+  if (lines.some((line) => isVatAccountEmitida(line.cuenta))) return "17"
+  return null
+}
+
+/** El extracto usa el mismo nombre del tercero que el asiento, no el texto genérico guardado. */
+export function correlateStoredInvoiceConcept(
+  line: Pick<AccountingEntryLine, "cuenta" | "concepto">,
+  entryLines: Array<Pick<AccountingEntryLine, "cuenta" | "concepto">>,
+  commandCode: string | null | undefined,
+  party: { name: string; cif?: string | null } | null,
+): string {
+  if (!party?.name?.trim() || !isGenericInvoicePartyConcept(line.concepto)) return line.concepto
+  const code = invoiceCommandFromLines(commandCode, entryLines)
+  if (!code || !isInvoiceConceptAccountLine(line.cuenta, code)) return line.concepto
+  return buildLineConceptForInvoice(
+    line,
+    code,
+    {
+      invoiceNumber: "",
+      thirdPartyLabel: party.name,
+      invoiceMode: code === "17" ? "emitida" : "recibida",
+      nif: party.cif ?? undefined,
+    },
+    entryLines,
+  )
+}
+
 export function isInvoiceConceptAccountLine(
   cuenta: string,
   code: InvoiceConceptCommand,
