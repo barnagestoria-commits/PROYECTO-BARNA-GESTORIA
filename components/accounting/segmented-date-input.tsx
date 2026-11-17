@@ -169,15 +169,7 @@ export function SegmentedDateInput({
     const currentValue = parts[segment]
 
     if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      event.preventDefault()
-      const max = segment === "day" ? 31 : segment === "month" ? 12 : 9999
-      const min = segment === "year" ? 1900 : 1
-      const parsed = Number.parseInt(currentValue, 10)
-      const base = Number.isFinite(parsed) && parsed > 0 ? parsed : min
-      const delta = event.key === "ArrowUp" ? 1 : -1
-      const next = Math.min(max, Math.max(min, base + delta))
-      const width = segment === "year" ? 4 : 2
-      applyParts({ ...parts, [segment]: String(next).padStart(width, "0") })
+      onKeyDown?.(event)
       return
     }
 

@@ -193,6 +193,7 @@ export function QuickAccountingEntryForm() {
   const [draftFocusNonce, setDraftFocusNonce] = useState(0)
   const [committedEntries, setCommittedEntries] = useState<CommittedEntry[]>([])
   const [selectedCommittedEntryId, setSelectedCommittedEntryId] = useState<string | null>(null)
+  const [selectedCommittedLineIndex, setSelectedCommittedLineIndex] = useState<number | null>(null)
   const [analyticEnabled, setAnalyticEnabled] = useState(false)
   const [analyticByLineId, setAnalyticByLineId] = useState<Map<string, AnalyticDistributionInput[]>>(
     () => new Map(),
@@ -382,6 +383,7 @@ export function QuickAccountingEntryForm() {
 
   const focusCell = useCallback((row: number, field: EntryCellField) => {
     setSelectedCommittedEntryId(null)
+    setSelectedCommittedLineIndex(null)
     setActiveCell({ row, field })
     const el = inputRefs.current.get(cellKey(row, field))
     el?.focus()
@@ -403,60 +405,88 @@ export function QuickAccountingEntryForm() {
     return committedEntries[selectedCommittedIndex] ?? null
   }, [committedEntries, selectedCommittedIndex])
 
-  const scrollCommittedEntryIntoView = useCallback((entryId: string) => {
+  const scrollCommittedLineIntoView = useCallback((entryId: string, lineIndex: number) => {
     requestAnimationFrame(() => {
-      committedEntryRowRefs.current.get(entryId)?.scrollIntoView({ block: "nearest" })
+      committedEntryRowRefs.current.get(`${entryId}:${lineIndex}`)?.scrollIntoView({ block: "nearest" })
     })
   }, [])
 
-  const selectCommittedEntry = useCallback(
-    (entryId: string | null) => {
+  const selectCommittedLine = useCallback(
+    (entryId: string, lineIndex: number) => {
       setSelectedCommittedEntryId(entryId)
-      if (entryId) {
-        requestAnimationFrame(() => {
-          committedListRef.current?.focus({ preventScroll: true })
-          scrollCommittedEntryIntoView(entryId)
+      setSelectedCommittedLineIndex(lineIndex)
+      requestAnimationFrame(() => {
+        committedListRef.current?.focus({ preventScroll: true })
+        scrollCommittedLineIntoView(entryId, lineIndex)
+      })
+    },
+    [scrollCommittedLineIntoView],
+  )
+
+  const moveBetweenLines = useCallback(
+    (direction: "up" | "down") => {
+      type JournalSpot =
+        | { kind: "committed"; entryId: string; lineIndex: number }
+        | { kind: "draft"; row: number }
+
+      const spots: JournalSpot[] = []
+      for (const entry of committedEntries) {
+        entry.lines.forEach((_, lineIndex) => {
+          spots.push({ kind: "committed", entryId: entry.id, lineIndex })
         })
       }
+      lines.forEach((_, row) => {
+        spots.push({ kind: "draft", row })
+      })
+      if (spots.length === 0) return
+
+      const currentIndex = spots.findIndex((spot) => {
+        if (selectedCommittedEntryId != null && selectedCommittedLineIndex != null) {
+          return (
+            spot.kind === "committed" &&
+            spot.entryId === selectedCommittedEntryId &&
+            spot.lineIndex === selectedCommittedLineIndex
+          )
+        }
+        return spot.kind === "draft" && spot.row === activeCell.row
+      })
+
+      const fallback = direction === "up" ? spots.length - 1 : 0
+      const start = currentIndex >= 0 ? currentIndex : fallback
+      const nextIndex = direction === "up" ? start - 1 : start + 1
+      if (nextIndex < 0 || nextIndex >= spots.length) return
+
+      const next = spots[nextIndex]
+      if (!next) return
+      if (next.kind === "committed") {
+        selectCommittedLine(next.entryId, next.lineIndex)
+        return
+      }
+      focusCell(next.row, activeCell.field)
     },
-    [scrollCommittedEntryIntoView],
+    [
+      activeCell.field,
+      activeCell.row,
+      committedEntries,
+      focusCell,
+      lines,
+      selectCommittedLine,
+      selectedCommittedEntryId,
+      selectedCommittedLineIndex,
+    ],
   )
 
-  const navigateCommittedEntry = useCallback(
-    (direction: "up" | "down") => {
-      if (committedEntries.length === 0) return
-
-      if (selectedCommittedIndex < 0) {
-        if (direction === "up") {
-          selectCommittedEntry(committedEntries[committedEntries.length - 1].id)
-        }
-        return
-      }
-
-      if (direction === "up") {
-        if (selectedCommittedIndex <= 0) {
-          selectCommittedEntry(committedEntries[0].id)
-          return
-        }
-        selectCommittedEntry(committedEntries[selectedCommittedIndex - 1].id)
-        return
-      }
-
-      if (selectedCommittedIndex >= committedEntries.length - 1) {
-        selectCommittedEntry(null)
-        requestAnimationFrame(() => focusCell(0, "fecha"))
-        return
-      }
-
-      selectCommittedEntry(committedEntries[selectedCommittedIndex + 1].id)
-    },
-    [committedEntries, focusCell, selectCommittedEntry, selectedCommittedIndex],
-  )
-
-  const openSelectedCommittedEntry = useCallback(() => {
-    if (!selectedCommittedEntryId) return
-    setEditEntryId(selectedCommittedEntryId)
-  }, [selectedCommittedEntryId])
+  const openSelectedLineExtract = useCallback(() => {
+    if (!selectedCommittedEntry || selectedCommittedLineIndex == null) return
+    const account = selectedCommittedEntry.lines[selectedCommittedLineIndex]?.cuenta?.trim()
+    if (!account || !isValidAccountValue(account)) {
+      setCompanyExtractOpen(true)
+      return
+    }
+    setSubmitError(null)
+    setMovementsAccount(account)
+    setMovementsDialogOpen(true)
+  }, [selectedCommittedEntry, selectedCommittedLineIndex])
 
   const isEntryNavigationBlocked = useCallback(() => {
     return (
@@ -1095,7 +1125,13 @@ export function QuickAccountingEntryForm() {
     field: EntryCellField,
   ) => {
     if (!isEntryNavigationBlocked()) {
-      if (event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight") {
+      if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+        return
+      }
+      if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+        event.preventDefault()
+        event.stopPropagation()
+        moveBetweenLines(event.key === "ArrowUp" ? "up" : "down")
         return
       }
     }
@@ -1216,24 +1252,22 @@ export function QuickAccountingEntryForm() {
         target instanceof HTMLSelectElement
 
       if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-        if (committedEntries.length === 0) return
-        if (committedListRef.current?.contains(event.target as Node)) return
         if (inDraftInput) return
-
         event.preventDefault()
-        navigateCommittedEntry(event.key === "ArrowUp" ? "up" : "down")
+        moveBetweenLines(event.key === "ArrowUp" ? "up" : "down")
         return
       }
 
       if (event.key === "Enter" && selectedCommittedEntryId && !inDraftInput) {
         event.preventDefault()
-        openSelectedCommittedEntry()
+        openSelectedLineExtract()
         return
       }
 
       if (event.key === "Escape" && selectedCommittedEntryId) {
         event.preventDefault()
-        selectCommittedEntry(null)
+        setSelectedCommittedEntryId(null)
+        setSelectedCommittedLineIndex(null)
         focusCell(0, "fecha")
       }
     }
@@ -1245,12 +1279,11 @@ export function QuickAccountingEntryForm() {
     committedEntries.length,
     focusCell,
     isEntryNavigationBlocked,
-    navigateCommittedEntry,
+    moveBetweenLines,
     openCompanyExtract,
     capturingEntryShortcut,
     entryShortcuts,
-    openSelectedCommittedEntry,
-    selectCommittedEntry,
+    openSelectedLineExtract,
     selectedCommittedEntryId,
   ])
 
@@ -1323,18 +1356,26 @@ export function QuickAccountingEntryForm() {
   )
 
   const activeAccountLabel = useMemo(() => {
-    const cuentas = selectedCommittedEntry
-      ? selectedCommittedEntry.lines.map((line) => line.cuenta)
-      : [lines[activeCell.row]?.cuenta ?? ""]
+    const cuentas =
+      selectedCommittedEntry && selectedCommittedLineIndex != null
+        ? [selectedCommittedEntry.lines[selectedCommittedLineIndex]?.cuenta ?? ""]
+        : [lines[activeCell.row]?.cuenta ?? ""]
     return describeEntryAccountLabels(cuentas, thirdParties, ledgerSubaccounts)
-  }, [activeCell.row, ledgerSubaccounts, lines, selectedCommittedEntry, thirdParties])
+  }, [
+    activeCell.row,
+    ledgerSubaccounts,
+    lines,
+    selectedCommittedEntry,
+    selectedCommittedLineIndex,
+    thirdParties,
+  ])
 
   const entryStatusHint = useMemo((): string => {
     if (selectedCommittedEntry) {
-      return `Asiento Ref. ${selectedCommittedEntry.refNumber} — ↑↓ navegar · Enter editar · Esc nuevo asiento`
+      return `Asiento Ref. ${selectedCommittedEntry.refNumber} — ↑↓ otra línea · Enter extracto de la cuenta · doble clic editar · Esc volver`
     }
     if (committedEntries.length > 0) {
-      return "Tab o Enter pasan de casilla · las flechas mueven el cursor dentro del campo"
+      return "Tab o Enter pasan de casilla · ↑↓ cambian de línea · ←→ mueven el cursor en la casilla"
     }
     if (activeCell.field === "codigo") {
       return `Indique el Código de Predefinido o Pulse ${entryShortcuts.byName}`
@@ -1559,7 +1600,7 @@ export function QuickAccountingEntryForm() {
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-graphite-500">
-              Tab o Enter para pasar de casilla · las flechas mueven el cursor · {entryShortcuts.byName} plan contable · {entryShortcuts.byCif} NIF · EX extracto
+              Tab o Enter para pasar de casilla · ↑↓ cambian de línea · ←→ mueven el cursor · {entryShortcuts.byName} plan contable · {entryShortcuts.byCif} NIF · EX extracto
             </p>
             <button
               type="button"
@@ -1620,7 +1661,7 @@ export function QuickAccountingEntryForm() {
                   {committedEntries.length} asiento{committedEntries.length === 1 ? "" : "s"}
                 </strong>{" "}
                 · {committedEntries.reduce((sum, entry) => sum + entry.lines.length, 0)} líneas
-                visibles · <span className="text-graphite-500">↑↓ navegar la lista · Enter editar</span>
+                visibles · <span className="text-graphite-500">↑↓ línea a línea · Enter extracto · doble clic editar</span>
               </span>
               <Button
                 type="button"
@@ -1630,6 +1671,7 @@ export function QuickAccountingEntryForm() {
                 onClick={() => {
                   setCommittedEntries([])
                   setSelectedCommittedEntryId(null)
+                  setSelectedCommittedLineIndex(null)
                 }}
               >
                 Limpiar vista
@@ -1659,29 +1701,27 @@ export function QuickAccountingEntryForm() {
                 className="min-h-0 flex-1 overflow-y-auto overflow-x-auto border-b border-sand-200 bg-sand-50/40 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400"
                 onKeyDown={(event) => {
                   if (isEntryNavigationBlocked()) return
-                  if (event.key === "ArrowUp") {
+                  if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                     event.preventDefault()
                     event.stopPropagation()
-                    navigateCommittedEntry("up")
-                  }
-                  if (event.key === "ArrowDown") {
-                    event.preventDefault()
-                    event.stopPropagation()
-                    navigateCommittedEntry("down")
+                    moveBetweenLines(event.key === "ArrowUp" ? "up" : "down")
                   }
                   if (event.key === "Enter" && selectedCommittedEntryId) {
                     event.preventDefault()
-                    openSelectedCommittedEntry()
+                    event.stopPropagation()
+                    openSelectedLineExtract()
                   }
                   if (event.key === "Escape") {
                     event.preventDefault()
-                    selectCommittedEntry(null)
+                    setSelectedCommittedEntryId(null)
+                    setSelectedCommittedLineIndex(null)
                     focusCell(0, "fecha")
                   }
                 }}
                 onFocus={() => {
-                  if (!selectedCommittedEntryId && committedEntries.length > 0) {
-                    selectCommittedEntry(committedEntries[committedEntries.length - 1].id)
+                  if (selectedCommittedEntryId == null && committedEntries.length > 0) {
+                    const last = committedEntries[committedEntries.length - 1]
+                    if (last) selectCommittedLine(last.id, Math.max(0, last.lines.length - 1))
                   }
                 }}
               >
@@ -1701,18 +1741,18 @@ export function QuickAccountingEntryForm() {
                   <tbody>
                     {committedEntries.map((entry) =>
                       entry.lines.map((line, lineIndex) => {
-                        const isSelected = selectedCommittedEntryId === entry.id
+                        const isSelected =
+                          selectedCommittedEntryId === entry.id && selectedCommittedLineIndex === lineIndex
                         return (
                         <tr
                           key={`${entry.id}-${lineIndex}`}
                           id={lineIndex === 0 ? `committed-entry-${entry.id}` : undefined}
                           ref={(element) => {
-                            if (lineIndex === 0) {
-                              if (element) {
-                                committedEntryRowRefs.current.set(entry.id, element)
-                              } else {
-                                committedEntryRowRefs.current.delete(entry.id)
-                              }
+                            const key = `${entry.id}:${lineIndex}`
+                            if (element) {
+                              committedEntryRowRefs.current.set(key, element)
+                            } else {
+                              committedEntryRowRefs.current.delete(key)
                             }
                           }}
                           role="option"
@@ -1723,9 +1763,9 @@ export function QuickAccountingEntryForm() {
                               ? "bg-emerald-100/90 text-emerald-950"
                               : "hover:bg-emerald-50/60",
                           )}
-                          onClick={() => selectCommittedEntry(entry.id)}
+                          onClick={() => selectCommittedLine(entry.id, lineIndex)}
                           onDoubleClick={() => setEditEntryId(entry.id)}
-                          title={`Asiento ${entry.refNumber} — clic seleccionar · doble clic o Enter editar`}
+                          title={`Asiento ${entry.refNumber} — ↑↓ otra línea · Enter extracto de ${line.cuenta || "la cuenta"} · doble clic editar`}
                         >
                           <td className="px-2 py-1.5 font-mono text-xs">
                             {lineIndex === 0 ? entry.fecha : ""}
