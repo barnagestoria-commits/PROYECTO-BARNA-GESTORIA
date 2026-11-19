@@ -19,7 +19,9 @@ const PANORAMA_VIEWS: Array<{ id: FiscalPanoramaScope; label: string }> = [
 
 export default function FiscalPanoramaPage() {
   const { session, activeCompany } = useRequireAuth()
-  const { year, setYear, options: yearOptions } = useAccountingExerciseYear(session?.activeCompanyId)
+  const { year, setYear, options: yearOptions } = useAccountingExerciseYear(
+    session?.activeCompanyId ?? undefined,
+  )
   const [scope, setScope] = useState<FiscalPanoramaScope>("trimestral")
   const [panorama, setPanorama] = useState<FiscalPanoramaResponse | null>(null)
   const [isLoadingPanorama, setIsLoadingPanorama] = useState(false)

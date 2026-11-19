@@ -101,13 +101,13 @@ export async function upsertFiscalDeclaration(
   }
 
   const notes =
-    input.notes === undefined ? undefined : input.notes.trim() ? input.notes.trim() : null
+    input.notes === undefined ? undefined : input.notes?.trim() ? input.notes.trim() : null
 
   const row = await prisma.fiscalDeclaration.upsert({
     where: {
       companyId_year_quarter_modelCode: {
         companyId,
-        year,
+        year: input.year,
         quarter: input.quarter,
         modelCode: modelIdToPrismaCode(input.modelCode),
       },
