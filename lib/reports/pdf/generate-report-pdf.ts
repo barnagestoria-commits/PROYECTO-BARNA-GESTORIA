@@ -201,7 +201,9 @@ function sectionTable(
     subtotals?: Array<number | null>
   }>,
   columns: StatementColumn[],
+  options: { includeSubtotal?: boolean } = {},
 ): Content[] {
+  const includeSubtotal = options.includeSubtotal !== false
   const content: Content[] = []
   const valueWidth = columns.length > 6 ? 36 : 52
 
@@ -226,7 +228,10 @@ function sectionTable(
           ...columns.map((column, index) => pdfValue(column, values[index] ?? null, "amount")),
         ]
       }),
-      [
+    ]
+
+    if (includeSubtotal) {
+      body.push([
         { text: `Subtotal ${section.title}`, style: "totalRow" },
         { text: "", style: "totalRow" },
         ...columns.map((column, index) =>
@@ -236,14 +241,15 @@ function sectionTable(
             "totalRow",
           ),
         ),
-      ],
-    ]
+      ])
+    }
 
     content.push({
       table: {
         headerRows: 1,
-        widths: [44, "*", ...columns.map(() => valueWidth)],
+        widths: [52, "*", ...columns.map(() => valueWidth)],
         body,
+        dontBreakRows: true,
       },
       layout: {
         ...tableLayout,
@@ -297,15 +303,78 @@ function totalLine(
   }
 }
 
+function flattenSectionRows(
+  sections: Array<{
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>
+  }>,
+): Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }> {
+  return sections.flatMap((section) => section.rows)
+}
+
+/** Bloque vertical a ancho completo, al estilo listado A3 (Activo → Pasivo / Ingresos → Gastos). */
+function statementBlock(
+  title: string,
+  rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>,
+  columns: StatementColumn[],
+  emptyMessage: string,
+): Content[] {
+  if (rows.length === 0) {
+    return [
+      { text: title, style: "sectionTitle", margin: [0, 4, 0, 3] },
+      { text: emptyMessage, style: "empty" },
+    ]
+  }
+
+  const valueWidth = columns.length > 6 ? 36 : 52
+  const body: TableCell[][] = [
+    [
+      { text: "Cuenta", style: "tableHeader" },
+      { text: "Descripción", style: "tableHeader" },
+      ...columns.map((column) => ({ text: column.label, style: "tableHeader", alignment: "right" as const })),
+    ],
+    ...rows.map((row): TableCell[] => {
+      const values = row.values && row.values.length === columns.length
+        ? row.values
+        : columns.map((_, index) => (index === 0 ? row.amount : row.compareAmount ?? 0))
+      return [
+        cuentaCell(row.cuenta),
+        labelCell(row.label, row.level),
+        ...columns.map((column, index) => pdfValue(column, values[index] ?? null, "amount")),
+      ]
+    }),
+  ]
+
+  return [
+    { text: title, style: "sectionTitle", margin: [0, 4, 0, 3] },
+    {
+      table: {
+        headerRows: 1,
+        widths: [52, "*", ...columns.map(() => valueWidth)],
+        body,
+        dontBreakRows: true,
+      },
+      layout: {
+        ...tableLayout,
+        fillColor: (rowIndex: number) => {
+          if (rowIndex === 0) return EMERALD
+          return rowIndex % 2 === 0 ? ZEBRA : null
+        },
+      },
+      margin: [0, 0, 0, 2],
+    },
+  ]
+}
+
 function buildBalancePdf(report: BalanceReportData): Content[] {
   const columns = statementColumns(report.meta)
+  // Orden tipo A3/Zimmermann: primero todo el ACTIVO, después PATRIMONIO NETO Y PASIVO.
   return [
     { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.activo.length > 0
       ? sectionTable(report.activo, columns)
       : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
     totalLine("TOTAL ACTIVO", report.totalActivo, report.totalActivoCompare, columns, report.totalActivoValues),
-    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
+    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 10, 0, 2] },
     ...(report.pasivo.length > 0
       ? sectionTable(report.pasivo, columns)
       : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
@@ -321,10 +390,14 @@ function buildBalancePdf(report: BalanceReportData): Content[] {
 
 function buildPygPdf(report: PygReportData): Content[] {
   const columns = statementColumns(report.meta)
+  // Orden vertical a ancho completo (como el listado A3): ingresos → gastos → resultado.
   const content: Content[] = [
-    ...(report.ingresos.length > 0
-      ? sectionTable(report.ingresos, columns)
-      : [{ text: "Sin ingresos registrados en el periodo.", style: "empty" }]),
+    ...statementBlock(
+      "INGRESOS",
+      flattenSectionRows(report.ingresos),
+      columns,
+      "Sin ingresos registrados en el periodo.",
+    ),
     totalLine(
       "TOTAL INGRESOS",
       report.totalIngresos,
@@ -332,9 +405,12 @@ function buildPygPdf(report: PygReportData): Content[] {
       columns,
       report.totalIngresosValues,
     ),
-    ...(report.gastos.length > 0
-      ? sectionTable(report.gastos, columns)
-      : [{ text: "Sin gastos registrados en el periodo.", style: "empty" }]),
+    ...statementBlock(
+      "GASTOS",
+      flattenSectionRows(report.gastos),
+      columns,
+      "Sin gastos registrados en el periodo.",
+    ),
     totalLine(
       "TOTAL GASTOS",
       report.totalGastos,
