@@ -8,7 +8,6 @@ import { formatAccountCodeDisplay } from "@/lib/accounting/third-party-types"
 import type {
   BalanceReportData,
   PygReportData,
-  PygSection,
   ReportMeta,
   ReportType,
   SumasSaldosReportData,
@@ -22,8 +21,6 @@ const MUTED = "#6B7280"
 const BORDER = "#E5E7EB"
 const ZEBRA = "#F9FAFB"
 
-type PdfDensity = "normal" | "compact"
-
 const tableLayout = {
   hLineWidth: () => 0.5,
   vLineWidth: () => 0,
@@ -34,73 +31,57 @@ const tableLayout = {
   paddingBottom: () => 4,
 }
 
-const compactTableLayout = {
-  hLineWidth: () => 0.4,
-  vLineWidth: () => 0,
-  hLineColor: () => BORDER,
-  paddingLeft: () => 3,
-  paddingRight: () => 3,
-  paddingTop: () => 1.5,
-  paddingBottom: () => 1.5,
+function labelCell(label: string, level: number): TableCell {
+  return { text: `${"  ".repeat(level)}${label}`, fontSize: 8 }
 }
 
-function rowFontSize(density: PdfDensity): number {
-  return density === "compact" ? 6.5 : 8
+function cuentaCell(cuenta: string): TableCell {
+  return { text: formatAccountCodeDisplay(cuenta), fontSize: 8 }
 }
 
-function labelCell(label: string, level: number, density: PdfDensity = "normal"): TableCell {
-  return { text: `${"  ".repeat(level)}${label}`, fontSize: rowFontSize(density) }
-}
-
-function cuentaCell(cuenta: string, density: PdfDensity = "normal"): TableCell {
-  return { text: formatAccountCodeDisplay(cuenta), fontSize: rowFontSize(density) }
-}
-
-function amountCell(value: number, density: PdfDensity = "normal"): TableCell {
+function amountCell(value: number): TableCell {
   return {
     text: formatAmount(value),
     alignment: "right",
-    fontSize: rowFontSize(density),
+    fontSize: 8,
     noWrap: true,
   }
 }
 
-function headerBlock(meta: ReportMeta, density: PdfDensity = "normal"): Content[] {
-  const compact = density === "compact"
+function headerBlock(meta: ReportMeta): Content[] {
   return [
     {
       columns: [
         {
           width: "*",
           stack: [
-            { text: "TAXLYN", style: "brand", margin: [0, 0, 0, compact ? 1 : 2] },
-            { text: meta.reportTitle, style: compact ? "titleCompact" : "title" },
+            { text: "TAXLYN", style: "brand", margin: [0, 0, 0, 2] },
+            { text: meta.reportTitle, style: "title" },
           ],
         },
         {
           width: "auto",
           alignment: "right",
           stack: [
-            { text: meta.companyName, style: compact ? "companyNameCompact" : "companyName" },
+            { text: meta.companyName, style: "companyName" },
             { text: meta.companyCif ? `NIF: ${meta.companyCif}` : "NIF: —", style: "meta" },
             { text: `Ejercicio ${meta.year}`, style: "meta" },
             { text: meta.periodLabel, style: "meta" },
           ],
         },
       ],
-      margin: [0, 0, 0, compact ? 4 : 8],
+      margin: [0, 0, 0, 8],
     },
     {
-      canvas: [{ type: "rect", x: 0, y: 0, w: compact ? 539 : 515, h: compact ? 1.5 : 2, color: EMERALD }],
-      margin: [0, 0, 0, compact ? 8 : 16],
+      canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 2, color: EMERALD }],
+      margin: [0, 0, 0, 16],
     },
   ]
 }
 
-function footer(meta: ReportMeta, density: PdfDensity = "normal"): TDocumentDefinitions["footer"] {
-  const side = density === "compact" ? 28 : 40
+function footer(meta: ReportMeta): TDocumentDefinitions["footer"] {
   return (currentPage, pageCount) => ({
-    margin: [side, 0, side, 16],
+    margin: [40, 0, 40, 16],
     columns: [
       {
         text: `Generado el ${formatDateTimeEs(meta.generatedAt)}`,
@@ -121,18 +102,12 @@ function baseStyles(): TDocumentDefinitions["styles"] {
   return {
     brand: { fontSize: 8, bold: true, color: EMERALD, characterSpacing: 1.2 },
     title: { fontSize: 16, bold: true, color: EMERALD_DARK },
-    titleCompact: { fontSize: 12, bold: true, color: EMERALD_DARK },
     companyName: { fontSize: 10, bold: true, color: GRAPHITE },
-    companyNameCompact: { fontSize: 8, bold: true, color: GRAPHITE },
     meta: { fontSize: 8, color: MUTED, margin: [0, 1, 0, 0] },
     sectionTitle: { fontSize: 10, bold: true, color: EMERALD_DARK, margin: [0, 10, 0, 6] },
-    sectionTitleCompact: { fontSize: 8, bold: true, color: EMERALD_DARK, margin: [0, 0, 0, 3] },
     tableHeader: { bold: true, color: "#FFFFFF", fontSize: 8 },
-    tableHeaderCompact: { bold: true, color: "#FFFFFF", fontSize: 6.5 },
     totalRow: { bold: true, color: EMERALD_DARK, fontSize: 9 },
-    totalRowCompact: { bold: true, color: EMERALD_DARK, fontSize: 7 },
     empty: { fontSize: 9, color: MUTED, italics: true, margin: [0, 20, 0, 0] },
-    emptyCompact: { fontSize: 7, color: MUTED, italics: true, margin: [0, 6, 0, 0] },
   }
 }
 
@@ -226,7 +201,9 @@ function sectionTable(
     subtotals?: Array<number | null>
   }>,
   columns: StatementColumn[],
+  options: { includeSubtotal?: boolean } = {},
 ): Content[] {
+  const includeSubtotal = options.includeSubtotal !== false
   const content: Content[] = []
   const valueWidth = columns.length > 6 ? 36 : 52
 
@@ -251,7 +228,10 @@ function sectionTable(
           ...columns.map((column, index) => pdfValue(column, values[index] ?? null, "amount")),
         ]
       }),
-      [
+    ]
+
+    if (includeSubtotal) {
+      body.push([
         { text: `Subtotal ${section.title}`, style: "totalRow" },
         { text: "", style: "totalRow" },
         ...columns.map((column, index) =>
@@ -261,14 +241,15 @@ function sectionTable(
             "totalRow",
           ),
         ),
-      ],
-    ]
+      ])
+    }
 
     content.push({
       table: {
         headerRows: 1,
-        widths: [44, "*", ...columns.map(() => valueWidth)],
+        widths: [52, "*", ...columns.map(() => valueWidth)],
         body,
+        dontBreakRows: true,
       },
       layout: {
         ...tableLayout,
@@ -322,15 +303,78 @@ function totalLine(
   }
 }
 
+function flattenSectionRows(
+  sections: Array<{
+    rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>
+  }>,
+): Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }> {
+  return sections.flatMap((section) => section.rows)
+}
+
+/** Bloque vertical a ancho completo, al estilo listado A3 (Activo → Pasivo / Ingresos → Gastos). */
+function statementBlock(
+  title: string,
+  rows: Array<{ cuenta: string; label: string; amount: number; compareAmount?: number; values?: Array<number | null>; level: number }>,
+  columns: StatementColumn[],
+  emptyMessage: string,
+): Content[] {
+  if (rows.length === 0) {
+    return [
+      { text: title, style: "sectionTitle", margin: [0, 4, 0, 3] },
+      { text: emptyMessage, style: "empty" },
+    ]
+  }
+
+  const valueWidth = columns.length > 6 ? 36 : 52
+  const body: TableCell[][] = [
+    [
+      { text: "Cuenta", style: "tableHeader" },
+      { text: "Descripción", style: "tableHeader" },
+      ...columns.map((column) => ({ text: column.label, style: "tableHeader", alignment: "right" as const })),
+    ],
+    ...rows.map((row): TableCell[] => {
+      const values = row.values && row.values.length === columns.length
+        ? row.values
+        : columns.map((_, index) => (index === 0 ? row.amount : row.compareAmount ?? 0))
+      return [
+        cuentaCell(row.cuenta),
+        labelCell(row.label, row.level),
+        ...columns.map((column, index) => pdfValue(column, values[index] ?? null, "amount")),
+      ]
+    }),
+  ]
+
+  return [
+    { text: title, style: "sectionTitle", margin: [0, 4, 0, 3] },
+    {
+      table: {
+        headerRows: 1,
+        widths: [52, "*", ...columns.map(() => valueWidth)],
+        body,
+        dontBreakRows: true,
+      },
+      layout: {
+        ...tableLayout,
+        fillColor: (rowIndex: number) => {
+          if (rowIndex === 0) return EMERALD
+          return rowIndex % 2 === 0 ? ZEBRA : null
+        },
+      },
+      margin: [0, 0, 0, 2],
+    },
+  ]
+}
+
 function buildBalancePdf(report: BalanceReportData): Content[] {
   const columns = statementColumns(report.meta)
+  // Orden tipo A3/Zimmermann: primero todo el ACTIVO, después PATRIMONIO NETO Y PASIVO.
   return [
     { text: "ACTIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
     ...(report.activo.length > 0
       ? sectionTable(report.activo, columns)
       : [{ text: "Sin saldos de activo en el periodo.", style: "empty" }]),
     totalLine("TOTAL ACTIVO", report.totalActivo, report.totalActivoCompare, columns, report.totalActivoValues),
-    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 0, 0, 2] },
+    { text: "PATRIMONIO NETO Y PASIVO", style: "sectionTitle", margin: [0, 10, 0, 2] },
     ...(report.pasivo.length > 0
       ? sectionTable(report.pasivo, columns)
       : [{ text: "Sin saldos de pasivo en el periodo.", style: "empty" }]),
@@ -344,95 +388,71 @@ function buildBalancePdf(report: BalanceReportData): Content[] {
   ]
 }
 
-function pygColumn(
-  title: string,
-  sections: PygSection[],
-  totalLabel: string,
-  total: number,
-): Content {
-  const rows = sections.flatMap((section) => section.rows)
-  const body: TableCell[][] = [
-    [
-      { text: "Cta.", style: "tableHeaderCompact" },
-      { text: "Descripción", style: "tableHeaderCompact" },
-      { text: "Importe", style: "tableHeaderCompact", alignment: "right" },
-    ],
-    ...rows.map(
-      (row): TableCell[] => [
-        cuentaCell(row.cuenta, "compact"),
-        labelCell(row.label, 0, "compact"),
-        amountCell(row.amount, "compact"),
-      ],
-    ),
-    [
-      { text: totalLabel, style: "totalRowCompact", colSpan: 2 },
-      { text: "" },
-      {
-        text: formatAmount(total),
-        style: "totalRowCompact",
-        alignment: "right",
-      },
-    ],
-  ]
-
-  return {
-    stack: [
-      { text: title, style: "sectionTitleCompact" },
-      rows.length === 0
-        ? { text: "Sin movimientos en el periodo.", style: "emptyCompact" }
-        : {
-            table: {
-              headerRows: 1,
-              widths: [34, "*", 48],
-              body,
-            },
-            layout: {
-              ...compactTableLayout,
-              fillColor: (rowIndex: number) => tableFillColor(rowIndex, body.length),
-            },
-          },
-    ],
-  }
-}
-
 function buildPygPdf(report: PygReportData): Content[] {
   const columns = statementColumns(report.meta)
+  // Orden vertical a ancho completo (como el listado A3): ingresos → gastos → resultado.
+  const content: Content[] = [
+    ...statementBlock(
+      "INGRESOS",
+      flattenSectionRows(report.ingresos),
+      columns,
+      "Sin ingresos registrados en el periodo.",
+    ),
+    totalLine(
+      "TOTAL INGRESOS",
+      report.totalIngresos,
+      report.totalIngresosCompare,
+      columns,
+      report.totalIngresosValues,
+    ),
+    ...statementBlock(
+      "GASTOS",
+      flattenSectionRows(report.gastos),
+      columns,
+      "Sin gastos registrados en el periodo.",
+    ),
+    totalLine(
+      "TOTAL GASTOS",
+      report.totalGastos,
+      report.totalGastosCompare,
+      columns,
+      report.totalGastosValues,
+    ),
+  ]
+
   if (columns.length > 1) {
-    return [
-      ...sectionTable(report.ingresos, columns),
-      totalLine("TOTAL INGRESOS", report.totalIngresos, report.totalIngresosCompare, columns, report.totalIngresosValues),
-      ...sectionTable(report.gastos, columns),
-      totalLine("TOTAL GASTOS", report.totalGastos, report.totalGastosCompare, columns, report.totalGastosValues),
-      totalLine("RESULTADO DEL EJERCICIO", report.resultado, report.resultadoCompare, columns, report.resultadoValues),
-    ]
+    content.push(
+      totalLine(
+        "RESULTADO DEL EJERCICIO",
+        report.resultado,
+        report.resultadoCompare,
+        columns,
+        report.resultadoValues,
+      ),
+    )
+    return content
   }
 
-  return [
+  content.push(
     {
-      columns: [
-        pygColumn("GASTOS", report.gastos, "TOTAL GASTOS", report.totalGastos),
-        { width: 10, text: "" },
-        pygColumn("INGRESOS", report.ingresos, "TOTAL INGRESOS", report.totalIngresos),
-      ],
-      columnGap: 0,
-    },
-    {
-      canvas: [{ type: "rect", x: 0, y: 0, w: 539, h: 1, color: BORDER }],
-      margin: [0, 8, 0, 6],
+      canvas: [{ type: "rect", x: 0, y: 0, w: 515, h: 1, color: BORDER }],
+      margin: [0, 4, 0, 8],
     },
     {
       columns: [
-        { text: "RESULTADO DEL EJERCICIO", fontSize: 9, bold: true, color: EMERALD_DARK },
+        { text: "RESULTADO DEL EJERCICIO", fontSize: 11, bold: true, color: EMERALD_DARK },
         {
           text: formatEuro(report.resultado),
-          fontSize: 9,
+          fontSize: 11,
           bold: true,
           alignment: "right",
           color: report.resultado >= 0 ? EMERALD : "#B91C1C",
         },
       ],
     },
-  ]
+  )
+
+  return content
 }
 
 export async function generateReportPdf(type: ReportType, query: LedgerQuery): Promise<Buffer> {
@@ -440,7 +460,6 @@ export async function generateReportPdf(type: ReportType, query: LedgerQuery): P
 
   let content: Content[]
   let meta: ReportMeta
-  let density: PdfDensity = "normal"
 
   switch (report.type) {
     case "sumas-saldos":
@@ -454,20 +473,18 @@ export async function generateReportPdf(type: ReportType, query: LedgerQuery): P
     case "pyg":
       meta = report.data.meta
       content = buildPygPdf(report.data)
-      density = "compact"
       break
   }
 
-  const compact = density === "compact"
   const wide = (meta.columns?.length ?? 0) > 4
   const doc: TDocumentDefinitions = {
     pageSize: "A4",
     pageOrientation: wide ? "landscape" : "portrait",
-    pageMargins: compact ? [28, 24, 28, 36] : [40, 36, 40, 48],
-    defaultStyle: { font: "Roboto", fontSize: compact ? 7 : 9, color: GRAPHITE },
+    pageMargins: [40, 36, 40, 48],
+    defaultStyle: { font: "Roboto", fontSize: 9, color: GRAPHITE },
     styles: baseStyles(),
-    footer: footer(meta, density),
-    content: [...headerBlock(meta, density), ...content],
+    footer: footer(meta),
+    content: [...headerBlock(meta), ...content],
   }
 
   return createPdfBuffer(doc)
